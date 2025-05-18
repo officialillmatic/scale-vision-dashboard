@@ -18,11 +18,14 @@ export interface CallData {
 
 export const fetchCalls = async (): Promise<CallData[]> => {
   try {
-    // Use type assertion for the from() method to bypass TypeScript errors
-    const { data, error } = await (supabase
-      .from("calls") as any)
+    // Use explicit type casting for the Supabase client
+    const { data, error } = await supabase
+      .from("calls") 
       .select("*")
-      .order("timestamp", { ascending: false });
+      .order("timestamp", { ascending: false }) as unknown as {
+        data: any[] | null;
+        error: any;
+      };
 
     if (error) {
       console.error("Error fetching calls:", error);

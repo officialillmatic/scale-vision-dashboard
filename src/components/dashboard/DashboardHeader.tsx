@@ -14,27 +14,35 @@ import {
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function DashboardHeader() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { user, signOut } = useAuth();
   
-  // This would come from auth context in a real implementation
-  const [user] = useState({
-    name: "Alice Johnson",
-    email: "alice@example.com",
-    company: "Acme Inc.",
-    avatarUrl: "", // Empty for fallback
-  });
+  // Fallback user data if auth not available
+  const userName = user?.email?.split('@')[0] || "User";
+  const userEmail = user?.email || "user@example.com";
+  const company = "Acme Inc."; // This could come from a user profile in the future
 
-  const handleLogout = () => {
-    // Here we would handle Supabase logout
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully.",
-    });
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully.",
+      });
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -44,7 +52,7 @@ export function DashboardHeader() {
       <div className="flex items-center gap-4 ml-auto">
         <div className="hidden md:flex items-center mr-4">
           <span className="text-sm text-muted-foreground mr-2">
-            {user.company}
+            {company}
           </span>
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500"></span>
         </div>
@@ -53,9 +61,9 @@ export function DashboardHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9">
-                <AvatarImage src={user.avatarUrl} />
+                <AvatarImage src="" />
                 <AvatarFallback className="bg-brand-purple text-white">
-                  {user.name.split(" ").map(name => name[0]).join("")}
+                  {userName.substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -63,8 +71,8 @@ export function DashboardHeader() {
           <DropdownMenuContent className="w-56" align="end">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">{user.name}</p>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
+                <p className="text-sm font-medium">{userName}</p>
+                <p className="text-xs text-muted-foreground">{userEmail}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

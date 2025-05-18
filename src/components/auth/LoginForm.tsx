@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -18,18 +19,47 @@ export function LoginForm() {
     setIsLoading(true);
     
     try {
-      // Here we would typically connect to Supabase auth
-      // For now, let's simulate a successful login
-      console.log("Login attempt with:", { email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      // Simulating auth process
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (error) {
+        throw error;
+      }
       
       toast.success("Successfully logged in!");
       navigate("/dashboard");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("Failed to log in. Please check your credentials.");
+      toast.error(error.message || "Failed to log in. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignUp = async () => {
+    if (!email || !password) {
+      toast.error("Please enter both email and password");
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast.success("Account created! Please check your email to confirm your registration.");
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      toast.error(error.message || "Failed to create account. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -88,13 +118,22 @@ export function LoginForm() {
             />
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-col gap-2">
           <Button 
             className="w-full bg-brand-purple hover:bg-brand-deep-purple" 
             type="submit" 
             disabled={isLoading}
           >
             {isLoading ? "Signing in..." : "Sign In"}
+          </Button>
+          <Button 
+            className="w-full" 
+            type="button" 
+            variant="outline"
+            disabled={isLoading}
+            onClick={handleSignUp}
+          >
+            Create an account
           </Button>
         </CardFooter>
       </form>
