@@ -1,15 +1,13 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CallsTable } from "@/types/supabase";
 
-export type CallData = CallsTable & {
+export type CallData = Omit<CallsTable, 'timestamp'> & {
   timestamp: Date; // Override timestamp to be a Date object
 };
 
 export const fetchCalls = async (): Promise<CallData[]> => {
   try {
-    // Use a type assertion to inform TypeScript about the structure
     const { data, error } = await supabase
       .from("calls") 
       .select("*")
@@ -22,7 +20,7 @@ export const fetchCalls = async (): Promise<CallData[]> => {
     }
 
     // Convert timestamp strings to Date objects with proper type assertions
-    return (data || []).map((call: any) => ({
+    return (data || []).map((call): CallData => ({
       id: call.id,
       call_id: call.call_id,
       timestamp: new Date(call.timestamp),
