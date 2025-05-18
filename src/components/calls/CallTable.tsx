@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -24,44 +25,42 @@ import {
 } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
-
-// Mock data for the call table
-const callData = Array.from({ length: 30 }).map((_, i) => {
-  const date = new Date();
-  date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-  
-  const statuses = ["dial_no_answer", "user_hangup", "completed", "voicemail", "error"];
-  const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-  
-  const randomDuration = Math.floor(Math.random() * 400);
-  const cost = (randomDuration / 60) * 0.1;
-  
-  const types = ["Outbound", "Inbound"];
-  const randomType = types[Math.floor(Math.random() * types.length)];
-  
-  return {
-    id: `CALL-${(10000 + i).toString()}`,
-    timestamp: date,
-    duration: randomDuration,
-    type: randomType,
-    cost: cost.toFixed(2),
-    status: randomStatus,
-  };
-});
+import { fetchCalls, CallData, syncRetellCalls } from "@/services/callService";
+import { toast } from "sonner";
+import { Loader2, RefreshCw } from "lucide-react";
 
 interface CallTableProps {
-  onSelectCall: (call: any) => void;
+  onSelectCall: (call: CallData) => void;
 }
 
 export function CallTable({ onSelectCall }: CallTableProps) {
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
+  
+  const { data: calls, isLoading, refetch } = useQuery({
+    queryKey: ['calls'],
+    queryFn: fetchCalls,
+    initialData: [],
+  });
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const success = await syncRetellCalls();
+      if (success) {
+        refetch();
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  };
   
   // Simple filtering logic
-  const filteredCalls = callData.filter(call => {
+  const filteredCalls = calls.filter(call => {
     const matchesSearch = !searchTerm || 
-      call.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      call.status.toLowerCase().includes(searchTerm.toLowerCase());
+      call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      call.call_status.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesDate = !date || 
       format(call.timestamp, "yyyy-MM-dd") === format(date, "yyyy-MM-dd");
@@ -87,12 +86,26 @@ export function CallTable({ onSelectCall }: CallTableProps) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <Input
-          placeholder="Search by ID or status..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-xs"
-        />
+        <div className="flex gap-2">
+          <Input
+            placeholder="Search by ID or status..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-xs"
+          />
+          <Button 
+            variant="outline"
+            onClick={handleSync}
+            disabled={isSyncing}
+          >
+            {isSyncing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Sync Calls
+          </Button>
+        </div>
         <div className="flex items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
@@ -175,7 +188,13 @@ export function CallTable({ onSelectCall }: CallTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredCalls.length > 0 ? (
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            ) : filteredCalls.length > 0 ? (
               filteredCalls.map((call) => (
                 <TableRow 
                   key={call.id} 
@@ -185,17 +204,19 @@ export function CallTable({ onSelectCall }: CallTableProps) {
                   <TableCell className="font-medium">
                     {format(call.timestamp, "MMM dd, yyyy HH:mm")}
                   </TableCell>
-                  <TableCell>{Math.floor(call.duration / 60)}:{(call.duration % 60).toString().padStart(2, '0')}</TableCell>
-                  <TableCell>{call.type}</TableCell>
-                  <TableCell>${call.cost}</TableCell>
-                  <TableCell>{call.id}</TableCell>
-                  <TableCell>{getStatusBadge(call.status)}</TableCell>
+                  <TableCell>
+                    {Math.floor(call.duration_sec / 60)}:{(call.duration_sec % 60).toString().padStart(2, '0')}
+                  </TableCell>
+                  <TableCell>{call.from === "unknown" ? "Outbound" : "Inbound"}</TableCell>
+                  <TableCell>${call.cost_usd.toFixed(2)}</TableCell>
+                  <TableCell>{call.call_id}</TableCell>
+                  <TableCell>{getStatusBadge(call.call_status)}</TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
-                  No calls found.
+                  {searchTerm || date ? "No matching calls found." : "No calls found. Try syncing with Retell."}
                 </TableCell>
               </TableRow>
             )}

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,16 +10,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CallData } from "@/services/callService";
 
 interface CallDetailsPanelProps {
-  call: any;
+  call: CallData;
   onClose: () => void;
 }
 
 export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [audioRef] = useState<HTMLAudioElement | null>(call.audio_url ? new Audio(call.audio_url) : null);
 
-  // Mock transcript data
+  // Mock transcript data - in a real app, this would come from the API
   const transcript = [
     { speaker: "Agent", text: "Hello, thank you for calling Mr Scale support. How may I assist you today?" },
     { speaker: "Customer", text: "Hi, I'm having trouble with setting up my account." },
@@ -29,8 +30,27 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
     { speaker: "Agent", text: "Perfect, I've found your account. Let me guide you through the setup process step by step." },
   ];
 
+  const togglePlayback = () => {
+    if (!audioRef) return;
+
+    if (isPlaying) {
+      audioRef.pause();
+    } else {
+      audioRef.play().catch(e => console.error("Error playing audio:", e));
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  // Clean up audio on unmount
+  const handleClose = () => {
+    if (audioRef && isPlaying) {
+      audioRef.pause();
+    }
+    onClose();
+  };
+
   const getStatusIcon = () => {
-    if (call.status === "completed") {
+    if (call.call_status === "completed") {
       return (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-green-500">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -49,11 +69,9 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
   };
 
   const getSentimentIcon = () => {
-    // Randomly choose sentiment for demo
-    const sentiments = ["positive", "neutral", "negative"];
-    const randomSentiment = sentiments[Math.floor(Math.random() * sentiments.length)];
+    if (!call.sentiment) return null;
     
-    if (randomSentiment === "positive") {
+    if (call.sentiment === "positive") {
       return (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-green-500">
           <circle cx="12" cy="12" r="10" />
@@ -62,7 +80,7 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
           <line x1="15" y1="9" x2="15.01" y2="9" />
         </svg>
       );
-    } else if (randomSentiment === "negative") {
+    } else if (call.sentiment === "negative") {
       return (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-red-500">
           <circle cx="12" cy="12" r="10" />
@@ -89,7 +107,7 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
       case "user_hangup": return "User Hung Up";
       case "dial_no_answer": return "No Answer";
       case "voicemail": return "Voicemail Detected";
-      default: return "Unknown Status";
+      default: return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
     }
   };
 
@@ -97,7 +115,7 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
     <div className="animate-slide-in-right h-full flex flex-col bg-background border-l">
       <div className="flex items-center justify-between p-4 border-b">
         <h2 className="text-lg font-medium">Call Details</h2>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button variant="ghost" size="icon" onClick={handleClose}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
             <path d="M18 6 6 18"></path>
             <path d="m6 6 12 12"></path>
@@ -124,19 +142,19 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">From → To</span>
-                <span>+1 (555) 123-4567 → +1 (555) 987-6543</span>
+                <span>{call.from} → {call.to}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Duration</span>
-                <span>{Math.floor(call.duration / 60)}:{(call.duration % 60).toString().padStart(2, '0')}</span>
+                <span>{Math.floor(call.duration_sec / 60)}:{(call.duration_sec % 60).toString().padStart(2, '0')}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Cost</span>
-                <span>${call.cost}</span>
+                <span>${call.cost_usd.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Call ID</span>
-                <span>{call.id}</span>
+                <span>{call.call_id}</span>
               </div>
             </CardContent>
           </Card>
@@ -152,71 +170,82 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
                   {getStatusIcon()}
                   <span>Call Status</span>
                 </div>
-                <Badge className={call.status === "completed" ? "bg-green-500" : "bg-red-500"}>
-                  {getStatusText(call.status)}
+                <Badge className={call.call_status === "completed" ? "bg-green-500" : "bg-red-500"}>
+                  {getStatusText(call.call_status)}
                 </Badge>
               </div>
               
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {getSentimentIcon()}
-                  <span>User Sentiment</span>
+              {call.sentiment && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {getSentimentIcon()}
+                    <span>User Sentiment</span>
+                  </div>
+                  <Badge variant="outline">
+                    {call.sentiment.charAt(0).toUpperCase() + call.sentiment.slice(1)}
+                  </Badge>
                 </div>
-                <Badge variant="outline">
-                  {Math.random() > 0.7 ? "Negative" : Math.random() > 0.4 ? "Neutral" : "Positive"}
-                </Badge>
-              </div>
+              )}
               
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-blue-500">
-                    <path d="M18 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" />
-                    <path d="M17 12H7" />
-                    <path d="M12 17V7" />
-                  </svg>
-                  <span>Disconnection</span>
+              {call.disconnection_reason && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-blue-500">
+                      <path d="M18 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" />
+                      <path d="M17 12H7" />
+                      <path d="M12 17V7" />
+                    </svg>
+                    <span>Disconnection</span>
+                  </div>
+                  <Badge variant="outline">
+                    {call.disconnection_reason}
+                  </Badge>
                 </div>
-                <Badge variant="outline">
-                  {call.status}
-                </Badge>
-              </div>
+              )}
             </CardContent>
           </Card>
           
           {/* Audio Player (if available) */}
-          <Card className="p-4">
-            <div className="flex items-center gap-4 justify-center">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setIsPlaying(!isPlaying)}
-              >
-                {isPlaying ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <rect x="6" y="4" width="4" height="16"></rect>
-                    <rect x="14" y="4" width="4" height="16"></rect>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                  </svg>
-                )}
-              </Button>
-              <div className="h-2 flex-1 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className={`h-full bg-brand-purple transition-all duration-300 ${
-                    isPlaying ? "animate-pulse" : ""
-                  }`}
-                  style={{ width: "35%" }}
-                ></div>
+          {call.audio_url && (
+            <Card className="p-4">
+              <div className="flex items-center gap-4 justify-center">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={togglePlayback}
+                >
+                  {isPlaying ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <rect x="6" y="4" width="4" height="16"></rect>
+                      <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                  )}
+                </Button>
+                <div className="h-2 flex-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full bg-brand-purple transition-all duration-300 ${
+                      isPlaying ? "animate-pulse" : ""
+                    }`}
+                    style={{ width: "35%" }}
+                  ></div>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {Math.floor(call.duration_sec / 60)}:{(call.duration_sec % 60)
+                    .toString()
+                    .padStart(2, "0")}
+                </span>
               </div>
-              <span className="text-sm text-muted-foreground">
-                {Math.floor(call.duration / 60)}:{(call.duration % 60)
-                  .toString()
-                  .padStart(2, "0")}
-              </span>
-            </div>
-          </Card>
+              <audio 
+                src={call.audio_url} 
+                className="hidden" 
+                controls 
+              />
+            </Card>
+          )}
           
           {/* Tabs for Transcript, Data, and Logs */}
           <Tabs defaultValue="transcript">
@@ -255,17 +284,17 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
                 <CardContent>
                   <pre className="bg-muted p-4 rounded-md text-xs overflow-x-auto whitespace-pre-wrap custom-scrollbar">
                     {JSON.stringify({
-                      call_id: call.id,
+                      id: call.id,
+                      call_id: call.call_id,
                       timestamp: call.timestamp.toISOString(),
-                      duration_seconds: call.duration,
-                      type: call.type,
-                      cost_usd: parseFloat(call.cost),
-                      status: call.status,
-                      metrics: {
-                        silence_percentage: Math.random() * 20,
-                        talk_speed: Math.floor(Math.random() * 50) + 120,
-                        interruptions: Math.floor(Math.random() * 5),
-                      }
+                      duration_seconds: call.duration_sec,
+                      cost_usd: call.cost_usd,
+                      call_status: call.call_status,
+                      sentiment: call.sentiment,
+                      disconnection_reason: call.disconnection_reason,
+                      from: call.from,
+                      to: call.to,
+                      audio_url: call.audio_url
                     }, null, 2)}
                   </pre>
                 </CardContent>
@@ -280,12 +309,12 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
                 <CardContent>
                   <div className="bg-muted p-4 rounded-md text-xs font-mono overflow-x-auto whitespace-pre-wrap custom-scrollbar h-[200px]">
                     {`
-[${format(new Date(call.timestamp.getTime() - 60000), "yyyy-MM-dd HH:mm:ss")}] INFO: Call initiated from +1 (555) 123-4567
-[${format(new Date(call.timestamp.getTime() - 55000), "yyyy-MM-dd HH:mm:ss")}] INFO: Connecting to destination +1 (555) 987-6543
+[${format(new Date(call.timestamp.getTime() - 60000), "yyyy-MM-dd HH:mm:ss")}] INFO: Call initiated from ${call.from}
+[${format(new Date(call.timestamp.getTime() - 55000), "yyyy-MM-dd HH:mm:ss")}] INFO: Connecting to destination ${call.to}
 [${format(new Date(call.timestamp.getTime() - 50000), "yyyy-MM-dd HH:mm:ss")}] INFO: Call established successfully
 [${format(new Date(call.timestamp.getTime() - 40000), "yyyy-MM-dd HH:mm:ss")}] INFO: Recording started
 [${format(new Date(call.timestamp.getTime() - 30000), "yyyy-MM-dd HH:mm:ss")}] INFO: Voice activity detected
-[${format(new Date(call.timestamp.getTime() - 5000), "yyyy-MM-dd HH:mm:ss")}] INFO: Call ended with status: ${call.status}
+[${format(new Date(call.timestamp.getTime() - 5000), "yyyy-MM-dd HH:mm:ss")}] INFO: Call ended with status: ${call.call_status}
 [${format(new Date(call.timestamp.getTime()), "yyyy-MM-dd HH:mm:ss")}] INFO: Recording saved to storage
                     `}
                   </div>
