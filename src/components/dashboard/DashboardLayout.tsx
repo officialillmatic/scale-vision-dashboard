@@ -9,7 +9,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
-    <SidebarProvider collapsedWidth={64}>
+    <SidebarProvider>
       <div className="dashboard-container">
         <DashboardHeader />
         <div className="flex w-full">

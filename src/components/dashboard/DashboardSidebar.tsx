@@ -49,8 +49,11 @@ const SidebarLink = ({
 
 export function DashboardSidebar() {
   const location = useLocation();
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
   const isMobile = useIsMobile();
+  
+  // Check if sidebar is collapsed based on the state
+  const collapsed = state === "collapsed";
 
   const navigationItems = [
     {
@@ -114,7 +117,7 @@ export function DashboardSidebar() {
         "border-r border-border transition-all duration-300 ease-in-out",
         collapsed ? "w-16" : "w-56"
       )}
-      collapsible
+      collapsible="icon"
     >
       <div className="flex items-center justify-between p-4">
         {!collapsed && (
