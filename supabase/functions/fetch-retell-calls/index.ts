@@ -80,6 +80,18 @@ serve(async (req) => {
       );
     }
 
+    // Create storage bucket if it doesn't exist
+    const { error: bucketError } = await supabase
+      .storage
+      .createBucket('recordings', { 
+        public: true,
+        fileSizeLimit: 52428800 // 50MB
+      });
+      
+    if (bucketError && !bucketError.message.includes('already exists')) {
+      console.error("Error creating bucket:", bucketError);
+    }
+
     // Process each call
     const results = [];
     for (const call of retellData.calls) {

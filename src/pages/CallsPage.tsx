@@ -6,12 +6,20 @@ import { CallTable } from "../components/calls/CallTable";
 import { CallDetailsPanel } from "../components/calls/CallDetailsPanel";
 import { CallData } from "../services/callService";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useAuth } from "../contexts/AuthContext";
+import { Navigate } from "react-router-dom";
 
 // Create a client
 const queryClient = new QueryClient();
 
 const CallsPage = () => {
   const [selectedCall, setSelectedCall] = useState<CallData | null>(null);
+  const { user, isLoading } = useAuth();
+
+  // If not authenticated, redirect to login
+  if (!isLoading && !user) {
+    return <Navigate to="/login" />;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
