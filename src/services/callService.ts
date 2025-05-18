@@ -1,31 +1,19 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { CallsTable } from "@/types/supabase";
 
-export interface CallData {
-  id: string;
-  call_id: string;
-  timestamp: Date;
-  duration_sec: number;
-  cost_usd: number;
-  sentiment: string | null;
-  disconnection_reason: string | null;
-  call_status: string;
-  from: string;
-  to: string;
-  audio_url: string | null;
-}
+export type CallData = CallsTable & {
+  timestamp: Date; // Override timestamp to be a Date object
+};
 
 export const fetchCalls = async (): Promise<CallData[]> => {
   try {
-    // Use explicit type casting for the Supabase client
+    // Use a type assertion to inform TypeScript about the structure
     const { data, error } = await supabase
       .from("calls") 
       .select("*")
-      .order("timestamp", { ascending: false }) as unknown as {
-        data: any[] | null;
-        error: any;
-      };
+      .order("timestamp", { ascending: false });
 
     if (error) {
       console.error("Error fetching calls:", error);
@@ -45,7 +33,9 @@ export const fetchCalls = async (): Promise<CallData[]> => {
       call_status: call.call_status,
       from: call.from,
       to: call.to,
-      audio_url: call.audio_url
+      audio_url: call.audio_url,
+      transcript: call.transcript,
+      user_id: call.user_id
     }));
   } catch (error) {
     console.error("Error in fetchCalls:", error);
