@@ -18,6 +18,7 @@ export interface CallData {
 
 export const fetchCalls = async (): Promise<CallData[]> => {
   try {
+    // Use type assertion to help TypeScript understand the return type
     const { data, error } = await supabase
       .from("calls")
       .select("*")
@@ -29,9 +30,9 @@ export const fetchCalls = async (): Promise<CallData[]> => {
       return [];
     }
 
-    // Convert timestamp strings to Date objects
-    return data.map(call => ({
-      ...call,
+    // Convert timestamp strings to Date objects with proper type handling
+    return (data || []).map(call => ({
+      ...call as any,
       timestamp: new Date(call.timestamp)
     }));
   } catch (error) {
