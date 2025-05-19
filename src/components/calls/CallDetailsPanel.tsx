@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CallData } from "@/services/callService";
 import { CallInfo } from "./CallInfo";
 import { CallAnalysis } from "./CallAnalysis";
-import { CallAudioPlayer } from "./CallAudioPlayer";
+import { AudioPlayer } from "./AudioPlayer";
 import { CallTranscript } from "./CallTranscript";
 import { CallDataView } from "./CallData";
 import { CallLogs } from "./CallLogs";
@@ -49,7 +49,7 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
           
           {/* Audio Player (if available) */}
           {call.audio_url && (
-            <CallAudioPlayer audioUrl={call.audio_url} duration={call.duration_sec} />
+            <AudioPlayer audioUrl={call.audio_url} duration={call.duration_sec} />
           )}
           
           {/* Tabs for Transcript, Data, and Logs */}
