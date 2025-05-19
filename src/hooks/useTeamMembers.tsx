@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitationService";
+import { inviteTeamMember, fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitationService";
 import { handleError } from "@/lib/errorHandling";
 
 interface UseTeamMembersResult {
@@ -13,7 +13,7 @@ interface UseTeamMembersResult {
   // Add missing properties needed by TeamMembers.tsx and TeamAgents.tsx
   teamMembers: any[]; // Adding this placeholder property to prevent TypeScript error
   isInviting: boolean;
-  handleInvite: (data: any) => Promise<void>;
+  handleInvite: (email: string, role: 'admin' | 'member' | 'viewer') => Promise<boolean>;
 }
 
 export const useTeamMembers = (companyId: string | undefined): UseTeamMembersResult => {
@@ -89,22 +89,27 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     }
   };
 
-  // Implementation of handle invite needed for TeamMembers.tsx
-  const handleInvite = async (data: any) => {
+  // Implementation of handle invite with correct return type
+  const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
+    if (!companyId) return false;
+    
     setIsInviting(true);
     try {
-      // This is a placeholder implementation
-      console.log("Invite data:", data);
-      // In a real implementation, you would call an API to send the invitation
+      // Use the inviteTeamMember service function
+      const success = await inviteTeamMember(companyId, email, role);
+      if (success) {
+        // Refresh invitations list on success
+        await fetchInvitations();
+      }
       setIsInviting(false);
-      return Promise.resolve();
+      return success;
     } catch (error) {
       setIsInviting(false);
       handleError(error, {
         fallbackMessage: "Failed to send invitation",
         logToConsole: true
       });
-      return Promise.reject(error);
+      return false;
     }
   };
 

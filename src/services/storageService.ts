@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
@@ -11,12 +12,10 @@ export const uploadCompanyLogo = async (file: File, companyId: string): Promise<
     const filePath = `company_logos/${fileName}`;
 
     // Upload the file to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from("public")
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
+    const { data, error } = await supabase.storage.from("public").upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
 
     if (error) {
       console.error("Error uploading company logo:", error);
@@ -25,10 +24,7 @@ export const uploadCompanyLogo = async (file: File, companyId: string): Promise<
     }
 
     // Get the public URL
-    const { data: urlData } = supabase.storage
-      .from("public")
-      .getPublicUrl(filePath);
-
+    const { data: urlData } = supabase.storage.from("public").getPublicUrl(filePath);
     return urlData.publicUrl;
   } catch (error) {
     console.error("Error in uploadCompanyLogo:", error);
@@ -45,12 +41,10 @@ export const uploadUserAvatar = async (file: File, userId: string): Promise<stri
     const filePath = `avatars/${fileName}`;
 
     // Upload the file to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from("public")
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
+    const { data, error } = await supabase.storage.from("public").upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
 
     if (error) {
       console.error("Error uploading user avatar:", error);
@@ -59,10 +53,7 @@ export const uploadUserAvatar = async (file: File, userId: string): Promise<stri
     }
 
     // Get the public URL
-    const { data: urlData } = supabase.storage
-      .from("public")
-      .getPublicUrl(filePath);
-
+    const { data: urlData } = supabase.storage.from("public").getPublicUrl(filePath);
     return urlData.publicUrl;
   } catch (error) {
     console.error("Error in uploadUserAvatar:", error);
@@ -71,28 +62,14 @@ export const uploadUserAvatar = async (file: File, userId: string): Promise<stri
   }
 };
 
-// Alias for uploadCompanyLogo to maintain compatibility
-export const uploadLogo = uploadCompanyLogo;
+// Alias for uploadCompanyLogo for backward compatibility
+export const uploadLogo = async (file: File, companyId: string): Promise<string | null> => {
+  return uploadCompanyLogo(file, companyId);
+};
 
-// Add getAudioUrl function for the CallAudioPlayer component
-export const getAudioUrl = async (companyId: string, audioKey: string): Promise<string | null> => {
-  try {
-    // If the audioKey is already a full URL, return it as is
-    if (audioKey.startsWith('http')) {
-      return audioKey;
-    }
-    
-    // Otherwise, get the URL from Supabase storage
-    const { data: urlData } = supabase.storage
-      .from("public")
-      .getPublicUrl(`calls/${companyId}/${audioKey}`);
-    
-    return urlData.publicUrl;
-  } catch (error) {
-    handleError(error, {
-      fallbackMessage: "Failed to get audio URL",
-      logToConsole: true
-    });
-    return null;
-  }
+export const getAudioUrl = (path: string | null): string | null => {
+  if (!path) return null;
+  
+  const { data } = supabase.storage.from("public").getPublicUrl(path);
+  return data.publicUrl;
 };

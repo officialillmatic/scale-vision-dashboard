@@ -63,7 +63,7 @@ export function CompanySettings() {
 
     setIsUploading(true);
     try {
-      const logoUrl = await uploadLogo(file);
+      const logoUrl = await uploadLogo(file, company.id);
       if (logoUrl) {
         const updated = await updateCompanyLogo(company.id, logoUrl);
         if (updated) {

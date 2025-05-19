@@ -121,7 +121,7 @@ export function TeamMembers() {
       <TeamInviteDialog 
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
-        onInvite={handleInvite}
+        onInvite={(email, role) => handleInvite(email, role)}
         isInviting={isInviting}
       />
     </div>
