@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CompanyMember } from "./memberService";
+import type { CompanyMember } from "./memberService";
 
 export interface Company {
   id: string;
@@ -85,9 +85,9 @@ export const updateCompanyLogo = async (companyId: string, logoUrl: string): Pro
   }
 };
 
-// Re-export the required types and functions from the other service files
-export { CompanyMember } from "./memberService";
-export { CompanyInvitation } from "./invitationService";
+// Re-export the required types from the other service files
+export type { CompanyMember } from "./memberService";
+export type { CompanyInvitation } from "./invitationService";
 export * from "./invitationService";
 export * from "./memberService";
 export * from "./storageService";

@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface CompanyMember {
   id: string;
@@ -55,5 +56,27 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
   } catch (error) {
     console.error("Error in fetchCompanyMembers:", error);
     return [];
+  }
+};
+
+export const inviteTeamMember = async (companyId: string, email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
+  try {
+    // Call the Supabase Edge Function to send the invitation
+    const { error } = await supabase.functions.invoke('send-invitation', {
+      body: { companyId, email, role }
+    });
+    
+    if (error) {
+      console.error("Error inviting team member:", error);
+      toast.error("Failed to invite team member");
+      return false;
+    }
+
+    toast.success(`Invitation sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error("Error in inviteTeamMember:", error);
+    toast.error("Failed to invite team member");
+    return false;
   }
 };
