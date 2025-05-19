@@ -67,6 +67,7 @@ export const uploadLogo = async (file: File, companyId: string): Promise<string 
   return uploadCompanyLogo(file, companyId);
 };
 
+// Fixed getAudioUrl to accept only one parameter (path)
 export const getAudioUrl = (path: string | null): string | null => {
   if (!path) return null;
   
