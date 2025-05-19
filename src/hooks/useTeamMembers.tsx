@@ -20,6 +20,7 @@ export function useTeamMembers(companyId?: string) {
     queryKey: ['team-members', companyId],
     queryFn: () => companyId ? fetchCompanyMembers(companyId) : Promise.resolve([]),
     enabled: !!companyId,
+    retry: 1 // Limit retries to avoid infinite loops if permissions aren't correctly set
   });
 
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer') => {
@@ -32,6 +33,7 @@ export function useTeamMembers(companyId?: string) {
     try {
       const success = await inviteTeamMember(companyId, email, role);
       if (success) {
+        toast.success(`Invitation sent to ${email}`);
         refetch();
         return true;
       }

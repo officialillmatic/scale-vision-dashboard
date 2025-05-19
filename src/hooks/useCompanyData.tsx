@@ -51,6 +51,8 @@ export function useCompanyData(user: User | null) {
             const userMember = members?.find(member => member.user_id === user.id);
             if (userMember) {
               setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
+            } else {
+              setUserRole(null);
             }
           }
         } catch (membersError) {
@@ -71,17 +73,20 @@ export function useCompanyData(user: User | null) {
             setCompanyMembers([]);
             setUserRole('admin');
             setIsCompanyOwner(true);
+            toast.success(`Created company: ${defaultCompanyName}`);
           } else {
             // Company creation failed, but don't break the app
             console.error("Failed to create default company");
+            toast.error("Could not create your company. Please try again later.");
           }
-        } catch (createError) {
+        } catch (createError: any) {
           console.error("Error creating default company:", createError);
-          // Don't break the app if company creation fails
+          toast.error(createError.message || "Could not create your company");
         }
       }
     } catch (error) {
       console.error("Error loading company data:", error);
+      toast.error("Failed to load company data");
     } finally {
       setIsCompanyLoading(false);
     }
@@ -120,14 +125,23 @@ export function useCompanyData(user: User | null) {
       }
     } catch (error) {
       console.error("Error refreshing company data:", error);
+      toast.error("Failed to refresh company data");
     } finally {
       setIsCompanyLoading(false);
     }
   };
 
   useEffect(() => {
-    loadCompanyData();
-  }, [user]);
+    if (user) {
+      loadCompanyData();
+    } else {
+      setCompany(null);
+      setCompanyMembers([]);
+      setUserRole(null);
+      setIsCompanyOwner(false);
+      setIsCompanyLoading(false);
+    }
+  }, [user?.id]); // Only reload when the user ID changes
 
   return {
     company,
