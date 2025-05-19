@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, hasValidSupabaseCredentials } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -43,25 +43,39 @@ export const LoginForm = () => {
     setIsLoading(true);
     setAuthError(null);
     
+    // Check if Supabase is properly configured
+    if (!hasValidSupabaseCredentials()) {
+      setAuthError("Missing Supabase configuration. Please check environment variables.");
+      setIsLoading(false);
+      return;
+    }
+    
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Attempting to sign in with Supabase...");
+      const { error, data } = await supabase.auth.signInWithPassword({
         email: values.email.trim(),
         password: values.password,
       });
       
       if (error) {
-        console.error("Login error:", error.message);
+        console.error("Supabase login error:", error);
         throw error;
       }
       
+      console.log("Login successful:", data);
       toast.success("Successfully signed in");
       navigate("/dashboard");
     } catch (error: any) {
-      console.error("Full login error:", error);
-      setAuthError(error.message || "Failed to sign in");
+      console.error("Full login error details:", error);
       
-      if (error.message.includes("Invalid login credentials")) {
+      if (error.message?.includes("Failed to fetch")) {
+        setAuthError(
+          "Network error connecting to authentication service. Please check your network connection or try again later."
+        );
+      } else if (error.message?.includes("Invalid login credentials")) {
         setAuthError("Invalid email or password. Please check your credentials and try again.");
+      } else {
+        setAuthError(error.message || "Failed to sign in. Please try again.");
       }
     } finally {
       setIsLoading(false);
@@ -80,6 +94,15 @@ export const LoginForm = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {!hasValidSupabaseCredentials() && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Missing Supabase configuration. Please check your environment variables.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {authError && (
           <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />

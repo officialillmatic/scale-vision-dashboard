@@ -1,6 +1,6 @@
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangleIcon } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { hasValidSupabaseCredentials } from "@/integrations/supabase/client";
 
@@ -25,7 +25,7 @@ export function EnvWarning() {
   
   return (
     <Alert variant="destructive" className="mb-4">
-      <AlertTriangleIcon className="h-4 w-4" />
+      <AlertTriangle className="h-4 w-4" />
       <AlertTitle>Missing Environment Variables</AlertTitle>
       <AlertDescription>
         <p>The following environment variables are missing:</p>
