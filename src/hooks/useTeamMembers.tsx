@@ -62,9 +62,10 @@ export function useTeamMembers(companyId?: string) {
     } catch (error) {
       const errorMessage = handleError(error, {
         fallbackMessage: "Failed to invite team member",
-        returnMessage: true
-      });
-      setInviteError(errorMessage as string);
+        logToConsole: true,
+        showToast: false
+      }) as string;
+      setInviteError(errorMessage);
       return false;
     } finally {
       setIsInviting(false);

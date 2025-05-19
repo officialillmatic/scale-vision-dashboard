@@ -36,9 +36,11 @@ export function useCallData() {
       }
       return failureCount < 2;
     },
-    onError: (error) => {
-      console.error("Error fetching calls:", error);
-    },
+    meta: {
+      onError: (error: any) => {
+        console.error("Error fetching calls:", error);
+      }
+    }
   });
 
   // Sync calls mutation
