@@ -11,7 +11,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { checkInvitation, acceptInvitation } from "@/services/companyService";
+import { checkInvitation, acceptInvitation, InvitationCheckResult } from "@/services/invitationService";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
@@ -31,12 +31,7 @@ export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchParams] = useSearchParams();
   const invitationToken = searchParams.get('token');
-  const [invitation, setInvitation] = useState<{
-    valid: boolean;
-    company?: { id: string; name: string; };
-    role?: 'admin' | 'member' | 'viewer';
-    email?: string;
-  } | null>(null);
+  const [invitation, setInvitation] = useState<InvitationCheckResult | null>(null);
   
   const navigate = useNavigate();
   
@@ -45,21 +40,11 @@ export function RegisterForm() {
     const verifyInvitation = async () => {
       if (invitationToken) {
         const result = await checkInvitation(invitationToken);
-        if (result.valid && result.invitation) {
-          setInvitation({
-            valid: true,
-            company: result.company,
-            role: result.invitation.role,
-            email: result.invitation.email
-          });
-          
-          // Pre-fill email field if we have it
-          if (result.invitation.email) {
-            form.setValue('email', result.invitation.email);
-          }
-        } else {
-          setInvitation({ valid: false });
-          toast.error("This invitation link is invalid or has expired");
+        setInvitation(result);
+        
+        // Pre-fill email field if we have it
+        if (result.valid && result.invitation?.email) {
+          form.setValue('email', result.invitation.email);
         }
       }
     };
@@ -81,8 +66,8 @@ export function RegisterForm() {
     
     try {
       // If we have an invitation but emails don't match
-      if (invitation?.valid && invitation.email && invitation.email !== values.email) {
-        toast.error(`This invitation was sent to ${invitation.email}. Please use that email address.`);
+      if (invitation?.valid && invitation.invitation?.email && invitation.invitation.email !== values.email) {
+        toast.error(`This invitation was sent to ${invitation.invitation.email}. Please use that email address.`);
         setIsLoading(false);
         return;
       }
@@ -98,7 +83,7 @@ export function RegisterForm() {
       
       // If we have a valid invitation token, accept it
       if (invitation?.valid && invitationToken && data.user) {
-        const accepted = await acceptInvitation(invitationToken, data.user.id);
+        const accepted = await acceptInvitation(invitationToken);
         if (accepted) {
           toast.success(`You've successfully joined ${invitation.company?.name}`);
         } else {
@@ -136,17 +121,17 @@ export function RegisterForm() {
               : "Create a new account to get started"}
           </CardDescription>
           
-          {invitation?.valid && invitation.company && invitation.role && (
+          {invitation?.valid && invitation.company && invitation.invitation?.role && (
             <div className="flex flex-col items-center mt-2">
               <p className="text-sm text-center mb-2">
                 You've been invited as a:
               </p>
               <Badge variant="outline" className={
-                invitation.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                invitation.role === 'member' ? 'bg-blue-100 text-blue-800' : 
+                invitation.invitation.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                invitation.invitation.role === 'member' ? 'bg-blue-100 text-blue-800' : 
                 'bg-green-100 text-green-800'
               }>
-                {invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)}
+                {invitation.invitation.role.charAt(0).toUpperCase() + invitation.invitation.role.slice(1)}
               </Badge>
             </div>
           )}
@@ -183,7 +168,7 @@ export function RegisterForm() {
                     <Input
                       type="email"
                       placeholder="email@example.com"
-                      disabled={invitation?.valid && !!invitation.email}
+                      disabled={invitation?.valid && !!invitation.invitation?.email}
                       {...field}
                     />
                   </FormControl>

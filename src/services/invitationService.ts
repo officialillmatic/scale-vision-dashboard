@@ -13,6 +13,15 @@ export interface CompanyInvitation {
   expires_at: Date;
 }
 
+export interface InvitationCheckResult {
+  valid: boolean;
+  invitation?: CompanyInvitation;
+  company?: {
+    id: string;
+    name: string;
+  };
+}
+
 export const fetchCompanyInvitations = async (companyId: string): Promise<CompanyInvitation[]> => {
   try {
     const { data, error } = await supabase
@@ -36,42 +45,75 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
   }
 };
 
-export const checkInvitation = async (token: string): Promise<CompanyInvitation | null> => {
+export const checkInvitation = async (token: string): Promise<InvitationCheckResult> => {
   try {
-    const { data, error } = await supabase
+    const { data: invitationData, error: invitationError } = await supabase
       .from("company_invitations")
       .select("*")
       .eq("token", token)
       .eq("status", "pending")
       .single();
 
-    if (error) {
-      console.error("Error checking invitation:", error);
-      return null;
+    if (invitationError || !invitationData) {
+      console.error("Error checking invitation:", invitationError);
+      return { valid: false };
     }
 
+    // Check if invitation has expired
+    const expiryDate = new Date(invitationData.expires_at);
+    if (expiryDate < new Date()) {
+      return { valid: false };
+    }
+
+    // Fetch company information
+    const { data: companyData, error: companyError } = await supabase
+      .from("companies")
+      .select("id, name")
+      .eq("id", invitationData.company_id)
+      .single();
+
+    if (companyError || !companyData) {
+      console.error("Error fetching company:", companyError);
+      return { valid: false };
+    }
+
+    const invitation: CompanyInvitation = {
+      ...invitationData,
+      created_at: new Date(invitationData.created_at),
+      expires_at: new Date(invitationData.expires_at)
+    };
+
     return {
-      ...data,
-      created_at: new Date(data.created_at),
-      expires_at: new Date(data.expires_at)
+      valid: true,
+      invitation,
+      company: {
+        id: companyData.id,
+        name: companyData.name
+      }
     };
   } catch (error) {
     console.error("Error in checkInvitation:", error);
-    return null;
+    return { valid: false };
   }
 };
 
-export const acceptInvitation = async (token: string): Promise<boolean> => {
+export const acceptInvitation = async (token: string, userId?: string): Promise<boolean> => {
   try {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
-      toast.error("You must be logged in to accept an invitation");
-      return false;
+    // If no userId is provided, use the current user
+    let userIdToUse = userId;
+    
+    if (!userIdToUse) {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        toast.error("You must be logged in to accept an invitation");
+        return false;
+      }
+      userIdToUse = userData.user.id;
     }
 
     const { data, error } = await supabase.rpc(
       'accept_invitation',
-      { p_token: token, p_user_id: userData.user.id }
+      { p_token: token, p_user_id: userIdToUse }
     );
 
     if (error) {
