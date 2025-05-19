@@ -32,105 +32,56 @@ export function useCompanyData(user: User | null) {
 
     setIsCompanyLoading(true);
     try {
-      // First check if user owns a company
+      // Fetch company data
       let companyData = await fetchCompany();
       
-      // If no company found, check if user is a member of a company
-      if (!companyData) {
-        try {
-          const { data: memberData, error: memberError } = await supabase
-            .from('company_members')
-            .select(`
-              company_id,
-              role,
-              companies:company_id (
-                id,
-                name,
-                logo_url,
-                owner_id,
-                created_at,
-                updated_at
-              )
-            `)
-            .eq('user_id', user.id)
-            .maybeSingle(); // Use maybeSingle instead of single to handle null case
-            
-          if (!memberError && memberData && memberData.companies) {
-            // Type fix: memberData.companies is an object, not an array
-            const companyDetails = memberData.companies as unknown as {
-              id: string;
-              name: string;
-              logo_url: string | null;
-              owner_id: string;
-              created_at: string;
-              updated_at: string;
-            };
-            
-            companyData = {
-              id: companyDetails.id,
-              name: companyDetails.name,
-              logo_url: companyDetails.logo_url,
-              owner_id: companyDetails.owner_id,
-              created_at: new Date(companyDetails.created_at),
-              updated_at: new Date(companyDetails.updated_at)
-            };
-            
-            // Set user role directly from the query result
-            setUserRole(memberData.role as 'admin' | 'member' | 'viewer');
-          }
-        } catch (memberQueryError) {
-          console.log("Error checking company membership:", memberQueryError);
-          // Continue execution - we'll create a default company if needed
-        }
-      }
-      
-      setCompany(companyData);
-      
-      // Determine if user is company owner
+      // If company exists, set company data and determine user role
       if (companyData) {
+        setCompany(companyData);
         setIsCompanyOwner(companyData.owner_id === user.id);
         
-        // Fetch company members to determine user's role
         try {
           const members = await fetchCompanyMembers(companyData.id);
-          
           setCompanyMembers(members || []);
           
-          // Find the user's role if not already set
-          if (!userRole) {
+          // Determine user's role
+          if (companyData.owner_id === user.id) {
+            setUserRole('admin'); // Company owner is always admin
+          } else {
             const userMember = members?.find(member => member.user_id === user.id);
             if (userMember) {
               setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
-            } else if (companyData.owner_id === user.id) {
-              setUserRole('admin'); // Company owner is always admin
             }
           }
         } catch (membersError) {
           console.error("Error fetching company members:", membersError);
-          // Gracefully handle the error - at least we have the company data
+          // Still set admin role for owner even if members fetch fails
           if (companyData.owner_id === user.id) {
-            setUserRole('admin'); // If members can't be fetched but user is owner
+            setUserRole('admin');
           }
         }
-      } else if (user) {
-        // No company found - create a default one for this user
+      } else {
+        // No company found - create a default one
         try {
           const defaultCompanyName = `${user.email?.split('@')[0]}'s Company` || "New Company";
           const newCompany = await createCompany(defaultCompanyName);
+          
           if (newCompany) {
             setCompany(newCompany);
             setCompanyMembers([]);
             setUserRole('admin');
             setIsCompanyOwner(true);
+          } else {
+            // Company creation failed, but don't break the app
+            console.error("Failed to create default company");
           }
         } catch (createError) {
           console.error("Error creating default company:", createError);
-          // Even if company creation fails, don't break the app
+          // Don't break the app if company creation fails
         }
       }
     } catch (error) {
       console.error("Error loading company data:", error);
-      // Don't show toast here - it's too disruptive for a default loading error
     } finally {
       setIsCompanyLoading(false);
     }
@@ -149,20 +100,26 @@ export function useCompanyData(user: User | null) {
         
         // Refresh company members
         const members = await fetchCompanyMembers(companyData.id);
-        
         setCompanyMembers(members || []);
         
         // Update user role
-        const userMember = members?.find(member => member.user_id === user.id);
-        if (userMember) {
-          setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
-        } else if (companyData.owner_id === user.id) {
-          setUserRole('admin'); // Company owner is always admin
+        if (companyData.owner_id === user.id) {
+          setUserRole('admin');
+        } else {
+          const userMember = members?.find(member => member.user_id === user.id);
+          if (userMember) {
+            setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
+          } else {
+            setUserRole(null);
+          }
         }
+      } else {
+        setCompanyMembers([]);
+        setUserRole(null);
+        setIsCompanyOwner(false);
       }
     } catch (error) {
       console.error("Error refreshing company data:", error);
-      // Don't show error toast here
     } finally {
       setIsCompanyLoading(false);
     }

@@ -15,25 +15,51 @@ export interface Company {
 
 export const fetchCompany = async (): Promise<Company | null> => {
   try {
-    const { data, error } = await supabase
+    // First try to get a company where user is the owner
+    let { data: ownedCompany, error: ownedCompanyError } = await supabase
       .from("companies")
       .select("*")
-      .maybeSingle(); // Use maybeSingle instead of single to handle null case
-
-    if (error) {
-      console.error("Error fetching company:", error);
-      return null;
+      .maybeSingle();
+    
+    if (ownedCompany) {
+      return {
+        ...ownedCompany,
+        created_at: new Date(ownedCompany.created_at),
+        updated_at: new Date(ownedCompany.updated_at)
+      };
+    }
+    
+    // If user is not a company owner, check if they're a member of any company
+    const { data: membershipData, error: membershipError } = await supabase
+      .from("company_members")
+      .select(`
+        company_id,
+        role,
+        companies:company_id (
+          id,
+          name,
+          logo_url,
+          owner_id,
+          created_at,
+          updated_at
+        )
+      `)
+      .maybeSingle();
+      
+    if (membershipData?.companies) {
+      const companyDetails = membershipData.companies;
+      return {
+        id: companyDetails.id,
+        name: companyDetails.name,
+        logo_url: companyDetails.logo_url,
+        owner_id: companyDetails.owner_id,
+        created_at: new Date(companyDetails.created_at),
+        updated_at: new Date(companyDetails.updated_at)
+      };
     }
 
-    if (!data) {
-      return null;
-    }
-
-    return {
-      ...data,
-      created_at: new Date(data.created_at),
-      updated_at: new Date(data.updated_at)
-    };
+    // No company found - this is not an error, just return null
+    return null;
   } catch (error) {
     console.error("Error in fetchCompany:", error);
     return null;

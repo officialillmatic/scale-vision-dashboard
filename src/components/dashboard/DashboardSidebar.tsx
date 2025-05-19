@@ -29,22 +29,18 @@ const SidebarLink = ({
   isActive: boolean;
   collapsed: boolean;
 }) => (
-  <SidebarMenuItem>
-    <SidebarMenuButton asChild>
-      <Link
-        to={href}
-        className={cn(
-          "flex items-center py-2 px-3 rounded-md w-full transition-colors duration-200",
-          isActive 
-            ? "bg-brand-light-purple text-brand-purple font-medium" 
-            : "hover:bg-muted/50"
-        )}
-      >
-        <Icon className="h-5 w-5 mr-2" />
-        {!collapsed && <span>{label}</span>}
-      </Link>
-    </SidebarMenuButton>
-  </SidebarMenuItem>
+  <Link
+    to={href}
+    className={cn(
+      "flex items-center py-2 px-3 rounded-md w-full transition-colors duration-200",
+      isActive 
+        ? "bg-brand-light-purple text-brand-purple font-medium" 
+        : "hover:bg-muted/50"
+    )}
+  >
+    <Icon className="h-5 w-5 mr-2" />
+    {!collapsed && <span>{label}</span>}
+  </Link>
 );
 
 export function DashboardSidebar() {
@@ -135,14 +131,17 @@ export function DashboardSidebar() {
         <SidebarGroup>
           <SidebarMenu>
             {navigationItems.map((item) => (
-              <SidebarLink
-                key={item.href}
-                href={item.href}
-                icon={item.icon}
-                label={item.label}
-                isActive={location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))}
-                collapsed={collapsed}
-              />
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton>
+                  <SidebarLink
+                    href={item.href}
+                    icon={item.icon}
+                    label={item.label}
+                    isActive={location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))}
+                    collapsed={collapsed}
+                  />
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </SidebarGroup>
