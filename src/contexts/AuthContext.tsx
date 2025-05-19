@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Company, fetchCompany } from "@/services/companyService";
+import { Company, CompanyMember, fetchCompany } from "@/services/companyService";
 
 type AuthContextType = {
   session: Session | null;
@@ -11,8 +11,11 @@ type AuthContextType = {
   isLoading: boolean;
   company: Company | null;
   isCompanyLoading: boolean;
+  userRole: 'admin' | 'member' | 'viewer' | null;
+  companyMembers: CompanyMember[];
   signOut: () => Promise<void>;
   refreshCompany: () => Promise<void>;
+  isCompanyOwner: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +26,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [company, setCompany] = useState<Company | null>(null);
   const [isCompanyLoading, setIsCompanyLoading] = useState(true);
+  const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
+  const [userRole, setUserRole] = useState<'admin' | 'member' | 'viewer' | null>(null);
+  const [isCompanyOwner, setIsCompanyOwner] = useState(false);
 
   useEffect(() => {
     // Set up auth state listener
@@ -52,13 +58,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const companyData = await fetchCompany();
           setCompany(companyData);
+          
+          // Determine if user is company owner
+          if (companyData) {
+            setIsCompanyOwner(companyData.owner_id === user.id);
+            
+            // Fetch company members to determine user's role
+            const { data: members, error } = await supabase
+              .from('company_members')
+              .select('*')
+              .eq('company_id', companyData.id);
+              
+            if (error) {
+              throw error;
+            }
+            
+            setCompanyMembers(members || []);
+            
+            // Find the user's role
+            const userMember = members?.find(member => member.user_id === user.id);
+            if (userMember) {
+              setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
+            } else if (companyData.owner_id === user.id) {
+              setUserRole('admin'); // Company owner is always admin
+            }
+          }
         } catch (error) {
           console.error("Error loading company data:", error);
+          toast.error("Failed to load company data");
         } finally {
           setIsCompanyLoading(false);
         }
       } else {
         setCompany(null);
+        setCompanyMembers([]);
+        setUserRole(null);
+        setIsCompanyOwner(false);
         setIsCompanyLoading(false);
       }
     };
@@ -72,6 +107,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const companyData = await fetchCompany();
         setCompany(companyData);
+        
+        if (companyData) {
+          setIsCompanyOwner(companyData.owner_id === user.id);
+          
+          // Refresh company members
+          const { data: members, error } = await supabase
+            .from('company_members')
+            .select('*')
+            .eq('company_id', companyData.id);
+            
+          if (error) {
+            throw error;
+          }
+          
+          setCompanyMembers(members || []);
+          
+          // Update user role
+          const userMember = members?.find(member => member.user_id === user.id);
+          if (userMember) {
+            setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
+          } else if (companyData.owner_id === user.id) {
+            setUserRole('admin'); // Company owner is always admin
+          }
+        }
       } catch (error) {
         console.error("Error refreshing company data:", error);
         toast.error("Failed to refresh company data");
@@ -84,6 +143,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
+      setCompany(null);
+      setCompanyMembers([]);
+      setUserRole(null);
+      setIsCompanyOwner(false);
       toast.success("Successfully signed out");
     } catch (error) {
       console.error("Error signing out:", error);
@@ -98,6 +161,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading, 
       company, 
       isCompanyLoading,
+      userRole,
+      companyMembers,
+      isCompanyOwner,
       signOut,
       refreshCompany
     }}>

@@ -12,10 +12,20 @@ import DashboardPage from "./pages/DashboardPage";
 import CallsPage from "./pages/CallsPage";
 import TeamPage from "./pages/TeamPage";
 import SettingsPage from "./pages/SettingsPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -25,30 +35,36 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Public routes */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            
+            {/* Protected routes */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <DashboardPage />
               </ProtectedRoute>
             } />
             <Route path="/calls" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredAction="viewCalls">
                 <CallsPage />
               </ProtectedRoute>
             } />
             <Route path="/team" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredAction="manageTeam">
                 <TeamPage />
               </ProtectedRoute>
             } />
             <Route path="/settings" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredAction="editSettings">
                 <SettingsPage />
               </ProtectedRoute>
             } />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            
+            {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
