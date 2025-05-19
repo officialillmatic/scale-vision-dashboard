@@ -2,11 +2,8 @@
 import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { TeamMembers } from '@/components/team/TeamMembers';
-import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useTeamMembers } from '@/hooks/useTeamMembers';
-import { CompanyMember } from '@/services/companyService';
 import { TeamAgents } from '@/components/team/TeamAgents';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
@@ -35,12 +32,7 @@ const TeamPage = () => {
             </TabsContent>
             
             <TabsContent value="agents" className="space-y-4">
-              <Card className="p-6">
-                <h2 className="text-xl font-bold mb-4">AI Agents</h2>
-                <p className="text-muted-foreground">
-                  This feature will be coming soon.
-                </p>
-              </Card>
+              <TeamAgents />
             </TabsContent>
           </Tabs>
         </div>
