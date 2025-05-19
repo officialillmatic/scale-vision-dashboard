@@ -14,6 +14,7 @@ export type Database = {
           audio_url: string | null
           call_id: string
           call_status: string
+          company_id: string | null
           cost_usd: number
           disconnection_reason: string | null
           duration_sec: number
@@ -29,6 +30,7 @@ export type Database = {
           audio_url?: string | null
           call_id: string
           call_status?: string
+          company_id?: string | null
           cost_usd?: number
           disconnection_reason?: string | null
           duration_sec?: number
@@ -44,6 +46,7 @@ export type Database = {
           audio_url?: string | null
           call_id?: string
           call_status?: string
+          company_id?: string | null
           cost_usd?: number
           disconnection_reason?: string | null
           duration_sec?: number
@@ -55,7 +58,80 @@ export type Database = {
           transcript?: string | null
           user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "calls_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
         Relationships: []
+      }
+      company_members: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          role: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          role: string
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
