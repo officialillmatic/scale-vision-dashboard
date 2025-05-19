@@ -21,29 +21,19 @@ export function CallStats() {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-12 gap-4 mb-6">
-        <Card className="xl:col-span-3">
-          <CardContent className="pt-6 flex justify-center items-center h-[124px]">
-            <LoadingSpinner size="md" />
-          </CardContent>
-        </Card>
-        <Card className="xl:col-span-3">
-          <CardContent className="pt-6 flex justify-center items-center h-[124px]">
-            <LoadingSpinner size="md" />
-          </CardContent>
-        </Card>
-        <Card className="xl:col-span-3">
-          <CardContent className="pt-6 flex justify-center items-center h-[124px]">
-            <LoadingSpinner size="md" />
-          </CardContent>
-        </Card>
-        <Card className="xl:col-span-3">
-          <CardContent className="pt-6 flex justify-center items-center h-[124px]">
-            <LoadingSpinner size="md" />
-          </CardContent>
-        </Card>
+        {Array(4).fill(0).map((_, index) => (
+          <Card key={index} className="xl:col-span-3">
+            <CardContent className="pt-6 flex justify-center items-center h-[124px]">
+              <LoadingSpinner size="md" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
     );
   }
+
+  // Check if we have any call data
+  const hasCallData = metrics.totalCalls > 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-12 gap-4 mb-6">
@@ -53,11 +43,17 @@ export function CallStats() {
         </CardHeader>
         <CardContent>
           <div className="text-3xl font-bold">{metrics.totalCalls}</div>
-          <p className="text-xs text-muted-foreground mt-1">
-            <span className={metrics.percentChange.calls.startsWith('+') ? "text-green-500" : "text-red-500"}>
-              {metrics.percentChange.calls}
-            </span> from last period
-          </p>
+          {hasCallData ? (
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className={metrics.percentChange.calls.startsWith('+') ? "text-green-500" : "text-red-500"}>
+                {metrics.percentChange.calls}
+              </span> from last period
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1">
+              No call data available
+            </p>
+          )}
         </CardContent>
       </Card>
       
@@ -67,11 +63,17 @@ export function CallStats() {
         </CardHeader>
         <CardContent>
           <div className="text-3xl font-bold">{metrics.totalMinutes}</div>
-          <p className="text-xs text-muted-foreground mt-1">
-            <span className={metrics.percentChange.minutes.startsWith('+') ? "text-green-500" : "text-red-500"}>
-              {metrics.percentChange.minutes}
-            </span> from last period
-          </p>
+          {hasCallData ? (
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className={metrics.percentChange.minutes.startsWith('+') ? "text-green-500" : "text-red-500"}>
+                {metrics.percentChange.minutes}
+              </span> from last period
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1">
+              No call data available
+            </p>
+          )}
         </CardContent>
       </Card>
       
@@ -81,11 +83,17 @@ export function CallStats() {
         </CardHeader>
         <CardContent>
           <div className="text-3xl font-bold">{metrics.totalCost}</div>
-          <p className="text-xs text-muted-foreground mt-1">
-            <span className={metrics.percentChange.cost.startsWith('+') ? "text-green-500" : "text-red-500"}>
-              {metrics.percentChange.cost}
-            </span> from last period
-          </p>
+          {hasCallData ? (
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className={metrics.percentChange.cost.startsWith('+') ? "text-green-500" : "text-red-500"}>
+                {metrics.percentChange.cost}
+              </span> from last period
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1">
+              No call data available
+            </p>
+          )}
         </CardContent>
       </Card>
       
@@ -114,7 +122,7 @@ export function CallStats() {
             </ResponsiveContainer>
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">
-              No data available
+              No data available. Try syncing your call history.
             </div>
           )}
         </CardContent>

@@ -167,7 +167,7 @@ export const useDashboardData = () => {
   // Generate daily call data for the chart
   const dailyCallData: DailyCallData[] = calculateDailyCallData(recentCalls || []);
 
-  // Calculate call outcomes
+  // Calculate call outcomes from actual data
   const callOutcomes: CallOutcome[] = [
     {
       name: "Success",

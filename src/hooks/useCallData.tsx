@@ -2,17 +2,20 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { fetchCalls, syncRetellCalls as syncCalls, CallData } from "@/services/callService";
+import { fetchCalls, syncCalls, CallData } from "@/services/callService";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function useCallData() {
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
+  const { company } = useAuth();
   
   const { data: calls, isLoading, refetch } = useQuery({
-    queryKey: ['calls'],
+    queryKey: ['calls', company?.id],
     queryFn: fetchCalls,
     initialData: [],
+    enabled: !!company?.id
   });
 
   const handleSync = async () => {
