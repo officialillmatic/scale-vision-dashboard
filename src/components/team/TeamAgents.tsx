@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Loader } from 'lucide-react';
 import { useAgents } from '@/hooks/useAgents';
 import { AgentDialog } from './AgentDialog';
 import { AgentAssignDialog } from './AgentAssignDialog';
@@ -13,6 +13,7 @@ import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRole } from '@/hooks/useRole';
 import { Agent } from '@/services/agentService';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function TeamAgents() {
   const { company } = useAuth();
@@ -63,15 +64,19 @@ export function TeamAgents() {
   };
 
   const isAdmin = isCompanyOwner || can.manageAgents;
+  const isLoading = isLoadingAgents || isLoadingUserAgents || isLoadingMembers;
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Agents List */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">AI Agents</h2>
           {isAdmin && (
-            <Button onClick={() => handleOpenAgentDialog()}>
+            <Button 
+              onClick={() => handleOpenAgentDialog()}
+              className="bg-brand-green hover:bg-brand-deep-green"
+            >
               <Plus className="mr-2 h-4 w-4" />
               Create Agent
             </Button>
@@ -80,14 +85,22 @@ export function TeamAgents() {
         
         <Card>
           <CardContent className="p-0">
-            <AgentsTable
-              agents={agents}
-              isLoading={isLoadingAgents}
-              onEdit={isAdmin ? handleOpenAgentDialog : undefined}
-              onAssign={isAdmin ? handleOpenAssignDialog : undefined}
-              onDelete={isAdmin ? handleConfirmDelete : undefined}
-              isAdmin={isAdmin}
-            />
+            {isLoading ? (
+              <div className="p-6 space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <AgentsTable
+                agents={agents}
+                isLoading={isLoadingAgents}
+                onEdit={isAdmin ? handleOpenAgentDialog : undefined}
+                onAssign={isAdmin ? handleOpenAssignDialog : undefined}
+                onDelete={isAdmin ? handleConfirmDelete : undefined}
+                isAdmin={isAdmin}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -98,11 +111,18 @@ export function TeamAgents() {
           <h2 className="text-2xl font-bold">Agent Assignments</h2>
           <Card>
             <CardContent className="p-0">
-              <AssignmentsTable
-                userAgents={userAgents}
-                isLoading={isLoadingUserAgents}
-                onRemove={handleRemoveAgentAssignment}
-              />
+              {isLoading ? (
+                <div className="p-6 space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : (
+                <AssignmentsTable
+                  userAgents={userAgents}
+                  isLoading={isLoadingUserAgents}
+                  onRemove={handleRemoveAgentAssignment}
+                />
+              )}
             </CardContent>
           </Card>
         </div>

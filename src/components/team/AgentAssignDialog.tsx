@@ -10,11 +10,12 @@ import {
   Form,
 } from '@/components/ui/form';
 import { Agent, UserAgent } from '@/services/agentService';
-import { CompanyMember } from '@/services/companyService';
+import { CompanyMember } from '@/services/memberService';
 import { agentAssignFormSchema, AgentAssignFormValues } from './schemas/agentAssignFormSchema';
 import { AgentAssignFormHeader } from './agent-assign-form/AgentAssignFormHeader';
 import { AgentAssignFormFields } from './agent-assign-form/AgentAssignFormFields';
 import { AgentAssignFormFooter } from './agent-assign-form/AgentAssignFormFooter';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface AgentAssignDialogProps {
   isOpen: boolean;
@@ -58,24 +59,34 @@ export function AgentAssignDialog({
     }
   };
 
+  const isLoading = !agents || !teamMembers;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <AgentAssignFormHeader />
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <AgentAssignFormFields 
-              form={form} 
-              teamMembers={teamMembers} 
-              agents={agents}
-            />
-            <AgentAssignFormFooter 
-              isSubmitting={isSubmitting} 
-              onClose={onClose}
-            />
-          </form>
-        </Form>
+        {isLoading ? (
+          <div className="space-y-4 py-4">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              <AgentAssignFormFields 
+                form={form} 
+                teamMembers={teamMembers} 
+                agents={agents}
+              />
+              <AgentAssignFormFooter 
+                isSubmitting={isSubmitting} 
+                onClose={onClose}
+              />
+            </form>
+          </Form>
+        )}
       </DialogContent>
     </Dialog>
   );
