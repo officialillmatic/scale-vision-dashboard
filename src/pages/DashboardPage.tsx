@@ -38,7 +38,7 @@ export function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  Use the "Sync Calls" button on the Calls page to fetch the latest calls from Retell.
+                  Use the "Sync Calls" button on the Calls page to fetch your latest calls.
                 </p>
               </CardContent>
             </Card>

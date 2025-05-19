@@ -1,5 +1,5 @@
 
 project_id = "jqkkhwoybcenxqpvodev"
 
-[functions.fetch-retell-calls]
+[functions.sync-calls]
 verify_jwt = true
