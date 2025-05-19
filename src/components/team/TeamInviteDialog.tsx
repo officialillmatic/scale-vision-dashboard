@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TeamInviteDialogProps {
   isOpen: boolean;
@@ -46,6 +47,9 @@ export function TeamInviteDialog({
   onInvite,
   isInviting
 }: TeamInviteDialogProps) {
+  const { company } = useAuth();
+  const [sendingInvitation, setSendingInvitation] = useState(false);
+  
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -55,12 +59,19 @@ export function TeamInviteDialog({
   });
   
   const handleSubmit = async (values: FormValues) => {
-    const success = await onInvite(values.email, values.role);
-    if (success) {
-      form.reset();
-      onClose();
+    setSendingInvitation(true);
+    try {
+      const success = await onInvite(values.email, values.role);
+      if (success) {
+        form.reset();
+        onClose();
+      }
+    } finally {
+      setSendingInvitation(false);
     }
   };
+  
+  const isSubmitting = isInviting || sendingInvitation;
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -104,9 +115,18 @@ export function TeamInviteDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
+                      <SelectItem value="admin">
+                        Admin
+                        <span className="text-xs text-gray-500 block">Full access to all settings and team management</span>
+                      </SelectItem>
+                      <SelectItem value="member">
+                        Member
+                        <span className="text-xs text-gray-500 block">Can upload calls and use the platform</span>
+                      </SelectItem>
+                      <SelectItem value="viewer">
+                        Viewer
+                        <span className="text-xs text-gray-500 block">Can only view calls and reports</span>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -118,8 +138,8 @@ export function TeamInviteDialog({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isInviting}>
-                {isInviting ? (
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
                   <>
                     <LoadingSpinner size="sm" className="mr-2" />
                     Sending Invitation

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { CallData } from "@/services/callService";
-import { addDays, format, startOfWeek, endOfWeek } from "date-fns";
+import { addDays, format, startOfWeek, endOfWeek, subDays, subWeeks } from "date-fns";
 
 export interface CallMetrics {
   totalCalls: number;
@@ -34,6 +34,7 @@ export const useDashboardData = () => {
   const { company } = useAuth();
   const companyId = company?.id;
   
+  // Fetch current period data
   const { data: recentCalls, isLoading: isLoadingCalls } = useQuery({
     queryKey: ['dashboard-calls', companyId],
     queryFn: async (): Promise<CallData[]> => {
@@ -67,17 +68,79 @@ export const useDashboardData = () => {
     enabled: !!companyId
   });
 
+  // Fetch previous period data for comparison
+  const { data: previousCalls } = useQuery({
+    queryKey: ['dashboard-previous-calls', companyId],
+    queryFn: async (): Promise<CallData[]> => {
+      if (!companyId) return [];
+      
+      // Get data from one week before
+      const oneWeekAgo = subDays(new Date(), 7);
+      const twoWeeksAgo = subDays(new Date(), 14);
+      
+      const { data, error } = await supabase
+        .from('calls')
+        .select('*')
+        .eq('company_id', companyId)
+        .gte('timestamp', twoWeeksAgo.toISOString())
+        .lte('timestamp', oneWeekAgo.toISOString())
+        .order('timestamp', { ascending: false })
+        .limit(50);
+        
+      if (error) throw error;
+      
+      return (data || []).map(call => ({
+        id: call.id,
+        call_id: call.call_id,
+        timestamp: new Date(call.timestamp),
+        duration_sec: call.duration_sec,
+        cost_usd: call.cost_usd,
+        sentiment: call.sentiment,
+        disconnection_reason: call.disconnection_reason,
+        call_status: call.call_status,
+        from: call.from,
+        to: call.to,
+        audio_url: call.audio_url,
+        transcript: call.transcript,
+        user_id: call.user_id
+      }));
+    },
+    enabled: !!companyId
+  });
+
+  // Calculate percentage change between current and previous period
+  const calculatePercentChange = (current: number, previous: number): string => {
+    if (previous === 0) return current > 0 ? "+100%" : "0%";
+    
+    const change = ((current - previous) / previous) * 100;
+    return `${change > 0 ? "+" : ""}${change.toFixed(0)}%`;
+  };
+  
+  // Get metrics for the current period
+  const currentTotalCalls = recentCalls?.length || 0;
+  const currentTotalMinutes = recentCalls?.reduce((sum, call) => sum + call.duration_sec / 60, 0) || 0;
+  const currentAvgDuration = currentTotalCalls > 0 ? 
+    recentCalls!.reduce((sum, call) => sum + call.duration_sec, 0) / currentTotalCalls : 0;
+  const currentTotalCost = recentCalls?.reduce((sum, call) => sum + call.cost_usd, 0) || 0;
+  
+  // Get metrics for the previous period
+  const previousTotalCalls = previousCalls?.length || 0;
+  const previousTotalMinutes = previousCalls?.reduce((sum, call) => sum + call.duration_sec / 60, 0) || 0;
+  const previousAvgDuration = previousTotalCalls > 0 ? 
+    previousCalls!.reduce((sum, call) => sum + call.duration_sec, 0) / previousTotalCalls : 0;
+  const previousTotalCost = previousCalls?.reduce((sum, call) => sum + call.cost_usd, 0) || 0;
+
   // Calculate metrics based on the calls data
   const metrics: CallMetrics = {
-    totalCalls: recentCalls?.length || 0,
-    totalMinutes: recentCalls?.reduce((sum, call) => sum + call.duration_sec / 60, 0) || 0,
-    avgDuration: formatDuration(recentCalls?.reduce((sum, call) => sum + call.duration_sec, 0) / (recentCalls?.length || 1)),
-    totalCost: `$${(recentCalls?.reduce((sum, call) => sum + call.cost_usd, 0) || 0).toFixed(2)}`,
+    totalCalls: currentTotalCalls,
+    totalMinutes: currentTotalMinutes,
+    avgDuration: formatDuration(currentAvgDuration),
+    totalCost: `$${currentTotalCost.toFixed(2)}`,
     percentChange: {
-      calls: "+24%", // Mock data for now, would require historical comparison
-      minutes: "+18%",
-      duration: "-5%",
-      cost: "+12%"
+      calls: calculatePercentChange(currentTotalCalls, previousTotalCalls),
+      minutes: calculatePercentChange(currentTotalMinutes, previousTotalMinutes),
+      duration: calculatePercentChange(currentAvgDuration, previousAvgDuration),
+      cost: calculatePercentChange(currentTotalCost, previousTotalCost)
     }
   };
 

@@ -1,6 +1,6 @@
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,10 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { checkInvitation, acceptInvitation } from "@/services/companyService";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 const registerSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -25,7 +29,43 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
+  const [searchParams] = useSearchParams();
+  const invitationToken = searchParams.get('token');
+  const [invitation, setInvitation] = useState<{
+    valid: boolean;
+    company?: { id: string; name: string; };
+    role?: 'admin' | 'member' | 'viewer';
+    email?: string;
+  } | null>(null);
+  
   const navigate = useNavigate();
+  
+  useEffect(() => {
+    // Check invitation token if present
+    const verifyInvitation = async () => {
+      if (invitationToken) {
+        const result = await checkInvitation(invitationToken);
+        if (result.valid && result.invitation) {
+          setInvitation({
+            valid: true,
+            company: result.company,
+            role: result.invitation.role,
+            email: result.invitation.email
+          });
+          
+          // Pre-fill email field if we have it
+          if (result.invitation.email) {
+            form.setValue('email', result.invitation.email);
+          }
+        } else {
+          setInvitation({ valid: false });
+          toast.error("This invitation link is invalid or has expired");
+        }
+      }
+    };
+    
+    verifyInvitation();
+  }, [invitationToken]);
   
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -40,6 +80,13 @@ export function RegisterForm() {
     setIsLoading(true);
     
     try {
+      // If we have an invitation but emails don't match
+      if (invitation?.valid && invitation.email && invitation.email !== values.email) {
+        toast.error(`This invitation was sent to ${invitation.email}. Please use that email address.`);
+        setIsLoading(false);
+        return;
+      }
+      
       const { data, error } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
@@ -47,6 +94,16 @@ export function RegisterForm() {
       
       if (error) {
         throw error;
+      }
+      
+      // If we have a valid invitation token, accept it
+      if (invitation?.valid && invitationToken && data.user) {
+        const accepted = await acceptInvitation(invitationToken, data.user.id);
+        if (accepted) {
+          toast.success(`You've successfully joined ${invitation.company?.name}`);
+        } else {
+          toast.error("There was an issue joining the company. Please contact support.");
+        }
       }
       
       toast.success("Account created! Please check your email to confirm your registration.");
@@ -74,8 +131,43 @@ export function RegisterForm() {
           </div>
           <CardTitle className="text-2xl font-bold">EchoWave</CardTitle>
           <CardDescription>
-            Create a new account to get started
+            {invitation?.valid && invitation.company 
+              ? `Join ${invitation.company.name} by creating an account`
+              : "Create a new account to get started"}
           </CardDescription>
+          
+          {invitation?.valid && invitation.company && invitation.role && (
+            <div className="flex flex-col items-center mt-2">
+              <p className="text-sm text-center mb-2">
+                You've been invited as a:
+              </p>
+              <Badge variant="outline" className={
+                invitation.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                invitation.role === 'member' ? 'bg-blue-100 text-blue-800' : 
+                'bg-green-100 text-green-800'
+              }>
+                {invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)}
+              </Badge>
+            </div>
+          )}
+          
+          {invitation === null && invitationToken && (
+            <div className="w-full mt-2">
+              <Alert>
+                <AlertCircle className="h-4 w-4 mr-2" />
+                <AlertDescription>Verifying invitation...</AlertDescription>
+              </Alert>
+            </div>
+          )}
+          
+          {invitation?.valid === false && (
+            <div className="w-full mt-2">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                <AlertDescription>This invitation link is invalid or has expired</AlertDescription>
+              </Alert>
+            </div>
+          )}
         </div>
       </CardHeader>
       <Form {...form}>
@@ -91,6 +183,7 @@ export function RegisterForm() {
                     <Input
                       type="email"
                       placeholder="email@example.com"
+                      disabled={invitation?.valid && !!invitation.email}
                       {...field}
                     />
                   </FormControl>
@@ -137,7 +230,7 @@ export function RegisterForm() {
             <Button 
               className="w-full bg-brand-purple hover:bg-brand-deep-purple" 
               type="submit" 
-              disabled={isLoading}
+              disabled={isLoading || (invitation === null && invitationToken !== null)}
             >
               {isLoading ? "Creating account..." : "Create Account"}
             </Button>

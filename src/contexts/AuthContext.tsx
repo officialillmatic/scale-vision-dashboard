@@ -29,7 +29,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
   const [userRole, setUserRole] = useState<'admin' | 'member' | 'viewer' | null>(null);
   const [isCompanyOwner, setIsCompanyOwner] = useState(false);
-
+  
+  // Handle auth state changes
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -56,7 +57,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         setIsCompanyLoading(true);
         try {
-          const companyData = await fetchCompany();
+          // First check if user owns a company
+          let companyData = await fetchCompany();
+          
+          // If no company found, check if user is a member of a company
+          if (!companyData) {
+            const { data: memberData, error: memberError } = await supabase
+              .from('company_members')
+              .select(`
+                company_id,
+                role,
+                companies:company_id (
+                  id,
+                  name,
+                  logo_url,
+                  owner_id,
+                  created_at,
+                  updated_at
+                )
+              `)
+              .eq('user_id', user.id)
+              .maybeSingle();
+              
+            if (!memberError && memberData && memberData.companies) {
+              // Format company data from the join
+              companyData = {
+                id: memberData.companies.id,
+                name: memberData.companies.name,
+                logo_url: memberData.companies.logo_url,
+                owner_id: memberData.companies.owner_id,
+                created_at: new Date(memberData.companies.created_at),
+                updated_at: new Date(memberData.companies.updated_at)
+              };
+              
+              // Set user role directly from the query result
+              setUserRole(memberData.role as 'admin' | 'member' | 'viewer');
+            }
+          }
+          
           setCompany(companyData);
           
           // Determine if user is company owner
@@ -75,12 +113,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             setCompanyMembers(members || []);
             
-            // Find the user's role
-            const userMember = members?.find(member => member.user_id === user.id);
-            if (userMember) {
-              setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
-            } else if (companyData.owner_id === user.id) {
-              setUserRole('admin'); // Company owner is always admin
+            // Find the user's role if not already set
+            if (!userRole) {
+              const userMember = members?.find(member => member.user_id === user.id);
+              if (userMember) {
+                setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
+              } else if (companyData.owner_id === user.id) {
+                setUserRole('admin'); // Company owner is always admin
+              }
             }
           }
         } catch (error) {
