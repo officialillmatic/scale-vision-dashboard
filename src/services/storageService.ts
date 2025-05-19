@@ -2,14 +2,18 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Get bucket names from environment variables or use defaults
+const LOGOS_BUCKET = import.meta.env.VITE_STORAGE_COMPANY_LOGOS_BUCKET || 'company-logos';
+const RECORDINGS_BUCKET = import.meta.env.VITE_STORAGE_RECORDINGS_BUCKET || 'recordings';
+
 export const uploadLogo = async (file: File): Promise<string | null> => {
   try {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `company-logos/${fileName}`;
+    const filePath = `${fileName}`;
 
     const { error: uploadError } = await supabase.storage
-      .from('recordings')  // Using the recordings bucket for now
+      .from(LOGOS_BUCKET)
       .upload(filePath, file);
 
     if (uploadError) {
@@ -19,7 +23,7 @@ export const uploadLogo = async (file: File): Promise<string | null> => {
     }
 
     const { data } = supabase.storage
-      .from('recordings')
+      .from(LOGOS_BUCKET)
       .getPublicUrl(filePath);
 
     return data.publicUrl;
@@ -43,7 +47,7 @@ export const getAudioUrl = async (companyId: string, audioKey: string): Promise<
       const filePath = audioKey.includes('/') ? audioKey : `${companyId}/${audioKey}`;
       
       const { data, error } = await supabase.storage
-        .from('recordings')
+        .from(RECORDINGS_BUCKET)
         .createSignedUrl(filePath, 3600); // 1 hour expiry
         
       if (error) {

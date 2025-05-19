@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Avatar } from '@/components/ui/avatar';
-import { createCompany, updateCompanyLogo, uploadLogo } from '@/services/companyService';
+import { createCompany, updateCompanyLogo } from '@/services/companyService';
+import { uploadLogo } from '@/services/storageService';
 import { toast } from 'sonner';
 
 export function CompanySettings() {
