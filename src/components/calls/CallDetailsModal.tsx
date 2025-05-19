@@ -29,7 +29,7 @@ export function CallDetailsModal({ call, isOpen, onClose }: CallDetailsModalProp
           </DialogDescription>
         </DialogHeader>
         <div className="mt-4">
-          <CallDetailsPanel call={call} />
+          <CallDetailsPanel call={call} onClose={onClose} />
         </div>
       </DialogContent>
     </Dialog>
