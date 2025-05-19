@@ -1,9 +1,9 @@
-
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Company, CompanyMember, fetchCompany } from "@/services/companyService";
+import { Company, fetchCompany } from "@/services/companyService";
+import { fetchCompanyMembers, CompanyMember } from "@/services/memberService";
 
 type AuthContextType = {
   session: Session | null;
@@ -102,14 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsCompanyOwner(companyData.owner_id === user.id);
             
             // Fetch company members to determine user's role
-            const { data: members, error } = await supabase
-              .from('company_members')
-              .select('*')
-              .eq('company_id', companyData.id);
-              
-            if (error) {
-              throw error;
-            }
+            const members = await fetchCompanyMembers(companyData.id);
             
             setCompanyMembers(members || []);
             
@@ -152,14 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsCompanyOwner(companyData.owner_id === user.id);
           
           // Refresh company members
-          const { data: members, error } = await supabase
-            .from('company_members')
-            .select('*')
-            .eq('company_id', companyData.id);
-            
-          if (error) {
-            throw error;
-          }
+          const members = await fetchCompanyMembers(companyData.id);
           
           setCompanyMembers(members || []);
           

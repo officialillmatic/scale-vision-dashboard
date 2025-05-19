@@ -6,7 +6,7 @@ import {
   fetchCompanyMembers, 
   inviteTeamMember, 
   CompanyMember 
-} from "@/services/companyService";
+} from "@/services/memberService";
 
 export function useTeamMembers(companyId?: string) {
   const [isInviting, setIsInviting] = useState(false);
