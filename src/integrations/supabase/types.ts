@@ -44,12 +44,15 @@ export type Database = {
           audio_url: string | null
           call_id: string
           call_status: string
+          call_summary: string | null
+          call_type: string
           company_id: string
           cost_usd: number
           disconnection_reason: string | null
           duration_sec: number
           from: string
           id: string
+          latency_ms: number | null
           result_sentiment: Json | null
           sentiment: string | null
           timestamp: string
@@ -61,12 +64,15 @@ export type Database = {
           audio_url?: string | null
           call_id: string
           call_status?: string
+          call_summary?: string | null
+          call_type?: string
           company_id: string
           cost_usd?: number
           disconnection_reason?: string | null
           duration_sec?: number
           from?: string
           id?: string
+          latency_ms?: number | null
           result_sentiment?: Json | null
           sentiment?: string | null
           timestamp?: string
@@ -78,12 +84,15 @@ export type Database = {
           audio_url?: string | null
           call_id?: string
           call_status?: string
+          call_summary?: string | null
+          call_type?: string
           company_id?: string
           cost_usd?: number
           disconnection_reason?: string | null
           duration_sec?: number
           from?: string
           id?: string
+          latency_ms?: number | null
           result_sentiment?: Json | null
           sentiment?: string | null
           timestamp?: string

@@ -1,5 +1,4 @@
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CallData } from "@/services/callService";
@@ -9,6 +8,7 @@ import { AudioPlayer } from "./AudioPlayer";
 import { CallTranscript } from "./CallTranscript";
 import { CallDataView } from "./CallData";
 import { CallLogs } from "./CallLogs";
+import { CallSummary } from "./CallSummary";
 
 interface CallDetailsPanelProps {
   call: CallData;
@@ -46,6 +46,9 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
           
           {/* Call Analysis */}
           <CallAnalysis call={call} />
+
+          {/* Call Summary */}
+          <CallSummary call={call} />
           
           {/* Audio Player (if available) */}
           {call.audio_url && (

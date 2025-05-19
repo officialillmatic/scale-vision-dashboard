@@ -132,6 +132,28 @@ serve(async (req) => {
       
       // If call doesn't exist, insert it
       if (!existingCall) {
+        // Get call summary if available
+        let callSummary = null
+        if (call.id) {
+          try {
+            const summaryResponse = await fetch(`https://api.retellai.com/v1/calls/${call.id}/summary`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${retellApiKey}`
+              }
+            });
+            
+            if (summaryResponse.ok) {
+              const summaryData = await summaryResponse.json();
+              callSummary = summaryData.summary || null;
+            }
+          } catch (summaryError) {
+            console.error('Error fetching call summary:', summaryError);
+            // Continue without summary if there's an error
+          }
+        }
+        
         // Transform Retell call data to match our schema
         const callRecord = {
           call_id: call.id,
@@ -146,7 +168,10 @@ serve(async (req) => {
           disconnection_reason: call.hangup_cause || null,
           sentiment: call.sentiment || null,
           audio_url: call.recording_url || null,
-          transcript: call.transcript || null
+          transcript: call.transcript || null,
+          call_type: mapCallType(call.call_type || 'phone_call'),
+          latency_ms: call.latency || 0,
+          call_summary: callSummary
         }
         
         const { error: insertError } = await supabase
@@ -192,4 +217,16 @@ function mapCallStatus(retellStatus) {
   }
   
   return statusMap[retellStatus] || 'unknown'
+}
+
+// Helper function to map call types
+function mapCallType(retellCallType) {
+  // Define mapping from Retell call types to our schema
+  const typeMap = {
+    'phone_call': 'phone_call',
+    'voicemail': 'voicemail'
+    // Add more mappings as needed
+  }
+  
+  return typeMap[retellCallType] || 'other'
 }

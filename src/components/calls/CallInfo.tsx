@@ -7,10 +7,37 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CallData } from "@/services/callService";
+import { PhoneCall, Voicemail, HelpCircle } from "lucide-react";
 
 interface CallInfoProps {
   call: CallData;
 }
+
+// Helper function to get call type icon
+const getCallTypeIcon = (callType: string) => {
+  switch (callType) {
+    case 'phone_call':
+      return <PhoneCall className="h-4 w-4" />;
+    case 'voicemail':
+      return <Voicemail className="h-4 w-4" />;
+    default:
+      return <HelpCircle className="h-4 w-4" />;
+  }
+};
+
+// Helper function to format call type for display
+const formatCallType = (callType: string) => {
+  switch (callType) {
+    case 'phone_call':
+      return 'Phone Call';
+    case 'voicemail':
+      return 'Voicemail';
+    case 'other':
+      return 'Other';
+    default:
+      return callType.charAt(0).toUpperCase() + callType.slice(1).replace('_', ' ');
+  }
+};
 
 export function CallInfo({ call }: CallInfoProps) {
   return (
@@ -22,6 +49,13 @@ export function CallInfo({ call }: CallInfoProps) {
         <div className="flex justify-between">
           <span className="text-muted-foreground">Date & Time</span>
           <span>{format(call.timestamp, "MMM dd, yyyy HH:mm:ss")}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-muted-foreground">Call Type</span>
+          <span className="flex items-center gap-1">
+            {getCallTypeIcon(call.call_type)}
+            {formatCallType(call.call_type)}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Campaign</span>
