@@ -19,6 +19,8 @@ export function CompanySettings() {
 
   const handleCompanyCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate input
     if (!companyName.trim()) {
       toast.error('Please enter a company name');
       return;
@@ -29,7 +31,11 @@ export function CompanySettings() {
       const newCompany = await createCompany(companyName);
       if (newCompany) {
         await refreshCompany();
+        toast.success("Company created successfully");
       }
+    } catch (error) {
+      console.error("Error creating company:", error);
+      toast.error("Failed to create company. Please try again.");
     } finally {
       setIsCreating(false);
     }
@@ -63,6 +69,9 @@ export function CompanySettings() {
           await refreshCompany();
         }
       }
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      toast.error("Failed to upload logo. Please try again.");
     } finally {
       setIsUploading(false);
       // Clear the file input

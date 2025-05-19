@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CompanyMember } from "./memberService";
@@ -73,15 +74,33 @@ export const fetchCompany = async (): Promise<Company | null> => {
 
 export const createCompany = async (name: string): Promise<Company | null> => {
   try {
+    // Validate the company name
+    if (!name || name.trim() === '') {
+      toast.error("Company name cannot be empty");
+      return null;
+    }
+
+    // Get the current user ID
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      toast.error("You must be logged in to create a company");
+      return null;
+    }
+
+    // Create the company with owner_id set to the current user's ID
     const { data, error } = await supabase
       .from("companies")
-      .insert([{ name }])
+      .insert([{ 
+        name: name.trim(),
+        owner_id: user.id
+      }])
       .select()
       .single();
 
     if (error) {
       console.error("Error creating company:", error);
-      toast.error("Failed to create company");
+      toast.error(error.message || "Failed to create company");
       return null;
     }
 
