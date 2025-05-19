@@ -44,7 +44,7 @@ export type Database = {
           audio_url: string | null
           call_id: string
           call_status: string
-          company_id: string | null
+          company_id: string
           cost_usd: number
           disconnection_reason: string | null
           duration_sec: number
@@ -61,7 +61,7 @@ export type Database = {
           audio_url?: string | null
           call_id: string
           call_status?: string
-          company_id?: string | null
+          company_id: string
           cost_usd?: number
           disconnection_reason?: string | null
           duration_sec?: number
@@ -78,7 +78,7 @@ export type Database = {
           audio_url?: string | null
           call_id?: string
           call_status?: string
-          company_id?: string | null
+          company_id?: string
           cost_usd?: number
           disconnection_reason?: string | null
           duration_sec?: number
