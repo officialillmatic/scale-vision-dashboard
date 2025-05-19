@@ -1,6 +1,6 @@
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
+import { AlertTriangleIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export function EnvWarning() {
@@ -23,7 +23,7 @@ export function EnvWarning() {
   
   return (
     <Alert variant="destructive" className="mb-4">
-      <ExclamationTriangleIcon className="h-4 w-4" />
+      <AlertTriangleIcon className="h-4 w-4" />
       <AlertTitle>Missing Environment Variables</AlertTitle>
       <AlertDescription>
         <p>The following environment variables are missing:</p>
