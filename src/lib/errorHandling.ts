@@ -5,13 +5,14 @@ interface ErrorHandlingOptions {
   fallbackMessage: string;
   showToast?: boolean;
   logError?: boolean;
+  logToConsole?: boolean; // Added to support existing code
 }
 
 export const handleError = (
   error: unknown, 
   options: ErrorHandlingOptions
 ): void => {
-  const { fallbackMessage, showToast = true, logError = true } = options;
+  const { fallbackMessage, showToast = true, logError = true, logToConsole = true } = options;
   
   // Default error message
   let errorMessage = fallbackMessage;
@@ -26,7 +27,7 @@ export const handleError = (
   }
   
   // Log error if required
-  if (logError) {
+  if (logError || logToConsole) {
     console.error(`Error: ${errorMessage}`, error);
   }
   

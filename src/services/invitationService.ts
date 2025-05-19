@@ -14,6 +14,15 @@ export interface CompanyInvitation {
   token: string;
 }
 
+export interface InvitationCheckResult {
+  valid: boolean;
+  invitation?: CompanyInvitation;
+  company?: {
+    id: string;
+    name: string;
+  };
+}
+
 export const fetchCompanyInvitations = async (companyId: string): Promise<CompanyInvitation[]> => {
   try {
     const { data, error } = await supabase
@@ -35,11 +44,11 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
   }
 };
 
-export const checkInvitation = async (token: string): Promise<{ valid: boolean, invitation?: CompanyInvitation }> => {
+export const checkInvitation = async (token: string): Promise<InvitationCheckResult> => {
   try {
     const { data, error } = await supabase
       .from("company_invitations")
-      .select("*")
+      .select("*, companies:company_id(id, name)")
       .eq("token", token)
       .eq("status", "pending")
       .single();
@@ -54,25 +63,36 @@ export const checkInvitation = async (token: string): Promise<{ valid: boolean, 
       return { valid: false };
     }
 
-    return { valid: true, invitation: data as CompanyInvitation };
+    const company = data.companies as { id: string, name: string };
+    delete data.companies;
+
+    return { 
+      valid: true, 
+      invitation: data as CompanyInvitation,
+      company
+    };
   } catch (error) {
     console.error("Error checking invitation:", error);
     return { valid: false };
   }
 };
 
-export const acceptInvitation = async (token: string): Promise<boolean> => {
+export const acceptInvitation = async (token: string, userId?: string): Promise<boolean> => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      toast.error("You must be logged in to accept an invitation");
-      return false;
+    if (!userId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error("You must be logged in to accept an invitation");
+        return false;
+      }
+      
+      userId = user.id;
     }
 
     const { data, error } = await supabase.rpc("accept_invitation", {
       p_token: token,
-      p_user_id: user.id
+      p_user_id: userId
     });
 
     if (error) {
@@ -84,6 +104,76 @@ export const acceptInvitation = async (token: string): Promise<boolean> => {
   } catch (error) {
     handleError(error, {
       fallbackMessage: "Failed to accept invitation"
+    });
+    return false;
+  }
+};
+
+export const cancelInvitation = async (invitationId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from("company_invitations")
+      .update({ status: 'rejected' })
+      .eq("id", invitationId);
+
+    if (error) {
+      throw error;
+    }
+
+    toast.success("Invitation canceled successfully");
+    return true;
+  } catch (error) {
+    handleError(error, {
+      fallbackMessage: "Failed to cancel invitation"
+    });
+    return false;
+  }
+};
+
+export const resendInvitation = async (invitationId: string): Promise<boolean> => {
+  try {
+    // Get the invitation details
+    const { data: invitation, error: fetchError } = await supabase
+      .from("company_invitations")
+      .select("*")
+      .eq("id", invitationId)
+      .single();
+
+    if (fetchError || !invitation) {
+      throw fetchError || new Error("Invitation not found");
+    }
+
+    // Update the expiration date (7 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const { error: updateError } = await supabase
+      .from("company_invitations")
+      .update({ 
+        expires_at: expiresAt.toISOString(),
+        created_at: new Date().toISOString(),
+        status: 'pending'
+      })
+      .eq("id", invitationId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    // Trigger the Edge Function to send the email
+    const { error: functionError } = await supabase.functions.invoke('send-invitation', {
+      body: { invitationId }
+    });
+
+    if (functionError) {
+      throw functionError;
+    }
+
+    toast.success("Invitation resent successfully");
+    return true;
+  } catch (error) {
+    handleError(error, {
+      fallbackMessage: "Failed to resend invitation"
     });
     return false;
   }

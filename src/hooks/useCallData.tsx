@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -7,7 +6,7 @@ import { fetchCalls, CallData } from "@/services/callService";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleError } from "@/lib/errorHandling";
 
-export function useCallData() {
+export const useCallData = (initialCalls: Call[] = []) => {
   const { company } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
@@ -102,4 +101,4 @@ export function useCallData() {
     handleSync,
     refetch
   };
-}
+};

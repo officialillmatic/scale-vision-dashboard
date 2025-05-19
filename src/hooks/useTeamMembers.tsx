@@ -1,84 +1,93 @@
-
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { 
-  fetchCompanyMembers, 
-  inviteTeamMember,
-  CompanyMember 
-} from "@/services/memberService";
+import { useState, useEffect } from "react";
+import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitationService";
 import { handleError } from "@/lib/errorHandling";
 
-export function useTeamMembers(companyId?: string) {
-  const [isInviting, setIsInviting] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
+interface UseTeamMembersResult {
+  invitations: CompanyInvitation[];
+  isLoading: boolean;
+  error: string | null;
+  fetchInvitations: () => Promise<void>;
+  handleCancelInvitation: (invitationId: string) => Promise<void>;
+  handleResendInvitation: (invitationId: string) => Promise<void>;
+}
 
-  const { 
-    data: teamMembers, 
-    isLoading, 
-    refetch,
-    error 
-  } = useQuery({
-    queryKey: ['team-members', companyId],
-    queryFn: async () => {
-      if (!companyId) {
-        return Promise.resolve([]);
-      }
-      
-      try {
-        const members = await fetchCompanyMembers(companyId);
-        return members;
-      } catch (error) {
-        handleError(error, {
-          fallbackMessage: "Failed to fetch team members",
-          showToast: true
-        });
-        return [];
-      }
-    },
-    enabled: !!companyId,
-    retry: 1, // Limit retries to avoid infinite loops if permissions aren't correctly set
-    staleTime: 1000 * 60 * 5, // 5 minutes cache
-  });
+export const useTeamMembers = (companyId: string | undefined): UseTeamMembersResult => {
+  const [invitations, setInvitations] = useState<CompanyInvitation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer') => {
-    if (!companyId) {
-      toast.error("Company ID is required");
-      return false;
-    }
+  const fetchInvitations = async () => {
+    if (!companyId) return;
 
-    setIsInviting(true);
-    setInviteError(null);
-    
+    setIsLoading(true);
+    setError(null);
+
     try {
-      const success = await inviteTeamMember(companyId, email, role);
-      if (success) {
-        toast.success(`Invitation sent to ${email}`);
-        refetch();
-        return true;
-      }
-      setInviteError("Failed to send invitation. Please try again.");
-      return false;
+      const invitations = await fetchCompanyInvitations(companyId);
+      setInvitations(invitations);
     } catch (error) {
-      const errorMessage = handleError(error, {
-        fallbackMessage: "Failed to invite team member",
-        logToConsole: true,
-        showToast: false
-      }) as string;
-      setInviteError(errorMessage);
-      return false;
+      handleError(error, {
+        fallbackMessage: "Failed to fetch invitations",
+        logToConsole: true
+      });
+      setError("Failed to fetch invitations");
     } finally {
-      setIsInviting(false);
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (companyId) {
+      fetchInvitations();
+    }
+  }, [companyId]);
+
+  const handleCancelInvitation = async (invitationId: string) => {
+    if (!companyId) return;
+
+    setIsLoading(true);
+    try {
+      const success = await cancelInvitation(invitationId);
+      if (success) {
+        // Refresh invitations list
+        fetchInvitations();
+      }
+    } catch (error) {
+      handleError(error, {
+        fallbackMessage: "Failed to cancel invitation",
+        logToConsole: true
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendInvitation = async (invitationId: string) => {
+    if (!companyId) return;
+    
+    setIsLoading(true);
+    try {
+      const success = await resendInvitation(invitationId);
+      if (success) {
+        // Refresh invitations list
+        fetchInvitations();
+      }
+    } catch (error) {
+      handleError(error, {
+        fallbackMessage: "Failed to resend invitation",
+        logToConsole: true
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return {
-    teamMembers: teamMembers || [],
+    invitations,
     isLoading,
-    isInviting,
-    inviteError,
-    handleInvite,
     error,
-    refetch
+    fetchInvitations,
+    handleCancelInvitation,
+    handleResendInvitation,
   };
-}
+};

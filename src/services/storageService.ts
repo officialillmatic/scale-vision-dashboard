@@ -1,7 +1,7 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
+import { handleError } from "@/lib/errorHandling";
 
 export const uploadCompanyLogo = async (file: File, companyId: string): Promise<string | null> => {
   try {
@@ -67,6 +67,32 @@ export const uploadUserAvatar = async (file: File, userId: string): Promise<stri
   } catch (error) {
     console.error("Error in uploadUserAvatar:", error);
     toast.error("Failed to upload avatar");
+    return null;
+  }
+};
+
+// Alias for uploadCompanyLogo to maintain compatibility
+export const uploadLogo = uploadCompanyLogo;
+
+// Add getAudioUrl function for the CallAudioPlayer component
+export const getAudioUrl = async (companyId: string, audioKey: string): Promise<string | null> => {
+  try {
+    // If the audioKey is already a full URL, return it as is
+    if (audioKey.startsWith('http')) {
+      return audioKey;
+    }
+    
+    // Otherwise, get the URL from Supabase storage
+    const { data: urlData } = supabase.storage
+      .from("public")
+      .getPublicUrl(`calls/${companyId}/${audioKey}`);
+    
+    return urlData.publicUrl;
+  } catch (error) {
+    handleError(error, {
+      fallbackMessage: "Failed to get audio URL",
+      logToConsole: true
+    });
     return null;
   }
 };
