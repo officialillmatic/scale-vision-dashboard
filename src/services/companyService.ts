@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CompanyMember } from "./memberService";
@@ -16,7 +15,7 @@ export interface Company {
 export const fetchCompany = async (): Promise<Company | null> => {
   try {
     // First try to get a company where user is the owner
-    let { data: ownedCompany, error: ownedCompanyError } = await supabase
+    const { data: ownedCompany, error: ownedCompanyError } = await supabase
       .from("companies")
       .select("*")
       .maybeSingle();
