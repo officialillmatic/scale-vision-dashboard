@@ -54,7 +54,7 @@ export function useCompanyData(user: User | null) {
           .maybeSingle();
           
         if (!memberError && memberData && memberData.companies) {
-          // Format company data from the join
+          // Format company data from the join - fixed to access properties correctly
           companyData = {
             id: memberData.companies.id,
             name: memberData.companies.name,

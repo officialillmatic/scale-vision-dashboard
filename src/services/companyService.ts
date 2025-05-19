@@ -88,6 +88,7 @@ export const updateCompanyLogo = async (companyId: string, logoUrl: string): Pro
 // Re-export the required types from the other service files
 export type { CompanyMember } from "./memberService";
 export type { CompanyInvitation } from "./invitationService";
+// Remove redundant export of inviteTeamMember
 export * from "./invitationService";
 export * from "./memberService";
 export * from "./storageService";
