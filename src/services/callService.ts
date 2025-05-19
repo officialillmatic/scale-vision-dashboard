@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CallsTable } from "@/types/supabase";
@@ -45,7 +44,7 @@ export const fetchCalls = async (): Promise<CallData[]> => {
   }
 };
 
-export const syncRetellCalls = async (): Promise<boolean> => {
+export const syncCalls = async (): Promise<boolean> => {
   try {
     // Show loading toast
     const loadingToast = toast.loading("Syncing calls...");
@@ -64,7 +63,7 @@ export const syncRetellCalls = async (): Promise<boolean> => {
     
     try {
       const response = await fetch(
-        "https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/fetch-retell-calls", 
+        "https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/sync-calls", 
         {
           method: "POST",
           headers: {
@@ -79,7 +78,7 @@ export const syncRetellCalls = async (): Promise<boolean> => {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error("Error response from fetch-calls API:", response.status, errorData);
+        console.error("Error response from sync-calls API:", response.status, errorData);
         toast.dismiss(loadingToast);
         toast.error(`Failed to sync calls: ${errorData.error || response.statusText}`);
         return false;
@@ -114,3 +113,6 @@ export const syncRetellCalls = async (): Promise<boolean> => {
     return false;
   }
 };
+
+// For backward compatibility
+export const syncRetellCalls = syncCalls;
