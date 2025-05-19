@@ -11,6 +11,42 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Simple retry logic
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3) {
+  let retries = 0;
+  while (retries < maxRetries) {
+    try {
+      const response = await fetch(url, options);
+      
+      // If rate limited, wait and retry
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get("Retry-After") || "2");
+        console.log(`Rate limited, retrying after ${retryAfter} seconds`);
+        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+        retries++;
+        continue;
+      }
+      
+      // For other types of failures
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return response;
+    } catch (error) {
+      console.error(`Attempt ${retries + 1} failed:`, error);
+      if (retries === maxRetries - 1) throw error;
+      
+      // Exponential backoff
+      const delay = Math.pow(2, retries) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      retries++;
+    }
+  }
+  
+  throw new Error("Max retries exceeded");
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -47,27 +83,29 @@ serve(async (req) => {
       );
     }
 
-    // Fetch calls from Retell API
-    const retellResponse = await fetch("https://api.retellai.com/v1/calls", {
-      headers: {
-        "Authorization": `Bearer ${RETELL_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!retellResponse.ok) {
-      const errorData = await retellResponse.text();
-      console.error("Retell API error:", errorData);
+    // Fetch calls from Retell API with retry logic
+    let retellData;
+    try {
+      const retellResponse = await fetchWithRetry(
+        "https://api.retellai.com/v1/calls", 
+        {
+          headers: {
+            "Authorization": `Bearer ${RETELL_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      retellData = await retellResponse.json();
+    } catch (retellError) {
+      console.error("Failed to fetch from Retell API:", retellError);
       return new Response(
-        JSON.stringify({ error: `Failed to fetch calls: ${retellResponse.statusText}` }),
+        JSON.stringify({ error: `Failed to fetch calls: ${retellError.message}` }),
         { 
-          status: retellResponse.status,
+          status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" } 
         }
       );
     }
-
-    const retellData = await retellResponse.json();
     
     if (!retellData.calls || !Array.isArray(retellData.calls)) {
       console.error("Invalid response format from Retell:", retellData);
@@ -96,39 +134,55 @@ serve(async (req) => {
     const results = [];
     for (const call of retellData.calls) {
       let audioUrl = null;
+      let retries = 0;
+      const maxRetries = 3;
       
       // Download and upload recording if available
       if (call.recording_url) {
-        try {
-          // Download audio from Retell
-          const audioResponse = await fetch(call.recording_url);
-          if (audioResponse.ok) {
-            const audioBuffer = await audioResponse.arrayBuffer();
-            
-            // Upload to Supabase Storage
-            const fileName = `${user.id}/${call.call_id}.mp3`;
-            const { data: uploadData, error: uploadError } = await supabase
-              .storage
-              .from("recordings")
-              .upload(fileName, audioBuffer, {
-                contentType: "audio/mpeg",
-                upsert: true
-              });
-
-            if (uploadError) {
-              console.error("Upload error:", uploadError);
-            } else {
-              // Get public URL for the uploaded file
-              const { data: urlData } = supabase
+        while (retries <= maxRetries && !audioUrl) {
+          try {
+            // Download audio from Retell
+            const audioResponse = await fetch(call.recording_url);
+            if (audioResponse.ok) {
+              const audioBuffer = await audioResponse.arrayBuffer();
+              
+              // Upload to Supabase Storage
+              const fileName = `${user.id}/${call.call_id}.mp3`;
+              const { data: uploadData, error: uploadError } = await supabase
                 .storage
                 .from("recordings")
-                .getPublicUrl(fileName);
-                
-              audioUrl = urlData.publicUrl;
+                .upload(fileName, audioBuffer, {
+                  contentType: "audio/mpeg",
+                  upsert: true
+                });
+
+              if (uploadError) {
+                throw uploadError;
+              } else {
+                // Get public URL for the uploaded file
+                const { data: urlData } = supabase
+                  .storage
+                  .from("recordings")
+                  .getPublicUrl(fileName);
+                  
+                audioUrl = urlData.publicUrl;
+                break;
+              }
+            } else {
+              throw new Error(`Audio fetch failed: ${audioResponse.status}`);
+            }
+          } catch (audioError) {
+            console.error(`Audio processing attempt ${retries + 1} failed:`, audioError);
+            retries++;
+            if (retries <= maxRetries) {
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, retries * 1000));
             }
           }
-        } catch (audioError) {
-          console.error("Error processing audio:", audioError);
+        }
+        
+        if (!audioUrl) {
+          console.error(`Failed to process audio for call ${call.call_id} after ${maxRetries} attempts`);
         }
       }
 

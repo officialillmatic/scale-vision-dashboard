@@ -38,33 +38,6 @@ export function LoginForm() {
     }
   };
 
-  const handleSignUp = async () => {
-    if (!email || !password) {
-      toast.error("Please enter both email and password");
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      
-      if (error) {
-        throw error;
-      }
-      
-      toast.success("Account created! Please check your email to confirm your registration.");
-    } catch (error: any) {
-      console.error("Signup error:", error);
-      toast.error(error.message || "Failed to create account. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
@@ -78,7 +51,7 @@ export function LoginForm() {
               <path d="M15 15l.01-.011" />
             </svg>
           </div>
-          <CardTitle className="text-2xl font-bold">Mr Scale</CardTitle>
+          <CardTitle className="text-2xl font-bold">EchoWave</CardTitle>
           <CardDescription>
             Sign in to your account to continue
           </CardDescription>
@@ -130,8 +103,7 @@ export function LoginForm() {
             className="w-full" 
             type="button" 
             variant="outline"
-            disabled={isLoading}
-            onClick={handleSignUp}
+            onClick={() => navigate("/register")}
           >
             Create an account
           </Button>
