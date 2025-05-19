@@ -20,7 +20,7 @@ const TeamPage = () => {
           </div>
           
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full space-y-6">
-            <div className="space-between flex items-center">
+            <div className="flex items-center justify-between">
               <TabsList>
                 <TabsTrigger value="members">Team Members</TabsTrigger>
                 <TabsTrigger value="agents">AI Agents</TabsTrigger>
