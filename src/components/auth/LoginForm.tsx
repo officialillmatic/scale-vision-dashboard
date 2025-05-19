@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -26,6 +28,7 @@ const loginSchema = z.object({
 
 export const LoginForm = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const navigate = useNavigate();
   
   const form = useForm<z.infer<typeof loginSchema>>({
@@ -38,20 +41,28 @@ export const LoginForm = () => {
 
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     setIsLoading(true);
+    setAuthError(null);
+    
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email: values.email,
+        email: values.email.trim(),
         password: values.password,
       });
       
       if (error) {
+        console.error("Login error:", error.message);
         throw error;
       }
       
       toast.success("Successfully signed in");
       navigate("/dashboard");
     } catch (error: any) {
-      toast.error(error.message || "Failed to sign in");
+      console.error("Full login error:", error);
+      setAuthError(error.message || "Failed to sign in");
+      
+      if (error.message.includes("Invalid login credentials")) {
+        setAuthError("Invalid email or password. Please check your credentials and try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -69,6 +80,12 @@ export const LoginForm = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {authError && (
+          <Alert variant="destructive" className="mb-4">
+            <ExclamationTriangleIcon className="h-4 w-4" />
+            <AlertDescription>{authError}</AlertDescription>
+          </Alert>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
