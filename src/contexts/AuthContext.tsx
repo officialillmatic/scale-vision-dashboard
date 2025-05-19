@@ -1,49 +1,13 @@
 
 import React, { createContext, useState, useEffect, useContext } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
-import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { useCompanyData } from "@/hooks/useCompanyData";
+import { useAuthFunctions } from "@/hooks/useAuthFunctions";
+import { AuthContextType, Company, CompanyMember } from "@/types/auth";
 
-interface Company {
-  id: string;
-  name: string;
-  owner_id: string;
-  logo_url: string | null; // Adding logo_url
-}
-
-export type CompanyMember = {
-  id: string;
-  company_id: string;
-  user_id: string;
-  role: 'admin' | 'member' | 'viewer';
-  status: 'active' | 'pending' | 'inactive';
-  created_at: Date;
-  updated_at: Date;
-  user_details?: {
-    email: string;
-    name?: string;
-  };
-};
-
-export const AuthContext = createContext<{
-  user: User | null;
-  company: Company | null;
-  isLoading: boolean;
-  isLoadingCompany: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, options?: { metadata?: any }) => Promise<void>;
-  signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<void>;
-  updatePassword: (updatedPassword: string) => Promise<void>;
-  updateUserProfile: (data: { name?: string; avatar_url?: string }) => Promise<void>;
-  isCompanyLoading: boolean; // Adding missing properties
-  refreshCompany: () => Promise<void>;
-  companyMembers: CompanyMember[];
-  userRole: 'admin' | 'member' | 'viewer' | null;
-  isCompanyOwner: boolean;
-}>({
+// Create context with default values
+export const AuthContext = createContext<AuthContextType>({
   user: null,
   company: null,
   isLoading: true,
@@ -65,6 +29,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
+  // Import authentication functions
+  const {
+    isLoading: isAuthLoading,
+    signIn,
+    signUp,
+    signOut,
+    resetPassword,
+    updatePassword,
+    updateUserProfile
+  } = useAuthFunctions();
+  
   // Use the external hook to manage company data
   const { 
     company, 
@@ -74,8 +49,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isCompanyOwner, 
     refreshCompany 
   } = useCompanyData(user);
-
-  const navigate = useNavigate();
 
   useEffect(() => {
     const getSession = async () => {
@@ -91,147 +64,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      toast.success('Successfully signed in!');
-      navigate("/dashboard");
-    } catch (error: any) {
-      console.error("Error signing in:", error);
-      toast.error(error.message ?? "Failed to sign in");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const signUp = async (email: string, password: string, options?: { metadata?: any }) => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            ...options?.metadata,
-          }
-        }
-      });
-      if (error) throw error;
-
-      // Create a user profile
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert([
-          { id: data.user?.id, email: data.user?.email, ...options?.metadata }
-        ]);
-
-      if (profileError) throw profileError;
-
-      toast.success('Successfully signed up!');
-      navigate("/dashboard");
-    } catch (error: any) {
-      console.error("Error signing up:", error);
-      toast.error(error.message ?? "Failed to sign up");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const signOut = async () => {
-    setIsLoading(true);
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      toast.success('Successfully signed out!');
-      navigate("/login");
-    } catch (error: any) {
-      console.error("Error signing out:", error);
-      toast.error(error.message ?? "Failed to sign out");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const resetPassword = async (email: string) => {
-    setIsLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) throw error;
-      toast.success('Password reset link sent to your email!');
-    } catch (error: any) {
-      console.error("Error sending reset password email:", error);
-      toast.error(error.message ?? "Failed to send reset password email");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updatePassword = async (updatedPassword: string) => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.auth.updateUser({
-        password: updatedPassword,
-      });
-      if (error) throw error;
-      toast.success('Password updated successfully!');
-    } catch (error: any) {
-      console.error("Error updating password:", error);
-      toast.error(error.message ?? "Failed to update password");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const updateUserProfile = async (data: { name?: string; avatar_url?: string }) => {
-    try {
-      if (!user) {
-        throw new Error("No user logged in");
-      }
-      
-      // Update user profile in Supabase
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({
-          name: data.name,
-          avatar_url: data.avatar_url
-        })
-        .eq('id', user.id);
-        
-      if (error) {
-        throw error;
-      }
-      
-      // Refresh user data 
-      const { data: userData, error: userError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-        
-      if (userError) {
-        throw userError;
-      }
-      
-      // Update local state
-      // Note: We're not updating the user state directly as it comes from auth session
-      // If needed, we would refresh the session or update a separate profile state
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      throw error;
-    }
-  };
+  // Combine local loading state with auth loading state
+  const combinedIsLoading = isLoading || isAuthLoading;
 
   return (
     <AuthContext.Provider
       value={{
         user,
         company,
-        isLoading,
-        isLoadingCompany,
+        isLoading: combinedIsLoading,
+        isLoadingCompany: isCompanyLoading,
         signIn,
         signUp,
         signOut,
