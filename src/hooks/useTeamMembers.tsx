@@ -11,6 +11,7 @@ import { handleError } from "@/lib/errorHandling";
 
 export function useTeamMembers(companyId?: string) {
   const [isInviting, setIsInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   const { 
     data: teamMembers, 
@@ -19,9 +20,25 @@ export function useTeamMembers(companyId?: string) {
     error 
   } = useQuery({
     queryKey: ['team-members', companyId],
-    queryFn: () => companyId ? fetchCompanyMembers(companyId) : Promise.resolve([]),
+    queryFn: async () => {
+      if (!companyId) {
+        return Promise.resolve([]);
+      }
+      
+      try {
+        const members = await fetchCompanyMembers(companyId);
+        return members;
+      } catch (error) {
+        handleError(error, {
+          fallbackMessage: "Failed to fetch team members",
+          showToast: true
+        });
+        return [];
+      }
+    },
     enabled: !!companyId,
-    retry: 1 // Limit retries to avoid infinite loops if permissions aren't correctly set
+    retry: 1, // Limit retries to avoid infinite loops if permissions aren't correctly set
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer') => {
@@ -31,6 +48,8 @@ export function useTeamMembers(companyId?: string) {
     }
 
     setIsInviting(true);
+    setInviteError(null);
+    
     try {
       const success = await inviteTeamMember(companyId, email, role);
       if (success) {
@@ -38,11 +57,14 @@ export function useTeamMembers(companyId?: string) {
         refetch();
         return true;
       }
+      setInviteError("Failed to send invitation. Please try again.");
       return false;
     } catch (error) {
-      handleError(error, {
-        fallbackMessage: "Failed to invite team member"
+      const errorMessage = handleError(error, {
+        fallbackMessage: "Failed to invite team member",
+        returnMessage: true
       });
+      setInviteError(errorMessage as string);
       return false;
     } finally {
       setIsInviting(false);
@@ -53,7 +75,9 @@ export function useTeamMembers(companyId?: string) {
     teamMembers: teamMembers || [],
     isLoading,
     isInviting,
+    inviteError,
     handleInvite,
-    error
+    error,
+    refetch
   };
 }

@@ -13,6 +13,7 @@ import CallsPage from "./pages/CallsPage";
 import TeamPage from "./pages/TeamPage";
 import SettingsPage from "./pages/SettingsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import SupportPage from "./pages/SupportPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -67,6 +68,11 @@ const App = () => (
             <Route path="/settings" element={
               <ProtectedRoute requiredAction="editSettings">
                 <SettingsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/support" element={
+              <ProtectedRoute>
+                <SupportPage />
               </ProtectedRoute>
             } />
             

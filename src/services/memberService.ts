@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errorHandling";
@@ -65,19 +66,38 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
       fallbackMessage: "Failed to fetch company members",
       showToast: false
     });
-    return []; // Return empty array instead of string
+    return []; 
   }
 };
 
 export const inviteTeamMember = async (companyId: string, email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
   try {
-    // Call the Supabase Edge Function to send the invitation
+    // First check if RESEND_API_KEY is configured in Supabase
+    const { data: configCheck, error: configError } = await supabase.functions.invoke('check-email-config');
+    
+    if (configError) {
+      console.error("Error checking email configuration:", configError);
+      toast.error("Email configuration error. Contact administrator.");
+      return false;
+    }
+    
+    if (configCheck && !configCheck.configured) {
+      toast.error("Email service not configured. Contact administrator.");
+      return false;
+    }
+    
+    // Proceed with invitation
     const { data, error } = await supabase.functions.invoke('send-invitation', {
       body: { companyId, email, role }
     });
     
     if (error) {
+      console.error("Error sending invitation:", error);
       throw error;
+    }
+    
+    if (data && data.error) {
+      throw new Error(data.error);
     }
 
     // We don't need to show a toast here as the edge function now handles sending emails
@@ -116,7 +136,7 @@ export const updateTeamMemberRole = async (memberId: string, role: 'admin' | 'me
   try {
     const { error } = await supabase
       .from("company_members")
-      .update({ role })
+      .update({ role, updated_at: new Date().toISOString() })
       .eq("id", memberId);
     
     if (error) {

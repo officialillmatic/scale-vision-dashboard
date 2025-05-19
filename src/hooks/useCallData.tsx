@@ -17,11 +17,28 @@ export function useCallData() {
   const { 
     data: calls = [], 
     isLoading,
-    error
+    error,
+    refetch
   } = useQuery({
     queryKey: ["calls", company?.id],
-    queryFn: () => company?.id ? fetchCalls(company.id) : Promise.resolve([]),
+    queryFn: () => {
+      if (!company?.id) {
+        return Promise.resolve([]);
+      }
+      return fetchCalls(company.id);
+    },
     enabled: !!company?.id,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: (failureCount, error) => {
+      // Only retry twice for permission errors
+      if (error?.message?.includes("permission denied")) {
+        return failureCount < 1;
+      }
+      return failureCount < 2;
+    },
+    onError: (error) => {
+      console.error("Error fetching calls:", error);
+    },
   });
 
   // Sync calls mutation
@@ -55,8 +72,8 @@ export function useCallData() {
   const filteredCalls = calls.filter((call) => {
     const matchesSearch =
       searchTerm === "" ||
-      call.from.includes(searchTerm) ||
-      call.to.includes(searchTerm) ||
+      call.from?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      call.to?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (call.transcript && call.transcript.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesDate =
@@ -81,5 +98,6 @@ export function useCallData() {
     date,
     setDate,
     handleSync,
+    refetch
   };
 }

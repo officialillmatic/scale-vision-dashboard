@@ -16,15 +16,11 @@ interface CallDetailsPanelProps {
 }
 
 export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
-  // Mock transcript data - in a real app, this would come from the API
-  const transcript = [
-    { speaker: "Agent", text: "Hello, thank you for calling Mr Scale support. How may I assist you today?" },
-    { speaker: "Customer", text: "Hi, I'm having trouble with setting up my account." },
-    { speaker: "Agent", text: "I understand. Let me help you with that. Could you please provide me with your account email?" },
-    { speaker: "Customer", text: "Sure, it's customer@example.com." },
-    { speaker: "Agent", text: "Perfect, I've found your account. Let me guide you through the setup process step by step." },
-  ];
-
+  // Parse transcript from the call data if available
+  const transcriptContent = call.transcript ? 
+    parseTranscript(call.transcript) : 
+    [];
+  
   // Clean up audio on unmount
   const handleClose = () => {
     onClose();
@@ -64,7 +60,11 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
               <TabsTrigger value="logs">Logs</TabsTrigger>
             </TabsList>
             <TabsContent value="transcript" className="mt-4">
-              <CallTranscript transcript={transcript} timestamp={call.timestamp} />
+              <CallTranscript 
+                transcript={transcriptContent} 
+                timestamp={call.timestamp}
+                isLoading={transcriptContent.length === 0}
+              />
             </TabsContent>
             <TabsContent value="data" className="mt-4">
               <CallDataView call={call} />
@@ -77,4 +77,42 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
       </div>
     </div>
   );
+}
+
+// Helper function to parse transcript text into structured format
+function parseTranscript(transcriptText: string): { speaker: string; text: string }[] {
+  try {
+    // If it's already JSON, parse it directly
+    if (transcriptText.trim().startsWith('[') || transcriptText.trim().startsWith('{')) {
+      const parsed = JSON.parse(transcriptText);
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => ({
+          speaker: item.speaker || "Unknown",
+          text: item.text || ""
+        }));
+      }
+    }
+    
+    // Basic parsing for format like "Speaker: Text\nSpeaker2: Text2"
+    const lines = transcriptText.split('\n').filter(line => line.trim());
+    return lines.map(line => {
+      const parts = line.split(':', 2);
+      if (parts.length === 2) {
+        return {
+          speaker: parts[0].trim(),
+          text: parts[1].trim()
+        };
+      }
+      return {
+        speaker: "Unknown",
+        text: line.trim()
+      };
+    });
+  } catch (error) {
+    console.error("Error parsing transcript:", error);
+    return [{
+      speaker: "System",
+      text: "Transcript format not recognized"
+    }];
+  }
 }
