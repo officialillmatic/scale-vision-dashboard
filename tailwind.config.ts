@@ -72,10 +72,12 @@ export default {
 					ring: 'hsl(var(--sidebar-ring))'
 				},
 				brand: {
-          purple: '#9b87f5',
-          'deep-purple': '#7E69AB',
-          'light-purple': '#E5DEFF',
-          background: '#F1F0FB',
+          green: '#26a45f',
+          'deep-green': '#1c7d48',
+          'light-green': '#e6f7ed',
+          navy: '#0d2c40',
+          'light-navy': '#e6ecf0',
+          background: '#F1F9F5',
         }
 			},
 			borderRadius: {

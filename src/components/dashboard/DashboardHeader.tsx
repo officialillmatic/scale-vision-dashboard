@@ -25,7 +25,7 @@ export function DashboardHeader() {
   // Fallback user data if auth not available
   const userName = user?.email?.split('@')[0] || "User";
   const userEmail = user?.email || "user@example.com";
-  const company = "Acme Inc."; // This could come from a user profile in the future
+  const company = "Dr. Scale"; // Updated company name
 
   const handleLogout = async () => {
     try {

@@ -118,13 +118,24 @@ export function DashboardSidebar() {
       <div className="flex items-center justify-between p-4">
         {!collapsed && (
           <div className="flex items-center gap-2 px-2">
-            <div className="rounded-lg bg-brand-purple p-1 w-8 h-8 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">MS</span>
-            </div>
-            <span className="font-semibold">Mr Scale</span>
+            <img 
+              src="/lovable-uploads/3cab64ed-2b97-4974-9c76-8ae4f310234d.png" 
+              alt="Dr. Scale Logo" 
+              className="h-8 w-auto"
+            />
+            <span className="font-semibold">Dr. Scale</span>
           </div>
         )}
-        <SidebarTrigger className={cn(collapsed ? "mx-auto" : "ml-auto")} />
+        {collapsed && (
+          <div className="mx-auto">
+            <img 
+              src="/lovable-uploads/3cab64ed-2b97-4974-9c76-8ae4f310234d.png" 
+              alt="Dr. Scale Logo" 
+              className="h-8 w-auto"
+            />
+          </div>
+        )}
+        <SidebarTrigger className={cn(collapsed ? "hidden" : "ml-auto")} />
       </div>
 
       <SidebarContent className="px-3 py-2">
