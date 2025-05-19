@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { getAudioUrl } from "@/services/storageService";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CallAudioPlayerProps {
   audioUrl: string;
@@ -14,14 +16,39 @@ export function CallAudioPlayer({ audioUrl, duration }: CallAudioPlayerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [hasError, setHasError] = useState(false);
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { company } = useAuth();
   
   useEffect(() => {
-    if (audioUrl) {
+    if (audioUrl && company) {
       setIsLoading(true);
       setHasError(false);
       
-      const audio = new Audio(audioUrl);
+      // Resolve the actual audio URL from Supabase storage
+      const fetchAudioUrl = async () => {
+        try {
+          const url = await getAudioUrl(company.id, audioUrl);
+          setResolvedUrl(url);
+        } catch (error) {
+          console.error("Failed to resolve audio URL:", error);
+          setHasError(true);
+          toast.error("Failed to load audio file URL");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      fetchAudioUrl();
+    }
+  }, [audioUrl, company]);
+  
+  useEffect(() => {
+    if (resolvedUrl) {
+      setIsLoading(true);
+      setHasError(false);
+      
+      const audio = new Audio(resolvedUrl);
       audioRef.current = audio;
       
       audio.addEventListener('loadeddata', () => {
@@ -52,7 +79,7 @@ export function CallAudioPlayer({ audioUrl, duration }: CallAudioPlayerProps) {
         audioRef.current = null;
       };
     }
-  }, [audioUrl]);
+  }, [resolvedUrl]);
 
   const togglePlayback = () => {
     if (!audioRef.current || hasError) return;
@@ -90,7 +117,7 @@ export function CallAudioPlayer({ audioUrl, duration }: CallAudioPlayerProps) {
           variant="outline"
           size="icon"
           onClick={togglePlayback}
-          disabled={isLoading || hasError}
+          disabled={isLoading || hasError || !resolvedUrl}
         >
           {isLoading ? (
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>

@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,30 +39,40 @@ export const useDashboardData = () => {
     queryFn: async (): Promise<CallData[]> => {
       if (!companyId) return [];
       
-      const { data, error } = await supabase
-        .from('calls')
-        .select('*')
-        .eq('company_id', companyId)
-        .order('timestamp', { ascending: false })
-        .limit(50);
+      try {
+        const { data, error } = await supabase
+          .from('calls')
+          .select('*')
+          .eq('company_id', companyId)
+          .order('timestamp', { ascending: false })
+          .limit(50);
+          
+        if (error) {
+          console.error("Error fetching dashboard calls:", error);
+          return [];
+        }
         
-      if (error) throw error;
-      
-      return (data || []).map(call => ({
-        id: call.id,
-        call_id: call.call_id,
-        timestamp: new Date(call.timestamp),
-        duration_sec: call.duration_sec,
-        cost_usd: call.cost_usd,
-        sentiment: call.sentiment,
-        disconnection_reason: call.disconnection_reason,
-        call_status: call.call_status,
-        from: call.from,
-        to: call.to,
-        audio_url: call.audio_url,
-        transcript: call.transcript,
-        user_id: call.user_id
-      }));
+        return (data || []).map(call => ({
+          id: call.id,
+          call_id: call.call_id,
+          timestamp: new Date(call.timestamp),
+          duration_sec: call.duration_sec,
+          cost_usd: call.cost_usd,
+          sentiment: call.sentiment,
+          disconnection_reason: call.disconnection_reason,
+          call_status: call.call_status,
+          from: call.from,
+          to: call.to,
+          audio_url: call.audio_url,
+          transcript: call.transcript,
+          user_id: call.user_id,
+          result_sentiment: call.result_sentiment,
+          company_id: call.company_id
+        }));
+      } catch (error) {
+        console.error("Error in dashboard calls query:", error);
+        return [];
+      }
     },
     enabled: !!companyId
   });
@@ -74,36 +83,46 @@ export const useDashboardData = () => {
     queryFn: async (): Promise<CallData[]> => {
       if (!companyId) return [];
       
-      // Get data from one week before
-      const oneWeekAgo = subDays(new Date(), 7);
-      const twoWeeksAgo = subDays(new Date(), 14);
-      
-      const { data, error } = await supabase
-        .from('calls')
-        .select('*')
-        .eq('company_id', companyId)
-        .gte('timestamp', twoWeeksAgo.toISOString())
-        .lte('timestamp', oneWeekAgo.toISOString())
-        .order('timestamp', { ascending: false })
-        .limit(50);
+      try {
+        // Get data from one week before
+        const oneWeekAgo = subDays(new Date(), 7);
+        const twoWeeksAgo = subDays(new Date(), 14);
         
-      if (error) throw error;
-      
-      return (data || []).map(call => ({
-        id: call.id,
-        call_id: call.call_id,
-        timestamp: new Date(call.timestamp),
-        duration_sec: call.duration_sec,
-        cost_usd: call.cost_usd,
-        sentiment: call.sentiment,
-        disconnection_reason: call.disconnection_reason,
-        call_status: call.call_status,
-        from: call.from,
-        to: call.to,
-        audio_url: call.audio_url,
-        transcript: call.transcript,
-        user_id: call.user_id
-      }));
+        const { data, error } = await supabase
+          .from('calls')
+          .select('*')
+          .eq('company_id', companyId)
+          .gte('timestamp', twoWeeksAgo.toISOString())
+          .lte('timestamp', oneWeekAgo.toISOString())
+          .order('timestamp', { ascending: false })
+          .limit(50);
+          
+        if (error) {
+          console.error("Error fetching previous dashboard calls:", error);
+          return [];
+        }
+        
+        return (data || []).map(call => ({
+          id: call.id,
+          call_id: call.call_id,
+          timestamp: new Date(call.timestamp),
+          duration_sec: call.duration_sec,
+          cost_usd: call.cost_usd,
+          sentiment: call.sentiment,
+          disconnection_reason: call.disconnection_reason,
+          call_status: call.call_status,
+          from: call.from,
+          to: call.to,
+          audio_url: call.audio_url,
+          transcript: call.transcript,
+          user_id: call.user_id,
+          result_sentiment: call.result_sentiment,
+          company_id: call.company_id
+        }));
+      } catch (error) {
+        console.error("Error in previous dashboard calls query:", error);
+        return [];
+      }
     },
     enabled: !!companyId
   });
@@ -176,7 +195,7 @@ export const useDashboardData = () => {
     dailyCallData,
     callOutcomes,
     recentCalls: recentCalls?.slice(0, 5) || [],
-    isLoading: isLoadingCalls
+    isLoading: isLoadingCalls || !companyId
   };
 };
 
