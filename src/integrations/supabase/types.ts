@@ -245,6 +245,33 @@ export type Database = {
           },
         ]
       }
+      user_profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          id: string
+          name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -260,6 +287,14 @@ export type Database = {
       }
       is_admin_of_company: {
         Args: { company_id: string }
+        Returns: boolean
+      }
+      is_company_admin: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_company_member: {
+        Args: { p_company_id: string; p_user_id: string }
         Returns: boolean
       }
       is_company_owner: {

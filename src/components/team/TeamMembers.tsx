@@ -18,17 +18,13 @@ import { Badge } from '@/components/ui/badge';
 import { TeamInviteDialog } from './TeamInviteDialog';
 import { TeamInvitations } from './TeamInvitations';
 import { UserPlus } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function TeamMembers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { company } = useAuth();
   
-  // Fetch the company first
-  const { data: company, isLoading: isLoadingCompany } = useQuery({
-    queryKey: ['company'],
-    queryFn: fetchCompany
-  });
-  
-  // Then fetch team members
+  // Use the company from auth context instead of fetching it again
   const { 
     teamMembers, 
     isLoading: isLoadingMembers, 
@@ -36,7 +32,7 @@ export function TeamMembers() {
     handleInvite 
   } = useTeamMembers(company?.id);
 
-  const isLoading = isLoadingCompany || isLoadingMembers;
+  const isLoading = isLoadingMembers;
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {

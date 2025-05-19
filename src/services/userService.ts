@@ -17,14 +17,18 @@ export interface UserProfile {
  */
 export const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
-    // First try to get from profiles table
+    // Get from user_profiles table
     const { data: profileData, error: profileError } = await supabase
       .from("user_profiles")
       .select("*")
       .eq("id", userId)
       .single();
 
-    if (!profileError && profileData) {
+    if (profileError) {
+      throw profileError;
+    }
+
+    if (profileData) {
       return {
         id: profileData.id,
         email: profileData.email,
@@ -32,36 +36,6 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
         avatar_url: profileData.avatar_url,
         created_at: new Date(profileData.created_at),
         updated_at: new Date(profileData.updated_at)
-      };
-    }
-
-    // If not found in profiles, get from auth.users (fallback)
-    const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-
-    if (userError) {
-      throw userError;
-    }
-
-    if (userData?.user) {
-      // Create a profile for this user for future queries
-      const { error: insertError } = await supabase.from("user_profiles").insert({
-        id: userData.user.id,
-        email: userData.user.email,
-        name: userData.user.user_metadata?.name || null,
-        avatar_url: userData.user.user_metadata?.avatar_url || null
-      });
-
-      if (insertError) {
-        console.warn("Could not create user profile:", insertError);
-      }
-
-      return {
-        id: userData.user.id,
-        email: userData.user.email!,
-        name: userData.user.user_metadata?.name || null,
-        avatar_url: userData.user.user_metadata?.avatar_url || null,
-        created_at: new Date(userData.user.created_at),
-        updated_at: new Date(userData.user.updated_at || userData.user.created_at)
       };
     }
 

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCalls, CallData } from "@/services/callService";
 import { useAuth } from "@/contexts/AuthContext";
+import { handleError } from "@/lib/errorHandling";
 
 export function useCallData() {
   const { company } = useAuth();
@@ -29,8 +30,16 @@ export function useCallData() {
     isPending: isSyncing 
   } = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.functions.invoke("sync-calls");
-      if (error) throw error;
+      try {
+        const { error } = await supabase.functions.invoke("sync-calls");
+        if (error) throw error;
+      } catch (error) {
+        return handleError(error, {
+          fallbackMessage: "Failed to sync calls",
+          showToast: false, // We'll handle toast in onError
+          logToConsole: true
+        });
+      }
     },
     onSuccess: () => {
       toast.success("Calls synchronized successfully");

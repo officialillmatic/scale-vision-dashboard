@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errorHandling";
@@ -62,11 +61,11 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
 
     return membersWithDetails;
   } catch (error) {
-    return handleError(error, {
+    handleError(error, {
       fallbackMessage: "Failed to fetch company members",
-      showToast: false,
-      onError: () => []
+      showToast: false
     });
+    return []; // Return empty array instead of string
   }
 };
 

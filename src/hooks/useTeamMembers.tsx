@@ -7,6 +7,7 @@ import {
   inviteTeamMember,
   CompanyMember 
 } from "@/services/memberService";
+import { handleError } from "@/lib/errorHandling";
 
 export function useTeamMembers(companyId?: string) {
   const [isInviting, setIsInviting] = useState(false);
@@ -39,8 +40,9 @@ export function useTeamMembers(companyId?: string) {
       }
       return false;
     } catch (error) {
-      console.error("Error inviting team member:", error);
-      toast.error("Failed to invite team member");
+      handleError(error, {
+        fallbackMessage: "Failed to invite team member"
+      });
       return false;
     } finally {
       setIsInviting(false);
