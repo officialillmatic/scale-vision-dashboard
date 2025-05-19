@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,7 +65,10 @@ const AnalyticsPage = () => {
           transcript: call.transcript,
           user_id: call.user_id,
           result_sentiment: call.result_sentiment,
-          company_id: call.company_id
+          company_id: call.company_id,
+          call_type: call.call_type || 'phone_call',
+          latency_ms: call.latency_ms || 0,
+          call_summary: call.call_summary
         }));
       } catch (error) {
         console.error("Error in analytics calls query:", error);

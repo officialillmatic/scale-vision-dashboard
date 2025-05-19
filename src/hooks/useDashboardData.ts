@@ -68,7 +68,10 @@ export const useDashboardData = () => {
           transcript: call.transcript,
           user_id: call.user_id,
           result_sentiment: call.result_sentiment,
-          company_id: call.company_id
+          company_id: call.company_id,
+          call_type: call.call_type || 'phone_call',
+          latency_ms: call.latency_ms || 0,
+          call_summary: call.call_summary
         }));
       } catch (error) {
         console.error("Error in dashboard calls query:", error);
@@ -118,7 +121,10 @@ export const useDashboardData = () => {
           transcript: call.transcript,
           user_id: call.user_id,
           result_sentiment: call.result_sentiment,
-          company_id: call.company_id
+          company_id: call.company_id,
+          call_type: call.call_type || 'phone_call',
+          latency_ms: call.latency_ms || 0,
+          call_summary: call.call_summary
         }));
       } catch (error) {
         console.error("Error in previous dashboard calls query:", error);
