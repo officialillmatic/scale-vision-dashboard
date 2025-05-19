@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { TeamInviteDialog } from './TeamInviteDialog';
+import { TeamInvitations } from './TeamInvitations';
 import { UserPlus } from 'lucide-react';
 
 export function TeamMembers() {
@@ -64,57 +65,62 @@ export function TeamMembers() {
   };
   
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Team Members</h2>
-        <Button onClick={() => setIsDialogOpen(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Invite Member
-        </Button>
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Team Members</h2>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Invite Member
+          </Button>
+        </div>
+        
+        <Card>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Joined</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center">
+                      <LoadingSpinner size="md" className="mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                ) : teamMembers.length > 0 ? (
+                  teamMembers.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell className="font-medium">{member.user_details?.email}</TableCell>
+                      <TableCell>
+                        <Badge className={getRoleBadgeColor(member.role)}>{member.role}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusBadgeColor(member.status)}>{member.status}</Badge>
+                      </TableCell>
+                      <TableCell>{new Date(member.created_at).toLocaleDateString()}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center">
+                      No team members found. Invite someone to get started.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
       </div>
       
-      <Card>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Joined</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    <LoadingSpinner size="md" className="mx-auto" />
-                  </TableCell>
-                </TableRow>
-              ) : teamMembers.length > 0 ? (
-                teamMembers.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">{member.user_details?.email}</TableCell>
-                    <TableCell>
-                      <Badge className={getRoleBadgeColor(member.role)}>{member.role}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusBadgeColor(member.status)}>{member.status}</Badge>
-                    </TableCell>
-                    <TableCell>{new Date(member.created_at).toLocaleDateString()}</TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    No team members found. Invite someone to get started.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+      {/* Pending Invitations */}
+      <TeamInvitations />
       
       <TeamInviteDialog 
         isOpen={isDialogOpen}

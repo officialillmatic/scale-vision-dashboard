@@ -62,7 +62,7 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
 export const inviteTeamMember = async (companyId: string, email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
   try {
     // Call the Supabase Edge Function to send the invitation
-    const { error } = await supabase.functions.invoke('send-invitation', {
+    const { data, error } = await supabase.functions.invoke('send-invitation', {
       body: { companyId, email, role }
     });
     
@@ -72,11 +72,56 @@ export const inviteTeamMember = async (companyId: string, email: string, role: '
       return false;
     }
 
-    toast.success(`Invitation sent to ${email}`);
+    // We don't need to show a toast here as the edge function now handles sending emails
+    // and we will show a toast in the component that called this function
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in inviteTeamMember:", error);
-    toast.error("Failed to invite team member");
+    toast.error(error.message || "Failed to invite team member");
+    return false;
+  }
+};
+
+export const removeTeamMember = async (memberId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from("company_members")
+      .delete()
+      .eq("id", memberId);
+    
+    if (error) {
+      console.error("Error removing team member:", error);
+      toast.error("Failed to remove team member");
+      return false;
+    }
+
+    toast.success("Team member removed successfully");
+    return true;
+  } catch (error: any) {
+    console.error("Error in removeTeamMember:", error);
+    toast.error(error.message || "Failed to remove team member");
+    return false;
+  }
+};
+
+export const updateTeamMemberRole = async (memberId: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from("company_members")
+      .update({ role })
+      .eq("id", memberId);
+    
+    if (error) {
+      console.error("Error updating team member role:", error);
+      toast.error("Failed to update team member role");
+      return false;
+    }
+
+    toast.success("Team member role updated successfully");
+    return true;
+  } catch (error: any) {
+    console.error("Error in updateTeamMemberRole:", error);
+    toast.error(error.message || "Failed to update team member role");
     return false;
   }
 };
