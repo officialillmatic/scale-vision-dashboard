@@ -6,95 +6,31 @@ import { handleError } from "@/lib/errorHandling";
 export interface UserProfile {
   id: string;
   email: string;
-  name: string | null;
-  avatar_url: string | null;
-  created_at: Date;
-  updated_at: Date;
+  name?: string;
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
 }
 
-/**
- * Fetches a user profile by ID
- */
 export const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
-    // Get from user_profiles table
-    const { data: profileData, error: profileError } = await supabase
+    const { data, error } = await supabase
       .from("user_profiles")
       .select("*")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
-    if (profileError) {
-      throw profileError;
+    if (error) {
+      throw error;
     }
 
-    if (profileData) {
-      return {
-        id: profileData.id,
-        email: profileData.email,
-        name: profileData.name,
-        avatar_url: profileData.avatar_url,
-        created_at: new Date(profileData.created_at),
-        updated_at: new Date(profileData.updated_at)
-      };
-    }
-
-    return null;
+    return data;
   } catch (error) {
-    handleError(error, {
-      fallbackMessage: "Failed to fetch user profile",
-      showToast: false // Don't show toast for this as it might be a fallback operation
-    });
+    console.error("Error fetching user profile:", error);
     return null;
   }
 };
 
-/**
- * Updates a user profile
- */
-export const updateUserProfile = async (profile: Partial<UserProfile> & { id: string }): Promise<boolean> => {
-  try {
-    // Update the profiles table
-    const { error: profileError } = await supabase
-      .from("user_profiles")
-      .upsert({
-        id: profile.id,
-        name: profile.name,
-        avatar_url: profile.avatar_url,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'id'
-      });
-
-    if (profileError) {
-      throw profileError;
-    }
-
-    // Also update the auth metadata
-    const { error: authError } = await supabase.auth.updateUser({
-      data: {
-        name: profile.name,
-        avatar_url: profile.avatar_url
-      }
-    });
-
-    if (authError) {
-      throw authError;
-    }
-
-    toast.success("Profile updated successfully");
-    return true;
-  } catch (error) {
-    handleError(error, {
-      fallbackMessage: "Failed to update profile"
-    });
-    return false;
-  }
-};
-
-/**
- * Fetches multiple user profiles by ID
- */
 export const fetchUserProfiles = async (userIds: string[]): Promise<UserProfile[]> => {
   if (!userIds.length) return [];
   
@@ -108,19 +44,54 @@ export const fetchUserProfiles = async (userIds: string[]): Promise<UserProfile[
       throw error;
     }
 
-    return data.map(profile => ({
-      id: profile.id,
-      email: profile.email,
-      name: profile.name,
-      avatar_url: profile.avatar_url,
-      created_at: new Date(profile.created_at),
-      updated_at: new Date(profile.updated_at)
-    }));
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching user profiles:", error);
+    return [];
+  }
+};
+
+export const updateUserProfile = async (userId: string, updates: Partial<UserProfile>): Promise<UserProfile | null> => {
+  try {
+    const { data, error } = await supabase
+      .from("user_profiles")
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    toast.success("Profile updated successfully");
+    return data;
   } catch (error) {
     handleError(error, {
-      fallbackMessage: "Failed to fetch user profiles",
-      showToast: false
+      fallbackMessage: "Failed to update profile"
     });
-    return [];
+    return null;
+  }
+};
+
+export const getUserByEmail = async (email: string): Promise<UserProfile | null> => {
+  try {
+    const { data, error } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error fetching user by email:", error);
+    return null;
   }
 };
