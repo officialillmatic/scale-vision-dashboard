@@ -1,27 +1,25 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CallsTable } from "@/types/supabase";
+import { handleError } from "@/lib/errorHandling";
 
 export type CallData = Omit<CallsTable, 'timestamp'> & {
   timestamp: Date; // Override timestamp to be a Date object
 };
 
-export const fetchCalls = async (): Promise<CallData[]> => {
+export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
   try {
     const { data, error } = await supabase
-      .from("calls") 
+      .from("calls")
       .select("*")
+      .eq("company_id", companyId)
       .order("timestamp", { ascending: false });
 
     if (error) {
-      console.error("Error fetching calls:", error);
-      toast.error("Failed to load calls");
-      return [];
+      throw error;
     }
 
-    // Convert timestamp strings to Date objects with proper type assertions
-    return (data || []).map((call): CallData => ({
+    return data.map((call) => ({
       id: call.id,
       call_id: call.call_id,
       timestamp: new Date(call.timestamp),
@@ -39,8 +37,10 @@ export const fetchCalls = async (): Promise<CallData[]> => {
       company_id: call.company_id
     }));
   } catch (error) {
-    console.error("Error in fetchCalls:", error);
-    toast.error("Failed to load calls");
+    handleError(error, {
+      fallbackMessage: "Failed to fetch calls",
+      logToConsole: true
+    });
     return [];
   }
 };

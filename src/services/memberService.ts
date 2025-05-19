@@ -1,6 +1,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { handleError } from "@/lib/errorHandling";
+import { fetchUserProfile, fetchUserProfiles } from "./userService";
 
 export interface CompanyMember {
   id: string;
@@ -32,30 +34,39 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
       .eq("company_id", companyId);
 
     if (error) {
-      console.error("Error fetching company members:", error);
-      return [];
+      throw error;
     }
 
-    // For each company member, fetch the user details
-    const membersWithDetails = await Promise.all(data.map(async (member) => {
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("email")
-        .eq("id", member.user_id)
-        .single();
+    // For each company member, fetch the user details using the optimized user service
+    const userIds = data.map(member => member.user_id);
+    const userProfiles = await fetchUserProfiles(userIds);
+    
+    // Create a map for quick lookup
+    const userProfileMap = userProfiles.reduce((map, profile) => {
+      map[profile.id] = profile;
+      return map;
+    }, {} as Record<string, any>);
 
+    const membersWithDetails = data.map((member) => {
+      const userProfile = userProfileMap[member.user_id];
+      
       return {
         ...member,
         created_at: new Date(member.created_at),
         updated_at: new Date(member.updated_at),
-        user_details: userError ? { email: "Unknown" } : { email: userData.email }
+        user_details: userProfile 
+          ? { email: userProfile.email, name: userProfile.name }
+          : { email: "Unknown" }
       };
-    }));
+    });
 
     return membersWithDetails;
   } catch (error) {
-    console.error("Error in fetchCompanyMembers:", error);
-    return [];
+    return handleError(error, {
+      fallbackMessage: "Failed to fetch company members",
+      showToast: false,
+      onError: () => []
+    });
   }
 };
 
@@ -67,17 +78,16 @@ export const inviteTeamMember = async (companyId: string, email: string, role: '
     });
     
     if (error) {
-      console.error("Error inviting team member:", error);
-      toast.error("Failed to invite team member");
-      return false;
+      throw error;
     }
 
     // We don't need to show a toast here as the edge function now handles sending emails
     // and we will show a toast in the component that called this function
     return true;
-  } catch (error: any) {
-    console.error("Error in inviteTeamMember:", error);
-    toast.error(error.message || "Failed to invite team member");
+  } catch (error) {
+    handleError(error, {
+      fallbackMessage: "Failed to invite team member"
+    });
     return false;
   }
 };
@@ -90,16 +100,15 @@ export const removeTeamMember = async (memberId: string): Promise<boolean> => {
       .eq("id", memberId);
     
     if (error) {
-      console.error("Error removing team member:", error);
-      toast.error("Failed to remove team member");
-      return false;
+      throw error;
     }
 
     toast.success("Team member removed successfully");
     return true;
-  } catch (error: any) {
-    console.error("Error in removeTeamMember:", error);
-    toast.error(error.message || "Failed to remove team member");
+  } catch (error) {
+    handleError(error, {
+      fallbackMessage: "Failed to remove team member"
+    });
     return false;
   }
 };
@@ -112,16 +121,15 @@ export const updateTeamMemberRole = async (memberId: string, role: 'admin' | 'me
       .eq("id", memberId);
     
     if (error) {
-      console.error("Error updating team member role:", error);
-      toast.error("Failed to update team member role");
-      return false;
+      throw error;
     }
 
     toast.success("Team member role updated successfully");
     return true;
-  } catch (error: any) {
-    console.error("Error in updateTeamMemberRole:", error);
-    toast.error(error.message || "Failed to update team member role");
+  } catch (error) {
+    handleError(error, {
+      fallbackMessage: "Failed to update team member role"
+    });
     return false;
   }
 };

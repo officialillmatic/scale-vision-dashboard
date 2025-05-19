@@ -29,7 +29,7 @@ export function useCallData() {
     isPending: isSyncing 
   } = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.functions.invoke("sync-calls", {});
+      const { error } = await supabase.functions.invoke("sync-calls");
       if (error) throw error;
     },
     onSuccess: () => {
