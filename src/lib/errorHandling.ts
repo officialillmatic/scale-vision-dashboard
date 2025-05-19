@@ -5,7 +5,7 @@ interface ErrorHandlingOptions {
   fallbackMessage: string;
   showToast?: boolean;
   logError?: boolean;
-  logToConsole?: boolean; // Added to support existing code
+  logToConsole?: boolean; 
 }
 
 export const handleError = (
