@@ -17,9 +17,10 @@ import { Agent } from '@/services/agentService';
 interface AgentsTableProps {
   agents: Agent[];
   isLoading: boolean;
-  onEdit: (agent: Agent) => void;
-  onAssign: (agent: Agent) => void;
-  onDelete: (agent: Agent) => void;
+  onEdit?: (agent: Agent) => void;
+  onAssign?: (agent: Agent) => void;
+  onDelete?: (agent: Agent) => void;
+  isAdmin?: boolean;
 }
 
 export function AgentsTable({ 
@@ -27,7 +28,8 @@ export function AgentsTable({
   isLoading, 
   onEdit, 
   onAssign, 
-  onDelete 
+  onDelete,
+  isAdmin = false
 }: AgentsTableProps) {
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -50,13 +52,13 @@ export function AgentsTable({
             <TableHead>Name</TableHead>
             <TableHead>Description</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Actions</TableHead>
+            {isAdmin && <TableHead>Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell colSpan={4} className="h-24 text-center">
+              <TableCell colSpan={isAdmin ? 4 : 3} className="h-24 text-center">
                 <LoadingSpinner size="md" className="mx-auto" />
               </TableCell>
             </TableRow>
@@ -85,37 +87,49 @@ export function AgentsTable({
                     {agent.status}
                   </Badge>
                 </TableCell>
-                <TableCell>
-                  <div className="flex space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => onEdit(agent)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => onAssign(agent)}
-                    >
-                      <UserPlus className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => onDelete(agent)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+                {isAdmin && (
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      {onEdit && (
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => onEdit(agent)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {onAssign && (
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => onAssign(agent)}
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {onDelete && (
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => onDelete(agent)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                )}
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={4} className="h-24 text-center">
-                No agents found. Create one to get started.
+              <TableCell colSpan={isAdmin ? 4 : 3} className="h-24 text-center">
+                {isAdmin ? (
+                  "No agents found. Create one to get started."
+                ) : (
+                  "No agents assigned yet. Please contact your admin."
+                )}
               </TableCell>
             </TableRow>
           )}

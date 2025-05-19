@@ -36,6 +36,8 @@ export const useRole = () => {
   const can = useMemo(() => ({
     manageTeam: isCompanyOwner || checkRole('admin'),
     manageAgents: isCompanyOwner || checkRole('admin'),
+    viewAgents: true, // All authenticated users can view their assigned agents
+    createAgents: isCompanyOwner || checkRole('admin'), // Only admins can create agents
     viewCalls: true, // Allow all authenticated users to view calls
     uploadCalls: checkRole('member'),
     editSettings: isCompanyOwner || checkRole('admin'),

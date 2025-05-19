@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
 import { 
   fetchAgents, 
   fetchUserAgents, 
@@ -15,20 +16,23 @@ import {
 } from "@/services/agentService";
 
 export function useAgents() {
-  const { company } = useAuth();
+  const { company, user } = useAuth();
+  const { isCompanyOwner, can } = useRole();
+  const isAdmin = isCompanyOwner || can.manageAgents;
+  
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
 
   const { 
-    data: agents, 
+    data: allAgents, 
     isLoading: isLoadingAgents,
     refetch: refetchAgents,
     error: agentsError
   } = useQuery({
     queryKey: ['agents'],
-    queryFn: () => fetchAgents(),
+    queryFn: () => fetchAgents(company?.id),
   });
 
   const {
@@ -41,8 +45,21 @@ export function useAgents() {
     queryFn: () => fetchUserAgents(company?.id),
     enabled: !!company?.id
   });
+  
+  // Filter agents based on user role
+  const agents = allAgents ? (isAdmin 
+    ? allAgents 
+    : allAgents.filter(agent => {
+        // Check if agent is assigned to current user
+        return userAgents?.some(
+          userAgent => userAgent.agent_id === agent.id && userAgent.user_id === user?.id
+        );
+      })
+  ) : [];
 
   const handleCreateAgent = async (agentData: Partial<Agent>) => {
+    if (!isAdmin) return false;
+    
     setIsCreating(true);
     try {
       const newAgent = await createAgent(agentData);
@@ -57,6 +74,8 @@ export function useAgents() {
   };
 
   const handleUpdateAgent = async (id: string, agentData: Partial<Agent>) => {
+    if (!isAdmin) return false;
+    
     setIsUpdating(true);
     try {
       const success = await updateAgent(id, agentData);
@@ -71,6 +90,8 @@ export function useAgents() {
   };
 
   const handleDeleteAgent = async (id: string) => {
+    if (!isAdmin) return false;
+    
     setIsDeleting(true);
     try {
       const success = await deleteAgent(id);
@@ -85,7 +106,7 @@ export function useAgents() {
   };
 
   const handleAssignAgent = async (userAgentData: Partial<UserAgent>) => {
-    if (!company?.id) {
+    if (!isAdmin || !company?.id) {
       return false;
     }
 
@@ -106,6 +127,8 @@ export function useAgents() {
   };
 
   const handleRemoveAgentAssignment = async (id: string) => {
+    if (!isAdmin) return false;
+    
     setIsAssigning(true);
     try {
       const success = await removeAgentFromUser(id);
@@ -120,7 +143,7 @@ export function useAgents() {
   };
 
   return {
-    agents: agents || [],
+    agents,
     userAgents: userAgents || [],
     isLoadingAgents,
     isLoadingUserAgents,

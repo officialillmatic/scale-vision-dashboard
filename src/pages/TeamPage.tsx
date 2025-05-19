@@ -4,6 +4,9 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { TeamMembers } from '@/components/team/TeamMembers';
 import { TeamAgents } from '@/components/team/TeamAgents';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RoleCheck } from '@/components/auth/RoleCheck';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
@@ -28,7 +31,19 @@ const TeamPage = () => {
             </div>
             
             <TabsContent value="members" className="space-y-4">
-              <TeamMembers />
+              <RoleCheck 
+                role="admin" 
+                fallback={
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      You need admin privileges to manage team members.
+                    </AlertDescription>
+                  </Alert>
+                }
+              >
+                <TeamMembers />
+              </RoleCheck>
             </TabsContent>
             
             <TabsContent value="agents" className="space-y-4">

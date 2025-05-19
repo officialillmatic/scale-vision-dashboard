@@ -79,9 +79,16 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
 
 export const createAgent = async (agentData: Partial<Agent>): Promise<Agent | null> => {
   try {
+    // Add created_at and updated_at if not provided
+    const dataWithTimestamps = {
+      ...agentData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
     const { data, error } = await supabase
       .from("agents")
-      .insert([agentData])
+      .insert([dataWithTimestamps])
       .select()
       .single();
 
@@ -102,9 +109,15 @@ export const createAgent = async (agentData: Partial<Agent>): Promise<Agent | nu
 
 export const updateAgent = async (id: string, agentData: Partial<Agent>): Promise<boolean> => {
   try {
+    // Add updated_at timestamp
+    const dataWithTimestamp = {
+      ...agentData,
+      updated_at: new Date().toISOString(),
+    };
+
     const { error } = await supabase
       .from("agents")
-      .update(agentData)
+      .update(dataWithTimestamp)
       .eq("id", id);
 
     if (error) {
@@ -124,6 +137,19 @@ export const updateAgent = async (id: string, agentData: Partial<Agent>): Promis
 
 export const deleteAgent = async (id: string): Promise<boolean> => {
   try {
+    // First remove any user assignments for this agent
+    const { error: assignmentError } = await supabase
+      .from("user_agents")
+      .delete()
+      .eq("agent_id", id);
+      
+    if (assignmentError) {
+      console.error("Error removing agent assignments:", assignmentError);
+      toast.error("Failed to remove agent assignments");
+      return false;
+    }
+
+    // Then delete the agent
     const { error } = await supabase
       .from("agents")
       .delete()
@@ -148,9 +174,16 @@ export const assignAgentToUser = async (
   userAgent: Partial<UserAgentTable>
 ): Promise<UserAgent | null> => {
   try {
+    // Add timestamps
+    const dataWithTimestamps = {
+      ...userAgent,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
     const { data, error } = await supabase
       .from("user_agents")
-      .insert([userAgent])
+      .insert([dataWithTimestamps])
       .select(`
         *,
         agent:agents(*)
