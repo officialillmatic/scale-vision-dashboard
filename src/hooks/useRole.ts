@@ -6,7 +6,7 @@ import { CompanyMember } from '@/services/companyService';
 export type Role = 'admin' | 'member' | 'viewer';
 
 export const useRole = () => {
-  const { company, user } = useAuth();
+  const { company, user, companyMembers } = useAuth();
 
   const isCompanyOwner = useMemo(() => {
     if (!company || !user) return false;
@@ -19,9 +19,8 @@ export const useRole = () => {
     // Company owners always have admin privileges
     if (isCompanyOwner) return true;
     
-    // For specific role checks, we'll need to get the user's role from company_members
-    // This would typically come from the auth context, but we're simulating it here
-    const userRole = company.members?.find((member: CompanyMember) => 
+    // Instead of relying on company.members, use companyMembers from AuthContext
+    const userRole = companyMembers.find((member: CompanyMember) => 
       member.user_id === user.id
     )?.role;
     

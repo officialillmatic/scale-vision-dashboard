@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -9,6 +8,7 @@ export interface Company {
   owner_id: string;
   created_at: Date;
   updated_at: Date;
+  members?: CompanyMember[]; // Add the members property
 }
 
 export interface CompanyMember {
