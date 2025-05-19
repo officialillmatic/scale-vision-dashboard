@@ -18,10 +18,14 @@ export const fetchCompany = async (): Promise<Company | null> => {
     const { data, error } = await supabase
       .from("companies")
       .select("*")
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single to handle null case
 
     if (error) {
       console.error("Error fetching company:", error);
+      return null;
+    }
+
+    if (!data) {
       return null;
     }
 
@@ -82,6 +86,31 @@ export const updateCompanyLogo = async (companyId: string, logoUrl: string): Pro
     console.error("Error in updateCompanyLogo:", error);
     toast.error("Failed to update company logo");
     return false;
+  }
+};
+
+export const uploadLogo = async (file: File): Promise<string | null> => {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+    const filePath = `company-logos/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('public')
+      .upload(filePath, file);
+
+    if (error) {
+      throw error;
+    }
+
+    const { data } = supabase.storage
+      .from('public')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    return null;
   }
 };
 
