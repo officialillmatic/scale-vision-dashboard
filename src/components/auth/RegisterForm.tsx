@@ -11,12 +11,14 @@ import { checkInvitation, acceptInvitation } from "@/services/invitationService"
 import { RegisterFormHeader } from "./components/RegisterFormHeader";
 import { RegisterFormFields, registerSchema, RegisterFormValues } from "./components/RegisterFormFields";
 import { RegisterFormButtons } from "./components/RegisterFormButtons";
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchParams] = useSearchParams();
   const invitationToken = searchParams.get('token');
   const [invitation, setInvitation] = useState(null);
+  const [invitationLoading, setInvitationLoading] = useState(invitationToken !== null);
   
   const navigate = useNavigate();
   
@@ -33,12 +35,20 @@ export function RegisterForm() {
     // Check invitation token if present
     const verifyInvitation = async () => {
       if (invitationToken) {
-        const result = await checkInvitation(invitationToken);
-        setInvitation(result);
-        
-        // Pre-fill email field if we have it
-        if (result.valid && result.invitation?.email) {
-          form.setValue('email', result.invitation.email);
+        setInvitationLoading(true);
+        try {
+          const result = await checkInvitation(invitationToken);
+          setInvitation(result);
+          
+          // Pre-fill email field if we have it
+          if (result.valid && result.invitation?.email) {
+            form.setValue('email', result.invitation.email);
+          }
+        } catch (error) {
+          console.error("Error verifying invitation:", error);
+          toast.error("Failed to verify invitation");
+        } finally {
+          setInvitationLoading(false);
         }
       }
     };
@@ -86,23 +96,30 @@ export function RegisterForm() {
     }
   };
 
-  const invitationLoading = invitation === null && invitationToken !== null;
-
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <RegisterFormHeader invitation={invitation} invitationToken={invitationToken} />
       </CardHeader>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent>
-            <RegisterFormFields form={form} invitation={invitation} />
-          </CardContent>
-          <CardFooter>
-            <RegisterFormButtons isLoading={isLoading} invitationLoading={invitationLoading} />
-          </CardFooter>
-        </form>
-      </Form>
+      
+      {invitationLoading && (
+        <div className="flex justify-center py-8">
+          <LoadingSpinner size="md" />
+        </div>
+      )}
+      
+      {(!invitationLoading || !invitationToken) && (
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <CardContent>
+              <RegisterFormFields form={form} invitation={invitation} />
+            </CardContent>
+            <CardFooter>
+              <RegisterFormButtons isLoading={isLoading} invitationLoading={invitationLoading} />
+            </CardFooter>
+          </form>
+        </Form>
+      )}
     </Card>
   );
 }

@@ -2,6 +2,8 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { Loader } from "lucide-react";
 
 interface RegisterFormButtonsProps {
   isLoading: boolean;
@@ -18,7 +20,14 @@ export const RegisterFormButtons = ({ isLoading, invitationLoading }: RegisterFo
         type="submit" 
         disabled={isLoading || invitationLoading}
       >
-        {isLoading ? "Creating account..." : "Create Account"}
+        {isLoading ? (
+          <>
+            <Loader className="mr-2 h-4 w-4 animate-spin" />
+            Creating account...
+          </>
+        ) : (
+          "Create Account"
+        )}
       </Button>
       <Button 
         className="w-full" 
