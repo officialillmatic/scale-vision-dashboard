@@ -54,14 +54,23 @@ export function useCompanyData(user: User | null) {
           .maybeSingle();
           
         if (!memberError && memberData && memberData.companies) {
-          // Format company data from the join - fixed to access properties correctly
+          // Type fix: memberData.companies is an object, not an array
+          const companyDetails = memberData.companies as {
+            id: string;
+            name: string;
+            logo_url: string | null;
+            owner_id: string;
+            created_at: string;
+            updated_at: string;
+          };
+          
           companyData = {
-            id: memberData.companies.id,
-            name: memberData.companies.name,
-            logo_url: memberData.companies.logo_url,
-            owner_id: memberData.companies.owner_id,
-            created_at: new Date(memberData.companies.created_at),
-            updated_at: new Date(memberData.companies.updated_at)
+            id: companyDetails.id,
+            name: companyDetails.name,
+            logo_url: companyDetails.logo_url,
+            owner_id: companyDetails.owner_id,
+            created_at: new Date(companyDetails.created_at),
+            updated_at: new Date(companyDetails.updated_at)
           };
           
           // Set user role directly from the query result
