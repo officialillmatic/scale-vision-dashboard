@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -152,7 +153,7 @@ export const useDashboardData = () => {
   // Calculate metrics based on the calls data
   const metrics: CallMetrics = {
     totalCalls: currentTotalCalls,
-    totalMinutes: currentTotalMinutes,
+    totalMinutes: Math.round(currentTotalMinutes),
     avgDuration: formatDuration(currentAvgDuration),
     totalCost: `$${currentTotalCost.toFixed(2)}`,
     percentChange: {

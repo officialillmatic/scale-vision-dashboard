@@ -58,8 +58,14 @@ serve(async (req) => {
         { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } })
     }
 
-    if (!company) {
-      // Also check if user is a member of any company
+    let companyId = null
+    let companyName = null
+    
+    if (company) {
+      companyId = company.id
+      companyName = company.name
+    } else {
+      // Check if user is a member of any company
       const { data: membership, error: membershipError } = await supabase
         .from('company_members')
         .select('company_id, companies:company_id(id, name)')
@@ -79,10 +85,8 @@ serve(async (req) => {
       }
       
       // Use the company from membership
-      company = {
-        id: membership.companies.id,
-        name: membership.companies.name
-      }
+      companyId = membership.companies.id
+      companyName = membership.companies.name
     }
 
     // Get the Retell API key
@@ -110,11 +114,61 @@ serve(async (req) => {
     const callsData = await response.json()
     
     // Process and save the calls to Supabase
-    // Here we would process each call and save to the calls table
-    // This is a simplified example - implementation depends on Retell's response format
+    let newCallsCount = 0
     
-    // Return the processed data
-    return new Response(JSON.stringify({ success: true, data: callsData }), {
+    // For each call in the Retell response, check if it already exists and insert if not
+    for (const call of callsData.data || []) {
+      // Check if this call already exists in our database
+      const { data: existingCall, error: checkError } = await supabase
+        .from('calls')
+        .select('id')
+        .eq('call_id', call.id)
+        .maybeSingle()
+        
+      if (checkError) {
+        console.error('Error checking for existing call:', checkError)
+        continue // Skip this call but continue processing others
+      }
+      
+      // If call doesn't exist, insert it
+      if (!existingCall) {
+        // Transform Retell call data to match our schema
+        const callRecord = {
+          call_id: call.id,
+          user_id: user.id,
+          company_id: companyId,
+          timestamp: new Date(call.start_time || call.created_at).toISOString(),
+          duration_sec: Math.round((call.duration || 0) / 1000), // Convert ms to seconds
+          cost_usd: call.billed_duration ? (call.billed_duration / 60000) * 0.02 : 0, // Example cost calculation
+          from: call.from || 'unknown',
+          to: call.to || 'unknown',
+          call_status: mapCallStatus(call.status),
+          disconnection_reason: call.hangup_cause || null,
+          sentiment: call.sentiment || null,
+          audio_url: call.recording_url || null,
+          transcript: call.transcript || null
+        }
+        
+        const { error: insertError } = await supabase
+          .from('calls')
+          .insert(callRecord)
+          
+        if (insertError) {
+          console.error('Error inserting call:', insertError)
+          continue // Skip this call but continue processing others
+        }
+        
+        newCallsCount++
+      }
+    }
+    
+    // Return summary data
+    return new Response(JSON.stringify({ 
+      success: true, 
+      new_calls: newCallsCount,
+      total_calls: callsData.data ? callsData.data.length : 0,
+      company: companyName
+    }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     })
     
@@ -124,3 +178,18 @@ serve(async (req) => {
       { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } })
   }
 })
+
+// Helper function to map Retell call status to our schema
+function mapCallStatus(retellStatus) {
+  // Define mapping from Retell status to our status
+  const statusMap = {
+    'completed': 'completed',
+    'no-answer': 'no-answer',
+    'busy': 'busy',
+    'failed': 'failed',
+    'voicemail': 'voicemail'
+    // Add more mappings as needed
+  }
+  
+  return statusMap[retellStatus] || 'unknown'
+}
