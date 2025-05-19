@@ -1,14 +1,31 @@
+
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
+import { useCompanyData } from "@/hooks/useCompanyData";
 
 interface Company {
   id: string;
   name: string;
   owner_id: string;
+  logo_url: string | null; // Adding logo_url
 }
+
+export type CompanyMember = {
+  id: string;
+  company_id: string;
+  user_id: string;
+  role: 'admin' | 'member' | 'viewer';
+  status: 'active' | 'pending' | 'inactive';
+  created_at: Date;
+  updated_at: Date;
+  user_details?: {
+    email: string;
+    name?: string;
+  };
+};
 
 export const AuthContext = createContext<{
   user: User | null;
@@ -21,6 +38,11 @@ export const AuthContext = createContext<{
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (updatedPassword: string) => Promise<void>;
   updateUserProfile: (data: { name?: string; avatar_url?: string }) => Promise<void>;
+  isCompanyLoading: boolean; // Adding missing properties
+  refreshCompany: () => Promise<void>;
+  companyMembers: CompanyMember[];
+  userRole: 'admin' | 'member' | 'viewer' | null;
+  isCompanyOwner: boolean;
 }>({
   user: null,
   company: null,
@@ -32,23 +54,33 @@ export const AuthContext = createContext<{
   resetPassword: async () => {},
   updatePassword: async () => {},
   updateUserProfile: async () => {},
+  isCompanyLoading: true,
+  refreshCompany: async () => {},
+  companyMembers: [],
+  userRole: null,
+  isCompanyOwner: false,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [company, setCompany] = useState<Company | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingCompany, setIsLoadingCompany] = useState(true);
+  
+  // Use the external hook to manage company data
+  const { 
+    company, 
+    isCompanyLoading, 
+    companyMembers, 
+    userRole, 
+    isCompanyOwner, 
+    refreshCompany 
+  } = useCompanyData(user);
+
   const navigate = useNavigate();
 
   useEffect(() => {
     const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-
       setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchCompany(session.user.id);
-      }
       setIsLoading(false);
     };
 
@@ -56,70 +88,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchCompany(session.user.id);
-      } else {
-        setCompany(null);
-      }
     });
   }, []);
-
-  const fetchCompany = async (userId: string) => {
-    setIsLoadingCompany(true);
-    try {
-      let { data: companies, error } = await supabase
-        .from('companies')
-        .select("*")
-        .eq('owner_id', userId)
-        .single()
-
-      if (error) {
-        throw error;
-      }
-
-      if (companies) {
-        setCompany(companies);
-      } else {
-        // If no company is found for the owner, check if the user is a member of a company
-        let { data: companyMember, error: memberError } = await supabase
-          .from('company_members')
-          .select('company_id')
-          .eq('user_id', userId)
-          .single();
-
-        if (memberError) {
-          throw memberError;
-        }
-
-        if (companyMember) {
-          // Fetch the company details using the company_id
-          let { data: memberCompany, error: fetchError } = await supabase
-            .from('companies')
-            .select('*')
-            .eq('id', companyMember.company_id)
-            .single();
-
-          if (fetchError) {
-            throw fetchError;
-          }
-
-          if (memberCompany) {
-            setCompany(memberCompany);
-          } else {
-            setCompany(null);
-          }
-        } else {
-          setCompany(null);
-        }
-      }
-    } catch (error: any) {
-      console.error("Error fetching company:", error);
-      toast.error(error.message ?? "Failed to fetch company");
-      setCompany(null);
-    } finally {
-      setIsLoadingCompany(false);
-    }
-  };
 
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
@@ -268,6 +238,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resetPassword,
         updatePassword,
         updateUserProfile,
+        isCompanyLoading,
+        refreshCompany,
+        companyMembers,
+        userRole,
+        isCompanyOwner,
       }}
     >
       {children}
