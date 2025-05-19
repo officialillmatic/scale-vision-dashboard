@@ -55,7 +55,7 @@ export function useCompanyData(user: User | null) {
           
         if (!memberError && memberData && memberData.companies) {
           // Type fix: memberData.companies is an object, not an array
-          const companyDetails = memberData.companies as {
+          const companyDetails = memberData.companies as unknown as {
             id: string;
             name: string;
             logo_url: string | null;

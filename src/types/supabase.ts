@@ -1,4 +1,3 @@
-
 import { Database as OriginalDatabase } from "@/integrations/supabase/types";
 
 // Define the calls table structure
@@ -17,6 +16,7 @@ export interface CallsTable {
   audio_url: string | null;
   transcript?: string;
   company_id?: string | null;
+  result_sentiment?: any | null;
 }
 
 // Define agent table structure

@@ -35,7 +35,8 @@ export const fetchCalls = async (): Promise<CallData[]> => {
       audio_url: call.audio_url,
       transcript: call.transcript,
       user_id: call.user_id,
-      result_sentiment: call.result_sentiment
+      result_sentiment: call.result_sentiment,
+      company_id: call.company_id
     }));
   } catch (error) {
     console.error("Error in fetchCalls:", error);
