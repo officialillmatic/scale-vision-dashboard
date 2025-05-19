@@ -7,7 +7,34 @@ import type { ExtendedDatabase } from '@/types/supabase';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Validate environment variables
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error(
+    "Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file."
+  );
+}
+
+// Create a placeholder client if the environment variables are missing (for development only)
+// This prevents the app from crashing during development if .env is not set up
+const devFallbackUrl = 'https://placeholder-project.supabase.co';
+const devFallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<ExtendedDatabase>(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient<ExtendedDatabase>(
+  SUPABASE_URL || devFallbackUrl, 
+  SUPABASE_ANON_KEY || devFallbackKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
+);
+
+// Export a function to check if we're using real credentials
+export const hasValidSupabaseCredentials = () => {
+  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+};

@@ -2,6 +2,7 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangleIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { hasValidSupabaseCredentials } from "@/integrations/supabase/client";
 
 export function EnvWarning() {
   const [missingVars, setMissingVars] = useState<string[]>([]);
@@ -19,7 +20,8 @@ export function EnvWarning() {
     setMissingVars(missing);
   }, []);
   
-  if (missingVars.length === 0) return null;
+  // Don't show warning if we have valid credentials
+  if (hasValidSupabaseCredentials() || missingVars.length === 0) return null;
   
   return (
     <Alert variant="destructive" className="mb-4">
