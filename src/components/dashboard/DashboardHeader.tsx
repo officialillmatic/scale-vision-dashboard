@@ -25,7 +25,7 @@ export function DashboardHeader() {
   // Fallback user data if auth not available
   const userName = user?.email?.split('@')[0] || "User";
   const userEmail = user?.email || "user@example.com";
-  const company = "Dr. Scale"; // Updated company name
+  const company = "Dr. Scale";
 
   const handleLogout = async () => {
     try {
@@ -59,7 +59,7 @@ export function DashboardHeader() {
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+            <Button variant="ghost" className="relative h-9 w-9 rounded-full border border-muted-foreground/10">
               <Avatar className="h-9 w-9">
                 <AvatarImage src="" />
                 <AvatarFallback className="bg-brand-purple text-white">

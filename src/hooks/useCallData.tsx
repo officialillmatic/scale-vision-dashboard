@@ -66,7 +66,7 @@ export function useCallData() {
     },
     onError: (error: any) => {
       console.error("Error syncing calls:", error);
-      toast.error(error.message || "Failed to sync calls");
+      toast.error(typeof error === 'string' ? error : "Failed to sync calls");
     },
   });
 

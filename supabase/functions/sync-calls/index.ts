@@ -85,8 +85,8 @@ serve(async (req) => {
       companyId = userCompany.id;
     }
 
-    // Call the external API to get calls
-    // In a production environment, this would be integrated with your actual call provider API
+    // In a production environment, this would connect to your actual call provider API
+    // For demo purposes, we're generating mock call data
     const mockCalls: Call[] = [
       {
         call_id: `call_${Date.now()}_1`,
