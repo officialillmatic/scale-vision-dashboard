@@ -93,6 +93,22 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Make all buttons and interactive elements work better */
+  button, 
+  [role="button"], 
+  a {
+    @apply cursor-pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation; 
+  }
+  
+  /* Fix for buttons/links that look inactive */
+  button:not(:disabled),
+  [role="button"]:not(:disabled), 
+  a:not(.inactive) {
+    @apply hover:opacity-90 active:scale-[0.98] transition-all duration-150;
+  }
 }
 
 .dashboard-container {
