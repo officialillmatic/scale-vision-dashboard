@@ -129,6 +129,7 @@
   grid-template-columns: 1fr;
   grid-template-rows: auto 1fr;
   min-height: 100vh;
+  width: 100%;
 }
 
 @media (min-width: 1024px) {
@@ -141,6 +142,7 @@
 
 .call-table-container {
   overflow-x: auto;
+  width: 100%;
 }
 
 .custom-scrollbar::-webkit-scrollbar {

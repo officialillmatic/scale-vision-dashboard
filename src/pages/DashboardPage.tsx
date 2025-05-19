@@ -23,7 +23,7 @@ const DashboardPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="w-full space-y-6">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground">
@@ -32,7 +32,7 @@ const DashboardPage = () => {
         </div>
         
         {/* Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Phone Calls</CardTitle>

@@ -34,7 +34,7 @@ const SidebarLink = ({
       <Link
         to={href}
         className={cn(
-          "flex items-center py-2 px-3 rounded-md w-full",
+          "flex items-center py-2 px-3 rounded-md w-full transition-colors duration-200",
           isActive 
             ? "bg-brand-light-purple text-brand-purple font-medium" 
             : "hover:bg-muted/50"
