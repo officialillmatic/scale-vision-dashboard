@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { fetchCalls, syncRetellCalls, CallData } from "@/services/callService";
+import { fetchCalls, syncRetellCalls as syncCalls, CallData } from "@/services/callService";
 
 export function useCallData() {
   const [date, setDate] = useState<Date | undefined>(undefined);
@@ -18,7 +18,7 @@ export function useCallData() {
   const handleSync = async () => {
     setIsSyncing(true);
     try {
-      const success = await syncRetellCalls();
+      const success = await syncCalls();
       if (success) {
         refetch();
       }

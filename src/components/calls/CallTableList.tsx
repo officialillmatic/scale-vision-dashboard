@@ -69,7 +69,7 @@ export function CallTableList({
           ) : (
             <TableRow>
               <TableCell colSpan={6} className="h-24 text-center">
-                {searchTerm || date ? "No matching calls found." : "No calls found. Try syncing with Retell."}
+                {searchTerm || date ? "No matching calls found." : "No calls found. Try syncing your call history."}
               </TableCell>
             </TableRow>
           )}

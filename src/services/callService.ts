@@ -48,7 +48,7 @@ export const fetchCalls = async (): Promise<CallData[]> => {
 export const syncRetellCalls = async (): Promise<boolean> => {
   try {
     // Show loading toast
-    const loadingToast = toast.loading("Syncing calls from Retell...");
+    const loadingToast = toast.loading("Syncing calls...");
     
     // Get the user's session for authentication
     const { data: sessionData } = await supabase.auth.getSession();
@@ -79,7 +79,7 @@ export const syncRetellCalls = async (): Promise<boolean> => {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error("Error response from fetch-retell-calls:", response.status, errorData);
+        console.error("Error response from fetch-calls API:", response.status, errorData);
         toast.dismiss(loadingToast);
         toast.error(`Failed to sync calls: ${errorData.error || response.statusText}`);
         return false;
@@ -89,7 +89,7 @@ export const syncRetellCalls = async (): Promise<boolean> => {
       toast.dismiss(loadingToast);
       
       if (data.new_calls > 0) {
-        toast.success(`Successfully synced ${data.new_calls} new calls from Retell`);
+        toast.success(`Successfully synced ${data.new_calls} new calls`);
       } else {
         toast.success("Synced successfully. No new calls found.");
       }
@@ -97,20 +97,20 @@ export const syncRetellCalls = async (): Promise<boolean> => {
       return true;
     } catch (fetchError) {
       clearTimeout(timeoutId);
-      console.error("Fetch error in syncRetellCalls:", fetchError);
+      console.error("Fetch error in sync operation:", fetchError);
       toast.dismiss(loadingToast);
       
       if (fetchError.name === "AbortError") {
         toast.error("Sync operation timed out. Please try again later.");
       } else {
-        toast.error("Failed to sync calls from Retell");
+        toast.error("Failed to sync calls");
       }
       
       return false;
     }
   } catch (error) {
-    console.error("Error in syncRetellCalls:", error);
-    toast.error("Failed to sync calls from Retell");
+    console.error("Error in syncCalls:", error);
+    toast.error("Failed to sync calls");
     return false;
   }
 };
