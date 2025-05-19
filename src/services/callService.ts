@@ -34,7 +34,8 @@ export const fetchCalls = async (): Promise<CallData[]> => {
       to: call.to,
       audio_url: call.audio_url,
       transcript: call.transcript,
-      user_id: call.user_id
+      user_id: call.user_id,
+      result_sentiment: call.result_sentiment
     }));
   } catch (error) {
     console.error("Error in fetchCalls:", error);
@@ -45,28 +46,67 @@ export const fetchCalls = async (): Promise<CallData[]> => {
 
 export const syncRetellCalls = async (): Promise<boolean> => {
   try {
+    // Show loading toast
+    const loadingToast = toast.loading("Syncing calls from Retell...");
+    
     // Get the user's session for authentication
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) {
+      toast.dismiss(loadingToast);
       toast.error("You must be logged in to sync calls");
       return false;
     }
 
-    // Call the edge function
-    const { data, error } = await supabase.functions.invoke("fetch-retell-calls", {
-      headers: {
-        Authorization: `Bearer ${sessionData.session.access_token}`
+    // Call the edge function with timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    
+    try {
+      const response = await fetch(
+        "https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/fetch-retell-calls", 
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionData.session.access_token}`
+          },
+          signal: controller.signal
+        }
+      );
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Error response from fetch-retell-calls:", response.status, errorData);
+        toast.dismiss(loadingToast);
+        toast.error(`Failed to sync calls: ${errorData.error || response.statusText}`);
+        return false;
       }
-    });
-
-    if (error) {
-      console.error("Error syncing calls:", error);
-      toast.error("Failed to sync calls from Retell");
+      
+      const data = await response.json();
+      toast.dismiss(loadingToast);
+      
+      if (data.new_calls > 0) {
+        toast.success(`Successfully synced ${data.new_calls} new calls from Retell`);
+      } else {
+        toast.success("Synced successfully. No new calls found.");
+      }
+      
+      return true;
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      console.error("Fetch error in syncRetellCalls:", fetchError);
+      toast.dismiss(loadingToast);
+      
+      if (fetchError.name === "AbortError") {
+        toast.error("Sync operation timed out. Please try again later.");
+      } else {
+        toast.error("Failed to sync calls from Retell");
+      }
+      
       return false;
     }
-
-    toast.success(`Successfully synced ${data.processed} calls`);
-    return true;
   } catch (error) {
     console.error("Error in syncRetellCalls:", error);
     toast.error("Failed to sync calls from Retell");

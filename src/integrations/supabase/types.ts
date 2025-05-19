@@ -50,6 +50,7 @@ export type Database = {
           duration_sec: number
           from: string
           id: string
+          result_sentiment: Json | null
           sentiment: string | null
           timestamp: string
           to: string
@@ -66,6 +67,7 @@ export type Database = {
           duration_sec?: number
           from?: string
           id?: string
+          result_sentiment?: Json | null
           sentiment?: string | null
           timestamp?: string
           to?: string
@@ -82,6 +84,7 @@ export type Database = {
           duration_sec?: number
           from?: string
           id?: string
+          result_sentiment?: Json | null
           sentiment?: string | null
           timestamp?: string
           to?: string

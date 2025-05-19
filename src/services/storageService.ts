@@ -29,3 +29,34 @@ export const uploadLogo = async (file: File): Promise<string | null> => {
     return null;
   }
 };
+
+// Add function to get signed URL for audio files
+export const getAudioUrl = async (companyId: string, audioKey: string): Promise<string | null> => {
+  try {
+    // If already a full URL, just return it
+    if (audioKey && (audioKey.startsWith('http://') || audioKey.startsWith('https://'))) {
+      return audioKey;
+    }
+    
+    // If it's a relative path, get a public/signed URL
+    if (audioKey) {
+      const filePath = audioKey.includes('/') ? audioKey : `${companyId}/${audioKey}`;
+      
+      const { data, error } = await supabase.storage
+        .from('recordings')
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+        
+      if (error) {
+        console.error("Error getting signed audio URL:", error);
+        return null;
+      }
+      
+      return data.signedUrl;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error in getAudioUrl:", error);
+    return null;
+  }
+};

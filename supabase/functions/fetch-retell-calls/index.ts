@@ -55,7 +55,7 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseKey || !retellApiKey) {
       console.error("Missing environment variables");
       return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
+        JSON.stringify({ error: 'Server configuration error', details: 'Missing required environment variables' }),
         { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       );
     }
@@ -82,6 +82,8 @@ serve(async (req) => {
       .eq('owner_id', user.id)
       .single();
       
+    let companyId;
+    
     if (companyError) {
       // Check if the user is a company member
       const { data: memberData, error: memberError } = await supabase
@@ -98,7 +100,9 @@ serve(async (req) => {
         );
       }
       
-      companyData = { id: memberData.company_id };
+      companyId = memberData.company_id;
+    } else {
+      companyId = companyData.id;
     }
     
     // Fetch calls from Retell API
@@ -132,30 +136,102 @@ serve(async (req) => {
     // Extract calls from response
     const calls = retellData.data as RetellCall[];
     
-    // Map calls to our database schema
-    const callsToInsert = calls.map(call => ({
-      call_id: call.call_id,
-      timestamp: call.created_at,
-      duration_sec: call.duration_sec,
-      cost_usd: call.costs.total_cost_usd,
-      user_id: user.id,
-      company_id: companyData.id,
-      sentiment: null, // Would come from analysis of transcript
-      disconnection_reason: call.disconnection_reason || null,
-      call_status: call.state,
-      from: call.participants.user.phone_number,
-      to: call.participants.contact.phone_number,
-      audio_url: call.recording_url || null,
-      transcript: call.transcript || null,
-    }));
+    // Process calls and download audio if available
+    const processedCalls = [];
+    
+    for (const call of calls) {
+      let localAudioUrl = null;
+      
+      // Download and store audio file if recording URL exists
+      if (call.recording_url && call.state === "completed") {
+        try {
+          // Create safe filename based on call ID
+          const audioFilename = `${companyId}/${call.call_id}.mp3`;
+          
+          // Check if we already have this recording stored
+          const { data: existingFile } = await supabase
+            .storage
+            .from('recordings')
+            .list(companyId, {
+              search: call.call_id
+            });
+            
+          if (!existingFile || existingFile.length === 0) {
+            // Download the audio file
+            console.log(`Downloading audio for call ${call.call_id}...`);
+            const audioResponse = await fetch(call.recording_url);
+            
+            if (!audioResponse.ok) {
+              console.error(`Failed to download audio for call ${call.call_id}`);
+            } else {
+              // Get audio content
+              const audioBlob = await audioResponse.blob();
+              
+              // Upload to Supabase Storage
+              const { data: uploadData, error: uploadError } = await supabase
+                .storage
+                .from('recordings')
+                .upload(audioFilename, audioBlob, {
+                  contentType: 'audio/mpeg',
+                  upsert: true
+                });
+                
+              if (uploadError) {
+                console.error(`Failed to upload audio for call ${call.call_id}:`, uploadError);
+              } else {
+                console.log(`Successfully uploaded audio for call ${call.call_id}`);
+                
+                // Get public URL for the audio file
+                const { data: urlData } = supabase
+                  .storage
+                  .from('recordings')
+                  .getPublicUrl(audioFilename);
+                  
+                localAudioUrl = urlData.publicUrl;
+              }
+            }
+          } else {
+            console.log(`Audio file already exists for call ${call.call_id}`);
+            
+            // Get public URL for the existing audio file
+            const { data: urlData } = supabase
+              .storage
+              .from('recordings')
+              .getPublicUrl(audioFilename);
+              
+            localAudioUrl = urlData.publicUrl;
+          }
+        } catch (downloadError) {
+          console.error(`Error processing audio for call ${call.call_id}:`, downloadError);
+        }
+      }
+      
+      // Prepare the call data for insertion
+      processedCalls.push({
+        call_id: call.call_id,
+        timestamp: call.created_at,
+        duration_sec: call.duration_sec,
+        cost_usd: call.costs.total_cost_usd,
+        user_id: user.id,
+        company_id: companyId,
+        sentiment: null, // Would come from analysis of transcript
+        disconnection_reason: call.disconnection_reason || null,
+        call_status: call.state,
+        from: call.participants.user.phone_number,
+        to: call.participants.contact.phone_number,
+        audio_url: localAudioUrl || call.recording_url || null,
+        transcript: call.transcript || null,
+      });
+    }
     
     // Insert calls into database
     const batchSize = 50;
     const results = [];
+    let totalProcessed = 0;
     
     // Process in batches to avoid hitting limits
-    for (let i = 0; i < callsToInsert.length; i += batchSize) {
-      const batch = callsToInsert.slice(i, i + batchSize);
+    for (let i = 0; i < processedCalls.length; i += batchSize) {
+      const batch = processedCalls.slice(i, i + batchSize);
       
       // Use upsert to avoid duplicates
       const { data, error } = await supabase
@@ -170,6 +246,7 @@ serve(async (req) => {
         results.push({ batch: i / batchSize + 1, success: false, error: error.message });
       } else {
         results.push({ batch: i / batchSize + 1, success: true, count: batch.length });
+        totalProcessed += batch.length;
       }
     }
     
@@ -177,7 +254,9 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Processed ${callsToInsert.length} calls from Retell`,
+        message: `Processed ${processedCalls.length} calls from Retell`,
+        new_calls: processedCalls.length - totalProcessed,
+        updated_calls: totalProcessed,
         results
       }),
       { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
