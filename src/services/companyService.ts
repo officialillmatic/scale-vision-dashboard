@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CompanyMember } from "./memberService";
@@ -47,15 +46,12 @@ export const fetchCompany = async (): Promise<Company | null> => {
       .maybeSingle();
       
     if (membershipData?.companies) {
-      // Access the companies object, ensuring it's treated as a single object not an array
-      const companyDetails = membershipData.companies as {
-        id: string;
-        name: string;
-        logo_url: string | null;
-        owner_id: string;
-        created_at: string;
-        updated_at: string;
-      };
+      // Handle the companies data which may be returned as an array
+      const companyDetails = Array.isArray(membershipData.companies) 
+        ? membershipData.companies[0] // Take the first item if it's an array
+        : membershipData.companies;   // Use as is if it's already an object
+      
+      if (!companyDetails) return null;
       
       return {
         id: companyDetails.id,
