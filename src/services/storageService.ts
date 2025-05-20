@@ -27,6 +27,7 @@ const ensureBucketExists = async (bucketName: string, isPublic: boolean = true):
         });
         
       if (createError) {
+        // Log the error but don't fail entirely
         console.error(`Error creating bucket ${bucketName}:`, createError);
         return false;
       }
@@ -43,18 +44,20 @@ const ensureBucketExists = async (bucketName: string, isPublic: boolean = true):
 
 // Initialize storage buckets
 export const initializeStorage = async (): Promise<void> => {
-  await Promise.all([
-    ensureBucketExists('avatars', true),
-    ensureBucketExists('company-logos', true),
-    ensureBucketExists('recordings', true)
-  ]);
+  // Try to initialize buckets but don't break the app if it fails
+  try {
+    await Promise.allSettled([
+      ensureBucketExists('avatars', true),
+      ensureBucketExists('company-logos', true),
+      ensureBucketExists('recordings', true)
+    ]);
+  } catch (error) {
+    console.error("Failed to initialize storage buckets:", error);
+  }
 };
 
 export const uploadCompanyLogo = async (file: File, companyId: string): Promise<string | null> => {
   try {
-    // Ensure bucket exists
-    await ensureBucketExists('company-logos');
-    
     // Generate a unique filename to prevent collisions
     const fileExt = file.name.split('.').pop();
     const fileName = `${companyId}/${uuidv4()}.${fileExt}`;
@@ -84,9 +87,6 @@ export const uploadCompanyLogo = async (file: File, companyId: string): Promise<
 
 export const uploadUserAvatar = async (file: File, userId: string): Promise<string | null> => {
   try {
-    // Ensure bucket exists
-    await ensureBucketExists('avatars');
-    
     // Generate a unique filename to prevent collisions
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${uuidv4()}.${fileExt}`;
@@ -118,15 +118,19 @@ export const uploadUserAvatar = async (file: File, userId: string): Promise<stri
 export const getAudioUrl = (path: string | null): string | null => {
   if (!path) return null;
   
-  // Ensure we're using the correct bucket
-  const fullPath = path.includes('/') ? path : `recordings/${path}`;
-  
-  const { data } = supabase.storage.from(path.includes('/') ? "public" : "recordings").getPublicUrl(
-    path.includes('/') ? path : path
-  );
-  
-  return data.publicUrl;
+  try {
+    // Ensure we're using the correct bucket
+    const bucket = path.includes('/') ? path.split('/')[0] : 'recordings';
+    const actualPath = path.includes('/') ? path : `${path}`;
+    
+    const { data } = supabase.storage.from(bucket).getPublicUrl(actualPath);
+    
+    return data.publicUrl;
+  } catch (error) {
+    console.error("Error in getAudioUrl:", error);
+    return null;
+  }
 };
 
-// Initialize storage on module import
+// Initialize storage on module import - but don't break the app if it fails
 initializeStorage().catch(e => console.error("Failed to initialize storage buckets:", e));

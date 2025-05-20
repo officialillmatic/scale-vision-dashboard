@@ -38,11 +38,21 @@ export const defaultPreferences: Omit<UserPreferences, 'id' | 'user_id' | 'creat
   }
 };
 
-export async function getUserPreferences(): Promise<UserPreferences | null> {
+export async function getUserPreferences(userId?: string): Promise<UserPreferences | null> {
   try {
+    // Ensure we have a user ID, or get the current authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    const effectiveUserId = userId || user?.id;
+    
+    if (!effectiveUserId) {
+      console.error('No user ID provided and no authenticated user');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('user_preferences')
       .select('*')
+      .eq('user_id', effectiveUserId)
       .single();
       
     if (error) {
@@ -59,12 +69,26 @@ export async function getUserPreferences(): Promise<UserPreferences | null> {
 
 export async function updateUserPreferences(updates: Partial<UserPreferences>): Promise<UserPreferences | null> {
   try {
+    // Get the current user's ID
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.error('No authenticated user found');
+      toast.error("User authentication required to update preferences");
+      return null;
+    }
+    
+    // Ensure we have the user_id in the updates
+    const updatesWithUserId = {
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+    
+    // Update user preferences
     const { data, error } = await supabase
       .from('user_preferences')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatesWithUserId)
+      .eq('user_id', user.id)
       .select()
       .single();
       
@@ -85,12 +109,19 @@ export async function updateUserPreferences(updates: Partial<UserPreferences>): 
 
 export async function createDefaultUserPreferences(userId: string): Promise<UserPreferences | null> {
   try {
+    if (!userId) {
+      console.error('No user ID provided');
+      return null;
+    }
+    
+    const newPreferences = {
+      user_id: userId,
+      ...defaultPreferences
+    };
+    
     const { data, error } = await supabase
       .from('user_preferences')
-      .insert({
-        user_id: userId,
-        ...defaultPreferences
-      })
+      .insert(newPreferences)
       .select()
       .single();
       
@@ -107,8 +138,20 @@ export async function createDefaultUserPreferences(userId: string): Promise<User
 }
 
 export async function ensureUserPreferences(userId: string): Promise<UserPreferences | null> {
-  const prefs = await getUserPreferences();
-  if (prefs) return prefs;
-  
-  return await createDefaultUserPreferences(userId);
+  try {
+    if (!userId) {
+      console.error('No user ID provided');
+      return null;
+    }
+    
+    // Try to get the user's preferences
+    const prefs = await getUserPreferences(userId);
+    if (prefs) return prefs;
+    
+    // If no preferences exist, create default ones
+    return await createDefaultUserPreferences(userId);
+  } catch (error) {
+    console.error('Error in ensureUserPreferences:', error);
+    return null;
+  }
 }

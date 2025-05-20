@@ -21,32 +21,67 @@ import TermsOfServicePage from "./pages/TermsOfServicePage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { initializeStorage } from "./services/storageService";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { UserPreferencesProvider } from "./hooks/useUserPreferences";
+import { toast } from "sonner";
 
+// Configure the query client with better error handling
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
       staleTime: 1000 * 60 * 5, // 5 minutes
       refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
     },
   },
 });
 
 const App = () => {
-  // Initialize storage buckets when the app starts
+  const [initializing, setInitializing] = useState(true);
+
+  // Initialize storage buckets when the app starts with better error handling
   useEffect(() => {
-    initializeStorage().catch(e => 
-      console.error("Failed to initialize storage buckets:", e)
-    );
+    const init = async () => {
+      try {
+        await initializeStorage();
+      } catch (e) {
+        console.error("Failed to initialize storage buckets:", e);
+        // Don't show toast on initial load - just log the error
+      } finally {
+        setInitializing(false);
+      }
+    };
+    
+    init();
   }, []);
 
   // Set the document title based on the environment variable
   useEffect(() => {
     document.title = import.meta.env.VITE_APP_TITLE || "Dr. Scale";
+  }, []);
+
+  // Listen for network status changes
+  useEffect(() => {
+    const handleOnline = () => {
+      toast.success("Back online");
+      // Refetch any stale queries
+      queryClient.invalidateQueries();
+    };
+    
+    const handleOffline = () => {
+      toast.error("Network connection lost");
+    };
+    
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
   return (
@@ -56,7 +91,7 @@ const App = () => {
           <ThemeProvider>
             <TooltipProvider>
               <Toaster />
-              <Sonner />
+              <Sonner position="bottom-right" closeButton />
               <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<Index />} />
