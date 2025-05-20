@@ -65,32 +65,32 @@ const Index = () => {
             </Button>
           </div>
 
-          {/* New Marketing Block */}
+          {/* New Marketing Block - Styled like feature cards */}
           <div className="mt-16 mb-12 max-w-4xl mx-auto">
-            <div className="bg-gradient-to-br from-brand-green/10 to-brand-light-green/30 rounded-xl border border-brand-green/20 shadow-lg p-8 md:p-10 animate-fade-in">
-              <h2 className="text-2xl md:text-3xl font-bold text-center text-brand-deep-green mb-4">
+            <div className="bg-card rounded-lg p-8 md:p-10 shadow-sm border border-muted animate-fade-in">
+              <h2 className="text-2xl md:text-3xl font-bold text-center mb-4">
                 Replace Entire Teams with One AI Powerhouse
               </h2>
               <p className="text-lg md:text-xl text-center text-muted-foreground mb-8 max-w-3xl mx-auto">
                 Inbound. Outbound. Appointments. Sales. Support.<br />
                 From solar and roofing to real estate, insurance, and final expense — Dr. Scale delivers 24/7 voice agents that qualify, close, and follow up without a single human.
               </p>
-              <div className="max-w-md mx-auto grid gap-3">
+              <div className="max-w-md mx-auto grid gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-brand-green flex items-center justify-center">
-                    <Check className="h-4 w-4 text-white" />
+                  <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-4 w-4 text-primary-foreground" />
                   </div>
                   <span className="text-lg font-medium">No payroll.</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-brand-green flex items-center justify-center">
-                    <Check className="h-4 w-4 text-white" />
+                  <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-4 w-4 text-primary-foreground" />
                   </div>
                   <span className="text-lg font-medium">No burnout.</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-brand-green flex items-center justify-center">
-                    <Check className="h-4 w-4 text-white" />
+                  <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-4 w-4 text-primary-foreground" />
                   </div>
                   <span className="text-lg font-medium">Just results — on autopilot.</span>
                 </div>
