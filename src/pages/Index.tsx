@@ -57,12 +57,14 @@ const Index = () => {
             <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto">
               Gain valuable insights from your customer calls with AI-powered analytics
             </p>
-            <Button size="lg" onClick={handleSignUpClick} className="mr-4 bg-brand-purple hover:bg-brand-purple/90">
-              Get Started
-            </Button>
-            <Button size="lg" variant="outline" onClick={() => navigate("/support")}>
-              Learn More
-            </Button>
+            <div className="flex justify-center gap-4">
+              <Button size="lg" onClick={handleSignUpClick} className="bg-brand-green hover:bg-brand-green/90">
+                Get Started
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => navigate("/support")}>
+                Learn More
+              </Button>
+            </div>
           </div>
 
           {/* New Marketing Block - Styled like feature cards */}
