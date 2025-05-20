@@ -2,6 +2,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole, Role } from "@/hooks/useRole";
+import { toast } from "sonner";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -28,19 +29,18 @@ export const ProtectedRoute = ({ children, requiredRole, requiredAction }: Prote
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  // Check for required role if specified - only warn but don't block
+  // Check for required role if specified
   if (requiredRole && !checkRole(requiredRole)) {
-    console.warn(`User doesn't have required role: ${requiredRole}`);
-    // Continue without redirecting
+    toast.error(`You need ${requiredRole} permissions to access this page`);
+    return <Navigate to="/dashboard" replace />;
   }
   
-  // Check for required action if specified - be lenient during development
+  // Check for required action if specified
   if (requiredAction && !can[requiredAction]) {
-    console.warn(`User doesn't have required action permission: ${requiredAction}`);
-    // Continue without redirecting during development
-    // return <Navigate to="/dashboard" replace />;
+    toast.error(`You don't have permission to ${requiredAction.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+    return <Navigate to="/dashboard" replace />;
   }
   
-  // User is authenticated - allow access
+  // User is authenticated and has required permissions - allow access
   return <>{children}</>;
 };

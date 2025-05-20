@@ -62,9 +62,12 @@ export function useCompanyData(user: User | null) {
           }
         }
       } else {
-        // No company found - create a default one
+        // No company found - create a default one with better naming
         try {
-          const defaultCompanyName = `${user.email?.split('@')[0]}'s Company` || "New Company";
+          // Generate a more professional company name
+          const userName = user.user_metadata?.name || user.email?.split('@')[0] || "New User";
+          const defaultCompanyName = `${userName}'s Organization`;
+          
           const newCompany = await createCompany(defaultCompanyName);
           
           if (newCompany) {
@@ -72,7 +75,7 @@ export function useCompanyData(user: User | null) {
             setCompanyMembers([]);
             setUserRole('admin');
             setIsCompanyOwner(true);
-            toast.success(`Created company: ${defaultCompanyName}`);
+            toast.success(`Welcome to Dr. Scale! We've created ${defaultCompanyName} for you.`);
           } else {
             // Company creation failed, but don't break the app
             console.error("Failed to create default company");

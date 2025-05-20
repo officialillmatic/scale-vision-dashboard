@@ -172,12 +172,12 @@ serve(async (req) => {
     // Send the email
     try {
       const { data: emailData, error: emailError } = await resend.emails.send({
-        from: "EchoWave <no-reply@echowave.com>",
+        from: "Dr. Scale <no-reply@drscale.com>",
         to: email,
-        subject: `You've been invited to join ${company.name} on EchoWave`,
+        subject: `You've been invited to join ${company.name} on Dr. Scale`,
         html: `
           <h1>You've been invited to join ${company.name}</h1>
-          <p>You've been invited to join ${company.name} on EchoWave as a ${role}.</p>
+          <p>You've been invited to join ${company.name} on Dr. Scale as a ${role}.</p>
           <p>Click the link below to accept the invitation and create your account:</p>
           <p><a href="${invitationUrl}">Accept invitation</a></p>
           <p>This invitation will expire in 7 days.</p>
