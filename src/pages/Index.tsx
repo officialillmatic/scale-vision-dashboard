@@ -1,6 +1,6 @@
 
 import React, { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { Check } from "lucide-react";
@@ -143,8 +143,23 @@ const Index = () => {
           </div>
         </main>
 
-        <footer className="mt-24 py-8 border-t text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} Dr. Scale. All rights reserved.</p>
+        <footer className="mt-24 py-8 border-t">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-muted-foreground">
+              &copy; {new Date().getFullYear()} Dr. Scale. All rights reserved.
+            </p>
+            <div className="flex gap-6 text-sm">
+              <Link to="/terms-of-service" className="text-muted-foreground hover:text-brand-green">
+                Terms of Service
+              </Link>
+              <Link to="/privacy-policy" className="text-muted-foreground hover:text-brand-green">
+                Privacy Policy
+              </Link>
+              <Link to="/support" className="text-muted-foreground hover:text-brand-green">
+                Support
+              </Link>
+            </div>
+          </div>
         </footer>
       </div>
     </div>
