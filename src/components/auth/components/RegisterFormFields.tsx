@@ -30,12 +30,13 @@ export const RegisterFormFields = ({ form, invitation }: RegisterFormFieldsProps
         name="email"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Email</FormLabel>
+            <FormLabel className="text-base">Email</FormLabel>
             <FormControl>
               <Input
                 type="email"
                 placeholder="email@example.com"
                 disabled={invitation?.valid && !!invitation.invitation?.email}
+                className="p-3 h-12 rounded-md"
                 {...field}
               />
             </FormControl>
@@ -48,11 +49,12 @@ export const RegisterFormFields = ({ form, invitation }: RegisterFormFieldsProps
         name="password"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Password</FormLabel>
+            <FormLabel className="text-base">Password</FormLabel>
             <FormControl>
               <Input
                 type="password"
                 placeholder="********"
+                className="p-3 h-12 rounded-md"
                 {...field}
               />
             </FormControl>
@@ -65,11 +67,12 @@ export const RegisterFormFields = ({ form, invitation }: RegisterFormFieldsProps
         name="confirmPassword"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Confirm Password</FormLabel>
+            <FormLabel className="text-base">Confirm Password</FormLabel>
             <FormControl>
               <Input
                 type="password"
                 placeholder="********"
+                className="p-3 h-12 rounded-md"
                 {...field}
               />
             </FormControl>

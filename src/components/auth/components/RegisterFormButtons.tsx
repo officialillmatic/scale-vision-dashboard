@@ -14,11 +14,12 @@ export const RegisterFormButtons = ({ isLoading, invitationLoading }: RegisterFo
   const navigate = useNavigate();
 
   return (
-    <div className="flex flex-col gap-2">
+    <>
       <Button 
-        className="w-full bg-brand-purple hover:bg-brand-deep-purple" 
+        className="w-full bg-brand-green hover:bg-brand-deep-green transition-all" 
         type="submit" 
         disabled={isLoading || invitationLoading}
+        size="lg"
       >
         {isLoading ? (
           <>
@@ -37,6 +38,6 @@ export const RegisterFormButtons = ({ isLoading, invitationLoading }: RegisterFo
       >
         Back to Login
       </Button>
-    </div>
+    </>
   );
 };

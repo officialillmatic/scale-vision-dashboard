@@ -97,8 +97,8 @@ export function RegisterForm() {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
+    <Card className="w-full max-w-md mx-auto shadow-lg border-0">
+      <CardHeader className="pb-2">
         <RegisterFormHeader invitation={invitation} invitationToken={invitationToken} />
       </CardHeader>
       
@@ -111,10 +111,10 @@ export function RegisterForm() {
       {(!invitationLoading || !invitationToken) && (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent>
+            <CardContent className="space-y-4 pt-4">
               <RegisterFormFields form={form} invitation={invitation} />
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex-col gap-4 pt-2">
               <RegisterFormButtons isLoading={isLoading} invitationLoading={invitationLoading} />
             </CardFooter>
           </form>
