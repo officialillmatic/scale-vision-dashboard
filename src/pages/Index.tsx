@@ -77,20 +77,20 @@ const Index = () => {
               </p>
               <div className="max-w-md mx-auto grid gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-black/90 flex items-center justify-center">
-                    <Check className="h-4 w-4 text-brand-green" />
+                  <div className="h-7 w-7 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green shadow-sm flex items-center justify-center">
+                    <Check className="h-4 w-4 text-white" strokeWidth={2.5} />
                   </div>
                   <span className="text-lg font-medium">No payroll.</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-black/90 flex items-center justify-center">
-                    <Check className="h-4 w-4 text-brand-green" />
+                  <div className="h-7 w-7 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green shadow-sm flex items-center justify-center">
+                    <Check className="h-4 w-4 text-white" strokeWidth={2.5} />
                   </div>
                   <span className="text-lg font-medium">No burnout.</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-black/90 flex items-center justify-center">
-                    <Check className="h-4 w-4 text-brand-green" />
+                  <div className="h-7 w-7 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green shadow-sm flex items-center justify-center">
+                    <Check className="h-4 w-4 text-white" strokeWidth={2.5} />
                   </div>
                   <span className="text-lg font-medium">Just results — on autopilot.</span>
                 </div>
