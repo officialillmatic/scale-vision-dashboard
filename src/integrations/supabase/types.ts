@@ -254,6 +254,51 @@ export type Database = {
           },
         ]
       }
+      user_preferences: {
+        Row: {
+          created_at: string | null
+          dashboard_layout: string | null
+          display_units_currency: string | null
+          display_units_time: string | null
+          email_notifications_agents: boolean | null
+          email_notifications_calls: boolean | null
+          id: string
+          preferred_graph_type: string | null
+          theme: string | null
+          updated_at: string | null
+          user_id: string
+          visible_dashboard_cards: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          dashboard_layout?: string | null
+          display_units_currency?: string | null
+          display_units_time?: string | null
+          email_notifications_agents?: boolean | null
+          email_notifications_calls?: boolean | null
+          id?: string
+          preferred_graph_type?: string | null
+          theme?: string | null
+          updated_at?: string | null
+          user_id: string
+          visible_dashboard_cards?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          dashboard_layout?: string | null
+          display_units_currency?: string | null
+          display_units_time?: string | null
+          email_notifications_agents?: boolean | null
+          email_notifications_calls?: boolean | null
+          id?: string
+          preferred_graph_type?: string | null
+          theme?: string | null
+          updated_at?: string | null
+          user_id?: string
+          visible_dashboard_cards?: Json | null
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           avatar_url: string | null
