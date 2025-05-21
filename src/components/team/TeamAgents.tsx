@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { useRole } from '@/hooks/useRole';
 import { Agent } from '@/services/agentService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CompanyMember } from '@/types/auth'; // Import the CompanyMember type from auth types
+import { UserAgentViewer } from './UserAgentViewer';
 
 export function TeamAgents() {
   const { company } = useAuth();
@@ -66,21 +68,24 @@ export function TeamAgents() {
   const isAdmin = isCompanyOwner || can.manageAgents;
   const isLoading = isLoadingAgents || isLoadingUserAgents || isLoadingMembers;
   
+  // For non-admin users, show only their assigned agents with the simplified view
+  if (!isAdmin) {
+    return <UserAgentViewer />;
+  }
+  
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Agents List */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">AI Agents</h2>
-          {isAdmin && (
-            <Button 
-              onClick={() => handleOpenAgentDialog()}
-              className="bg-brand-green hover:bg-brand-deep-green"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Agent
-            </Button>
-          )}
+          <Button 
+            onClick={() => handleOpenAgentDialog()}
+            className="bg-brand-green hover:bg-brand-deep-green"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Create Agent
+          </Button>
         </div>
         
         <Card>
@@ -95,10 +100,11 @@ export function TeamAgents() {
               <AgentsTable
                 agents={agents}
                 isLoading={isLoadingAgents}
-                onEdit={isAdmin ? handleOpenAgentDialog : undefined}
-                onAssign={isAdmin ? handleOpenAssignDialog : undefined}
-                onDelete={isAdmin ? handleConfirmDelete : undefined}
-                isAdmin={isAdmin}
+                onEdit={handleOpenAgentDialog}
+                onAssign={handleOpenAssignDialog}
+                onDelete={handleConfirmDelete}
+                isAdmin={true}
+                showRates={true}
               />
             )}
           </CardContent>
@@ -106,64 +112,58 @@ export function TeamAgents() {
       </div>
 
       {/* Agent Assignments - Only visible to admins */}
-      {isAdmin && (
-        <div className="space-y-4">
-          <h2 className="text-2xl font-bold">Agent Assignments</h2>
-          <Card>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="p-6 space-y-2">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ) : (
-                <AssignmentsTable
-                  userAgents={userAgents}
-                  isLoading={isLoadingUserAgents}
-                  onRemove={handleRemoveAgentAssignment}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold">Agent Assignments</h2>
+        <Card>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <AssignmentsTable
+                userAgents={userAgents}
+                isLoading={isLoadingUserAgents}
+                onRemove={handleRemoveAgentAssignment}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Dialogs - Only shown to admins */}
-      {isAdmin && (
-        <>
-          {/* Agent Dialog */}
-          <AgentDialog 
-            isOpen={isAgentDialogOpen}
-            onClose={() => setIsAgentDialogOpen(false)}
-            onSubmit={selectedAgent ? 
-              (data) => handleUpdateAgent(selectedAgent.id, data) : 
-              handleCreateAgent
-            }
-            isSubmitting={selectedAgent ? isUpdating : isCreating}
-            agent={selectedAgent}
-          />
+      {/* Dialogs */}
+      {/* Agent Dialog */}
+      <AgentDialog 
+        isOpen={isAgentDialogOpen}
+        onClose={() => setIsAgentDialogOpen(false)}
+        onSubmit={selectedAgent ? 
+          (data) => handleUpdateAgent(selectedAgent.id, data) : 
+          handleCreateAgent
+        }
+        isSubmitting={selectedAgent ? isUpdating : isCreating}
+        agent={selectedAgent}
+      />
 
-          {/* Agent Assignment Dialog */}
-          <AgentAssignDialog 
-            isOpen={isAssignDialogOpen}
-            onClose={() => setIsAssignDialogOpen(false)}
-            onSubmit={handleAssignAgent}
-            isSubmitting={isAssigning}
-            teamMembers={teamMembers} // teamMembers is now correctly typed as CompanyMember[]
-            agents={agents}
-            selectedAgent={selectedAgent}
-          />
+      {/* Agent Assignment Dialog */}
+      <AgentAssignDialog 
+        isOpen={isAssignDialogOpen}
+        onClose={() => setIsAssignDialogOpen(false)}
+        onSubmit={handleAssignAgent}
+        isSubmitting={isAssigning}
+        teamMembers={teamMembers} // teamMembers is now correctly typed as CompanyMember[]
+        agents={agents}
+        selectedAgent={selectedAgent}
+      />
 
-          {/* Delete Confirmation Dialog */}
-          <DeleteAgentDialog
-            isOpen={isDeleteDialogOpen}
-            onClose={() => setIsDeleteDialogOpen(false)}
-            onConfirm={handleDeleteConfirmed}
-            isDeleting={isDeleting}
-            agent={selectedAgent}
-          />
-        </>
-      )}
+      {/* Delete Confirmation Dialog */}
+      <DeleteAgentDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDeleteConfirmed}
+        isDeleting={isDeleting}
+        agent={selectedAgent}
+      />
     </div>
   );
 }

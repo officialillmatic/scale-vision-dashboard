@@ -11,6 +11,7 @@ interface CallInfoProps {
   timestamp: Date;
   fromNumber: string;
   toNumber: string;
+  agent?: { name: string; rate_per_minute?: number };
 }
 
 // New interface that accepts a full call object
@@ -31,6 +32,19 @@ export const CallInfo: React.FC<CallInfoProps | CallInfoWithCallObjectProps> = (
   const toNumber = isCallObject ? props.call.to : props.toNumber;
   
   const formattedDate = new Date(timestamp).toLocaleString();
+  const durationMin = duration / 60;
+  
+  // Calculate the rate per minute (if available)
+  let ratePerMinute = 0.02; // Default rate
+  let agentName = "System Agent";
+  
+  if (isCallObject && props.call.agent) {
+    ratePerMinute = props.call.agent.rate_per_minute || ratePerMinute;
+    agentName = props.call.agent.name;
+  } else if (!isCallObject && props.agent) {
+    ratePerMinute = props.agent.rate_per_minute || ratePerMinute;
+    agentName = props.agent.name;
+  }
 
   return (
     <div className="space-y-3">
@@ -49,6 +63,12 @@ export const CallInfo: React.FC<CallInfoProps | CallInfoWithCallObjectProps> = (
         <div className="text-muted-foreground">Cost</div>
         <div>{formatCurrency(cost)}</div>
         
+        <div className="text-muted-foreground">Rate</div>
+        <div>{formatCurrency(ratePerMinute)}/min</div>
+        
+        <div className="text-muted-foreground">Agent</div>
+        <div>{agentName}</div>
+        
         <div className="text-muted-foreground">From</div>
         <div className="font-mono">{fromNumber}</div>
         
@@ -57,4 +77,4 @@ export const CallInfo: React.FC<CallInfoProps | CallInfoWithCallObjectProps> = (
       </div>
     </div>
   );
-};
+}

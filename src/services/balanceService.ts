@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errorHandling";
@@ -252,6 +251,18 @@ export const calculateCallCost = (
   durationSec: number,
   ratePerMinute = 0.02
 ): number => {
+  const durationMin = durationSec / 60;
+  return parseFloat((durationMin * ratePerMinute).toFixed(4));
+};
+
+/**
+ * Calculate call cost based on duration and agent-specific rate
+ */
+export const calculateAgentCallCost = (
+  durationSec: number,
+  agentRatePerMinute?: number
+): number => {
+  const ratePerMinute = agentRatePerMinute || 0.02; // Default rate if agent rate not specified
   const durationMin = durationSec / 60;
   return parseFloat((durationMin * ratePerMinute).toFixed(4));
 };

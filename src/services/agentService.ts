@@ -3,7 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { AgentTable, UserAgentTable } from "@/types/supabase";
 import { toast } from "sonner";
 
-export type Agent = AgentTable;
+export type Agent = AgentTable & {
+  rate_per_minute?: number;
+  retell_agent_id?: string;
+};
+
 export type UserAgent = UserAgentTable & {
   agent?: Agent;
   user_details?: {

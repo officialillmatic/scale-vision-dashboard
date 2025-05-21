@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { useUserBalance } from '@/hooks/useUserBalance';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, Coins, Clock3 } from 'lucide-react';
+import { AlertTriangle, Coins, Clock3, Calendar } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { formatCurrency } from '@/lib/formatters';
 
@@ -41,6 +42,15 @@ export const UserBalance: React.FC<UserBalanceProps> = ({ className }) => {
     Math.min(100, (balance.balance / (balance.warning_threshold * 2)) * 100) : 
     balance?.balance ? Math.min(100, (balance.balance / 50) * 100) : 0;
 
+  // Calculate usage statistics
+  const currentMonthCalls = transactions?.filter(tx => 
+    tx.transaction_type === 'deduction' && 
+    new Date(tx.created_at).getMonth() === new Date().getMonth()
+  ) || [];
+  
+  const currentMonthUsage = currentMonthCalls.reduce((sum, tx) => sum + tx.amount, 0);
+  const currentMonthCallCount = currentMonthCalls.length;
+
   return (
     <Card className={className}>
       <CardHeader>
@@ -78,6 +88,24 @@ export const UserBalance: React.FC<UserBalanceProps> = ({ className }) => {
               value={balancePercent} 
               className={`h-2 ${isLowBalance ? 'bg-amber-100 dark:bg-amber-950' : ''}`}
             />
+          </div>
+          
+          {/* Current Month Usage Summary */}
+          <div className="mt-2 pt-4 border-t">
+            <h4 className="text-sm font-medium mb-2 flex items-center">
+              <Calendar className="h-4 w-4 mr-1" />
+              Current Month Usage
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md">
+                <div className="text-xs text-gray-500 dark:text-gray-400">Calls Made</div>
+                <div className="text-lg font-medium">{currentMonthCallCount}</div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md">
+                <div className="text-xs text-gray-500 dark:text-gray-400">Total Cost</div>
+                <div className="text-lg font-medium">{formatCurrency(currentMonthUsage)}</div>
+              </div>
+            </div>
           </div>
 
           {recentTransactions.length > 0 && (

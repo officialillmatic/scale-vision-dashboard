@@ -34,12 +34,23 @@ export const useRole = () => {
   };
 
   const can = useMemo(() => ({
+    // Agent management
     manageTeam: isCompanyOwner || checkRole('admin'),
-    manageAgents: isCompanyOwner || checkRole('admin'),
+    manageAgents: isCompanyOwner || checkRole('admin'), // Only admins can manage agents
     viewAgents: true, // All authenticated users can view their assigned agents
     createAgents: isCompanyOwner || checkRole('admin'), // Only admins can create agents
+    assignAgents: isCompanyOwner || checkRole('admin'), // Only admins can assign agents
+    deleteAgents: isCompanyOwner || checkRole('admin'), // Only admins can delete agents
+    
+    // Call management
     viewCalls: true, // Allow all authenticated users to view calls
-    uploadCalls: checkRole('member'),
+    uploadCalls: checkRole('member'), // Members and admins can upload calls
+    
+    // Billing management
+    manageBalances: isCompanyOwner || checkRole('admin'), // Only admins can update balances
+    viewBalance: true, // All users can view their own balance
+    
+    // Settings
     editSettings: isCompanyOwner || checkRole('admin'),
     inviteUsers: isCompanyOwner || checkRole('admin'),
     removeUsers: isCompanyOwner || checkRole('admin')

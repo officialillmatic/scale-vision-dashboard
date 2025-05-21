@@ -49,6 +49,7 @@ export function useUserBalance() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
+  // This mutation is for admin use only - users cannot modify their own balance
   const updateBalanceMutation = useMutation({
     mutationFn: async ({
       amount,
@@ -87,13 +88,29 @@ export function useUserBalance() {
     refetchTransactions();
   };
 
-  // Calculate remaining minutes based on current balance
+  // Calculate remaining minutes based on current balance and average rate
   const remainingMinutes = balance ? calculateRemainingMinutes(balance.balance) : 0;
 
   // Check if balance is below warning threshold
   const isLowBalance = balance ? 
     (balance.warning_threshold !== null && balance.balance < balance.warning_threshold) : 
     false;
+    
+  // Function to get total call usage for a given period (default: current month)
+  const getCallUsage = (startDate?: Date, endDate?: Date) => {
+    if (!transactions) return 0;
+    
+    const start = startDate || new Date(new Date().setDate(1)); // First day of current month
+    const end = endDate || new Date(); // Today
+    
+    return transactions
+      .filter(tx => 
+        tx.transaction_type === 'deduction' &&
+        new Date(tx.created_at) >= start &&
+        new Date(tx.created_at) <= end
+      )
+      .reduce((sum, tx) => sum + tx.amount, 0);
+  };
 
   return {
     balance,
@@ -104,6 +121,7 @@ export function useUserBalance() {
     isUpdating,
     error: balanceError || transactionsError,
     updateBalance: updateBalanceMutation.mutate,
-    refreshBalanceData
+    refreshBalanceData,
+    getCallUsage
   };
 }

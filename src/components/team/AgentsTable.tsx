@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Edit, Trash2, UserPlus } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Agent } from '@/services/agentService';
+import { formatCurrency } from '@/lib/formatters';
 
 interface AgentsTableProps {
   agents: Agent[];
@@ -21,6 +22,7 @@ interface AgentsTableProps {
   onAssign?: (agent: Agent) => void;
   onDelete?: (agent: Agent) => void;
   isAdmin?: boolean;
+  showRates?: boolean;
 }
 
 export function AgentsTable({ 
@@ -29,7 +31,8 @@ export function AgentsTable({
   onEdit, 
   onAssign, 
   onDelete,
-  isAdmin = false
+  isAdmin = false,
+  showRates = false
 }: AgentsTableProps) {
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -52,13 +55,14 @@ export function AgentsTable({
             <TableHead>Name</TableHead>
             <TableHead>Description</TableHead>
             <TableHead>Status</TableHead>
+            {showRates && <TableHead>Rate</TableHead>}
             {isAdmin && <TableHead>Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell colSpan={isAdmin ? 4 : 3} className="h-24 text-center">
+              <TableCell colSpan={isAdmin ? (showRates ? 5 : 4) : (showRates ? 4 : 3)} className="h-24 text-center">
                 <LoadingSpinner size="md" className="mx-auto" />
               </TableCell>
             </TableRow>
@@ -87,6 +91,11 @@ export function AgentsTable({
                     {agent.status}
                   </Badge>
                 </TableCell>
+                {showRates && (
+                  <TableCell>
+                    {formatCurrency(agent.rate_per_minute || 0.02)}/min
+                  </TableCell>
+                )}
                 {isAdmin && (
                   <TableCell>
                     <div className="flex space-x-2">
@@ -124,7 +133,7 @@ export function AgentsTable({
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={isAdmin ? 4 : 3} className="h-24 text-center">
+              <TableCell colSpan={isAdmin ? (showRates ? 5 : 4) : (showRates ? 4 : 3)} className="h-24 text-center">
                 {isAdmin ? (
                   "No agents found. Create one to get started."
                 ) : (

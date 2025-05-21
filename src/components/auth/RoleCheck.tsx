@@ -8,21 +8,30 @@ interface RoleCheckProps {
   role?: Role;
   allowedAction?: keyof ReturnType<typeof useRole>['can'];
   fallback?: React.ReactNode;
+  adminOnly?: boolean; // Shorthand for company owner or admin role
 }
 
 export const RoleCheck: React.FC<RoleCheckProps> = ({ 
   children, 
   role, 
   allowedAction,
-  fallback = null
+  fallback = null,
+  adminOnly = false
 }) => {
-  const { checkRole, can } = useRole();
+  const { checkRole, can, isCompanyOwner } = useRole();
   
   const hasPermission = () => {
+    // Admin only check (shorthand for owner or admin)
+    if (adminOnly) {
+      return isCompanyOwner || checkRole('admin');
+    }
+    
+    // Combined role & action check
     if (role && allowedAction) {
       return checkRole(role) && can[allowedAction];
     }
     
+    // Individual checks
     if (role) {
       return checkRole(role);
     }
