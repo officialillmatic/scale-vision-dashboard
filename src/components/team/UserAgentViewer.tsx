@@ -46,7 +46,7 @@ export function UserAgentViewer() {
               </div>
               
               {isLowBalance && (
-                <Alert variant="warning" className="mt-3 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-900">
+                <Alert variant="default" className="mt-3 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-900">
                   <AlertTriangle className="h-4 w-4 text-amber-500" />
                   <AlertDescription className="text-sm text-amber-700 dark:text-amber-300">
                     Your balance is running low. This may impact your ability to make calls.
