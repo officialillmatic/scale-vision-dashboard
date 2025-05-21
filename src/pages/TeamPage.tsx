@@ -7,9 +7,34 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RoleCheck } from '@/components/auth/RoleCheck';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRole } from '@/hooks/useRole';
+import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 
 const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
+  const { user } = useAuth();
+  const { isCompanyOwner, can } = useRole();
+  const navigate = useNavigate();
+  
+  // Redirect non-admin users to dashboard
+  useEffect(() => {
+    if (user && !isCompanyOwner && !can.manageTeam) {
+      navigate('/dashboard');
+    }
+  }, [user, isCompanyOwner, can.manageTeam, navigate]);
+  
+  if (!isCompanyOwner && !can.manageTeam) {
+    return <DashboardLayout>
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          You don't have permission to access this page.
+        </AlertDescription>
+      </Alert>
+    </DashboardLayout>;
+  }
   
   return (
     <DashboardLayout>

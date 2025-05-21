@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from '../_shared/corsUtils.ts';
@@ -5,14 +6,14 @@ import { validateAuth, getUserCompany, checkCompanyAccess } from '../_shared/aut
 import { getUserBalance, updateUserBalance, recordTransactions } from '../_shared/userBalanceUtils.ts';
 import { getUserAgents, mapCallStatus, mapCallType } from '../_shared/callUtils.ts';
 
-// Fetch call summary from Retell API
-async function fetchCallSummary(callId: string, retellApiKey: string) {
+// Fetch call summary from API
+async function fetchCallSummary(callId: string, apiKey: string) {
   try {
     const summaryResponse = await fetch(`https://api.retellai.com/v1/calls/${callId}/summary`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${retellApiKey}`
+        'Authorization': `Bearer ${apiKey}`
       }
     });
     
@@ -26,7 +27,7 @@ async function fetchCallSummary(callId: string, retellApiKey: string) {
   return null;
 }
 
-// Transform Retell call data to our schema
+// Transform API call data to our schema
 function transformCallData(
   call: any, 
   userId: string, 
@@ -61,8 +62,8 @@ function transformCallData(
   };
 }
 
-// Process and save calls from Retell to our database
-async function processRetellCalls(
+// Process and save calls from API to our database
+async function processApiCalls(
   callsData: any,
   supabaseClient: any,
   userId: string, 
@@ -70,12 +71,12 @@ async function processRetellCalls(
   retellAgentMap: Map<string, string>,
   agentRates: Map<string, number>,
   primaryAgentId: string | null,
-  retellApiKey: string
+  apiKey: string
 ) {
   let newCallsCount = 0;
   let totalCost = 0;
   
-  // For each call in the Retell response, check if it already exists and insert if not
+  // For each call in the API response, check if it already exists and insert if not
   for (const call of callsData.data || []) {
     // Check if this call already exists in our database
     const { data: existingCall, error: checkError } = await supabaseClient
@@ -92,20 +93,20 @@ async function processRetellCalls(
     // If call doesn't exist, process and insert it
     if (!existingCall) {
       // Get call summary if available
-      const callSummary = call.id ? await fetchCallSummary(call.id, retellApiKey) : null;
+      const callSummary = call.id ? await fetchCallSummary(call.id, apiKey) : null;
       
-      // Find the agent ID for this call based on Retell's agent ID
+      // Find the agent ID for this call based on API agent ID
       let agentId = null;
       let agentRate = 0.02; // Default rate
       
-      // Try to map Retell agent ID to our internal agent ID
+      // Try to map API agent ID to our internal agent ID
       if (call.agent_id && retellAgentMap.has(call.agent_id)) {
         agentId = retellAgentMap.get(call.agent_id);
         if (agentRates.has(agentId)) {
           agentRate = agentRates.get(agentId);
         }
       } else if (primaryAgentId) {
-        // Fallback to primary agent if we can't match the Retell agent ID
+        // Fallback to primary agent if we can't match the API agent ID
         agentId = primaryAgentId;
         if (agentRates.has(agentId)) {
           agentRate = agentRates.get(agentId);
@@ -217,31 +218,31 @@ serve(async (req) => {
 
     const { balanceId, balance: currentBalance, warningThreshold } = balanceResult;
 
-    // Get the Retell API key
-    const retellApiKey = Deno.env.get('RETELL_API_KEY');
-    if (!retellApiKey) {
-      throw new Error('Retell API key not configured');
+    // Get the API key
+    const apiKey = Deno.env.get('RETELL_API_KEY');
+    if (!apiKey) {
+      throw new Error('API key not configured');
     }
 
-    // Make the call to Retell API
+    // Make the call to API
     const response = await fetch('https://api.retellai.com/v1/calls', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${retellApiKey}`
+        'Authorization': `Bearer ${apiKey}`
       }
     });
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('Retell API error:', errorData);
-      return createErrorResponse('Error fetching calls from Retell', response.status);
+      console.error('API error:', errorData);
+      return createErrorResponse('Error fetching calls from provider', response.status);
     }
 
     const callsData = await response.json();
     
     // Process and save the calls to Supabase
-    const { newCallsCount, totalCost } = await processRetellCalls(
+    const { newCallsCount, totalCost } = await processApiCalls(
       callsData,
       supabaseClient,
       user.id,
@@ -249,7 +250,7 @@ serve(async (req) => {
       retellAgentMap,
       agentRates,
       primaryAgentId,
-      retellApiKey
+      apiKey
     );
 
     // Update the user's balance if we processed new calls

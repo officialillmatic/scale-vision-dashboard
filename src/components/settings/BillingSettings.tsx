@@ -11,15 +11,27 @@ import { useRole } from "@/hooks/useRole";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 type TransactionType = 'deposit' | 'deduction' | 'adjustment';
 
 export const BillingSettings = () => {
   const { user, company } = useAuth();
   const { isCompanyOwner, checkRole } = useRole();
-  const isAdmin = checkRole('admin');
+  const isAdmin = isCompanyOwner || checkRole('admin');
   const { members, isLoading: isLoadingMembers } = useTeamMembers(company?.id);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  // Redirect non-admin users away from billing settings
+  useEffect(() => {
+    if (user && !isAdmin) {
+      navigate('/settings');
+    }
+  }, [user, isAdmin, navigate]);
 
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
@@ -53,7 +65,11 @@ export const BillingSettings = () => {
       return response.json();
     },
     onSuccess: (data) => {
-      toast.success(`Successfully ${transactionType}ed ${data.transactionAmount} to user balance`);
+      const actionType = transactionType === 'deposit' ? 'added to' : 
+                        transactionType === 'deduction' ? 'deducted from' : 
+                        'adjusted for';
+      
+      toast.success(`Successfully ${actionType} user balance: $${data.transactionAmount}`);
       
       // Reset form
       setAmount("");
@@ -88,7 +104,7 @@ export const BillingSettings = () => {
   };
 
   // Only company admins and owners can manage billing
-  if (!isAdmin && !isCompanyOwner) {
+  if (!isAdmin) {
     return (
       <Card>
         <CardHeader>
@@ -96,10 +112,13 @@ export const BillingSettings = () => {
           <CardDescription>Manage user balances and transaction history</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">
-            You don't have permission to manage billing settings.
-            Please contact your company administrator.
-          </p>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Only administrators can access billing settings.
+              Please contact your administrator for assistance.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
     );

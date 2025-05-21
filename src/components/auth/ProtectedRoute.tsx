@@ -3,17 +3,24 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole, Role } from "@/hooks/useRole";
 import { toast } from "sonner";
+import { useEffect } from "react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: Role;
   requiredAction?: keyof ReturnType<typeof useRole>['can'];
+  adminOnly?: boolean; // Shorthand for requiring admin or owner status
 }
 
-export const ProtectedRoute = ({ children, requiredRole, requiredAction }: ProtectedRouteProps) => {
+export const ProtectedRoute = ({ 
+  children, 
+  requiredRole, 
+  requiredAction,
+  adminOnly = false
+}: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
-  const { checkRole, can } = useRole();
+  const { checkRole, can, isCompanyOwner } = useRole();
   
   // Check if loading
   if (isLoading) {
@@ -29,15 +36,27 @@ export const ProtectedRoute = ({ children, requiredRole, requiredAction }: Prote
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
+  // Admin-only check
+  if (adminOnly && !isCompanyOwner && !checkRole('admin')) {
+    useEffect(() => {
+      toast.error("You need administrator permissions to access this page");
+    }, []);
+    return <Navigate to="/dashboard" replace />;
+  }
+  
   // Check for required role if specified
   if (requiredRole && !checkRole(requiredRole)) {
-    toast.error(`You need ${requiredRole} permissions to access this page`);
+    useEffect(() => {
+      toast.error(`You need ${requiredRole} permissions to access this page`);
+    }, [requiredRole]);
     return <Navigate to="/dashboard" replace />;
   }
   
   // Check for required action if specified
   if (requiredAction && !can[requiredAction]) {
-    toast.error(`You don't have permission to ${requiredAction.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+    useEffect(() => {
+      toast.error(`You don't have permission to ${requiredAction.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+    }, [requiredAction]);
     return <Navigate to="/dashboard" replace />;
   }
   

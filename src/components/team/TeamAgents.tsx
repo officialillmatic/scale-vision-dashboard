@@ -16,6 +16,8 @@ import { Agent } from '@/services/agentService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAgentViewer } from './UserAgentViewer';
 import { RoleCheck } from '../auth/RoleCheck';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Info } from 'lucide-react';
 
 export function TeamAgents() {
   const { company } = useAuth();
@@ -75,6 +77,13 @@ export function TeamAgents() {
   
   return (
     <div className="space-y-6 animate-fade-in">
+      <Alert variant="default" className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-900">
+        <Info className="h-4 w-4" />
+        <AlertDescription className="text-sm">
+          As an administrator, you can create and assign AI agents to users. These agents handle calls and interactions for your team.
+        </AlertDescription>
+      </Alert>
+      
       {/* Agents List */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">

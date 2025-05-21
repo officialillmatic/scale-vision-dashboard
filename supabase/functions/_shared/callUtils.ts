@@ -1,119 +1,181 @@
 
-// Generate mock call data
-export function generateMockCalls(count: number, companyId: string, userId: string, currentBalance: number, primaryAgentId: string | null) {
-  const callTypes = ["inbound", "outbound", "missed", "voicemail"];
-  const statuses = ["completed", "in-progress", "failed"];
-  const sentiments = ["positive", "neutral", "negative"];
-  
-  const now = new Date();
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
+
+// Get the user's assigned agents
+export async function getUserAgents(supabaseClient: any, userId: string, companyId: string) {
+  try {
+    // Get user's assigned agents
+    const { data: userAgents, error: userAgentsError } = await supabaseClient
+      .from("user_agents")
+      .select(`
+        id,
+        agent_id,
+        is_primary,
+        agent:agents(*)
+      `)
+      .eq("user_id", userId)
+      .eq("company_id", companyId);
+    
+    if (userAgentsError) {
+      console.error('Error fetching user agents:', userAgentsError);
+      return { 
+        error: userAgentsError,
+        userAgentIds: [],
+        primaryAgentId: null,
+        retellAgentMap: new Map(),
+        agentRates: new Map()
+      };
+    }
+
+    // Extract agent IDs and primary agent
+    const userAgentIds = userAgents.map(ua => ua.agent_id);
+    
+    // Find primary agent (if any)
+    const primaryAgent = userAgents.find(ua => ua.is_primary);
+    const primaryAgentId = primaryAgent ? primaryAgent.agent_id : userAgentIds[0] || null;
+    
+    // Create mapping from Retell agent IDs to our internal agent IDs
+    const retellAgentMap = new Map();
+    const agentRates = new Map();
+    
+    userAgents.forEach(ua => {
+      if (ua.agent?.retell_agent_id) {
+        retellAgentMap.set(ua.agent.retell_agent_id, ua.agent_id);
+      }
+      if (ua.agent?.rate_per_minute) {
+        agentRates.set(ua.agent_id, ua.agent.rate_per_minute);
+      } else {
+        // Default rate if not specified
+        agentRates.set(ua.agent_id, 0.02);
+      }
+    });
+
+    return { 
+      userAgentIds,
+      primaryAgentId,
+      retellAgentMap,
+      agentRates,
+      error: null
+    };
+  } catch (error) {
+    console.error('Error in getUserAgents:', error);
+    return { 
+      error,
+      userAgentIds: [],
+      primaryAgentId: null,
+      retellAgentMap: new Map(),
+      agentRates: new Map()
+    };
+  }
+}
+
+// Helper functions for call data mapping
+export function mapCallStatus(status: string): string {
+  switch (status?.toLowerCase()) {
+    case 'completed':
+    case 'complete':
+    case 'done':
+      return 'completed';
+    case 'in_progress':
+    case 'inprogress':
+    case 'ongoing':
+    case 'active':
+      return 'in_progress';
+    case 'failed':
+    case 'error':
+    case 'disconnected':
+      return 'failed';
+    default:
+      return 'unknown';
+  }
+}
+
+export function mapCallType(type: string): string {
+  switch (type?.toLowerCase()) {
+    case 'phone':
+    case 'phone_call':
+    case 'call':
+      return 'phone_call';
+    case 'voicemail':
+      return 'voicemail';
+    default:
+      return 'other';
+  }
+}
+
+// Generate mock calls for development and testing
+export function generateMockCalls(
+  count: number,
+  companyId: string,
+  userId: string,
+  maxCost: number,
+  primaryAgentId: string | null
+): { calls: any[], totalCost: number } {
   const calls = [];
   let totalCost = 0;
   
-  for (let i = 0; i < count; i++) {
-    const timestamp = new Date(now);
-    timestamp.setHours(now.getHours() - i * 2); // Calls every 2 hours in the past
+  // Generate mock call data (only for development)
+  for (let i = 0; i < count && totalCost < maxCost; i++) {
+    // Generate random duration between 30 and 300 seconds
+    const durationSec = Math.floor(Math.random() * (300 - 30 + 1)) + 30;
     
-    const duration = Math.floor(Math.random() * 600) + 60; // 1-10 minutes
-    const callType = callTypes[Math.floor(Math.random() * callTypes.length)];
-    const status = statuses[Math.floor(Math.random() * statuses.length)];
-    const sentiment = sentiments[Math.floor(Math.random() * sentiments.length)];
-    const cost = parseFloat((duration * 0.002).toFixed(4));
+    // Calculate call cost at $0.02 per minute
+    const durationMin = durationSec / 60;
+    const ratePerMin = 0.02; // Default rate
+    const cost = durationMin * ratePerMin;
+    
+    // Only add call if it doesn't exceed max cost
+    if (totalCost + cost > maxCost) {
+      continue;
+    }
     
     totalCost += cost;
     
-    // Make sure we don't exceed the user's balance
-    if (currentBalance - totalCost < 0) {
-      break; // Stop generating calls if we exceed the balance
+    // Generate random timestamp within the last 30 days
+    const now = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+    const timestamp = new Date(
+      thirtyDaysAgo.getTime() + Math.random() * (now.getTime() - thirtyDaysAgo.getTime())
+    );
+    
+    // Generate random phone numbers
+    const fromNumber = '+1' + Math.floor(Math.random() * 9000000000 + 1000000000);
+    const toNumber = '+1' + Math.floor(Math.random() * 9000000000 + 1000000000);
+    
+    // Generate unique call ID
+    const callId = 'mock_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    
+    // Randomly select call status (mostly completed for testing)
+    const statusOptions = ['completed', 'in_progress', 'failed'];
+    const weights = [0.8, 0.1, 0.1]; // 80% completed, 10% in_progress, 10% failed
+    const randomValue = Math.random();
+    let selectedStatus = '';
+    let cumulativeWeight = 0;
+    
+    for (let j = 0; j < statusOptions.length; j++) {
+      cumulativeWeight += weights[j];
+      if (randomValue <= cumulativeWeight) {
+        selectedStatus = statusOptions[j];
+        break;
+      }
     }
     
     calls.push({
-      call_id: `mock-${crypto.randomUUID()}`,
-      company_id: companyId,
+      id: crypto.randomUUID(),
+      call_id: callId,
       user_id: userId,
+      company_id: companyId,
       timestamp: timestamp.toISOString(),
-      duration_sec: duration,
+      from: fromNumber,
+      to: toNumber,
+      duration_sec: durationSec,
       cost_usd: cost,
-      from: `+1${Math.floor(Math.random() * 9000000000) + 1000000000}`,
-      to: `+1${Math.floor(Math.random() * 9000000000) + 1000000000}`,
-      call_status: status,
-      sentiment: sentiment,
-      call_type: callType,
-      latency_ms: Math.floor(Math.random() * 200) + 50,
-      call_summary: `This is a mock ${callType} call summary for development purposes.`,
-      agent_id: primaryAgentId // Use the primary agent if available
+      call_status: selectedStatus,
+      call_type: 'phone_call',
+      agent_id: primaryAgentId
     });
   }
   
   return { calls, totalCost };
-}
-
-// Helper function to map Retell call status to our schema
-export function mapCallStatus(retellStatus: string): string {
-  // Define mapping from Retell status to our status
-  const statusMap: Record<string, string> = {
-    'completed': 'completed',
-    'no-answer': 'no-answer',
-    'busy': 'busy',
-    'failed': 'failed',
-    'voicemail': 'voicemail'
-    // Add more mappings as needed
-  };
-  
-  return statusMap[retellStatus] || 'unknown';
-}
-
-// Helper function to map call types
-export function mapCallType(retellCallType: string): string {
-  // Define mapping from Retell call types to our schema
-  const typeMap: Record<string, string> = {
-    'phone_call': 'phone_call',
-    'voicemail': 'voicemail'
-    // Add more mappings as needed
-  };
-  
-  return typeMap[retellCallType] || 'other';
-}
-
-// Get user's agents
-export async function getUserAgents(supabaseClient: any, userId: string, companyId: string) {
-  const { data: userAgents, error: userAgentsError } = await supabaseClient
-    .from('user_agents')
-    .select(`
-      agent_id,
-      is_primary,
-      agents:agent_id (
-        id,
-        name,
-        rate_per_minute,
-        retell_agent_id
-      )
-    `)
-    .eq('user_id', userId)
-    .eq('company_id', companyId);
-
-  if (userAgentsError) {
-    console.error('Error fetching user agents:', userAgentsError);
-    return { error: userAgentsError };
-  }
-
-  const userAgentIds = new Set(userAgents?.map(ua => ua.agent_id) || []);
-  const primaryAgentId = userAgents?.find(ua => ua.is_primary)?.agent_id || null;
-
-  // Create maps of Retell agent IDs to our internal agent IDs and rates
-  const retellAgentMap = new Map();
-  const agentRates = new Map();
-  
-  userAgents?.forEach(ua => {
-    if (ua.agents && ua.agents.retell_agent_id) {
-      retellAgentMap.set(ua.agents.retell_agent_id, ua.agent_id);
-      agentRates.set(ua.agent_id, ua.agents.rate_per_minute || 0.02);
-    }
-  });
-
-  return { 
-    userAgentIds: Array.from(userAgentIds), 
-    primaryAgentId, 
-    retellAgentMap, 
-    agentRates 
-  };
 }
