@@ -16,6 +16,8 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          rate_per_minute: number | null
+          retell_agent_id: string | null
           status: string
           updated_at: string
         }
@@ -25,6 +27,8 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          rate_per_minute?: number | null
+          retell_agent_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -34,6 +38,8 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          rate_per_minute?: number | null
+          retell_agent_id?: string | null
           status?: string
           updated_at?: string
         }

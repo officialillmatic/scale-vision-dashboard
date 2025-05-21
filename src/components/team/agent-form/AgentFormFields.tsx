@@ -1,17 +1,30 @@
 
-import React from "react";
-import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UseFormReturn } from "react-hook-form";
-import { AgentFormValues } from "../schemas/agentFormSchema";
+import React from 'react';
+import {
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { UseFormReturn } from 'react-hook-form';
+import { AgentFormValues } from '../schemas/agentFormSchema';
 
 interface AgentFormFieldsProps {
   form: UseFormReturn<AgentFormValues>;
 }
 
-export function AgentFormFields({ form }: AgentFormFieldsProps) {
+export const AgentFormFields = ({ form }: AgentFormFieldsProps) => {
   return (
     <>
       <FormField
@@ -21,8 +34,11 @@ export function AgentFormFields({ form }: AgentFormFieldsProps) {
           <FormItem>
             <FormLabel>Name</FormLabel>
             <FormControl>
-              <Input placeholder="Agent name" {...field} />
+              <Input placeholder="Virtual Assistant" {...field} />
             </FormControl>
+            <FormDescription>
+              The name of the AI agent visible to users.
+            </FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -36,11 +52,14 @@ export function AgentFormFields({ form }: AgentFormFieldsProps) {
             <FormLabel>Description</FormLabel>
             <FormControl>
               <Textarea 
-                placeholder="Brief description of the agent's capabilities" 
+                placeholder="An AI assistant that helps with customer support..." 
                 {...field} 
-                value={field.value || ""}
+                value={field.value || ''}
               />
             </FormControl>
+            <FormDescription>
+              A brief description of the agent's purpose and abilities.
+            </FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -56,11 +75,59 @@ export function AgentFormFields({ form }: AgentFormFieldsProps) {
               <Input 
                 placeholder="https://example.com/avatar.png" 
                 {...field} 
-                value={field.value || ""} 
+                value={field.value || ''}
               />
             </FormControl>
             <FormDescription>
-              Optional URL to an image for this agent
+              A URL to an image to use as the agent's avatar.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="rate_per_minute"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Rate Per Minute ($)</FormLabel>
+            <FormControl>
+              <Input 
+                type="number"
+                step="0.01"
+                placeholder="0.02" 
+                {...field} 
+                onChange={(e) => {
+                  const value = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                  field.onChange(value);
+                }}
+                value={field.value === undefined ? '' : field.value}
+              />
+            </FormControl>
+            <FormDescription>
+              The cost per minute for using this agent.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      
+      <FormField
+        control={form.control}
+        name="retell_agent_id"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Agent ID</FormLabel>
+            <FormControl>
+              <Input 
+                placeholder="agent_123456789" 
+                {...field} 
+                value={field.value || ''}
+              />
+            </FormControl>
+            <FormDescription>
+              The internal reference ID for this agent.
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -76,7 +143,7 @@ export function AgentFormFields({ form }: AgentFormFieldsProps) {
             <Select onValueChange={field.onChange} defaultValue={field.value}>
               <FormControl>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder="Select a status" />
                 </SelectTrigger>
               </FormControl>
               <SelectContent>
@@ -85,50 +152,8 @@ export function AgentFormFields({ form }: AgentFormFieldsProps) {
                 <SelectItem value="maintenance">Maintenance</SelectItem>
               </SelectContent>
             </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      
-      <FormField
-        control={form.control}
-        name="rate_per_minute"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Rate per Minute ($)</FormLabel>
-            <FormControl>
-              <Input 
-                type="number" 
-                step="0.01"
-                placeholder="0.02" 
-                {...field}
-                onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                value={field.value || 0.02}
-              />
-            </FormControl>
             <FormDescription>
-              Cost per minute for using this agent
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      
-      <FormField
-        control={form.control}
-        name="retell_agent_id"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Retell Agent ID</FormLabel>
-            <FormControl>
-              <Input 
-                placeholder="External agent ID from Retell.ai" 
-                {...field} 
-                value={field.value || ""} 
-              />
-            </FormControl>
-            <FormDescription>
-              ID of the corresponding agent in the Retell.ai platform
+              The current status of the agent.
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -136,4 +161,4 @@ export function AgentFormFields({ form }: AgentFormFieldsProps) {
       />
     </>
   );
-}
+};

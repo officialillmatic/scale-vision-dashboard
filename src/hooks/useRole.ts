@@ -12,8 +12,8 @@ export const useRole = () => {
     
     // During development, assume admin rights if no company data is loaded yet
     if (!company) {
-      console.warn('No company data loaded, assuming admin role for development');
-      return true;
+      console.warn('No company data loaded, default access controls applied');
+      return role === 'viewer'; // More restrictive default - only allow viewer access
     }
     
     // Company owners always have admin privileges
@@ -21,7 +21,7 @@ export const useRole = () => {
     
     // Use the userRole from AuthContext 
     if (!userRole) {
-      console.warn('No user role determined, assuming basic access');
+      console.warn('No user role determined, assuming viewer access only');
       return role === 'viewer'; // Allow viewer access by default
     }
     
@@ -43,7 +43,7 @@ export const useRole = () => {
     deleteAgents: isCompanyOwner || checkRole('admin'), // Only admins can delete agents
     
     // Call management
-    viewCalls: true, // Allow all authenticated users to view calls
+    viewCalls: true, // Allow all authenticated users to view their own calls
     uploadCalls: checkRole('member'), // Members and admins can upload calls
     
     // Billing management - restricted to admins only

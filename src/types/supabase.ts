@@ -1,3 +1,4 @@
+
 import { Database as OriginalDatabase } from "@/integrations/supabase/types";
 
 // Define the calls table structure
@@ -28,6 +29,8 @@ export interface AgentTable {
   status: string;
   created_at: string;
   updated_at: string;
+  rate_per_minute?: number;
+  retell_agent_id?: string;
 }
 
 // Define user agent relationship table structure

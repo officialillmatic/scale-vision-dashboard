@@ -20,10 +20,7 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Step 1: Set up additional security policies for agents table
-    // Replace policy approach with security definer functions in database migrations
-    
-    // Step 2: Validate user permissions for agent actions
+    // Validate user permissions for agent actions
     const { data: userSession, error: authError } = await supabase.auth.getUser(
       req.headers.get('Authorization')?.replace('Bearer ', '') || ''
     );
@@ -36,16 +33,41 @@ serve(async (req) => {
     }
     
     const { data: body } = await req.json();
-    const { action, companyId } = body;
+    const { action, companyId, agentId, userId } = body;
     
-    // Step 3: Check if user is admin for the company
+    // Check if user is admin for the company
     const { data: isAdmin, error: adminCheckError } = await supabase.rpc(
       'is_admin_of_company',
       { company_id: companyId }
     );
     
-    if (adminCheckError || !isAdmin) {
-      return new Response(JSON.stringify({ error: 'Permission denied', action }), {
+    if (adminCheckError) {
+      return new Response(JSON.stringify({ error: 'Error checking permissions', details: adminCheckError }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // If not admin, check if user is trying to access their own assigned agent
+    if (!isAdmin && agentId) {
+      const { data: userAgent, error: userAgentError } = await supabase
+        .from('user_agents')
+        .select('*')
+        .eq('user_id', userSession.user.id)
+        .eq('agent_id', agentId)
+        .maybeSingle();
+      
+      if (userAgentError || !userAgent) {
+        return new Response(JSON.stringify({ error: 'You do not have permission to access this agent', action }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+    
+    // If trying to access another user's data, verify admin status
+    if (userId && userId !== userSession.user.id && !isAdmin) {
+      return new Response(JSON.stringify({ error: 'You do not have permission to access other users\' data', action }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
