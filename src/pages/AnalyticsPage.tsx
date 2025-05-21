@@ -41,7 +41,15 @@ const AnalyticsPage = () => {
       try {
         const { data, error } = await supabase
           .from('calls')
-          .select('*')
+          .select(`
+            *,
+            agent:agent_id (
+              id,
+              name,
+              rate_per_minute,
+              retell_agent_id
+            )
+          `)
           .eq('company_id', company.id)
           .order('timestamp', { ascending: false });
           
@@ -68,7 +76,8 @@ const AnalyticsPage = () => {
           company_id: call.company_id,
           call_type: call.call_type || 'phone_call',
           latency_ms: call.latency_ms || 0,
-          call_summary: call.call_summary
+          call_summary: call.call_summary,
+          agent: call.agent
         }));
       } catch (error) {
         console.error("Error in analytics calls query:", error);
