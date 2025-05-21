@@ -7,3 +7,8 @@ verify_jwt = true
 [functions.send-invitation]
 verify_jwt = true
 
+[functions.fetch-retell-calls]
+verify_jwt = true
+
+[functions.admin-update-balance]
+verify_jwt = true

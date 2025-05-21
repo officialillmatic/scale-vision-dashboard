@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { EnvWarning } from '@/components/common/EnvWarning';
@@ -9,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchCalls } from '@/services/callService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format, subDays } from 'date-fns';
+import { UserBalance } from '@/components/balance/UserBalance';
 
 export function DashboardPage() {
   const { company, isLoading: isLoadingAuth } = useAuth();
@@ -43,7 +45,10 @@ export function DashboardPage() {
           </p>
         </div>
         
-        <CallStats />
+        <div className="grid gap-6 md:grid-cols-2">
+          <UserBalance />
+          <CallStats />
+        </div>
         
         <Tabs defaultValue="recent" className="animate-fade-in">
           <TabsList>

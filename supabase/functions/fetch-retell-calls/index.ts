@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -89,6 +88,36 @@ serve(async (req) => {
       companyName = membership.companies.name
     }
 
+    // Get the user's assigned agents
+    const { data: userAgents, error: userAgentsError } = await supabase
+      .from('user_agents')
+      .select('agent_id, is_primary')
+      .eq('user_id', user.id)
+      .eq('company_id', companyId);
+
+    if (userAgentsError) {
+      console.error('Error fetching user agents:', userAgentsError);
+      return new Response(JSON.stringify({ error: 'Error fetching user agent data' }), 
+        { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } })
+    }
+
+    // Create a map of agent IDs for quick lookup
+    const userAgentIds = new Set(userAgents?.map(ua => ua.agent_id) || []);
+    const primaryAgentId = userAgents?.find(ua => ua.is_primary)?.agent_id || null;
+
+    // Check user balance before proceeding
+    const { data: userBalance, error: balanceError } = await supabase
+      .from('user_balances')
+      .select('balance, warning_threshold')
+      .eq('user_id', user.id)
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    if (balanceError) {
+      console.error('Error checking user balance:', balanceError);
+      // We will continue even if balance check fails
+    }
+
     // Get the Retell API key
     const retellApiKey = Deno.env.get('RETELL_API_KEY')
     if (!retellApiKey) {
@@ -115,6 +144,7 @@ serve(async (req) => {
     
     // Process and save the calls to Supabase
     let newCallsCount = 0
+    let totalCost = 0;
     
     // For each call in the Retell response, check if it already exists and insert if not
     for (const call of callsData.data || []) {
@@ -154,14 +184,29 @@ serve(async (req) => {
           }
         }
         
+        // Calculate cost based on duration
+        const durationSec = Math.round((call.duration || 0) / 1000); // Convert ms to seconds
+        const costUsd = (durationSec / 60) * 0.02; // $0.02 per minute
+        
+        // Keep track of the total cost for all new calls
+        totalCost += costUsd;
+
+        // Find the agent ID for this call if possible
+        let agentId = null;
+        // If we have specific agent information from Retell, we should use it here
+        // For now, we'll use the primary agent if available
+        if (primaryAgentId) {
+          agentId = primaryAgentId;
+        }
+        
         // Transform Retell call data to match our schema
         const callRecord = {
           call_id: call.id,
           user_id: user.id,
           company_id: companyId,
           timestamp: new Date(call.start_time || call.created_at).toISOString(),
-          duration_sec: Math.round((call.duration || 0) / 1000), // Convert ms to seconds
-          cost_usd: call.billed_duration ? (call.billed_duration / 60000) * 0.02 : 0, // Example cost calculation
+          duration_sec: durationSec,
+          cost_usd: costUsd,
           from: call.from || 'unknown',
           to: call.to || 'unknown',
           call_status: mapCallStatus(call.status),
@@ -171,19 +216,54 @@ serve(async (req) => {
           transcript: call.transcript || null,
           call_type: mapCallType(call.call_type || 'phone_call'),
           latency_ms: call.latency || 0,
-          call_summary: callSummary
+          call_summary: callSummary,
+          agent_id: agentId
         }
         
-        const { error: insertError } = await supabase
+        const { data: insertedCall, error: insertError } = await supabase
           .from('calls')
           .insert(callRecord)
+          .select()
+          .single();
           
         if (insertError) {
           console.error('Error inserting call:', insertError)
           continue // Skip this call but continue processing others
         }
         
-        newCallsCount++
+        // Record the transaction for the call cost
+        if (insertedCall && costUsd > 0) {
+          const { error: transactionError } = await supabase
+            .from('transactions')
+            .insert({
+              user_id: user.id,
+              company_id: companyId,
+              amount: costUsd,
+              transaction_type: 'deduction',
+              description: `Call charge: ${durationSec}s (${insertedCall.call_id})`,
+              call_id: insertedCall.id
+            });
+            
+          if (transactionError) {
+            console.error('Error recording transaction:', transactionError);
+          }
+          
+          // Update the user's balance
+          const { error: balanceUpdateError } = await supabase
+            .from('user_balances')
+            .update({ 
+              balance: userBalance ? Math.max(0, userBalance.balance - costUsd) : 0,
+              last_updated: new Date().toISOString()
+            })
+            .eq('user_id', user.id)
+            .eq('company_id', companyId);
+            
+          if (balanceUpdateError) {
+            console.error('Error updating user balance:', balanceUpdateError);
+          }
+        }
+        
+        newCallsCount++;
       }
     }
     
@@ -191,8 +271,11 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       new_calls: newCallsCount,
+      total_cost: totalCost.toFixed(2),
       total_calls: callsData.data ? callsData.data.length : 0,
-      company: companyName
+      company: companyName,
+      balance: userBalance ? userBalance.balance - totalCost : null,
+      balance_warning: userBalance && userBalance.warning_threshold && (userBalance.balance - totalCost) < userBalance.warning_threshold
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     })
@@ -202,7 +285,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: error.message || 'Internal server error' }), 
       { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } })
   }
-})
+});
 
 // Helper function to map Retell call status to our schema
 function mapCallStatus(retellStatus) {

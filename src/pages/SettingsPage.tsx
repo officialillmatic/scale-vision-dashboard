@@ -1,57 +1,59 @@
 
-import React, { useState } from 'react';
-import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
+import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CompanySettings } from '@/components/settings/CompanySettings';
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { AppearanceSettings } from '@/components/settings/AppearanceSettings';
-import { NotificationsSettings } from '@/components/settings/NotificationsSettings';
+import { CompanySettings } from '@/components/settings/CompanySettings';
 import { DisplaySettings } from '@/components/settings/DisplaySettings';
-import { UserPreferencesProvider } from '@/hooks/useUserPreferences';
+import { NotificationsSettings } from '@/components/settings/NotificationsSettings';
+import { BillingSettings } from '@/components/settings/BillingSettings';
 
 const SettingsPage = () => {
-  const [activeTab, setActiveTab] = useState('company');
-
   return (
     <DashboardLayout>
-      <UserPreferencesProvider>
-        <div className="h-full">
-          <div className="flex flex-col space-y-8 pb-10">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-              <p className="text-muted-foreground">
-                Manage your account and application preferences.
-              </p>
+      <div className="container mx-auto py-4">
+        <h1 className="text-3xl font-bold mb-6">Settings</h1>
+        
+        <Tabs defaultValue="company" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="company">Company</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+            <TabsTrigger value="appearance">Appearance</TabsTrigger>
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="display">Display</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="company">
+            <div className="space-y-6">
+              <CompanySettings />
             </div>
-
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full space-y-6">
-              <div className="space-between flex items-center">
-                <TabsList>
-                  <TabsTrigger value="company">Company</TabsTrigger>
-                  <TabsTrigger value="appearance">Appearance</TabsTrigger>
-                  <TabsTrigger value="notifications">Notifications</TabsTrigger>
-                  <TabsTrigger value="display">Display</TabsTrigger>
-                </TabsList>
-              </div>
-              
-              <TabsContent value="company" className="space-y-4">
-                <CompanySettings />
-              </TabsContent>
-              
-              <TabsContent value="appearance" className="space-y-4">
-                <AppearanceSettings />
-              </TabsContent>
-              
-              <TabsContent value="notifications" className="space-y-4">
-                <NotificationsSettings />
-              </TabsContent>
-              
-              <TabsContent value="display" className="space-y-4">
-                <DisplaySettings />
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
-      </UserPreferencesProvider>
+          </TabsContent>
+          
+          <TabsContent value="billing">
+            <div className="space-y-6">
+              <BillingSettings />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="appearance">
+            <div className="space-y-6">
+              <AppearanceSettings />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="notifications">
+            <div className="space-y-6">
+              <NotificationsSettings />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="display">
+            <div className="space-y-6">
+              <DisplaySettings />
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </DashboardLayout>
   );
 };

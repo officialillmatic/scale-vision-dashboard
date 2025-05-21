@@ -93,6 +93,78 @@ serve(async (req) => {
         { headers: { "Content-Type": "application/json", ...corsHeaders }, status: 403 }
       );
     }
+
+    // Get the user's assigned agents
+    const { data: userAgents, error: userAgentsError } = await supabaseClient
+      .from('user_agents')
+      .select('agent_id, is_primary')
+      .eq('user_id', user.id)
+      .eq('company_id', companyId);
+
+    if (userAgentsError) {
+      console.error('Error fetching user agents:', userAgentsError);
+      return new Response(
+        JSON.stringify({ error: 'Error fetching user agent data' }),
+        { headers: { "Content-Type": "application/json", ...corsHeaders }, status: 500 }
+      );
+    }
+
+    const userAgentIds = new Set(userAgents?.map(ua => ua.agent_id) || []);
+    const primaryAgentId = userAgents?.find(ua => ua.is_primary)?.agent_id || null;
+
+    // Check the user's balance before generating mock calls
+    const { data: userBalance, error: balanceError } = await supabaseClient
+      .from('user_balances')
+      .select('id, balance, warning_threshold')
+      .eq('user_id', user.id)
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    if (balanceError) {
+      console.error('Error checking user balance:', balanceError);
+    }
+
+    // Create balance if it doesn't exist
+    let currentBalance = 0;
+    let balanceId = null;
+    let warningThreshold = 10;
+
+    if (!userBalance) {
+      const { data: newBalance, error: createBalanceError } = await supabaseClient
+        .from('user_balances')
+        .insert({
+          user_id: user.id,
+          company_id: companyId,
+          balance: 50, // Start with $50 for demonstration
+          warning_threshold: 10
+        })
+        .select()
+        .single();
+
+      if (createBalanceError) {
+        console.error('Error creating user balance:', createBalanceError);
+      } else {
+        currentBalance = newBalance.balance;
+        balanceId = newBalance.id;
+        warningThreshold = newBalance.warning_threshold;
+      }
+    } else {
+      currentBalance = userBalance.balance;
+      balanceId = userBalance.id;
+      warningThreshold = userBalance.warning_threshold || 10;
+    }
+
+    // Don't generate calls if balance is too low
+    if (currentBalance <= 0) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Insufficient balance', 
+          balance: currentBalance,
+          message: 'Your balance is too low to make calls. Please add funds.' 
+        }),
+        { headers: { "Content-Type": "application/json", ...corsHeaders }, status: 403 }
+      );
+    }
     
     // Generate mock call data for development purposes
     const mockCallsCount = 5;
@@ -103,6 +175,7 @@ serve(async (req) => {
     const generateMockCalls = (count: number) => {
       const now = new Date();
       const calls = [];
+      let totalCost = 0;
       
       for (let i = 0; i < count; i++) {
         const timestamp = new Date(now);
@@ -112,6 +185,14 @@ serve(async (req) => {
         const callType = callTypes[Math.floor(Math.random() * callTypes.length)];
         const status = statuses[Math.floor(Math.random() * statuses.length)];
         const sentiment = sentiments[Math.floor(Math.random() * sentiments.length)];
+        const cost = parseFloat((duration * 0.002).toFixed(4));
+        
+        totalCost += cost;
+        
+        // Make sure we don't exceed the user's balance
+        if (currentBalance - totalCost < 0) {
+          break; // Stop generating calls if we exceed the balance
+        }
         
         calls.push({
           call_id: `mock-${crypto.randomUUID()}`,
@@ -119,7 +200,7 @@ serve(async (req) => {
           user_id: user.id,
           timestamp: timestamp.toISOString(),
           duration_sec: duration,
-          cost_usd: parseFloat((duration * 0.002).toFixed(4)),
+          cost_usd: cost,
           from: `+1${Math.floor(Math.random() * 9000000000) + 1000000000}`,
           to: `+1${Math.floor(Math.random() * 9000000000) + 1000000000}`,
           call_status: status,
@@ -127,14 +208,25 @@ serve(async (req) => {
           call_type: callType,
           latency_ms: Math.floor(Math.random() * 200) + 50,
           call_summary: `This is a mock ${callType} call summary for development purposes.`,
+          agent_id: primaryAgentId // Use the primary agent if available
         });
       }
       
-      return calls;
+      return { calls, totalCost };
     };
     
     // Generate and insert mock calls
-    const mockCalls = generateMockCalls(mockCallsCount);
+    const { calls: mockCalls, totalCost } = generateMockCalls(mockCallsCount);
+    
+    if (mockCalls.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          warning: 'No calls generated due to low balance', 
+          balance: currentBalance 
+        }),
+        { headers: { "Content-Type": "application/json", ...corsHeaders }, status: 200 }
+      );
+    }
     
     // Insert the mock calls into the database
     const { data: insertedCalls, error: insertError } = await supabaseClient
@@ -150,6 +242,38 @@ serve(async (req) => {
         JSON.stringify({ error: 'Failed to insert calls', details: insertError }),
         { headers: { "Content-Type": "application/json", ...corsHeaders }, status: 500 }
       );
+    }
+
+    // Record the transactions for each call
+    const transactions = mockCalls.map(call => ({
+      user_id: user.id,
+      company_id: companyId,
+      amount: call.cost_usd,
+      transaction_type: 'deduction',
+      description: `Call charge: ${call.duration_sec}s (${call.call_id})`,
+      // We can't get the call ID here since it's generated during insert
+    }));
+
+    const { error: transactionError } = await supabaseClient
+      .from('transactions')
+      .insert(transactions);
+
+    if (transactionError) {
+      console.error('Error recording transactions:', transactionError);
+    }
+
+    // Update the user's balance
+    const newBalance = Math.max(0, currentBalance - totalCost);
+    const { error: balanceUpdateError } = await supabaseClient
+      .from('user_balances')
+      .update({ 
+        balance: newBalance,
+        last_updated: new Date().toISOString()
+      })
+      .eq('id', balanceId);
+
+    if (balanceUpdateError) {
+      console.error('Error updating user balance:', balanceUpdateError);
     }
     
     // Get all calls for the company to return
@@ -171,7 +295,10 @@ serve(async (req) => {
         success: true,
         newCalls: insertedCalls?.length || 0,
         totalCalls: calls?.length || 0,
-        calls
+        totalCost: totalCost.toFixed(2),
+        newBalance: newBalance.toFixed(2),
+        calls,
+        balanceWarning: newBalance < warningThreshold ? `Your balance is low (${newBalance.toFixed(2)})` : null
       }),
       { 
         headers: { "Content-Type": "application/json", ...corsHeaders },

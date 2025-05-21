@@ -41,6 +41,7 @@ export type Database = {
       }
       calls: {
         Row: {
+          agent_id: string | null
           audio_url: string | null
           call_id: string
           call_status: string
@@ -61,6 +62,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          agent_id?: string | null
           audio_url?: string | null
           call_id: string
           call_status?: string
@@ -81,6 +83,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          agent_id?: string | null
           audio_url?: string | null
           call_id?: string
           call_status?: string
@@ -101,6 +104,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "calls_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "calls_company_id_fkey"
             columns: ["company_id"]
@@ -216,6 +226,54 @@ export type Database = {
           },
         ]
       }
+      transactions: {
+        Row: {
+          amount: number
+          call_id: string | null
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          call_id?: string | null
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          call_id?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_agents: {
         Row: {
           agent_id: string
@@ -250,6 +308,44 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_balances: {
+        Row: {
+          balance: number
+          company_id: string
+          created_at: string
+          id: string
+          last_updated: string
+          user_id: string
+          warning_threshold: number | null
+        }
+        Insert: {
+          balance?: number
+          company_id: string
+          created_at?: string
+          id?: string
+          last_updated?: string
+          user_id: string
+          warning_threshold?: number | null
+        }
+        Update: {
+          balance?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+          last_updated?: string
+          user_id?: string
+          warning_threshold?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_balances_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -335,9 +431,17 @@ export type Database = {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean
       }
+      get_user_balance: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       get_user_companies: {
         Args: Record<PropertyKey, never>
         Returns: string[]
+      }
+      has_sufficient_balance: {
+        Args: { p_user_id: string; p_amount: number }
+        Returns: boolean
       }
       is_admin_of_company: {
         Args: { company_id: string }
