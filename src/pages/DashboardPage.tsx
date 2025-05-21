@@ -11,6 +11,7 @@ import { fetchCalls } from '@/services/callService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format, subDays } from 'date-fns';
 import { UserBalance } from '@/components/balance/UserBalance';
+import { AgentUsageStats } from '@/components/calls/AgentUsageStats';
 
 export function DashboardPage() {
   const { company, isLoading: isLoadingAuth } = useAuth();
@@ -48,6 +49,10 @@ export function DashboardPage() {
         <div className="grid gap-6 md:grid-cols-2">
           <UserBalance />
           <CallStats />
+        </div>
+        
+        <div className="grid gap-6 md:grid-cols-1">
+          <AgentUsageStats />
         </div>
         
         <Tabs defaultValue="recent" className="animate-fade-in">

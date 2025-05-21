@@ -88,10 +88,20 @@ serve(async (req) => {
       companyName = membership.companies.name
     }
 
-    // Get the user's assigned agents
+    // Get the user's assigned agents with their Retell agent IDs
     const { data: userAgents, error: userAgentsError } = await supabase
       .from('user_agents')
-      .select('agent_id, is_primary')
+      .select(`
+        id,
+        agent_id,
+        is_primary,
+        agents:agent_id (
+          id,
+          name,
+          rate_per_minute,
+          retell_agent_id
+        )
+      `)
       .eq('user_id', user.id)
       .eq('company_id', companyId);
 
@@ -101,8 +111,17 @@ serve(async (req) => {
         { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } })
     }
 
-    // Create a map of agent IDs for quick lookup
-    const userAgentIds = new Set(userAgents?.map(ua => ua.agent_id) || []);
+    // Create a map of Retell agent IDs to our internal agent IDs
+    const retellAgentMap = new Map();
+    const agentRates = new Map();
+    userAgents?.forEach(ua => {
+      if (ua.agents && ua.agents.retell_agent_id) {
+        retellAgentMap.set(ua.agents.retell_agent_id, ua.agent_id);
+        agentRates.set(ua.agent_id, ua.agents.rate_per_minute || 0.02);
+      }
+    });
+    
+    // Get primary agent as fallback
     const primaryAgentId = userAgents?.find(ua => ua.is_primary)?.agent_id || null;
 
     // Check user balance before proceeding
@@ -184,20 +203,31 @@ serve(async (req) => {
           }
         }
         
-        // Calculate cost based on duration
+        // Find the agent ID for this call based on Retell's agent ID
+        let agentId = null;
+        let agentRate = 0.02; // Default rate
+        
+        // Try to map Retell agent ID to our internal agent ID
+        if (call.agent_id && retellAgentMap.has(call.agent_id)) {
+          agentId = retellAgentMap.get(call.agent_id);
+          if (agentRates.has(agentId)) {
+            agentRate = agentRates.get(agentId);
+          }
+        } else if (primaryAgentId) {
+          // Fallback to primary agent if we can't match the Retell agent ID
+          agentId = primaryAgentId;
+          if (agentRates.has(agentId)) {
+            agentRate = agentRates.get(agentId);
+          }
+        }
+        
+        // Calculate cost based on duration and agent-specific rate
         const durationSec = Math.round((call.duration || 0) / 1000); // Convert ms to seconds
-        const costUsd = (durationSec / 60) * 0.02; // $0.02 per minute
+        const durationMin = durationSec / 60;
+        const costUsd = durationMin * agentRate;
         
         // Keep track of the total cost for all new calls
         totalCost += costUsd;
-
-        // Find the agent ID for this call if possible
-        let agentId = null;
-        // If we have specific agent information from Retell, we should use it here
-        // For now, we'll use the primary agent if available
-        if (primaryAgentId) {
-          agentId = primaryAgentId;
-        }
         
         // Transform Retell call data to match our schema
         const callRecord = {
@@ -240,7 +270,7 @@ serve(async (req) => {
               company_id: companyId,
               amount: costUsd,
               transaction_type: 'deduction',
-              description: `Call charge: ${durationSec}s (${insertedCall.call_id})`,
+              description: `Call charge: ${durationSec}s @ $${agentRate.toFixed(4)}/min (${insertedCall.call_id})`,
               call_id: insertedCall.id
             });
             

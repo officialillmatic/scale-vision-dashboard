@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +29,14 @@ export interface CallOutcome {
   color: string;
 }
 
+export interface AgentUsage {
+  id: string;
+  name: string;
+  calls: number;
+  minutes: number;
+  cost: number;
+}
+
 export const useDashboardData = () => {
   const { company } = useAuth();
   const companyId = company?.id;
@@ -43,7 +50,14 @@ export const useDashboardData = () => {
       try {
         const { data, error } = await supabase
           .from('calls')
-          .select('*')
+          .select(`
+            *,
+            agent:agent_id (
+              id, 
+              name,
+              rate_per_minute
+            )
+          `)
           .eq('company_id', companyId)
           .order('timestamp', { ascending: false })
           .limit(50);
@@ -71,7 +85,8 @@ export const useDashboardData = () => {
           company_id: call.company_id,
           call_type: call.call_type || 'phone_call',
           latency_ms: call.latency_ms || 0,
-          call_summary: call.call_summary
+          call_summary: call.call_summary,
+          agent: call.agent
         }));
       } catch (error) {
         console.error("Error in dashboard calls query:", error);
@@ -134,6 +149,39 @@ export const useDashboardData = () => {
     enabled: !!companyId
   });
 
+  // Calculate agent usage stats
+  const agentUsage: AgentUsage[] = React.useMemo(() => {
+    if (!recentCalls || recentCalls.length === 0) return [];
+    
+    // Group calls by agent
+    const usageByAgent = recentCalls.reduce((acc, call) => {
+      const agentId = call.agent?.id || 'unknown';
+      const agentName = call.agent?.name || 'Unknown Agent';
+      const durationMinutes = call.duration_sec / 60;
+      const rate = call.agent?.rate_per_minute || 0.02;
+      const cost = durationMinutes * rate;
+      
+      if (!acc[agentId]) {
+        acc[agentId] = {
+          id: agentId,
+          name: agentName,
+          calls: 0,
+          minutes: 0,
+          cost: 0
+        };
+      }
+      
+      acc[agentId].calls += 1;
+      acc[agentId].minutes += durationMinutes;
+      acc[agentId].cost += cost;
+      
+      return acc;
+    }, {} as Record<string, AgentUsage>);
+    
+    // Convert to array and sort by call count
+    return Object.values(usageByAgent).sort((a, b) => b.calls - a.calls);
+  }, [recentCalls]);
+
   // Calculate percentage change between current and previous period
   const calculatePercentChange = (current: number, previous: number): string => {
     if (previous === 0) return current > 0 ? "+100%" : "0%";
@@ -147,7 +195,10 @@ export const useDashboardData = () => {
   const currentTotalMinutes = recentCalls?.reduce((sum, call) => sum + call.duration_sec / 60, 0) || 0;
   const currentAvgDuration = currentTotalCalls > 0 ? 
     recentCalls!.reduce((sum, call) => sum + call.duration_sec, 0) / currentTotalCalls : 0;
-  const currentTotalCost = recentCalls?.reduce((sum, call) => sum + call.cost_usd, 0) || 0;
+  const currentTotalCost = recentCalls?.reduce((sum, call) => {
+    const rate = call.agent?.rate_per_minute || 0.02;
+    return sum + ((call.duration_sec / 60) * rate);
+  }, 0) || 0;
   
   // Get metrics for the previous period
   const previousTotalCalls = previousCalls?.length || 0;
@@ -201,6 +252,7 @@ export const useDashboardData = () => {
     metrics,
     dailyCallData,
     callOutcomes,
+    agentUsage,
     recentCalls: recentCalls?.slice(0, 5) || [],
     isLoading: isLoadingCalls || !companyId
   };

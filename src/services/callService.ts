@@ -31,9 +31,15 @@ export interface CallData {
   user_id: string | null;
   result_sentiment: string | null;
   company_id: string;
-  call_type: string; // Added field
-  latency_ms: number | null; // Added field
-  call_summary: string | null; // Added field
+  call_type: string; 
+  latency_ms: number | null;
+  call_summary: string | null;
+  agent: {
+    id: string;
+    name: string;
+    rate_per_minute?: number;
+    retell_agent_id?: string;
+  } | null;
 }
 
 export interface CallFilters {
@@ -94,7 +100,15 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
   try {
     const { data, error } = await supabase
       .from("calls")
-      .select("*")
+      .select(`
+        *,
+        agent:agent_id (
+          id,
+          name,
+          rate_per_minute,
+          retell_agent_id
+        )
+      `)
       .eq("company_id", companyId)
       .order("timestamp", { ascending: false });
       
@@ -125,7 +139,8 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
       company_id: call.company_id,
       call_type: call.call_type || "phone_call",
       latency_ms: call.latency_ms || 0,
-      call_summary: call.call_summary
+      call_summary: call.call_summary,
+      agent: call.agent
     }));
   } catch (error) {
     handleError(error, {
