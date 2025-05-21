@@ -78,10 +78,10 @@ export function CallDataTable({ data, isLoading }: CallDataTableProps) {
                 <TableCell>{call.agent?.name || 'N/A'}</TableCell>
                 <TableCell>
                   <Badge 
-                    variant={call.call_status === 'completed' ? 'success' : 
-                            call.call_status === 'in_progress' ? 'warning' : 'destructive'}
-                    className={call.call_status === 'completed' ? 'bg-green-500' : 
-                              call.call_status === 'in_progress' ? 'bg-yellow-500' : 'bg-red-500'}
+                    variant={call.call_status === 'completed' ? 'default' : 
+                            call.call_status === 'in_progress' ? 'outline' : 'destructive'}
+                    className={call.call_status === 'completed' ? 'bg-green-500 hover:bg-green-600' : 
+                              call.call_status === 'in_progress' ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : ''}
                   >
                     {call.call_status}
                   </Badge>
