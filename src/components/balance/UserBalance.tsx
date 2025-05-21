@@ -3,9 +3,11 @@ import React from 'react';
 import { useUserBalance } from '@/hooks/useUserBalance';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, Coins, Clock3, Calendar } from 'lucide-react';
+import { AlertTriangle, Coins, Clock3, Calendar, Info } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { formatCurrency } from '@/lib/formatters';
+import { useRole } from '@/hooks/useRole';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface UserBalanceProps {
   className?: string;
@@ -19,6 +21,9 @@ export const UserBalance: React.FC<UserBalanceProps> = ({ className }) => {
     isLoading,
     transactions
   } = useUserBalance();
+
+  const { isCompanyOwner, checkRole } = useRole();
+  const isAdmin = isCompanyOwner || checkRole('admin');
 
   const recentTransactions = transactions?.slice(0, 3) || [];
 
@@ -89,6 +94,15 @@ export const UserBalance: React.FC<UserBalanceProps> = ({ className }) => {
               className={`h-2 ${isLowBalance ? 'bg-amber-100 dark:bg-amber-950' : ''}`}
             />
           </div>
+          
+          {!isAdmin && (
+            <Alert variant="default" className="mt-2 bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-900">
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Payments are handled outside of this platform. Please contact your administrator to add funds to your account.
+              </AlertDescription>
+            </Alert>
+          )}
           
           {/* Current Month Usage Summary */}
           <div className="mt-2 pt-4 border-t">

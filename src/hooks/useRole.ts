@@ -34,7 +34,7 @@ export const useRole = () => {
   };
 
   const can = useMemo(() => ({
-    // Agent management
+    // Agent management - restricted to admins only
     manageTeam: isCompanyOwner || checkRole('admin'),
     manageAgents: isCompanyOwner || checkRole('admin'), // Only admins can manage agents
     viewAgents: true, // All authenticated users can view their assigned agents
@@ -46,7 +46,7 @@ export const useRole = () => {
     viewCalls: true, // Allow all authenticated users to view calls
     uploadCalls: checkRole('member'), // Members and admins can upload calls
     
-    // Billing management
+    // Billing management - restricted to admins only
     manageBalances: isCompanyOwner || checkRole('admin'), // Only admins can update balances
     viewBalance: true, // All users can view their own balance
     

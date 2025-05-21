@@ -14,8 +14,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRole } from '@/hooks/useRole';
 import { Agent } from '@/services/agentService';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CompanyMember } from '@/types/auth'; // Import the CompanyMember type from auth types
 import { UserAgentViewer } from './UserAgentViewer';
+import { RoleCheck } from '../auth/RoleCheck';
 
 export function TeamAgents() {
   const { company } = useAuth();
@@ -79,13 +79,15 @@ export function TeamAgents() {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">AI Agents</h2>
-          <Button 
-            onClick={() => handleOpenAgentDialog()}
-            className="bg-brand-green hover:bg-brand-deep-green"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Agent
-          </Button>
+          <RoleCheck adminOnly>
+            <Button 
+              onClick={() => handleOpenAgentDialog()}
+              className="bg-brand-green hover:bg-brand-deep-green"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Agent
+            </Button>
+          </RoleCheck>
         </div>
         
         <Card>
@@ -100,11 +102,11 @@ export function TeamAgents() {
               <AgentsTable
                 agents={agents}
                 isLoading={isLoadingAgents}
-                onEdit={handleOpenAgentDialog}
-                onAssign={handleOpenAssignDialog}
-                onDelete={handleConfirmDelete}
-                isAdmin={true}
-                showRates={true}
+                onEdit={isAdmin ? handleOpenAgentDialog : undefined}
+                onAssign={isAdmin ? handleOpenAssignDialog : undefined}
+                onDelete={isAdmin ? handleConfirmDelete : undefined}
+                isAdmin={isAdmin}
+                showRates={isAdmin}
               />
             )}
           </CardContent>
@@ -112,58 +114,62 @@ export function TeamAgents() {
       </div>
 
       {/* Agent Assignments - Only visible to admins */}
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold">Agent Assignments</h2>
-        <Card>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="p-6 space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : (
-              <AssignmentsTable
-                userAgents={userAgents}
-                isLoading={isLoadingUserAgents}
-                onRemove={handleRemoveAgentAssignment}
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <RoleCheck adminOnly>
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold">Agent Assignments</h2>
+          <Card>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="p-6 space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : (
+                <AssignmentsTable
+                  userAgents={userAgents}
+                  isLoading={isLoadingUserAgents}
+                  onRemove={handleRemoveAgentAssignment}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </RoleCheck>
 
       {/* Dialogs */}
-      {/* Agent Dialog */}
-      <AgentDialog 
-        isOpen={isAgentDialogOpen}
-        onClose={() => setIsAgentDialogOpen(false)}
-        onSubmit={selectedAgent ? 
-          (data) => handleUpdateAgent(selectedAgent.id, data) : 
-          handleCreateAgent
-        }
-        isSubmitting={selectedAgent ? isUpdating : isCreating}
-        agent={selectedAgent}
-      />
+      <RoleCheck adminOnly>
+        {/* Agent Dialog */}
+        <AgentDialog 
+          isOpen={isAgentDialogOpen}
+          onClose={() => setIsAgentDialogOpen(false)}
+          onSubmit={selectedAgent ? 
+            (data) => handleUpdateAgent(selectedAgent.id, data) : 
+            handleCreateAgent
+          }
+          isSubmitting={selectedAgent ? isUpdating : isCreating}
+          agent={selectedAgent}
+        />
 
-      {/* Agent Assignment Dialog */}
-      <AgentAssignDialog 
-        isOpen={isAssignDialogOpen}
-        onClose={() => setIsAssignDialogOpen(false)}
-        onSubmit={handleAssignAgent}
-        isSubmitting={isAssigning}
-        teamMembers={teamMembers} // teamMembers is now correctly typed as CompanyMember[]
-        agents={agents}
-        selectedAgent={selectedAgent}
-      />
+        {/* Agent Assignment Dialog */}
+        <AgentAssignDialog 
+          isOpen={isAssignDialogOpen}
+          onClose={() => setIsAssignDialogOpen(false)}
+          onSubmit={handleAssignAgent}
+          isSubmitting={isAssigning}
+          teamMembers={teamMembers}
+          agents={agents}
+          selectedAgent={selectedAgent}
+        />
 
-      {/* Delete Confirmation Dialog */}
-      <DeleteAgentDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={handleDeleteConfirmed}
-        isDeleting={isDeleting}
-        agent={selectedAgent}
-      />
+        {/* Delete Confirmation Dialog */}
+        <DeleteAgentDialog
+          isOpen={isDeleteDialogOpen}
+          onClose={() => setIsDeleteDialogOpen(false)}
+          onConfirm={handleDeleteConfirmed}
+          isDeleting={isDeleting}
+          agent={selectedAgent}
+        />
+      </RoleCheck>
     </div>
   );
 }

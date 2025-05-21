@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { AppearanceSettings } from '@/components/settings/AppearanceSettings';
@@ -7,17 +7,23 @@ import { CompanySettings } from '@/components/settings/CompanySettings';
 import { DisplaySettings } from '@/components/settings/DisplaySettings';
 import { NotificationsSettings } from '@/components/settings/NotificationsSettings';
 import { BillingSettings } from '@/components/settings/BillingSettings';
+import { useRole } from '@/hooks/useRole';
+import { RoleCheck } from '@/components/auth/RoleCheck';
 
 const SettingsPage = () => {
+  const [activeTab, setActiveTab] = useState('company');
+  const { isCompanyOwner, checkRole } = useRole();
+  const isAdmin = isCompanyOwner || checkRole('admin');
+  
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
         <h1 className="text-3xl font-bold mb-6">Settings</h1>
         
-        <Tabs defaultValue="company" className="w-full">
+        <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="company">Company</TabsTrigger>
-            <TabsTrigger value="billing">Billing</TabsTrigger>
+            {isAdmin && <TabsTrigger value="billing">Billing</TabsTrigger>}
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="display">Display</TabsTrigger>
@@ -31,7 +37,12 @@ const SettingsPage = () => {
           
           <TabsContent value="billing">
             <div className="space-y-6">
-              <BillingSettings />
+              <RoleCheck 
+                adminOnly
+                fallback={<div className="text-muted-foreground">You don't have permission to access billing settings.</div>}
+              >
+                <BillingSettings />
+              </RoleCheck>
             </div>
           </TabsContent>
           

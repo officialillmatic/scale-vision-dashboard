@@ -32,12 +32,12 @@ const TeamPage = () => {
             
             <TabsContent value="members" className="space-y-4">
               <RoleCheck 
-                role="admin" 
+                adminOnly
                 fallback={
                   <Alert>
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription>
-                      You need admin privileges to manage team members.
+                      Only administrators can manage team members. Please contact your administrator for assistance.
                     </AlertDescription>
                   </Alert>
                 }
@@ -47,7 +47,20 @@ const TeamPage = () => {
             </TabsContent>
             
             <TabsContent value="agents" className="space-y-4">
-              <TeamAgents />
+              <RoleCheck 
+                allowedAction="manageAgents"
+                adminOnly
+                fallback={
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      Only administrators can manage AI agents. You can only view agents assigned to you.
+                    </AlertDescription>
+                  </Alert>
+                }
+              >
+                <TeamAgents />
+              </RoleCheck>
             </TabsContent>
           </Tabs>
         </div>
