@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CallData } from "@/services/callService";
@@ -41,7 +40,7 @@ export function CallDetailsPanel({ call, onClose }: CallDetailsPanelProps) {
       
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
         <div className="space-y-6">
-          {/* Call Basic Info */}
+          {/* Call Basic Info - passing the call object directly */}
           <CallInfo call={call} />
           
           {/* Call Analysis */}

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useUserBalance } from '@/hooks/useUserBalance';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,7 +77,6 @@ export const UserBalance: React.FC<UserBalanceProps> = ({ className }) => {
             <Progress 
               value={balancePercent} 
               className={`h-2 ${isLowBalance ? 'bg-amber-100 dark:bg-amber-950' : ''}`}
-              indicatorClassName={isLowBalance ? 'bg-amber-500' : ''}
             />
           </div>
 

@@ -16,8 +16,9 @@ type TransactionType = 'deposit' | 'deduction' | 'adjustment';
 
 export const BillingSettings = () => {
   const { user, company } = useAuth();
-  const { isAdmin, isOwner } = useRole();
-  const { members, isLoading: isLoadingMembers } = useTeamMembers();
+  const { isCompanyOwner, checkRole } = useRole();
+  const isAdmin = checkRole('admin');
+  const { members, isLoading: isLoadingMembers } = useTeamMembers(company?.id);
   const queryClient = useQueryClient();
 
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -87,7 +88,7 @@ export const BillingSettings = () => {
   };
 
   // Only company admins and owners can manage billing
-  if (!isAdmin && !isOwner) {
+  if (!isAdmin && !isCompanyOwner) {
     return (
       <Card>
         <CardHeader>

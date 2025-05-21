@@ -2,16 +2,26 @@
 import { useState, useEffect } from "react";
 import { inviteTeamMember, fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitationService";
 import { handleError } from "@/lib/errorHandling";
+import { fetchCompanyMembers } from "@/services/memberService";
+
+interface TeamMember {
+  user_id: string;
+  user_details?: {
+    email: string;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
 
 interface UseTeamMembersResult {
   invitations: CompanyInvitation[];
+  members: TeamMember[];
   isLoading: boolean;
   error: string | null;
   fetchInvitations: () => Promise<void>;
   handleCancelInvitation: (invitationId: string) => Promise<void>;
   handleResendInvitation: (invitationId: string) => Promise<void>;
-  // Add missing properties needed by TeamMembers.tsx and TeamAgents.tsx
-  teamMembers: any[]; // Adding this placeholder property to prevent TypeScript error
+  teamMembers: TeamMember[];
   isInviting: boolean;
   handleInvite: (email: string, role: 'admin' | 'member' | 'viewer') => Promise<boolean>;
 }
@@ -20,7 +30,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   const [invitations, setInvitations] = useState<CompanyInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [isInviting, setIsInviting] = useState(false);
 
   const fetchInvitations = async () => {
@@ -42,10 +52,28 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
       setIsLoading(false);
     }
   };
+  
+  const fetchMembers = async () => {
+    if (!companyId) return;
+    
+    setIsLoading(true);
+    try {
+      const companyMembers = await fetchCompanyMembers(companyId);
+      setMembers(companyMembers);
+    } catch (error) {
+      handleError(error, {
+        fallbackMessage: "Failed to fetch team members",
+        logToConsole: true
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (companyId) {
       fetchInvitations();
+      fetchMembers();
     }
   }, [companyId]);
 
@@ -115,12 +143,13 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
 
   return {
     invitations,
+    members,
     isLoading,
     error,
     fetchInvitations,
     handleCancelInvitation,
     handleResendInvitation,
-    teamMembers,
+    teamMembers: members, // Alias for backward compatibility
     isInviting,
     handleInvite,
   };
