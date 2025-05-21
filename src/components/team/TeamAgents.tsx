@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRole } from '@/hooks/useRole';
 import { Agent } from '@/services/agentService';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CompanyMember } from '@/types/auth'; // Import the CompanyMember type from auth types
 
 export function TeamAgents() {
   const { company } = useAuth();
@@ -149,7 +149,7 @@ export function TeamAgents() {
             onClose={() => setIsAssignDialogOpen(false)}
             onSubmit={handleAssignAgent}
             isSubmitting={isAssigning}
-            teamMembers={teamMembers}
+            teamMembers={teamMembers} // teamMembers is now correctly typed as CompanyMember[]
             agents={agents}
             selectedAgent={selectedAgent}
           />

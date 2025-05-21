@@ -1,27 +1,18 @@
-
 import { useState, useEffect } from "react";
 import { inviteTeamMember, fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitationService";
 import { handleError } from "@/lib/errorHandling";
-import { fetchCompanyMembers } from "@/services/memberService";
+import { fetchCompanyMembers, CompanyMember } from "@/services/memberService";
 
-interface TeamMember {
-  user_id: string;
-  user_details?: {
-    email: string;
-    [key: string]: any;
-  };
-  [key: string]: any;
-}
-
+// Update the interface to match CompanyMember from memberService
 interface UseTeamMembersResult {
   invitations: CompanyInvitation[];
-  members: TeamMember[];
+  members: CompanyMember[];
   isLoading: boolean;
   error: string | null;
   fetchInvitations: () => Promise<void>;
   handleCancelInvitation: (invitationId: string) => Promise<void>;
   handleResendInvitation: (invitationId: string) => Promise<void>;
-  teamMembers: TeamMember[];
+  teamMembers: CompanyMember[]; // Change this to CompanyMember[] to match the expected type
   isInviting: boolean;
   handleInvite: (email: string, role: 'admin' | 'member' | 'viewer') => Promise<boolean>;
 }
@@ -30,7 +21,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   const [invitations, setInvitations] = useState<CompanyInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [members, setMembers] = useState<CompanyMember[]>([]);
   const [isInviting, setIsInviting] = useState(false);
 
   const fetchInvitations = async () => {
@@ -149,7 +140,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     fetchInvitations,
     handleCancelInvitation,
     handleResendInvitation,
-    teamMembers: members, // Alias for backward compatibility
+    teamMembers: members, // This is now correctly typed as CompanyMember[]
     isInviting,
     handleInvite,
   };
