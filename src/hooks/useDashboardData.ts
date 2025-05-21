@@ -1,3 +1,5 @@
+
+import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -109,7 +111,14 @@ export const useDashboardData = () => {
         
         const { data, error } = await supabase
           .from('calls')
-          .select('*')
+          .select(`
+            *,
+            agent:agent_id (
+              id, 
+              name,
+              rate_per_minute
+            )
+          `)
           .eq('company_id', companyId)
           .gte('timestamp', twoWeeksAgo.toISOString())
           .lte('timestamp', oneWeekAgo.toISOString())
@@ -139,7 +148,8 @@ export const useDashboardData = () => {
           company_id: call.company_id,
           call_type: call.call_type || 'phone_call',
           latency_ms: call.latency_ms || 0,
-          call_summary: call.call_summary
+          call_summary: call.call_summary,
+          agent: call.agent
         }));
       } catch (error) {
         console.error("Error in previous dashboard calls query:", error);
@@ -150,7 +160,7 @@ export const useDashboardData = () => {
   });
 
   // Calculate agent usage stats
-  const agentUsage: AgentUsage[] = React.useMemo(() => {
+  const agentUsage: AgentUsage[] = useMemo(() => {
     if (!recentCalls || recentCalls.length === 0) return [];
     
     // Group calls by agent
