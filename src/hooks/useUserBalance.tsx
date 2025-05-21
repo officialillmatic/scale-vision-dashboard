@@ -10,6 +10,7 @@ import {
   UserBalance,
   Transaction
 } from "@/services/balanceService";
+import { toast } from "sonner";
 
 export function useUserBalance() {
   const { user, company } = useAuth();
@@ -110,6 +111,27 @@ export function useUserBalance() {
         new Date(tx.created_at) <= end
       )
       .reduce((sum, tx) => sum + tx.amount, 0);
+  };
+
+  // Effect to show warning toast when balance becomes low
+  useEffect(() => {
+    if (balance && balance.warning_threshold && balance.balance < balance.warning_threshold) {
+      // Only show warning if balance is non-zero (to avoid showing on first load with zero balance)
+      if (balance.balance > 0) {
+        toast.warning(`Your balance is running low (${formatCurrency(balance.balance)}). Please contact your administrator to add funds.`, {
+          id: 'low-balance-warning',
+          duration: 6000,
+        });
+      }
+    }
+  }, [balance?.balance, balance?.warning_threshold]);
+
+  // Helper function to format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
   };
 
   return {

@@ -54,7 +54,7 @@ export const useRole = () => {
     editSettings: isCompanyOwner || checkRole('admin'),
     inviteUsers: isCompanyOwner || checkRole('admin'),
     removeUsers: isCompanyOwner || checkRole('admin')
-  }), [isCompanyOwner, company, user, userRole]);
+  }), [isCompanyOwner, checkRole, user, userRole]);
 
   return { isCompanyOwner, checkRole, can };
 };

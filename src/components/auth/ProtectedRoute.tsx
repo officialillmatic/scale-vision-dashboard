@@ -36,10 +36,10 @@ export const ProtectedRoute = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  // Admin-only check
+  // Admin-only check - this takes precedence
   if (adminOnly && !isCompanyOwner && !checkRole('admin')) {
     useEffect(() => {
-      toast.error("You need administrator permissions to access this page");
+      toast.error("This area requires administrator permissions");
     }, []);
     return <Navigate to="/dashboard" replace />;
   }
@@ -58,6 +58,21 @@ export const ProtectedRoute = ({
       toast.error(`You don't have permission to ${requiredAction.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
     }, [requiredAction]);
     return <Navigate to="/dashboard" replace />;
+  }
+  
+  // Additional verification for sensitive areas
+  if (location.pathname.includes('/team') && !can.manageTeam) {
+    useEffect(() => {
+      toast.error("You don't have permission to access team management");
+    }, []);
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  if (location.pathname.includes('/settings/billing') && !can.manageBalances) {
+    useEffect(() => {
+      toast.error("You don't have permission to access billing settings");
+    }, []);
+    return <Navigate to="/settings" replace />;
   }
   
   // User is authenticated and has required permissions - allow access
