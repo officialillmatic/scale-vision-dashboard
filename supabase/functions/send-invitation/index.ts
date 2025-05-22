@@ -120,7 +120,7 @@ async function createInvitation(supabase: any, data: InvitationRequest) {
 }
 
 // Send invitation email
-async function sendInvitationEmail(email: string, companyName: string, token: string) {
+async function sendInvitationEmail(email: string, companyName: string, token: string, role: string) {
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
@@ -140,7 +140,7 @@ async function sendInvitationEmail(email: string, companyName: string, token: st
       subject: `You've been invited to join ${companyName} on Dr. Scale`,
       html: `
         <h1>You've been invited to join ${companyName}</h1>
-        <p>You've been invited to join ${companyName} on Dr. Scale as a ${email.role}.</p>
+        <p>You've been invited to join ${companyName} on Dr. Scale as a ${role}.</p>
         <p>Click the link below to accept the invitation and create your account:</p>
         <p><a href="${invitationUrl}">Accept invitation</a></p>
         <p>This invitation will expire in 7 days.</p>
@@ -264,7 +264,7 @@ serve(async (req) => {
     
     // Send the invitation email
     try {
-      await sendInvitationEmail(email, company.name, token);
+      await sendInvitationEmail(email, company.name, token, role);
     } catch (error: any) {
       // Don't fail the entire request if email fails, just log it
       console.error("Email sending failed:", error.message);
