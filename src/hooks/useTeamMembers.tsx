@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
-import { inviteTeamMember, fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitationService";
-import { handleError } from "@/lib/errorHandling";
-import { fetchCompanyMembers, CompanyMember } from "@/services/memberService";
 
-// Update the interface to match CompanyMember from memberService
+import { useState, useEffect } from "react";
+import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitationService";
+import { handleError } from "@/lib/errorHandling";
+import { fetchCompanyMembers, CompanyMember, inviteTeamMember } from "@/services/memberService";
+
 interface UseTeamMembersResult {
   invitations: CompanyInvitation[];
   members: CompanyMember[];
@@ -12,7 +12,7 @@ interface UseTeamMembersResult {
   fetchInvitations: () => Promise<void>;
   handleCancelInvitation: (invitationId: string) => Promise<void>;
   handleResendInvitation: (invitationId: string) => Promise<void>;
-  teamMembers: CompanyMember[]; // Change this to CompanyMember[] to match the expected type
+  teamMembers: CompanyMember[];
   isInviting: boolean;
   handleInvite: (email: string, role: 'admin' | 'member' | 'viewer') => Promise<boolean>;
 }
@@ -108,27 +108,28 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     }
   };
 
-  // Implementation of handle invite with correct return type
+  // Direct implementation of handle invite using imported function
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
     if (!companyId) return false;
     
     setIsInviting(true);
+    console.log("useTeamMembers: Inviting", email, "with role", role);
     try {
-      // Use the inviteTeamMember service function
+      // Use the inviteTeamMember service function directly from memberService
       const success = await inviteTeamMember(companyId, email, role);
       if (success) {
         // Refresh invitations list on success
         await fetchInvitations();
       }
-      setIsInviting(false);
       return success;
     } catch (error) {
-      setIsInviting(false);
       handleError(error, {
         fallbackMessage: "Failed to send invitation",
         logToConsole: true
       });
       return false;
+    } finally {
+      setIsInviting(false);
     }
   };
 
@@ -140,7 +141,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     fetchInvitations,
     handleCancelInvitation,
     handleResendInvitation,
-    teamMembers: members, // This is now correctly typed as CompanyMember[]
+    teamMembers: members,
     isInviting,
     handleInvite,
   };

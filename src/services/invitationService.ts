@@ -35,6 +35,7 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
       throw error;
     }
 
+    console.log("Fetched invitations:", data);
     return data as CompanyInvitation[];
   } catch (error) {
     handleError(error, {
@@ -161,8 +162,13 @@ export const resendInvitation = async (invitationId: string): Promise<boolean> =
     }
 
     // Trigger the Edge Function to send the email
-    const { error: functionError } = await supabase.functions.invoke('send-invitation', {
-      body: { invitationId }
+    const { data, error: functionError } = await supabase.functions.invoke('send-invitation', {
+      body: { 
+        invitationId,
+        email: invitation.email,
+        companyId: invitation.company_id,
+        role: invitation.role
+      }
     });
 
     if (functionError) {
@@ -179,9 +185,4 @@ export const resendInvitation = async (invitationId: string): Promise<boolean> =
   }
 };
 
-export const inviteTeamMember = async (companyId: string, email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
-  // This function has been moved to memberService.ts but is re-exported
-  // This is just a stub to avoid circular dependencies
-  console.warn("inviteTeamMember has been moved to memberService.ts");
-  return false;
-};
+// Remove the inviteTeamMember function to avoid circular dependency

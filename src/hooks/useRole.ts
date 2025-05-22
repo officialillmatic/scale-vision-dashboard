@@ -53,8 +53,10 @@ export const useRole = () => {
     // Settings
     editSettings: isCompanyOwner || checkRole('admin'), // Only admins and owners can edit settings
     uploadCompanyLogo: isCompanyOwner || checkRole('admin'), // Only admins and owners can change the logo
-    inviteUsers: isCompanyOwner || checkRole('admin'),
-    removeUsers: isCompanyOwner || checkRole('admin')
+    inviteUsers: isCompanyOwner || checkRole('admin'), // Only admins and owners can invite users
+    removeUsers: isCompanyOwner || checkRole('admin'), // Only admins and owners can remove users
+    // Make this explicit (it was already implied by manageTeam)
+    sendInvitations: isCompanyOwner || checkRole('admin') // Only admins and owners can send invitations
   }), [isCompanyOwner, checkRole, user, userRole]);
 
   return { isCompanyOwner, checkRole, can };

@@ -24,6 +24,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 interface TeamInviteDialogProps {
   isOpen: boolean;
@@ -49,6 +51,7 @@ export function TeamInviteDialog({
 }: TeamInviteDialogProps) {
   const { company } = useAuth();
   const [sendingInvitation, setSendingInvitation] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -59,13 +62,22 @@ export function TeamInviteDialog({
   });
   
   const handleSubmit = async (values: FormValues) => {
+    setError(null);
     setSendingInvitation(true);
     try {
+      console.log("Submitting invitation for:", values.email, "with role:", values.role);
       const success = await onInvite(values.email, values.role);
+      console.log("Invitation result:", success);
+      
       if (success) {
         form.reset();
         onClose();
+      } else {
+        setError("Failed to send invitation. Please try again or contact support.");
       }
+    } catch (err) {
+      console.error("Error sending invitation:", err);
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setSendingInvitation(false);
     }
@@ -82,6 +94,13 @@ export function TeamInviteDialog({
             Send an invitation to join your team. They'll get an email with instructions.
           </DialogDescription>
         </DialogHeader>
+        
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">

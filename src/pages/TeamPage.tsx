@@ -59,7 +59,7 @@ const TeamPage = () => {
             
             <TabsContent value="members" className="space-y-4">
               <RoleCheck 
-                adminOnly
+                allowedAction="sendInvitations"
                 fallback={
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />

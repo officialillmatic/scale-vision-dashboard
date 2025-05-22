@@ -77,14 +77,18 @@ export const inviteTeamMember = async (companyId: string, email: string, role: '
     
     if (configError) {
       console.error("Error checking email configuration:", configError);
-      toast.error("Email configuration error. Contact administrator.");
+      toast.error("Email configuration error. Please contact your administrator.");
       return false;
     }
     
     if (configCheck && !configCheck.configured) {
-      toast.error("Email service not configured. Contact administrator.");
+      toast.error("Email service not configured. Please contact your administrator to set up the RESEND_API_KEY.");
+      console.error("RESEND_API_KEY is not configured in Supabase Edge Function secrets.");
       return false;
     }
+    
+    // Log detailed info before sending invitation
+    console.log("Sending invitation to:", email, "with role:", role, "for company:", companyId);
     
     // Proceed with invitation
     const { data, error } = await supabase.functions.invoke('send-invitation', {
@@ -97,11 +101,11 @@ export const inviteTeamMember = async (companyId: string, email: string, role: '
     }
     
     if (data && data.error) {
+      console.error("Error in send-invitation function response:", data.error);
       throw new Error(data.error);
     }
 
-    // We don't need to show a toast here as the edge function now handles sending emails
-    // and we will show a toast in the component that called this function
+    toast.success(`Invitation sent to ${email} successfully`);
     return true;
   } catch (error) {
     handleError(error, {
