@@ -9,18 +9,27 @@ import { NotificationsSettings } from '@/components/settings/NotificationsSettin
 import { BillingSettings } from '@/components/settings/BillingSettings';
 import { useRole } from '@/hooks/useRole';
 import { RoleCheck } from '@/components/auth/RoleCheck';
+import { toast } from 'sonner';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('company');
-  const { isCompanyOwner, checkRole } = useRole();
+  const { isCompanyOwner, checkRole, can } = useRole();
   const isAdmin = isCompanyOwner || checkRole('admin');
+  
+  const handleTabChange = (value: string) => {
+    if (value === 'billing' && !isAdmin) {
+      toast.error('You need administrator privileges to access billing settings');
+      return;
+    }
+    setActiveTab(value);
+  };
   
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
         <h1 className="text-3xl font-bold mb-6">Settings</h1>
         
-        <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs defaultValue={activeTab} value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="company">Company</TabsTrigger>
             {isAdmin && <TabsTrigger value="billing">Billing</TabsTrigger>}

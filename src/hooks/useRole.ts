@@ -10,7 +10,7 @@ export const useRole = () => {
   const checkRole = (role: Role): boolean => {
     if (!user) return false;
     
-    // During development, assume admin rights if no company data is loaded yet
+    // During development, assume viewer rights if no company data is loaded yet
     if (!company) {
       console.warn('No company data loaded, default access controls applied');
       return role === 'viewer'; // More restrictive default - only allow viewer access
@@ -51,7 +51,8 @@ export const useRole = () => {
     viewBalance: true, // All users can view their own balance
     
     // Settings
-    editSettings: isCompanyOwner || checkRole('admin'),
+    editSettings: isCompanyOwner || checkRole('admin'), // Only admins and owners can edit settings
+    uploadCompanyLogo: isCompanyOwner || checkRole('admin'), // Only admins and owners can change the logo
     inviteUsers: isCompanyOwner || checkRole('admin'),
     removeUsers: isCompanyOwner || checkRole('admin')
   }), [isCompanyOwner, checkRole, user, userRole]);

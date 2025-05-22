@@ -21,11 +21,11 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Validate user permissions for agent actions
-    const { data: userSession, error: authError } = await supabase.auth.getUser(
+    const { data: userData, error: authError } = await supabase.auth.getUser(
       req.headers.get('Authorization')?.replace('Bearer ', '') || ''
     );
     
-    if (authError || !userSession.user) {
+    if (authError || !userData.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized access' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -36,24 +36,25 @@ serve(async (req) => {
     const { action, companyId, agentId, userId } = body;
     
     // Check if user is admin for the company
-    const { data: isAdmin, error: adminCheckError } = await supabase.rpc(
+    const { data: isAdmin } = await supabase.rpc(
       'is_admin_of_company',
       { company_id: companyId }
     );
     
-    if (adminCheckError) {
-      return new Response(JSON.stringify({ error: 'Error checking permissions', details: adminCheckError }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+    // Check if user is company owner (always has admin rights)
+    const { data: isOwner } = await supabase.rpc(
+      'is_company_owner',
+      { company_id: companyId }
+    );
+    
+    const hasAdminRights = isAdmin || isOwner;
     
     // If not admin, check if user is trying to access their own assigned agent
-    if (!isAdmin && agentId) {
+    if (!hasAdminRights && agentId) {
       const { data: userAgent, error: userAgentError } = await supabase
         .from('user_agents')
         .select('*')
-        .eq('user_id', userSession.user.id)
+        .eq('user_id', userData.user.id)
         .eq('agent_id', agentId)
         .maybeSingle();
       
@@ -66,7 +67,7 @@ serve(async (req) => {
     }
     
     // If trying to access another user's data, verify admin status
-    if (userId && userId !== userSession.user.id && !isAdmin) {
+    if (userId && userId !== userData.user.id && !hasAdminRights) {
       return new Response(JSON.stringify({ error: 'You do not have permission to access other users\' data', action }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -74,7 +75,7 @@ serve(async (req) => {
     }
     
     // Success response
-    return new Response(JSON.stringify({ success: true, isAdmin, action }), {
+    return new Response(JSON.stringify({ success: true, isAdmin: hasAdminRights, action }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

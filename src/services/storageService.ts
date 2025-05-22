@@ -58,10 +58,14 @@ export const initializeStorage = async (): Promise<void> => {
 
 export const uploadCompanyLogo = async (file: File, companyId: string): Promise<string | null> => {
   try {
+    if (!file || !companyId) {
+      throw new Error("Missing required parameters for logo upload");
+    }
+
     // Generate a unique filename to prevent collisions
     const fileExt = file.name.split('.').pop();
-    const fileName = `${companyId}/${uuidv4()}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const fileName = `company-${companyId}/${uuidv4()}.${fileExt}`;
+    const filePath = fileName;
 
     // Upload the file to Supabase Storage
     const { data, error } = await supabase.storage.from("company-logos").upload(filePath, file, {
@@ -71,7 +75,16 @@ export const uploadCompanyLogo = async (file: File, companyId: string): Promise<
 
     if (error) {
       console.error("Error uploading company logo:", error);
-      toast.error("Failed to upload company logo");
+      
+      // Provide more specific error messages based on error code
+      if (error.message.includes("storage/unauthorized")) {
+        toast.error("You don't have permission to upload company logos");
+      } else if (error.message.includes("storage/object-too-large")) {
+        toast.error("Logo file is too large. Maximum file size is 10MB");
+      } else {
+        toast.error("Failed to upload company logo");
+      }
+      
       return null;
     }
 
@@ -80,17 +93,24 @@ export const uploadCompanyLogo = async (file: File, companyId: string): Promise<
     return urlData.publicUrl;
   } catch (error) {
     console.error("Error in uploadCompanyLogo:", error);
-    toast.error("Failed to upload company logo");
+    handleError(error, {
+      fallbackMessage: "Failed to upload company logo",
+      showToast: true
+    });
     return null;
   }
 };
 
 export const uploadUserAvatar = async (file: File, userId: string): Promise<string | null> => {
   try {
+    if (!file || !userId) {
+      throw new Error("Missing required parameters for avatar upload");
+    }
+
     // Generate a unique filename to prevent collisions
     const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}/${uuidv4()}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const fileName = `user-${userId}/${uuidv4()}.${fileExt}`;
+    const filePath = fileName;
 
     // Upload the file to Supabase Storage
     const { data, error } = await supabase.storage.from("avatars").upload(filePath, file, {
