@@ -62,7 +62,7 @@ export const getUserBalance = async (userId: string, companyId: string): Promise
 /**
  * Create a new balance entry for a user in a company
  */
-const createUserBalance = async (userId: string, companyId: string, initialBalance = 0): Promise<UserBalance | null> => {
+export const createUserBalance = async (userId: string, companyId: string, initialBalance = 0): Promise<UserBalance | null> => {
   try {
     const { data, error } = await supabase
       .from("user_balances")

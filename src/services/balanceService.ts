@@ -26,6 +26,7 @@ import {
 // Re-export everything from the modularized balance services
 export {
   getUserBalance,
+  createUserBalance,
   getTransactionHistory,
   updateUserBalance,
   hasSufficientBalance,
