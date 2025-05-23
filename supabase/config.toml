@@ -12,3 +12,7 @@ verify_jwt = true
 
 [functions.admin-update-balance]
 verify_jwt = true
+
+[functions.check-email-config]
+verify_jwt = true
+
