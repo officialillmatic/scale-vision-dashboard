@@ -32,14 +32,14 @@ export function useCompanyData(user: User | null) {
     setIsCompanyLoading(true);
     try {
       // Fetch company data
-      let companyData = await fetchCompany();
+      const companyData = await fetchCompany();
       
-      // If company exists, set company data and determine user role
       if (companyData) {
         setCompany(companyData);
         setIsCompanyOwner(companyData.owner_id === user.id);
         
         try {
+          // Always fetch company members to determine user role
           const members = await fetchCompanyMembers(companyData.id);
           setCompanyMembers(members || []);
           
@@ -56,13 +56,15 @@ export function useCompanyData(user: User | null) {
           }
         } catch (membersError) {
           console.error("Error fetching company members:", membersError);
-          // Still set admin role for owner even if members fetch fails
           if (companyData.owner_id === user.id) {
             setUserRole('admin');
+          } else {
+            // If members fetch fails, don't assume any role
+            setUserRole(null);
           }
         }
       } else {
-        // No company found - create a default one with better naming
+        // No company found - create a default one
         try {
           // Generate a more professional company name
           const userName = user.user_metadata?.name || user.email?.split('@')[0] || "New User";
@@ -77,18 +79,33 @@ export function useCompanyData(user: User | null) {
             setIsCompanyOwner(true);
             toast.success(`Welcome to Dr. Scale! We've created ${defaultCompanyName} for you.`);
           } else {
-            // Company creation failed, but don't break the app
+            // Company creation failed but don't break the app
             console.error("Failed to create default company");
             toast.error("Could not create your company. Please try again later.");
+            // Reset all state to ensure clean UI
+            setCompany(null);
+            setCompanyMembers([]);
+            setUserRole(null);
+            setIsCompanyOwner(false);
           }
         } catch (createError: any) {
           console.error("Error creating default company:", createError);
           toast.error(createError.message || "Could not create your company");
+          // Reset all state
+          setCompany(null);
+          setCompanyMembers([]);
+          setUserRole(null);
+          setIsCompanyOwner(false);
         }
       }
     } catch (error) {
       console.error("Error loading company data:", error);
       toast.error("Failed to load company data");
+      // Reset all state on error
+      setCompany(null);
+      setCompanyMembers([]);
+      setUserRole(null);
+      setIsCompanyOwner(false);
     } finally {
       setIsCompanyLoading(false);
     }
@@ -100,9 +117,9 @@ export function useCompanyData(user: User | null) {
     setIsCompanyLoading(true);
     try {
       const companyData = await fetchCompany();
-      setCompany(companyData);
       
       if (companyData) {
+        setCompany(companyData);
         setIsCompanyOwner(companyData.owner_id === user.id);
         
         // Refresh company members
@@ -121,6 +138,8 @@ export function useCompanyData(user: User | null) {
           }
         }
       } else {
+        // Company no longer exists, clear data
+        setCompany(null);
         setCompanyMembers([]);
         setUserRole(null);
         setIsCompanyOwner(false);
@@ -133,6 +152,7 @@ export function useCompanyData(user: User | null) {
     }
   };
 
+  // Load company data whenever user changes
   useEffect(() => {
     if (user) {
       loadCompanyData();

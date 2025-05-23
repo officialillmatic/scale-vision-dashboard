@@ -20,6 +20,12 @@ export const RoleCheck: React.FC<RoleCheckProps> = ({
   adminOnly = false
 }) => {
   const { checkRole, can, isCompanyOwner } = useRole();
+  const { isCompanyLoading } = useAuth();
+  
+  // If company data is still loading, don't render anything yet
+  if (isCompanyLoading) {
+    return null;
+  }
   
   const hasPermission = () => {
     // Admin only check (shorthand for owner or admin)

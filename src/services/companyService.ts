@@ -29,6 +29,10 @@ export const fetchCompany = async (): Promise<Company | null> => {
       };
     }
     
+    if (ownedCompanyError) {
+      console.error("Error fetching owned company:", ownedCompanyError);
+    }
+    
     // If user is not a company owner, check if they're a member of any company
     const { data: membershipData, error: membershipError } = await supabase
       .from("company_members")
@@ -46,8 +50,12 @@ export const fetchCompany = async (): Promise<Company | null> => {
       `)
       .maybeSingle();
       
+    if (membershipError) {
+      console.error("Error fetching company membership:", membershipError);
+    }
+      
     if (membershipData?.companies) {
-      // Handle the companies data which may be returned as an array
+      // Handle the companies data which may be returned as an object or array
       const companyDetails = Array.isArray(membershipData.companies) 
         ? membershipData.companies[0] // Take the first item if it's an array
         : membershipData.companies;   // Use as is if it's already an object

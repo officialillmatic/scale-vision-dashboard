@@ -9,7 +9,7 @@ export type Role = 'admin' | 'member' | 'viewer';
  * Provides consistent access control based on user role and company ownership
  */
 export const useRole = () => {
-  const { company, user, companyMembers, userRole, isCompanyOwner } = useAuth();
+  const { company, user, companyMembers, userRole, isCompanyOwner, isCompanyLoading } = useAuth();
 
   /**
    * Check if a user has a specific role or higher in the role hierarchy
@@ -22,16 +22,17 @@ export const useRole = () => {
     // Company owners always have admin privileges
     if (isCompanyOwner) return true;
     
-    // During development, assume viewer rights if no company data is loaded yet
-    if (!company) {
-      console.warn('No company data loaded, default access controls applied');
-      return role === 'viewer'; // More restrictive default - only allow viewer access
+    // If company data is still loading, don't make any assumptions
+    if (isCompanyLoading) return false;
+    
+    // If company data is loaded but no company exists, user doesn't have roles
+    if (!company && !isCompanyLoading) {
+      return false;
     }
     
     // Use the userRole from AuthContext 
     if (!userRole) {
-      console.warn('No user role determined, assuming viewer access only');
-      return role === 'viewer'; // Allow viewer access by default
+      return false;
     }
     
     // Role hierarchy: admin > member > viewer
@@ -73,7 +74,7 @@ export const useRole = () => {
     
     // Invitations (simplified from the previous redundant definition)
     sendInvitations: isCompanyOwner || checkRole('admin')
-  }), [isCompanyOwner, checkRole, user, userRole]);
+  }), [isCompanyOwner, checkRole, user, userRole, isCompanyLoading]);
 
   return { isCompanyOwner, checkRole, can };
 };
