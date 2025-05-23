@@ -87,6 +87,9 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
       return { valid: false };
     }
 
+    // Access the first company from the array since it's a join result
+    const company = Array.isArray(invitation.companies) ? invitation.companies[0] : invitation.companies;
+
     return {
       valid: true,
       invitation: {
@@ -100,8 +103,8 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
         created_at: invitation.created_at
       },
       company: {
-        id: invitation.companies.id,
-        name: invitation.companies.name
+        id: company.id,
+        name: company.name
       }
     };
   } catch (error) {
