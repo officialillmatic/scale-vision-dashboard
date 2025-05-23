@@ -15,4 +15,3 @@ verify_jwt = true
 
 [functions.check-email-config]
 verify_jwt = true
-

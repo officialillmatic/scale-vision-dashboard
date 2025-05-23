@@ -87,7 +87,7 @@ async function getCompanyDetails(supabase: any, companyId: string) {
 async function createInvitation(supabase: any, data: InvitationRequest) {
   try {
     // Generate an invitation token
-    const token_uuid = crypto.randomUUID();
+    const tokenUuid = crypto.randomUUID();
     
     // Create an invitation that expires in 7 days
     const expiresAt = new Date();
@@ -100,7 +100,7 @@ async function createInvitation(supabase: any, data: InvitationRequest) {
         company_id: data.companyId,
         email: data.email,
         role: data.role,
-        token: token_uuid,
+        token: tokenUuid,
         expires_at: expiresAt.toISOString(),
         status: "pending"
       })
@@ -112,7 +112,7 @@ async function createInvitation(supabase: any, data: InvitationRequest) {
       throw new Error("Failed to create invitation");
     }
     
-    return { invitation, token: token_uuid };
+    return { invitation, token: tokenUuid };
   } catch (error) {
     console.error("Error creating invitation:", error);
     throw error;
@@ -247,11 +247,11 @@ serve(async (req) => {
     }
     
     // Create invitation
-    let invitation, token;
+    let invitation, invitationToken;
     try {
       const result = await createInvitation(supabase, requestData);
       invitation = result.invitation;
-      token = result.token;
+      invitationToken = result.token;
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message }),
@@ -264,7 +264,7 @@ serve(async (req) => {
     
     // Send the invitation email
     try {
-      await sendInvitationEmail(email, company.name, token, role);
+      await sendInvitationEmail(email, company.name, invitationToken, role);
     } catch (error: any) {
       // Don't fail the entire request if email fails, just log it
       console.error("Email sending failed:", error.message);
