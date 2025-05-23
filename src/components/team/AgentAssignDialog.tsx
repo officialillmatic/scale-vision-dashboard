@@ -79,6 +79,7 @@ export function AgentAssignDialog({
                 form={form} 
                 teamMembers={teamMembers} 
                 agents={agents}
+                selectedAgent={selectedAgent}
               />
               <AgentAssignFormFooter 
                 isSubmitting={isSubmitting} 

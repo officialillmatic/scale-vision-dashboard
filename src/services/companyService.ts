@@ -26,11 +26,10 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
       .from("companies")
       .select("*")
       .eq("owner_id", userId)
-      .maybeSingle(); // Use maybeSingle instead of single to handle 0 or 1 results
+      .maybeSingle();
 
     if (ownedError) {
       console.error("Error fetching owned company:", ownedError);
-      // Don't throw here, try member companies instead
     }
 
     if (ownedCompany) {
@@ -61,7 +60,8 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
 
     if (membership && membership.companies) {
       console.log("Found member company:", membership.companies);
-      return membership.companies as Company;
+      // Cast the companies object to Company type since we know its structure
+      return membership.companies as unknown as Company;
     }
 
     console.log("No company found for user");

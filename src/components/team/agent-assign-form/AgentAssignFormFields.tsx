@@ -4,7 +4,7 @@ import { UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Agent } from "@/services/agentService";
-import { CompanyMember } from "@/services/companyService";
+import { CompanyMember } from "@/services/memberService";
 import { AgentAssignFormValues } from "../schemas/agentAssignFormSchema";
 
 interface AgentAssignFormFieldsProps {
@@ -24,7 +24,7 @@ export const AgentAssignFormFields = ({
     <div className="space-y-4">
       <FormField
         control={form.control}
-        name="userId"
+        name="user_id"
         render={({ field }) => (
           <FormItem>
             <FormLabel>Team Member</FormLabel>
@@ -49,7 +49,7 @@ export const AgentAssignFormFields = ({
 
       <FormField
         control={form.control}
-        name="agentId"
+        name="agent_id"
         render={({ field }) => (
           <FormItem>
             <FormLabel>Agent</FormLabel>

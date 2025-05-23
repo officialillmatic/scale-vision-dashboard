@@ -99,7 +99,10 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
         expires_at: invitation.expires_at,
         created_at: invitation.created_at
       },
-      company: invitation.companies
+      company: {
+        id: invitation.companies.id,
+        name: invitation.companies.name
+      }
     };
   } catch (error) {
     console.error("Error checking invitation:", error);
