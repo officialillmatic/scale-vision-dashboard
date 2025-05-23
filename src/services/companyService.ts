@@ -3,6 +3,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { Company } from "@/types/auth";
 import { handleError } from "@/lib/errorHandling";
 
+export interface CompanyMember {
+  id: string;
+  company_id: string;
+  user_id: string;
+  role: 'admin' | 'member' | 'viewer';
+  status: 'active' | 'inactive';
+  created_at: Date;
+  updated_at: Date;
+  user_details?: {
+    email: string;
+    name?: string;
+  };
+}
+
 export const fetchCompany = async (userId: string): Promise<Company | null> => {
   try {
     console.log("Fetching company data...");
@@ -110,6 +124,32 @@ export const updateCompany = async (
     console.error("Error updating company:", error);
     handleError(error, {
       fallbackMessage: "Failed to update company"
+    });
+    return null;
+  }
+};
+
+export const updateCompanyLogo = async (
+  companyId: string,
+  logoUrl: string
+): Promise<Company | null> => {
+  try {
+    const { data, error } = await supabase
+      .from("companies")
+      .update({ logo_url: logoUrl })
+      .eq("id", companyId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error updating company logo:", error);
+    handleError(error, {
+      fallbackMessage: "Failed to update company logo"
     });
     return null;
   }

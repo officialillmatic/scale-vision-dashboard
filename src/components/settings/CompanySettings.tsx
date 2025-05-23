@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -39,9 +38,14 @@ export function CompanySettings() {
       return;
     }
 
+    if (!user?.id) {
+      toast.error('User not authenticated');
+      return;
+    }
+
     setIsCreating(true);
     try {
-      const newCompany = await createCompany(companyName);
+      const newCompany = await createCompany(companyName, user.id);
       if (newCompany) {
         await refreshCompany();
         toast.success("Company created successfully");
