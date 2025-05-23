@@ -1,8 +1,5 @@
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Dialog,
   DialogContent,
@@ -10,22 +7,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { useAuth } from '@/contexts/AuthContext';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
+import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
 
 interface TeamInviteDialogProps {
   isOpen: boolean;
@@ -34,143 +23,109 @@ interface TeamInviteDialogProps {
   isInviting: boolean;
 }
 
-const formSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }),
-  role: z.enum(['admin', 'member', 'viewer'], {
-    required_error: "Please select a role",
-  })
-});
-
-type FormValues = z.infer<typeof formSchema>;
-
-export function TeamInviteDialog({ 
-  isOpen, 
+export const TeamInviteDialog: React.FC<TeamInviteDialogProps> = ({
+  isOpen,
   onClose,
   onInvite,
   isInviting
-}: TeamInviteDialogProps) {
-  const { company } = useAuth();
-  const [sendingInvitation, setSendingInvitation] = useState(false);
+}) => {
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'admin' | 'member' | 'viewer'>('member');
   const [error, setError] = useState<string | null>(null);
-  
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: '',
-      role: 'member'
-    }
-  });
-  
-  const handleSubmit = async (values: FormValues) => {
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
-    setSendingInvitation(true);
+
+    // Simple email validation
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
     try {
-      console.log("Submitting invitation for:", values.email, "with role:", values.role);
-      const success = await onInvite(values.email, values.role);
-      console.log("Invitation result:", success);
-      
+      const success = await onInvite(email, role);
       if (success) {
-        form.reset();
+        setEmail('');
         onClose();
-      } else {
-        setError("Failed to send invitation. Please try again or contact support.");
       }
-    } catch (err) {
-      console.error("Error sending invitation:", err);
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
-    } finally {
-      setSendingInvitation(false);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send invitation');
     }
   };
-  
-  const isSubmitting = isInviting || sendingInvitation;
-  
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Invite Team Member</DialogTitle>
-          <DialogDescription>
-            Send an invitation to join your team. They'll get an email with instructions.
-          </DialogDescription>
-        </DialogHeader>
-        
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="email@example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Invite Team Member</DialogTitle>
+            <DialogDescription>
+              Send an invitation to join your team with appropriate permissions.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <EmailConfigWarning />
+          
+          <div className="grid gap-4 py-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="admin">
-                        Admin
-                        <span className="text-xs text-gray-500 block">Full access to all settings and team management</span>
-                      </SelectItem>
-                      <SelectItem value="member">
-                        Member
-                        <span className="text-xs text-gray-500 block">Can upload calls and use the platform</span>
-                      </SelectItem>
-                      <SelectItem value="viewer">
-                        Viewer
-                        <span className="text-xs text-gray-500 block">Can only view calls and reports</span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <DialogFooter className="mt-4">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <LoadingSpinner size="sm" className="mr-2" />
-                    Sending Invitation
-                  </>
-                ) : (
-                  'Send Invitation'
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="col-span-3"
+                placeholder="colleague@example.com"
+                disabled={isInviting}
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="role" className="text-right">
+                Role
+              </Label>
+              <Select 
+                value={role} 
+                onValueChange={(value) => setRole(value as 'admin' | 'member' | 'viewer')}
+                disabled={isInviting}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-4 mt-2">
+              <p className="text-xs text-muted-foreground">
+                <strong>Administrator:</strong> Full access to manage team, settings, and billing.<br />
+                <strong>Member:</strong> Can upload and analyze calls.<br />
+                <strong>Viewer:</strong> Can only view calls and analytics.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isInviting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isInviting}>
+              {isInviting ? 'Sending...' : 'Send Invitation'}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
-}
+};

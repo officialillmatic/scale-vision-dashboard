@@ -3,7 +3,8 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole, Role } from "@/hooks/useRole";
 import { toast } from "sonner";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -21,12 +22,73 @@ export const ProtectedRoute = ({
   const { user, isLoading, isCompanyLoading } = useAuth();
   const location = useLocation();
   const { checkRole, can, isCompanyOwner } = useRole();
+  const [permissionChecked, setPermissionChecked] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
+  
+  useEffect(() => {
+    // Only perform permission check when both auth and company data are loaded
+    if (!isLoading && !isCompanyLoading) {
+      let access = false;
+      
+      // If not authenticated, no access
+      if (!user) {
+        access = false;
+      }
+      // Company owner always has full access
+      else if (isCompanyOwner) {
+        access = true;
+      }
+      // Admin-only check
+      else if (adminOnly) {
+        access = checkRole('admin');
+        if (!access) {
+          toast.error("This area requires administrator permissions");
+        }
+      }
+      // Role check
+      else if (requiredRole && !checkRole(requiredRole)) {
+        access = false;
+        toast.error(`You need ${requiredRole} permissions to access this page`);
+      }
+      // Action check
+      else if (requiredAction && !can[requiredAction]) {
+        access = false;
+        toast.error(`You don't have permission to ${requiredAction.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+      }
+      // Path-specific checks
+      else if (location.pathname.includes('/team') && !can.manageTeam) {
+        access = false;
+        toast.error("You don't have permission to access team management");
+      }
+      else if (location.pathname.includes('/settings/billing') && !can.accessBillingSettings) {
+        access = false;
+        toast.error("You don't have permission to access billing settings");
+      }
+      else {
+        access = true;
+      }
+      
+      setHasAccess(access);
+      setPermissionChecked(true);
+    }
+  }, [
+    user, 
+    isLoading, 
+    isCompanyLoading, 
+    isCompanyOwner, 
+    checkRole, 
+    can, 
+    requiredRole, 
+    requiredAction, 
+    adminOnly,
+    location.pathname
+  ]);
   
   // Check if loading
-  if (isLoading || isCompanyLoading) {
+  if (isLoading || isCompanyLoading || !permissionChecked) {
     return (
       <div className="h-screen w-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-purple"></div>
+        <LoadingSpinner size="lg" className="text-brand-purple" />
       </div>
     );
   }
@@ -36,48 +98,9 @@ export const ProtectedRoute = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  // Company owner always has all permissions
-  if (isCompanyOwner) {
-    return <>{children}</>;
-  }
-  
-  // Admin-only check - this takes precedence
-  if (adminOnly && !checkRole('admin')) {
-    useEffect(() => {
-      toast.error("This area requires administrator permissions");
-    }, []);
+  // Check if user has access
+  if (!hasAccess) {
     return <Navigate to="/dashboard" replace />;
-  }
-  
-  // Check for required role if specified
-  if (requiredRole && !checkRole(requiredRole)) {
-    useEffect(() => {
-      toast.error(`You need ${requiredRole} permissions to access this page`);
-    }, [requiredRole]);
-    return <Navigate to="/dashboard" replace />;
-  }
-  
-  // Check for required action if specified
-  if (requiredAction && !can[requiredAction]) {
-    useEffect(() => {
-      toast.error(`You don't have permission to ${requiredAction.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
-    }, [requiredAction]);
-    return <Navigate to="/dashboard" replace />;
-  }
-  
-  // Additional verification for sensitive areas
-  if (location.pathname.includes('/team') && !can.manageTeam) {
-    useEffect(() => {
-      toast.error("You don't have permission to access team management");
-    }, []);
-    return <Navigate to="/dashboard" replace />;
-  }
-  
-  if (location.pathname.includes('/settings/billing') && !can.accessBillingSettings) {
-    useEffect(() => {
-      toast.error("You don't have permission to access billing settings");
-    }, []);
-    return <Navigate to="/settings" replace />;
   }
   
   // User is authenticated and has required permissions - allow access

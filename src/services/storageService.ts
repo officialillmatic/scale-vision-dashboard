@@ -1,156 +1,199 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
-import { handleError } from "@/lib/errorHandling";
 
-// Ensure storage buckets exist
-const ensureBucketExists = async (bucketName: string, isPublic: boolean = true): Promise<boolean> => {
-  try {
-    // Check if bucket exists
-    const { data: buckets, error: getBucketsError } = await supabase
-      .storage
-      .listBuckets();
-      
-    if (getBucketsError) {
-      console.error("Error checking buckets:", getBucketsError);
-      return false;
-    }
-    
-    // If the bucket doesn't exist, create it
-    if (!buckets.find(bucket => bucket.name === bucketName)) {
-      const { error: createError } = await supabase
-        .storage
-        .createBucket(bucketName, {
-          public: isPublic,
-          fileSizeLimit: 10485760, // 10MB
-        });
-        
-      if (createError) {
-        // Log the error but don't fail entirely
-        console.error(`Error creating bucket ${bucketName}:`, createError);
-        return false;
-      }
-      
-      console.log(`Created storage bucket: ${bucketName}`);
-    }
-    
-    return true;
-  } catch (error) {
-    console.error(`Error ensuring bucket ${bucketName} exists:`, error);
-    return false;
+const requiredBuckets = [
+  {
+    id: 'avatars',
+    public: true,
+    fileSizeLimit: 5 * 1024 * 1024, // 5MB
+    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+  },
+  {
+    id: 'company-logos',
+    public: true,
+    fileSizeLimit: 5 * 1024 * 1024, // 5MB
+    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml']
+  },
+  {
+    id: 'recordings',
+    public: false, // private storage for call recordings
+    fileSizeLimit: 50 * 1024 * 1024, // 50MB
+    allowedMimeTypes: ['audio/mpeg', 'audio/mp4', 'audio/wav']
   }
-};
+];
 
 // Initialize storage buckets
-export const initializeStorage = async (): Promise<void> => {
-  // Try to initialize buckets but don't break the app if it fails
-  try {
-    await Promise.allSettled([
-      ensureBucketExists('avatars', true),
-      ensureBucketExists('company-logos', true),
-      ensureBucketExists('recordings', true)
-    ]);
-  } catch (error) {
-    console.error("Failed to initialize storage buckets:", error);
-  }
-};
+export const initializeStorage = async () => {
+  let hasError = false;
+  const results = [];
 
-export const uploadCompanyLogo = async (file: File, companyId: string): Promise<string | null> => {
-  try {
-    if (!file || !companyId) {
-      throw new Error("Missing required parameters for logo upload");
-    }
-
-    // Generate a unique filename to prevent collisions
-    const fileExt = file.name.split('.').pop();
-    const fileName = `company-${companyId}/${uuidv4()}.${fileExt}`;
-    const filePath = fileName;
-
-    // Upload the file to Supabase Storage
-    const { data, error } = await supabase.storage.from("company-logos").upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: true
-    });
-
-    if (error) {
-      console.error("Error uploading company logo:", error);
+  for (const bucket of requiredBuckets) {
+    try {
+      // Check if bucket exists first to avoid unnecessary errors
+      const { data: existingBuckets, error: listError } = await supabase.storage.listBuckets();
       
-      // Provide more specific error messages based on error code
-      if (error.message.includes("storage/unauthorized")) {
-        toast.error("You don't have permission to upload company logos");
-      } else if (error.message.includes("storage/object-too-large")) {
-        toast.error("Logo file is too large. Maximum file size is 10MB");
-      } else {
-        toast.error("Failed to upload company logo");
+      if (listError) {
+        console.error(`Error listing buckets:`, listError);
+        hasError = true;
+        results.push({
+          bucket: bucket.id,
+          success: false,
+          error: listError
+        });
+        continue;
       }
       
-      return null;
+      const bucketExists = existingBuckets.some(b => b.name === bucket.id);
+      
+      if (!bucketExists) {
+        // Create bucket if it doesn't exist
+        const { data, error } = await supabase.storage.createBucket(
+          bucket.id, 
+          { 
+            public: bucket.public,
+            fileSizeLimit: bucket.fileSizeLimit,
+            allowedMimeTypes: bucket.allowedMimeTypes
+          }
+        );
+        
+        if (error) {
+          console.error(`Error creating bucket ${bucket.id}:`, error);
+          hasError = true;
+          results.push({
+            bucket: bucket.id,
+            success: false,
+            error
+          });
+        } else {
+          console.log(`Successfully created bucket ${bucket.id}`);
+          results.push({
+            bucket: bucket.id,
+            success: true
+          });
+        }
+      } else {
+        console.log(`Bucket ${bucket.id} already exists`);
+        results.push({
+          bucket: bucket.id,
+          success: true,
+          existed: true
+        });
+      }
+    } catch (error) {
+      console.error(`Unexpected error with bucket ${bucket.id}:`, error);
+      hasError = true;
+      results.push({
+        bucket: bucket.id,
+        success: false,
+        error
+      });
     }
-
-    // Get the public URL
-    const { data: urlData } = supabase.storage.from("company-logos").getPublicUrl(filePath);
-    return urlData.publicUrl;
-  } catch (error) {
-    console.error("Error in uploadCompanyLogo:", error);
-    handleError(error, {
-      fallbackMessage: "Failed to upload company logo",
-      showToast: true
-    });
-    return null;
   }
+
+  if (hasError) {
+    console.warn("Some storage buckets could not be initialized. This may limit functionality, but the app will continue to work.");
+    // Only show toast on errors, not on success to avoid annoying users
+    toast.error("Some storage features may be limited. Please contact support if you experience issues.");
+  }
+
+  return { results, hasError };
 };
 
-export const uploadUserAvatar = async (file: File, userId: string): Promise<string | null> => {
+// Upload profile avatar
+export const uploadAvatar = async (userId: string, file: File): Promise<string | null> => {
   try {
-    if (!file || !userId) {
-      throw new Error("Missing required parameters for avatar upload");
-    }
-
-    // Generate a unique filename to prevent collisions
     const fileExt = file.name.split('.').pop();
-    const fileName = `user-${userId}/${uuidv4()}.${fileExt}`;
-    const filePath = fileName;
+    const fileName = `${userId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${userId}/${fileName}`;
 
-    // Upload the file to Supabase Storage
-    const { data, error } = await supabase.storage.from("avatars").upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: true
-    });
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file);
 
-    if (error) {
-      console.error("Error uploading user avatar:", error);
-      toast.error("Failed to upload avatar");
-      return null;
+    if (uploadError) {
+      throw uploadError;
     }
 
-    // Get the public URL
-    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-    return urlData.publicUrl;
+    const { data } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
   } catch (error) {
-    console.error("Error in uploadUserAvatar:", error);
+    console.error("Error uploading avatar:", error);
     toast.error("Failed to upload avatar");
     return null;
   }
 };
 
-// Updated getAudioUrl function to work with recordings bucket
-export const getAudioUrl = (path: string | null): string | null => {
-  if (!path) return null;
-  
+// Upload company logo
+export const uploadCompanyLogo = async (companyId: string, file: File): Promise<string | null> => {
   try {
-    // Ensure we're using the correct bucket
-    const bucket = path.includes('/') ? path.split('/')[0] : 'recordings';
-    const actualPath = path.includes('/') ? path : `${path}`;
-    
-    const { data } = supabase.storage.from(bucket).getPublicUrl(actualPath);
-    
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${companyId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('company-logos')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from('company-logos')
+      .getPublicUrl(filePath);
+
     return data.publicUrl;
   } catch (error) {
-    console.error("Error in getAudioUrl:", error);
+    console.error("Error uploading company logo:", error);
+    toast.error("Failed to upload company logo");
     return null;
   }
 };
 
-// Initialize storage on module import - but don't break the app if it fails
-initializeStorage().catch(e => console.error("Failed to initialize storage buckets:", e));
+// Upload call recording
+export const uploadRecording = async (userId: string, companyId: string, file: File): Promise<string | null> => {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${companyId}/${userId}-${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('recordings')
+      .upload(fileName, file);
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from('recordings')
+      .createSignedUrl(fileName, 60 * 60 * 24 * 7); // 7 days
+
+    return data?.signedUrl || null;
+  } catch (error) {
+    console.error("Error uploading recording:", error);
+    toast.error("Failed to upload recording");
+    return null;
+  }
+};
+
+// Get a signed URL for a recording (private access)
+export const getRecordingUrl = async (filePath: string): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase.storage
+      .from('recordings')
+      .createSignedUrl(filePath, 60 * 60); // 1 hour
+
+    if (error) {
+      throw error;
+    }
+
+    return data.signedUrl;
+  } catch (error) {
+    console.error("Error getting recording URL:", error);
+    return null;
+  }
+};

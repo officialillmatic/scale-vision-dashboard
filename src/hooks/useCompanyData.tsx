@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { 
@@ -18,39 +18,44 @@ export function useCompanyData(user: User | null) {
   const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
   const [userRole, setUserRole] = useState<'admin' | 'member' | 'viewer' | null>(null);
   const [isCompanyOwner, setIsCompanyOwner] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  const loadCompanyData = async () => {
+  // Load company data with proper error handling and state management
+  const loadCompanyData = useCallback(async () => {
     if (!user) {
       setCompany(null);
       setCompanyMembers([]);
       setUserRole(null);
       setIsCompanyOwner(false);
       setIsCompanyLoading(false);
+      setError(null);
       return;
     }
 
     setIsCompanyLoading(true);
+    setError(null);
+
     try {
       // Fetch company data
       const companyData = await fetchCompany();
       
       if (companyData) {
         console.log("Company data loaded:", companyData);
-        setCompany(companyData);
         
-        // Check if user is company owner (always has admin privileges)
+        // Set company data and check if user is owner
+        setCompany(companyData);
         const isOwner = companyData.owner_id === user.id;
         setIsCompanyOwner(isOwner);
         
         try {
-          // Always fetch company members to determine user role
+          // Fetch company members to determine user role
           const members = await fetchCompanyMembers(companyData.id);
           
           if (Array.isArray(members)) {
             console.log("Company members loaded:", members);
             setCompanyMembers(members || []);
             
-            // Determine user's role
+            // Determine user's role with proper precedence
             if (isOwner) {
               setUserRole('admin'); // Company owner is always admin
               console.log("User is company owner, setting role to admin");
@@ -86,7 +91,7 @@ export function useCompanyData(user: User | null) {
           }
         }
       } else {
-        // No company found - create a default one
+        // No company found - create a default one with better error handling
         try {
           // Generate a more professional company name
           const userName = user.user_metadata?.name || user.email?.split('@')[0] || "New User";
@@ -102,14 +107,7 @@ export function useCompanyData(user: User | null) {
             setIsCompanyOwner(true);
             toast.success(`Welcome to Dr. Scale! We've created ${defaultCompanyName} for you.`);
           } else {
-            // Company creation failed but don't break the app
-            console.error("Failed to create default company");
-            toast.error("Could not create your company. Please try again later.");
-            // Reset all state to ensure clean UI
-            setCompany(null);
-            setCompanyMembers([]);
-            setUserRole(null);
-            setIsCompanyOwner(false);
+            throw new Error("Failed to create default company");
           }
         } catch (createError: any) {
           console.error("Error creating default company:", createError);
@@ -119,9 +117,10 @@ export function useCompanyData(user: User | null) {
           setCompanyMembers([]);
           setUserRole(null);
           setIsCompanyOwner(false);
+          setError(createError);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading company data:", error);
       toast.error("Failed to load company data");
       // Reset all state on error
@@ -129,16 +128,20 @@ export function useCompanyData(user: User | null) {
       setCompanyMembers([]);
       setUserRole(null);
       setIsCompanyOwner(false);
+      setError(error);
     } finally {
       setIsCompanyLoading(false);
     }
-  };
+  }, [user]);
 
-  const refreshCompany = async () => {
+  // Better refresh function with proper error handling
+  const refreshCompany = useCallback(async () => {
     if (!user) return;
     
     console.log("Refreshing company data...");
     setIsCompanyLoading(true);
+    setError(null);
+    
     try {
       const companyData = await fetchCompany();
       
@@ -152,7 +155,7 @@ export function useCompanyData(user: User | null) {
         if (Array.isArray(members)) {
           setCompanyMembers(members || []);
           
-          // Update user role
+          // Update user role with proper precedence
           if (companyData.owner_id === user.id) {
             setUserRole('admin');
           } else {
@@ -180,13 +183,14 @@ export function useCompanyData(user: User | null) {
         setUserRole(null);
         setIsCompanyOwner(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error refreshing company data:", error);
       toast.error("Failed to refresh company data");
+      setError(error);
     } finally {
       setIsCompanyLoading(false);
     }
-  };
+  }, [user]);
 
   // Load company data whenever user changes
   useEffect(() => {
@@ -199,8 +203,9 @@ export function useCompanyData(user: User | null) {
       setUserRole(null);
       setIsCompanyOwner(false);
       setIsCompanyLoading(false);
+      setError(null);
     }
-  }, [user?.id]); // Only reload when the user ID changes
+  }, [user?.id, loadCompanyData]);
 
   return {
     company,
@@ -208,6 +213,7 @@ export function useCompanyData(user: User | null) {
     companyMembers,
     userRole,
     isCompanyOwner,
-    refreshCompany
+    refreshCompany,
+    error
   };
 }

@@ -3,6 +3,7 @@ import React from 'react';
 import { useRole } from '@/hooks/useRole';
 import { Role } from '@/hooks/useRole';
 import { useAuth } from "@/contexts/AuthContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface RoleCheckProps {
   children: React.ReactNode;
@@ -10,6 +11,7 @@ interface RoleCheckProps {
   allowedAction?: keyof ReturnType<typeof useRole>['can'];
   fallback?: React.ReactNode;
   adminOnly?: boolean; // Shorthand for company owner or admin role
+  showLoading?: boolean; // Whether to show loading state or not
 }
 
 export const RoleCheck: React.FC<RoleCheckProps> = ({ 
@@ -17,13 +19,23 @@ export const RoleCheck: React.FC<RoleCheckProps> = ({
   role, 
   allowedAction,
   fallback = null,
-  adminOnly = false
+  adminOnly = false,
+  showLoading = false
 }) => {
   const { checkRole, can, isCompanyOwner } = useRole();
   const { isCompanyLoading } = useAuth();
   
-  // If company data is still loading, don't render anything
+  // If company data is still loading, show loading state or nothing
   if (isCompanyLoading) {
+    if (showLoading) {
+      return (
+        <div className="space-y-2 animate-pulse">
+          <Skeleton className="h-4 w-[200px] bg-muted" />
+          <Skeleton className="h-4 w-[180px] bg-muted" />
+        </div>
+      );
+    }
+    // Don't render anything until we know the permissions
     return null;
   }
   
