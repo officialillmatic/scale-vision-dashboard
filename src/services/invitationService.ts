@@ -1,6 +1,5 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { handleError } from "@/lib/errorHandling";
 
 export interface CompanyInvitation {
@@ -8,26 +7,29 @@ export interface CompanyInvitation {
   company_id: string;
   email: string;
   role: 'admin' | 'member' | 'viewer';
-  status: 'pending' | 'accepted' | 'rejected' | 'expired';
-  created_at: string;
-  expires_at: string;
+  status: 'pending' | 'accepted' | 'expired';
   token: string;
-}
-
-export interface InvitationCheckResult {
-  valid: boolean;
-  invitation?: CompanyInvitation;
-  company?: {
-    id: string;
-    name: string;
-  };
+  expires_at: string;
+  created_at: string;
+  invited_by?: string;
 }
 
 export const fetchCompanyInvitations = async (companyId: string): Promise<CompanyInvitation[]> => {
   try {
+    // Remove the join with users table that's causing permission issues
     const { data, error } = await supabase
       .from("company_invitations")
-      .select("*")
+      .select(`
+        id,
+        company_id,
+        email,
+        role,
+        status,
+        token,
+        expires_at,
+        created_at,
+        invited_by
+      `)
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
 
@@ -35,97 +37,42 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
       throw error;
     }
 
-    console.log("Fetched invitations:", data);
-    return data as CompanyInvitation[];
+    return data || [];
   } catch (error) {
+    console.error("Error fetching company invitations:", error);
     handleError(error, {
-      fallbackMessage: "Failed to fetch company invitations"
+      fallbackMessage: "Failed to fetch invitations"
     });
     return [];
   }
 };
 
-export const checkInvitation = async (token: string): Promise<InvitationCheckResult> => {
+export const createInvitation = async (
+  companyId: string,
+  email: string,
+  role: 'admin' | 'member' | 'viewer'
+): Promise<boolean> => {
   try {
-    const { data, error } = await supabase
-      .from("company_invitations")
-      .select("*, companies:company_id(id, name)")
-      .eq("token", token)
-      .eq("status", "pending")
-      .single();
-
-    if (error || !data) {
-      return { valid: false };
-    }
-
-    // Check if the invitation has expired
-    const expiryDate = new Date(data.expires_at);
-    if (expiryDate < new Date()) {
-      return { valid: false };
-    }
-
-    const company = data.companies as { id: string, name: string };
-    delete data.companies;
-
-    return { 
-      valid: true, 
-      invitation: data as CompanyInvitation,
-      company
-    };
-  } catch (error) {
-    console.error("Error checking invitation:", error);
-    return { valid: false };
-  }
-};
-
-export const acceptInvitation = async (token: string, userId?: string): Promise<boolean> => {
-  try {
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        toast.error("You must be logged in to accept an invitation");
-        return false;
+    console.log("Creating invitation via edge function...");
+    
+    const { data, error } = await supabase.functions.invoke('send-invitation', {
+      body: {
+        companyId,
+        email,
+        role
       }
-      
-      userId = user.id;
-    }
-
-    const { data, error } = await supabase.rpc("accept_invitation", {
-      p_token: token,
-      p_user_id: userId
     });
 
     if (error) {
       throw error;
     }
 
-    toast.success("Invitation accepted successfully");
+    console.log("Invitation created successfully:", data);
     return true;
   } catch (error) {
+    console.error("Error creating invitation:", error);
     handleError(error, {
-      fallbackMessage: "Failed to accept invitation"
-    });
-    return false;
-  }
-};
-
-export const cancelInvitation = async (invitationId: string): Promise<boolean> => {
-  try {
-    const { error } = await supabase
-      .from("company_invitations")
-      .update({ status: 'rejected' })
-      .eq("id", invitationId);
-
-    if (error) {
-      throw error;
-    }
-
-    toast.success("Invitation canceled successfully");
-    return true;
-  } catch (error) {
-    handleError(error, {
-      fallbackMessage: "Failed to cancel invitation"
+      fallbackMessage: "Failed to send invitation"
     });
     return false;
   }
@@ -133,51 +80,22 @@ export const cancelInvitation = async (invitationId: string): Promise<boolean> =
 
 export const resendInvitation = async (invitationId: string): Promise<boolean> => {
   try {
-    // Get the invitation details
-    const { data: invitation, error: fetchError } = await supabase
-      .from("company_invitations")
-      .select("*")
-      .eq("id", invitationId)
-      .single();
-
-    if (fetchError || !invitation) {
-      throw fetchError || new Error("Invitation not found");
-    }
-
-    // Update the expiration date (7 days from now)
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    const { error: updateError } = await supabase
-      .from("company_invitations")
-      .update({ 
-        expires_at: expiresAt.toISOString(),
-        created_at: new Date().toISOString(),
-        status: 'pending'
-      })
-      .eq("id", invitationId);
-
-    if (updateError) {
-      throw updateError;
-    }
-
-    // Trigger the Edge Function to send the email
-    const { data, error: functionError } = await supabase.functions.invoke('send-invitation', {
-      body: { 
-        invitationId,
-        email: invitation.email,
-        companyId: invitation.company_id,
-        role: invitation.role
+    console.log("Resending invitation via edge function...");
+    
+    const { data, error } = await supabase.functions.invoke('send-invitation', {
+      body: {
+        invitationId
       }
     });
 
-    if (functionError) {
-      throw functionError;
+    if (error) {
+      throw error;
     }
 
-    toast.success("Invitation resent successfully");
+    console.log("Invitation resent successfully:", data);
     return true;
   } catch (error) {
+    console.error("Error resending invitation:", error);
     handleError(error, {
       fallbackMessage: "Failed to resend invitation"
     });
@@ -185,4 +103,43 @@ export const resendInvitation = async (invitationId: string): Promise<boolean> =
   }
 };
 
-// Remove the inviteTeamMember function to avoid circular dependency
+export const deleteInvitation = async (invitationId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from("company_invitations")
+      .delete()
+      .eq("id", invitationId);
+
+    if (error) {
+      throw error;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error deleting invitation:", error);
+    handleError(error, {
+      fallbackMessage: "Failed to delete invitation"
+    });
+    return false;
+  }
+};
+
+export const acceptInvitation = async (token: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.rpc('accept_invitation', {
+      invitation_token: token
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error accepting invitation:", error);
+    handleError(error, {
+      fallbackMessage: "Failed to accept invitation"
+    });
+    return false;
+  }
+};
