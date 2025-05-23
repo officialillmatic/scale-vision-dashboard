@@ -32,6 +32,7 @@ export const useRole = () => {
     
     // Use the userRole from AuthContext 
     if (!userRole) {
+      console.log("No userRole found, returning false");
       return false;
     }
     
@@ -72,7 +73,7 @@ export const useRole = () => {
     inviteUsers: isCompanyOwner || checkRole('admin'),
     removeUsers: isCompanyOwner || checkRole('admin'),
     
-    // Invitations (simplified from the previous redundant definition)
+    // Invitations
     sendInvitations: isCompanyOwner || checkRole('admin')
   }), [isCompanyOwner, checkRole, user, userRole, isCompanyLoading]);
 

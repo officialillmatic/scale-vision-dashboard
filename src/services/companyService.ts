@@ -15,22 +15,33 @@ export interface Company {
 
 export const fetchCompany = async (): Promise<Company | null> => {
   try {
+    console.log("Fetching company data...");
+    
+    // First, check if the current user session is valid
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !sessionData.session) {
+      console.error("No valid session found:", sessionError);
+      return null;
+    }
+    
     // First try to get a company where user is the owner
     const { data: ownedCompany, error: ownedCompanyError } = await supabase
       .from("companies")
       .select("*")
       .maybeSingle();
     
+    if (ownedCompanyError) {
+      console.error("Error fetching owned company:", ownedCompanyError);
+    }
+    
     if (ownedCompany) {
+      console.log("Found company where user is owner:", ownedCompany);
       return {
         ...ownedCompany,
         created_at: new Date(ownedCompany.created_at),
         updated_at: new Date(ownedCompany.updated_at)
       };
-    }
-    
-    if (ownedCompanyError) {
-      console.error("Error fetching owned company:", ownedCompanyError);
     }
     
     // If user is not a company owner, check if they're a member of any company
@@ -55,12 +66,16 @@ export const fetchCompany = async (): Promise<Company | null> => {
     }
       
     if (membershipData?.companies) {
+      console.log("Found company where user is a member:", membershipData);
       // Handle the companies data which may be returned as an object or array
       const companyDetails = Array.isArray(membershipData.companies) 
         ? membershipData.companies[0] // Take the first item if it's an array
         : membershipData.companies;   // Use as is if it's already an object
       
-      if (!companyDetails) return null;
+      if (!companyDetails) {
+        console.log("No company details found in membership data");
+        return null;
+      }
       
       return {
         id: companyDetails.id,
@@ -72,6 +87,7 @@ export const fetchCompany = async (): Promise<Company | null> => {
       };
     }
 
+    console.log("No company found for user");
     // No company found - this is not an error, just return null
     return null;
   } catch (error) {

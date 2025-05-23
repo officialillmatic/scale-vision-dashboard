@@ -35,28 +35,50 @@ export function useCompanyData(user: User | null) {
       const companyData = await fetchCompany();
       
       if (companyData) {
+        console.log("Company data loaded:", companyData);
         setCompany(companyData);
-        setIsCompanyOwner(companyData.owner_id === user.id);
+        
+        // Check if user is company owner (always has admin privileges)
+        const isOwner = companyData.owner_id === user.id;
+        setIsCompanyOwner(isOwner);
         
         try {
           // Always fetch company members to determine user role
           const members = await fetchCompanyMembers(companyData.id);
-          setCompanyMembers(members || []);
           
-          // Determine user's role
-          if (companyData.owner_id === user.id) {
-            setUserRole('admin'); // Company owner is always admin
+          if (Array.isArray(members)) {
+            console.log("Company members loaded:", members);
+            setCompanyMembers(members || []);
+            
+            // Determine user's role
+            if (isOwner) {
+              setUserRole('admin'); // Company owner is always admin
+              console.log("User is company owner, setting role to admin");
+            } else {
+              const userMember = members?.find(member => member.user_id === user.id);
+              if (userMember) {
+                console.log("Found user membership:", userMember);
+                setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
+              } else {
+                console.log("User is not a company member");
+                setUserRole(null);
+              }
+            }
           } else {
-            const userMember = members?.find(member => member.user_id === user.id);
-            if (userMember) {
-              setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
+            console.error("Expected members to be an array but got:", members);
+            setCompanyMembers([]);
+            
+            // Still set owner as admin even if member fetch fails
+            if (isOwner) {
+              setUserRole('admin');
             } else {
               setUserRole(null);
             }
           }
         } catch (membersError) {
           console.error("Error fetching company members:", membersError);
-          if (companyData.owner_id === user.id) {
+          // If members fetch fails but user is owner, still grant admin role
+          if (isOwner) {
             setUserRole('admin');
           } else {
             // If members fetch fails, don't assume any role
@@ -70,6 +92,7 @@ export function useCompanyData(user: User | null) {
           const userName = user.user_metadata?.name || user.email?.split('@')[0] || "New User";
           const defaultCompanyName = `${userName}'s Organization`;
           
+          console.log("No company found, creating default company:", defaultCompanyName);
           const newCompany = await createCompany(defaultCompanyName);
           
           if (newCompany) {
@@ -114,6 +137,7 @@ export function useCompanyData(user: User | null) {
   const refreshCompany = async () => {
     if (!user) return;
     
+    console.log("Refreshing company data...");
     setIsCompanyLoading(true);
     try {
       const companyData = await fetchCompany();
@@ -124,18 +148,30 @@ export function useCompanyData(user: User | null) {
         
         // Refresh company members
         const members = await fetchCompanyMembers(companyData.id);
-        setCompanyMembers(members || []);
         
-        // Update user role
-        if (companyData.owner_id === user.id) {
-          setUserRole('admin');
+        if (Array.isArray(members)) {
+          setCompanyMembers(members || []);
+          
+          // Update user role
+          if (companyData.owner_id === user.id) {
+            setUserRole('admin');
+          } else {
+            const userMember = members?.find(member => member.user_id === user.id);
+            if (userMember) {
+              setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
+            } else {
+              setUserRole(null);
+            }
+          }
         } else {
-          const userMember = members?.find(member => member.user_id === user.id);
-          if (userMember) {
-            setUserRole(userMember.role as 'admin' | 'member' | 'viewer');
+          console.error("Expected members to be an array but got:", members);
+          // Handle as if no members were found
+          if (companyData.owner_id === user.id) {
+            setUserRole('admin');
           } else {
             setUserRole(null);
           }
+          setCompanyMembers([]);
         }
       } else {
         // Company no longer exists, clear data
@@ -155,6 +191,7 @@ export function useCompanyData(user: User | null) {
   // Load company data whenever user changes
   useEffect(() => {
     if (user) {
+      console.log("User changed, loading company data...");
       loadCompanyData();
     } else {
       setCompany(null);

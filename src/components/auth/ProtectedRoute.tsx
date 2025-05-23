@@ -18,12 +18,12 @@ export const ProtectedRoute = ({
   requiredAction,
   adminOnly = false
 }: ProtectedRouteProps) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isCompanyLoading } = useAuth();
   const location = useLocation();
   const { checkRole, can, isCompanyOwner } = useRole();
   
   // Check if loading
-  if (isLoading) {
+  if (isLoading || isCompanyLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-purple"></div>
@@ -36,8 +36,13 @@ export const ProtectedRoute = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
+  // Company owner always has all permissions
+  if (isCompanyOwner) {
+    return <>{children}</>;
+  }
+  
   // Admin-only check - this takes precedence
-  if (adminOnly && !isCompanyOwner && !checkRole('admin')) {
+  if (adminOnly && !checkRole('admin')) {
     useEffect(() => {
       toast.error("This area requires administrator permissions");
     }, []);
