@@ -1,55 +1,18 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// Improved CORS headers
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Max-Age": "86400",
-};
-
-interface InvitationRequest {
-  email: string;
-  companyId: string;
-  role: string;
-  invitationId?: string;
-}
-
-// Helper function to handle CORS preflight requests
-function handleCors(req: Request): Response | null {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-  return null;
-}
-
-// Helper function to create standardized error responses
-function createErrorResponse(message: string, status: number = 400, details?: any): Response {
-  console.error(`Error: ${message}`, details);
-  return new Response(
-    JSON.stringify({
-      error: message,
-      details: details || {}
-    }),
-    {
-      status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    }
-  );
-}
-
-// Helper function to create standardized success responses
-function createSuccessResponse(data: any, status: number = 200): Response {
-  return new Response(
-    JSON.stringify(data),
-    {
-      status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    }
-  );
-}
+import { handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
+import { InvitationRequest } from "./types.ts";
+import { validateInvitationRequest } from "./validation.ts";
+import { getCurrentUserId } from "./auth.ts";
+import { 
+  getCompanyDetails, 
+  checkExistingInvitation, 
+  createInvitationRecord, 
+  updateInvitationExpiry, 
+  getExistingInvitation 
+} from "./database.ts";
+import { sendInvitationEmail } from "./email.ts";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -57,7 +20,7 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
-    // Create Supabase client with service role key for RLS bypass
+    // Check environment variables
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -75,7 +38,7 @@ serve(async (req) => {
       );
     }
 
-    // Use service role key to bypass RLS for invitation operations
+    // Create Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -83,154 +46,50 @@ serve(async (req) => {
       }
     });
 
-    // Get the authorization header to extract the user token
-    const authHeader = req.headers.get('authorization');
-    let currentUserId = null;
+    // Get current user ID
+    const currentUserId = await getCurrentUserId(req);
 
-    if (authHeader) {
-      try {
-        // Create a client with anon key to validate the user token
-        const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-        const userSupabase = createClient(supabaseUrl, anonKey!, {
-          global: {
-            headers: { authorization: authHeader }
-          }
-        });
-        
-        const { data: userData } = await userSupabase.auth.getUser();
-        if (userData.user) {
-          currentUserId = userData.user.id;
-          console.log("Current user ID:", currentUserId);
-        }
-      } catch (error) {
-        console.error("Error getting current user:", error);
-      }
-    }
-
-    // Parse request body
+    // Parse and validate request
     let requestData: InvitationRequest;
     try {
       requestData = await req.json();
     } catch (e) {
       return createErrorResponse("Invalid JSON payload", 400);
     }
-    
-    const { email, companyId, role, invitationId } = requestData;
 
-    if (!email || !companyId || !role) {
-      console.error("Missing required parameters:", requestData);
-      return createErrorResponse("Missing required parameters", 400);
+    const validation = validateInvitationRequest(requestData);
+    if (!validation.isValid) {
+      return validation.error!;
     }
+
+    const { email, companyId, role, invitationId } = requestData;
 
     console.log("Processing invitation request:", { email, companyId, role, invitationId });
 
-    // Validate role
-    if (!["admin", "member", "viewer"].includes(role)) {
-      return createErrorResponse("Invalid role", 400);
-    }
-
-    // Get company details using service role
-    const { data: company, error: companyError } = await supabase
-      .from("companies")
-      .select("id, name, owner_id")
-      .eq("id", companyId)
-      .single();
-
-    if (companyError || !company) {
-      console.error("Company not found:", companyError);
-      return createErrorResponse("Company not found", 404);
-    }
+    // Get company details
+    const company = await getCompanyDetails(supabase, companyId);
 
     let invitation;
 
-    // If invitationId is provided, get existing invitation details
     if (invitationId) {
-      const { data: existingInvitation, error: invitationError } = await supabase
-        .from("company_invitations")
-        .select("*")
-        .eq("id", invitationId)
-        .single();
-
-      if (invitationError) {
-        console.error("Error fetching invitation:", invitationError);
-        return createErrorResponse("Invitation not found", 404);
-      }
-
-      invitation = existingInvitation;
-
-      // Update expiry date (7 days from now)
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
-
-      // Update invitation using service role
-      const { error: updateError } = await supabase
-        .from("company_invitations")
-        .update({
-          expires_at: expiresAt.toISOString(),
-          status: "pending"
-        })
-        .eq("id", invitationId);
-
-      if (updateError) {
-        console.error("Error updating invitation:", updateError);
-        return createErrorResponse("Failed to update invitation", 500);
-      }
+      // Handle resending existing invitation
+      invitation = await getExistingInvitation(supabase, invitationId);
+      await updateInvitationExpiry(supabase, invitationId);
     } else {
-      // Check if an invitation for this email already exists using service role
-      const { data: existingInvites, error: checkError } = await supabase
-        .from("company_invitations")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("email", email)
-        .eq("status", "pending");
-        
-      if (existingInvites && existingInvites.length > 0) {
-        return createErrorResponse("An invitation for this email already exists", 409);
-      }
-      
-      // Create a new invitation
-      const token = crypto.randomUUID();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
-
-      // Create invitation record using service role and include invited_by
-      const { data: newInvitation, error: createError } = await supabase
-        .from("company_invitations")
-        .insert({
-          company_id: companyId,
-          email,
-          role,
-          token,
-          expires_at: expiresAt.toISOString(),
-          status: "pending",
-          invited_by: currentUserId
-        })
-        .select()
-        .single();
-
-      if (createError) {
-        console.error("Error creating invitation:", createError);
-        
-        // Check if it's a duplicate invitation
-        if (createError.message && createError.message.includes("duplicate key")) {
-          return createErrorResponse("An invitation for this email already exists", 409);
-        }
-        
-        return createErrorResponse("Failed to create invitation", 500);
-      }
-
-      invitation = newInvitation;
+      // Handle creating new invitation
+      await checkExistingInvitation(supabase, companyId, email);
+      invitation = await createInvitationRecord(supabase, companyId, email, role, currentUserId);
     }
 
-    // Generate invitation URL - use production URL if available
+    // Generate invitation URL
     const baseUrl = Deno.env.get("PUBLIC_APP_URL") || "https://scale-vision-dashboard-6r-kw-qg-xej-x6-nrr-fd-c-w-s-by-mdam-uzq.vercel.app";
-    const inviteUrl = `${baseUrl}/register?token=${invitation.token}`;
 
-    // Check for test mode to skip actual email sending
+    // Check for test mode
     const testMode = req.headers.get("x-test-mode") === "true";
     
     if (testMode) {
       console.log("Test mode enabled, skipping email sending");
+      const inviteUrl = `${baseUrl}/register?token=${invitation.token}`;
       return createSuccessResponse({ 
         success: true, 
         message: "Test invitation created successfully", 
@@ -238,73 +97,10 @@ serve(async (req) => {
       });
     }
 
+    // Send email
     try {
-      // Send email using Resend API - use the configured domain
-      const fromEmail = "invites@resend.dev"; // Default Resend domain for testing
-      
-      const response = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${resendApiKey}`
-        },
-        body: JSON.stringify({
-          from: fromEmail,
-          to: email,
-          subject: `You've been invited to join ${company.name} on Dr. Scale`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="text-align: center; margin-bottom: 30px;">
-                <h1 style="color: #6366F1; margin: 0;">Dr. Scale</h1>
-                <p style="color: #666; margin: 5px 0 0 0;">AI Sales Call Analysis Platform</p>
-              </div>
-              
-              <h2 style="color: #333;">You've been invited to join ${company.name}</h2>
-              <p style="color: #555; line-height: 1.6;">You've been invited to join <strong>${company.name}</strong> as a <strong>${role}</strong> on Dr. Scale, the AI sales call analysis platform.</p>
-              
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${inviteUrl}" style="background-color: #6366F1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                  Accept Invitation
-                </a>
-              </div>
-              
-              <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                <p style="margin: 0; color: #666; font-size: 14px;"><strong>Note:</strong> This invitation will expire in 7 days.</p>
-              </div>
-              
-              <p style="color: #666; font-size: 14px;">If you have trouble with the button above, copy and paste this URL into your browser:</p>
-              <p style="word-break: break-all; font-size: 12px; color: #888; background-color: #f5f5f5; padding: 10px; border-radius: 4px;">${inviteUrl}</p>
-              
-              <hr style="margin: 30px 0; border: none; border-top: 1px solid #eaeaea;" />
-              <p style="font-size: 12px; color: #999; text-align: center;">
-                If you didn't expect this invitation, you can safely ignore this email.<br>
-                This email was sent by Dr. Scale on behalf of ${company.name}.
-              </p>
-            </div>
-          `
-        })
-      });
+      await sendInvitationEmail(email, company, invitation, baseUrl, resendApiKey);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Failed to send email:", errorData);
-        
-        // Handle domain verification errors with specific message
-        if (errorData?.message?.includes("domain is not verified")) {
-          return createErrorResponse(
-            "Email service domain not verified. Please complete domain verification in Resend.", 
-            503, 
-            { hint: "Check Resend dashboard to verify the domain." }
-          );
-        }
-        
-        return createErrorResponse("Failed to send invitation email", 500);
-      }
-
-      const emailData = await response.json();
-      console.log("Email sent successfully:", emailData);
-
-      // Return success response
       return createSuccessResponse({ 
         success: true, 
         message: "Invitation sent successfully",
