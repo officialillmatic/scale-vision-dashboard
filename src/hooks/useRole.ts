@@ -19,14 +19,14 @@ export const useRole = () => {
   const checkRole = (role: Role): boolean => {
     if (!user) return false;
     
+    // Company owners always have admin privileges
+    if (isCompanyOwner) return true;
+    
     // During development, assume viewer rights if no company data is loaded yet
     if (!company) {
       console.warn('No company data loaded, default access controls applied');
       return role === 'viewer'; // More restrictive default - only allow viewer access
     }
-    
-    // Company owners always have admin privileges
-    if (isCompanyOwner) return true;
     
     // Use the userRole from AuthContext 
     if (!userRole) {
@@ -63,6 +63,7 @@ export const useRole = () => {
     // Billing management - restricted to admins only
     manageBalances: isCompanyOwner || checkRole('admin'),
     viewBalance: true, // All users can view their own balance
+    accessBillingSettings: isCompanyOwner || checkRole('admin'),
     
     // Settings
     editSettings: isCompanyOwner || checkRole('admin'),

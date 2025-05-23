@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { AppearanceSettings } from '@/components/settings/AppearanceSettings';
@@ -10,11 +10,21 @@ import { BillingSettings } from '@/components/settings/BillingSettings';
 import { useRole } from '@/hooks/useRole';
 import { RoleCheck } from '@/components/auth/RoleCheck';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('company');
-  const { isCompanyOwner, checkRole, can } = useRole();
+  const { can, isCompanyOwner, checkRole } = useRole();
   const isAdmin = isCompanyOwner || checkRole('admin');
+  const navigate = useNavigate();
+  
+  // Prevent accessing the billing tab if not an admin
+  useEffect(() => {
+    if (activeTab === 'billing' && !can.accessBillingSettings) {
+      toast.error('You need administrator permissions to access billing settings');
+      setActiveTab('company');
+    }
+  }, [activeTab, can.accessBillingSettings]);
   
   const handleTabChange = (value: string) => {
     if (value === 'billing' && !isAdmin) {

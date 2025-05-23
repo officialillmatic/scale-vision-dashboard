@@ -40,18 +40,22 @@ export async function getUserCompany(supabaseClient: any, userId: string) {
     .maybeSingle();
   
   if (company) {
-    return { companyId: company.id };
+    return { companyId: company.id, isOwner: true };
   } 
 
   // Check if user is a member of a company
   const { data: membership, error: membershipError } = await supabaseClient
     .from("company_members")
-    .select("company_id")
+    .select("company_id, role")
     .eq("user_id", userId)
     .maybeSingle();
   
   if (membership) {
-    return { companyId: membership.company_id };
+    return { 
+      companyId: membership.company_id, 
+      isOwner: false,
+      role: membership.role 
+    };
   }
 
   return { error: createErrorResponse('No company found for user', 400) };
@@ -69,4 +73,33 @@ export async function checkCompanyAccess(supabaseClient: any, companyId: string,
   }
 
   return { hasAccess: true };
+}
+
+// Check if user is admin for the company
+export async function checkAdminAccess(supabaseClient: any, companyId: string, userId: string) {
+  // First check if user is owner
+  const { data: isOwner, error: ownerError } = await supabaseClient.rpc(
+    "is_company_owner",
+    { company_id: companyId }
+  );
+  
+  if (isOwner) {
+    return { hasAdminAccess: true, isOwner: true };
+  }
+  
+  // Then check if user is admin
+  const { data: isAdmin, error: adminError } = await supabaseClient.rpc(
+    "is_admin_of_company",
+    { company_id: companyId }
+  );
+  
+  if (adminError) {
+    return { error: createErrorResponse('Error checking admin status', 500) };
+  }
+  
+  if (!isAdmin) {
+    return { error: createErrorResponse('User does not have admin access to this company', 403) };
+  }
+
+  return { hasAdminAccess: true, isOwner: false };
 }

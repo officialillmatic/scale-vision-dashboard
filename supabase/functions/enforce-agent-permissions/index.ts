@@ -35,19 +35,19 @@ serve(async (req) => {
     const { data: body } = await req.json();
     const { action, companyId, agentId, userId } = body;
     
-    // Check if user is admin for the company
-    const { data: isAdmin } = await supabase.rpc(
-      'is_admin_of_company',
-      { company_id: companyId }
-    );
-    
     // Check if user is company owner (always has admin rights)
     const { data: isOwner } = await supabase.rpc(
       'is_company_owner',
       { company_id: companyId }
     );
     
-    const hasAdminRights = isAdmin || isOwner;
+    // Check if user is admin for the company
+    const { data: isAdmin } = await supabase.rpc(
+      'is_admin_of_company',
+      { company_id: companyId }
+    );
+    
+    const hasAdminRights = isOwner || isAdmin;
     
     // If not admin, check if user is trying to access their own assigned agent
     if (!hasAdminRights && agentId) {

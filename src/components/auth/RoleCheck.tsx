@@ -2,6 +2,7 @@
 import React from 'react';
 import { useRole } from '@/hooks/useRole';
 import { Role } from '@/hooks/useRole';
+import { useAuth } from "@/contexts/AuthContext";
 
 interface RoleCheckProps {
   children: React.ReactNode;

@@ -68,7 +68,7 @@ export const ProtectedRoute = ({
     return <Navigate to="/dashboard" replace />;
   }
   
-  if (location.pathname.includes('/settings/billing') && !can.manageBalances) {
+  if (location.pathname.includes('/settings/billing') && !can.accessBillingSettings) {
     useEffect(() => {
       toast.error("You don't have permission to access billing settings");
     }, []);

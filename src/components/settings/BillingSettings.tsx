@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Separator } from "../ui/separator";
 import { Button } from "../ui/button";
@@ -12,15 +12,14 @@ import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
 type TransactionType = 'deposit' | 'deduction' | 'adjustment';
 
 export const BillingSettings = () => {
   const { user, company } = useAuth();
-  const { isCompanyOwner, checkRole } = useRole();
+  const { isCompanyOwner, checkRole, can } = useRole();
   const isAdmin = isCompanyOwner || checkRole('admin');
   const { members, isLoading: isLoadingMembers } = useTeamMembers(company?.id);
   const queryClient = useQueryClient();
@@ -29,6 +28,7 @@ export const BillingSettings = () => {
   // Redirect non-admin users away from billing settings
   useEffect(() => {
     if (user && !isAdmin) {
+      toast.error("You don't have permission to access billing settings");
       navigate('/settings');
     }
   }, [user, isAdmin, navigate]);
@@ -90,6 +90,12 @@ export const BillingSettings = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Verify admin permission again
+    if (!can.accessBillingSettings) {
+      toast.error("You don't have permission to update balances");
+      return;
+    }
+    
     if (!selectedUserId) {
       toast.error("Please select a user");
       return;
@@ -113,7 +119,7 @@ export const BillingSettings = () => {
         </CardHeader>
         <CardContent>
           <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
+            <ShieldAlert className="h-4 w-4" />
             <AlertDescription>
               Only administrators can access billing settings.
               Please contact your administrator for assistance.
