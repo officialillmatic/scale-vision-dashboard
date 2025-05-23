@@ -84,7 +84,7 @@ export function CompanySettings() {
     setIsUploading(true);
     try {
       // Upload logo to storage bucket
-      const logoUrl = await uploadCompanyLogo(file, company.id);
+      const logoUrl = await uploadCompanyLogo(company.id, file);
       
       if (logoUrl) {
         // Update company record with the new logo URL

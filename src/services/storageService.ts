@@ -168,11 +168,12 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
       throw uploadError;
     }
 
-    const { data } = supabase.storage
+    // Use await to properly handle the promise
+    const result = await supabase.storage
       .from('recordings')
       .createSignedUrl(fileName, 60 * 60 * 24 * 7); // 7 days
-
-    return data?.signedUrl || null;
+      
+    return result.data?.signedUrl || null;
   } catch (error) {
     console.error("Error uploading recording:", error);
     toast.error("Failed to upload recording");
@@ -183,15 +184,15 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
 // Get a signed URL for a recording (private access)
 export const getRecordingUrl = async (filePath: string): Promise<string | null> => {
   try {
-    const { data, error } = await supabase.storage
+    const result = await supabase.storage
       .from('recordings')
       .createSignedUrl(filePath, 60 * 60); // 1 hour
 
-    if (error) {
-      throw error;
+    if (result.error) {
+      throw result.error;
     }
 
-    return data.signedUrl;
+    return result.data.signedUrl;
   } catch (error) {
     console.error("Error getting recording URL:", error);
     return null;

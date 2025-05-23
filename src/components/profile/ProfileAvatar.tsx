@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { uploadUserAvatar } from "@/services/storageService";
+import { uploadAvatar } from "@/services/storageService";
 import { updateUserProfile } from "@/services/userService";
 import { Camera } from "lucide-react";
 
@@ -56,7 +56,7 @@ export function ProfileAvatar() {
     
     try {
       // Upload avatar
-      const avatarUrl = await uploadUserAvatar(file, user.id);
+      const avatarUrl = await uploadAvatar(user.id, file);
       
       if (avatarUrl) {
         // Update user profile with new avatar URL
