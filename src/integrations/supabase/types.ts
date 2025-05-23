@@ -160,6 +160,7 @@ export type Database = {
           email: string
           expires_at: string
           id: string
+          invited_by: string | null
           role: string
           status: string
           token: string
@@ -170,6 +171,7 @@ export type Database = {
           email: string
           expires_at: string
           id?: string
+          invited_by?: string | null
           role: string
           status?: string
           token: string
@@ -180,6 +182,7 @@ export type Database = {
           email?: string
           expires_at?: string
           id?: string
+          invited_by?: string | null
           role?: string
           status?: string
           token?: string

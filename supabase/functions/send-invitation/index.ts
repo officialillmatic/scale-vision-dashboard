@@ -83,6 +83,30 @@ serve(async (req) => {
       }
     });
 
+    // Get the authorization header to extract the user token
+    const authHeader = req.headers.get('authorization');
+    let currentUserId = null;
+
+    if (authHeader) {
+      try {
+        // Create a client with anon key to validate the user token
+        const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+        const userSupabase = createClient(supabaseUrl, anonKey!, {
+          global: {
+            headers: { authorization: authHeader }
+          }
+        });
+        
+        const { data: userData } = await userSupabase.auth.getUser();
+        if (userData.user) {
+          currentUserId = userData.user.id;
+          console.log("Current user ID:", currentUserId);
+        }
+      } catch (error) {
+        console.error("Error getting current user:", error);
+      }
+    }
+
     // Parse request body
     let requestData: InvitationRequest;
     try {
@@ -169,7 +193,7 @@ serve(async (req) => {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      // Create invitation record using service role
+      // Create invitation record using service role and include invited_by
       const { data: newInvitation, error: createError } = await supabase
         .from("company_invitations")
         .insert({
@@ -178,7 +202,8 @@ serve(async (req) => {
           role,
           token,
           expires_at: expiresAt.toISOString(),
-          status: "pending"
+          status: "pending",
+          invited_by: currentUserId
         })
         .select()
         .single();
