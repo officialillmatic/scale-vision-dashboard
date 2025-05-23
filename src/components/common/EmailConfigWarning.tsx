@@ -39,10 +39,10 @@ export function EmailConfigWarning() {
   }
   
   return (
-    <Alert variant="warning" className="mb-4">
-      <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Email Configuration Incomplete</AlertTitle>
-      <AlertDescription>
+    <Alert variant="default" className="mb-4 border-yellow-300 bg-yellow-50">
+      <AlertTriangle className="h-4 w-4 text-yellow-600" />
+      <AlertTitle className="text-yellow-800">Email Configuration Incomplete</AlertTitle>
+      <AlertDescription className="text-yellow-700">
         <p>The email service is not properly configured. Team invitations will not be sent until this is resolved.</p>
         <p className="mt-2 text-sm">
           Please ensure the RESEND_API_KEY is set in your Supabase Edge Function secrets.
