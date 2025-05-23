@@ -11,6 +11,7 @@ export function EmailConfigWarning() {
   useEffect(() => {
     const checkEmailConfig = async () => {
       try {
+        console.log("Checking email configuration...");
         const { data, error } = await supabase.functions.invoke('check-email-config');
         
         if (error) {
@@ -19,6 +20,7 @@ export function EmailConfigWarning() {
           return;
         }
         
+        console.log("Email config response:", data);
         setEmailConfigured(data?.configured === true);
       } catch (err) {
         console.error("Failed to check email configuration:", err);
@@ -31,6 +33,7 @@ export function EmailConfigWarning() {
     checkEmailConfig();
   }, []);
   
+  // Don't show anything while loading or if email is properly configured
   if (isLoading || emailConfigured === null || emailConfigured === true) {
     return null;
   }

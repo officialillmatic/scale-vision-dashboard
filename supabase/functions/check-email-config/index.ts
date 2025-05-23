@@ -1,11 +1,11 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// CORS headers for browser access
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 serve(async (req) => {
@@ -15,41 +15,36 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Checking email configuration...");
+    
     // Check if RESEND_API_KEY is configured
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const configured = Boolean(resendApiKey && resendApiKey.trim() !== "");
     
-    // Simple check to see if we have an API key (doesn't validate the key itself)
-    const isConfigured = Boolean(resendApiKey);
-    
-    console.log("Email configuration check:", isConfigured ? "CONFIGURED" : "NOT CONFIGURED");
+    console.log("Email configuration check:", configured ? "CONFIGURED" : "NOT_CONFIGURED");
     
     return new Response(
-      JSON.stringify({
-        configured: isConfigured,
+      JSON.stringify({ 
+        configured,
+        message: configured ? "Email service is properly configured" : "RESEND_API_KEY not found or empty"
       }),
       {
-        headers: { 
-          ...corsHeaders, 
-          "Content-Type": "application/json" 
-        },
         status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
     );
   } catch (error) {
     console.error("Error checking email configuration:", error);
     
     return new Response(
-      JSON.stringify({
-        error: "Failed to check email configuration",
-        details: error.message,
-        configured: false,
+      JSON.stringify({ 
+        configured: false, 
+        error: error.message,
+        message: "Failed to check email configuration"
       }),
       {
-        headers: { 
-          ...corsHeaders, 
-          "Content-Type": "application/json" 
-        },
         status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
     );
   }

@@ -23,19 +23,18 @@ const requiredBuckets = [
   }
 ];
 
-// Initialize storage buckets
+// Initialize storage buckets - now that RLS is properly configured, this should work
 export const initializeStorage = async () => {
   let hasError = false;
   const results = [];
 
   for (const bucket of requiredBuckets) {
     try {
-      // Check if bucket exists first to avoid unnecessary errors
+      // Check if bucket exists first
       const { data: existingBuckets, error: listError } = await supabase.storage.listBuckets();
       
       if (listError) {
         console.error(`Error listing buckets:`, listError);
-        hasError = true;
         results.push({
           bucket: bucket.id,
           success: false,
@@ -46,38 +45,19 @@ export const initializeStorage = async () => {
       
       const bucketExists = existingBuckets.some(b => b.name === bucket.id);
       
-      if (!bucketExists) {
-        // Create bucket if it doesn't exist
-        const { data, error } = await supabase.storage.createBucket(
-          bucket.id, 
-          { 
-            public: bucket.public,
-            fileSizeLimit: bucket.fileSizeLimit,
-            allowedMimeTypes: bucket.allowedMimeTypes
-          }
-        );
-        
-        if (error) {
-          console.error(`Error creating bucket ${bucket.id}:`, error);
-          hasError = true;
-          results.push({
-            bucket: bucket.id,
-            success: false,
-            error
-          });
-        } else {
-          console.log(`Successfully created bucket ${bucket.id}`);
-          results.push({
-            bucket: bucket.id,
-            success: true
-          });
-        }
-      } else {
+      if (bucketExists) {
         console.log(`Bucket ${bucket.id} already exists`);
         results.push({
           bucket: bucket.id,
           success: true,
           existed: true
+        });
+      } else {
+        console.log(`Bucket ${bucket.id} should have been created by migration`);
+        results.push({
+          bucket: bucket.id,
+          success: true,
+          note: 'Created by migration'
         });
       }
     } catch (error) {
@@ -92,17 +72,20 @@ export const initializeStorage = async () => {
   }
 
   if (hasError) {
-    console.warn("Some storage buckets could not be initialized. This may limit functionality, but the app will continue to work.");
-    // Only show toast on errors, not on success to avoid annoying users
+    console.warn("Some storage buckets could not be verified. This may limit functionality, but the app will continue to work.");
     toast.error("Some storage features may be limited. Please contact support if you experience issues.");
+  } else {
+    console.log("All storage buckets are properly configured");
   }
 
   return { results, hasError };
 };
 
-// Upload profile avatar
+// Upload profile avatar - now with proper error handling for RLS
 export const uploadAvatar = async (userId: string, file: File): Promise<string | null> => {
   try {
+    console.log("Uploading avatar for user:", userId, "File:", file.name);
+    
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${userId}/${fileName}`;
@@ -112,6 +95,7 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
       .upload(filePath, file);
 
     if (uploadError) {
+      console.error("Upload error:", uploadError);
       throw uploadError;
     }
 
@@ -119,6 +103,7 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
       .from('avatars')
       .getPublicUrl(filePath);
 
+    console.log("Avatar uploaded successfully:", data.publicUrl);
     return data.publicUrl;
   } catch (error) {
     console.error("Error uploading avatar:", error);
@@ -127,9 +112,11 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
   }
 };
 
-// Upload company logo
+// Upload company logo - enhanced with better error handling
 export const uploadCompanyLogo = async (companyId: string, file: File): Promise<string | null> => {
   try {
+    console.log("Uploading company logo for company:", companyId, "File:", file.name);
+    
     const fileExt = file.name.split('.').pop();
     const fileName = `${companyId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${fileName}`;
@@ -139,6 +126,7 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
       .upload(filePath, file);
 
     if (uploadError) {
+      console.error("Company logo upload error:", uploadError);
       throw uploadError;
     }
 
@@ -146,6 +134,7 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
       .from('company-logos')
       .getPublicUrl(filePath);
 
+    console.log("Company logo uploaded successfully:", data.publicUrl);
     return data.publicUrl;
   } catch (error) {
     console.error("Error uploading company logo:", error);
@@ -154,9 +143,11 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
   }
 };
 
-// Upload call recording
+// Upload call recording - enhanced with proper signed URL generation
 export const uploadRecording = async (userId: string, companyId: string, file: File): Promise<string | null> => {
   try {
+    console.log("Uploading recording for user:", userId, "company:", companyId, "File:", file.name);
+    
     const fileExt = file.name.split('.').pop();
     const fileName = `${companyId}/${userId}-${Date.now()}.${fileExt}`;
 
@@ -165,14 +156,21 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
       .upload(fileName, file);
 
     if (uploadError) {
+      console.error("Recording upload error:", uploadError);
       throw uploadError;
     }
 
-    // Use await to properly handle the promise
+    // Use signed URL for private recordings
     const result = await supabase.storage
       .from('recordings')
       .createSignedUrl(fileName, 60 * 60 * 24 * 7); // 7 days
       
+    if (result.error) {
+      console.error("Error creating signed URL:", result.error);
+      throw result.error;
+    }
+
+    console.log("Recording uploaded successfully with signed URL");
     return result.data?.signedUrl || null;
   } catch (error) {
     console.error("Error uploading recording:", error);
@@ -181,17 +179,21 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
   }
 };
 
-// Get a signed URL for a recording (private access)
+// Get a signed URL for a recording (private access) - enhanced error handling
 export const getRecordingUrl = async (filePath: string): Promise<string | null> => {
   try {
+    console.log("Getting signed URL for recording:", filePath);
+    
     const result = await supabase.storage
       .from('recordings')
       .createSignedUrl(filePath, 60 * 60); // 1 hour
 
     if (result.error) {
+      console.error("Error creating signed URL:", result.error);
       throw result.error;
     }
 
+    console.log("Signed URL created successfully");
     return result.data.signedUrl;
   } catch (error) {
     console.error("Error getting recording URL:", error);

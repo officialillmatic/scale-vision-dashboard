@@ -57,7 +57,7 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
-    // Create Supabase client with service role key
+    // Create Supabase client with service role key for RLS bypass
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -75,7 +75,13 @@ serve(async (req) => {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // Use service role key to bypass RLS for invitation operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
 
     // Parse request body
     let requestData: InvitationRequest;
@@ -99,7 +105,7 @@ serve(async (req) => {
       return createErrorResponse("Invalid role", 400);
     }
 
-    // Get company details
+    // Get company details using service role
     const { data: company, error: companyError } = await supabase
       .from("companies")
       .select("id, name, owner_id")
@@ -132,7 +138,7 @@ serve(async (req) => {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      // Update invitation
+      // Update invitation using service role
       const { error: updateError } = await supabase
         .from("company_invitations")
         .update({
@@ -146,7 +152,7 @@ serve(async (req) => {
         return createErrorResponse("Failed to update invitation", 500);
       }
     } else {
-      // Check if an invitation for this email already exists
+      // Check if an invitation for this email already exists using service role
       const { data: existingInvites, error: checkError } = await supabase
         .from("company_invitations")
         .select("id")
@@ -159,12 +165,11 @@ serve(async (req) => {
       }
       
       // Create a new invitation
-      // Generate a token and expiration date (7 days from now)
       const token = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      // Create invitation record
+      // Create invitation record using service role
       const { data: newInvitation, error: createError } = await supabase
         .from("company_invitations")
         .insert({
@@ -192,8 +197,8 @@ serve(async (req) => {
       invitation = newInvitation;
     }
 
-    // Generate invitation URL
-    const baseUrl = Deno.env.get("PUBLIC_APP_URL") || "https://app.drscale.ai";
+    // Generate invitation URL - use production URL if available
+    const baseUrl = Deno.env.get("PUBLIC_APP_URL") || "https://scale-vision-dashboard-6r-kw-qg-xej-x6-nrr-fd-c-w-s-by-mdam-uzq.vercel.app";
     const inviteUrl = `${baseUrl}/register?token=${invitation.token}`;
 
     // Check for test mode to skip actual email sending
@@ -209,8 +214,8 @@ serve(async (req) => {
     }
 
     try {
-      // Send email using Resend API - use onboarding email during development
-      const fromEmail = "invites@resend.dev"; // Using Resend default domain during development
+      // Send email using Resend API - use the configured domain
+      const fromEmail = "invites@resend.dev"; // Default Resend domain for testing
       
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -223,21 +228,32 @@ serve(async (req) => {
           to: email,
           subject: `You've been invited to join ${company.name} on Dr. Scale`,
           html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>You've been invited to join ${company.name}</h2>
-              <p>You've been invited to join ${company.name} as a ${role} on Dr. Scale, the AI sales call analysis platform.</p>
-              <p>Click the button below to accept the invitation and create your account:</p>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #6366F1; margin: 0;">Dr. Scale</h1>
+                <p style="color: #666; margin: 5px 0 0 0;">AI Sales Call Analysis Platform</p>
+              </div>
+              
+              <h2 style="color: #333;">You've been invited to join ${company.name}</h2>
+              <p style="color: #555; line-height: 1.6;">You've been invited to join <strong>${company.name}</strong> as a <strong>${role}</strong> on Dr. Scale, the AI sales call analysis platform.</p>
+              
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${inviteUrl}" style="background-color: #6366F1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+                <a href="${inviteUrl}" style="background-color: #6366F1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                   Accept Invitation
                 </a>
               </div>
-              <p>This invitation will expire in 7 days.</p>
-              <p>If you have trouble with the button above, copy and paste this URL into your browser:</p>
-              <p style="word-break: break-all; font-size: 14px; color: #666;">${inviteUrl}</p>
+              
+              <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <p style="margin: 0; color: #666; font-size: 14px;"><strong>Note:</strong> This invitation will expire in 7 days.</p>
+              </div>
+              
+              <p style="color: #666; font-size: 14px;">If you have trouble with the button above, copy and paste this URL into your browser:</p>
+              <p style="word-break: break-all; font-size: 12px; color: #888; background-color: #f5f5f5; padding: 10px; border-radius: 4px;">${inviteUrl}</p>
+              
               <hr style="margin: 30px 0; border: none; border-top: 1px solid #eaeaea;" />
               <p style="font-size: 12px; color: #999; text-align: center;">
-                If you didn't expect this invitation, you can safely ignore this email.
+                If you didn't expect this invitation, you can safely ignore this email.<br>
+                This email was sent by Dr. Scale on behalf of ${company.name}.
               </p>
             </div>
           `
