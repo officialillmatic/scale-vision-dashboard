@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
-import { checkInvitation, acceptInvitation } from "@/services/invitationService";
+import { checkInvitation, acceptInvitation } from "@/services/invitation";
 import { RegisterFormHeader } from "./components/RegisterFormHeader";
 import { RegisterFormFields, registerSchema, RegisterFormValues } from "./components/RegisterFormFields";
 import { RegisterFormButtons } from "./components/RegisterFormButtons";

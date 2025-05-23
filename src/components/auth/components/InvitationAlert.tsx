@@ -1,6 +1,5 @@
-
 import React from "react";
-import { InvitationCheckResult } from "@/services/invitationService";
+import { InvitationCheckResult } from "@/services/invitation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitationService";
+import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitation";
 import { handleError } from "@/lib/errorHandling";
 import { fetchCompanyMembers, CompanyMember, inviteTeamMember } from "@/services/memberService";
 

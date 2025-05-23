@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchCompanyInvitations, cancelInvitation, resendInvitation } from '@/services/invitationService';
+import { fetchCompanyInvitations, cancelInvitation, resendInvitation } from '@/services/invitation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
