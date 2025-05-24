@@ -96,7 +96,7 @@ export const useCompanyData = (user: User | null) => {
           
           // Set user role if this is the current user
           if (member.user_id === userId) {
-            setUserRole(member.role);
+            setUserRole(member.role as 'admin' | 'member' | 'viewer');
           }
         }
       }

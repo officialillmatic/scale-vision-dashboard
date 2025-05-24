@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Company } from "@/types/auth";
 import { handleError } from "@/lib/errorHandling";
@@ -12,14 +11,16 @@ export interface CompanyMember {
   created_at: Date;
   updated_at: Date;
   user_details?: {
+    id: string;
     email: string;
     name?: string;
+    avatar_url?: string;
   };
 }
 
 export const fetchCompany = async (userId: string): Promise<Company | null> => {
   try {
-    console.log("Fetching company data...");
+    console.log("Fetching company data for user:", userId);
     
     // First try to get a company where the user is the owner
     const { data: ownedCompany, error: ownedError } = await supabase
@@ -42,7 +43,7 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
       .from("company_members")
       .select(`
         company_id,
-        companies!inner (
+        companies (
           id,
           name,
           owner_id,
@@ -60,8 +61,7 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
 
     if (membership && membership.companies) {
       console.log("Found member company:", membership.companies);
-      // Cast the companies object to Company type since we know its structure
-      return membership.companies as unknown as Company;
+      return membership.companies as Company;
     }
 
     console.log("No company found for user");
