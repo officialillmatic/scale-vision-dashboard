@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Company } from "@/types/auth";
 import { handleError } from "@/lib/errorHandling";
@@ -27,6 +28,7 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
       .from("companies")
       .select("*")
       .eq("owner_id", userId)
+      .limit(1)
       .maybeSingle();
 
     if (ownedError) {
@@ -43,7 +45,7 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
       .from("company_members")
       .select(`
         company_id,
-        companies (
+        companies!inner (
           id,
           name,
           owner_id,
@@ -52,6 +54,7 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
       `)
       .eq("user_id", userId)
       .eq("status", "active")
+      .limit(1)
       .maybeSingle();
 
     if (memberError) {
@@ -61,6 +64,7 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
 
     if (membership && membership.companies) {
       console.log("Found member company:", membership.companies);
+      // Since we're using inner join, companies will be a single object, not an array
       return membership.companies as Company;
     }
 
