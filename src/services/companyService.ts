@@ -1,4 +1,5 @@
 
+
 import { supabase } from "@/integrations/supabase/client";
 import { Company } from "@/types/auth";
 import { handleError } from "@/lib/errorHandling";
@@ -43,15 +44,7 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
     // If no owned company, check if user is a member of a company
     const { data: membership, error: memberError } = await supabase
       .from("company_members")
-      .select(`
-        company_id,
-        companies!inner (
-          id,
-          name,
-          owner_id,
-          logo_url
-        )
-      `)
+      .select("company_id")
       .eq("user_id", userId)
       .eq("status", "active")
       .limit(1)
@@ -62,10 +55,21 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
       return null;
     }
 
-    if (membership && membership.companies) {
-      console.log("Found member company:", membership.companies);
-      // Since we're using inner join, companies will be a single object, not an array
-      return membership.companies as Company;
+    if (membership?.company_id) {
+      // Now fetch the actual company data
+      const { data: memberCompany, error: companyError } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("id", membership.company_id)
+        .single();
+
+      if (companyError) {
+        console.error("Error fetching member company details:", companyError);
+        return null;
+      }
+
+      console.log("Found member company:", memberCompany);
+      return memberCompany;
     }
 
     console.log("No company found for user");
