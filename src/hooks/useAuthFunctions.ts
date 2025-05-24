@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,15 +35,6 @@ export const useAuthFunctions = () => {
         }
       });
       if (error) throw error;
-
-      // Create a user profile
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert([
-          { id: data.user?.id, email: data.user?.email, ...options?.metadata }
-        ]);
-
-      if (profileError) throw profileError;
 
       toast.success('Successfully signed up!');
       navigate("/dashboard");
