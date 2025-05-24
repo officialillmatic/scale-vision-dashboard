@@ -1,6 +1,7 @@
 
 import { useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSuperAdmin } from './useSuperAdmin';
 
 export type Role = 'admin' | 'member' | 'viewer';
 
@@ -10,6 +11,7 @@ export type Role = 'admin' | 'member' | 'viewer';
  */
 export const useRole = () => {
   const { company, user, companyMembers, userRole, isCompanyOwner, isCompanyLoading } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
 
   /**
    * Check if a user has a specific role or higher in the role hierarchy
@@ -18,6 +20,9 @@ export const useRole = () => {
    */
   const checkRole = (role: Role): boolean => {
     if (!user) return false;
+    
+    // Super admins always have all privileges
+    if (isSuperAdmin) return true;
     
     // Company owners always have admin privileges
     if (isCompanyOwner) return true;
@@ -50,32 +55,35 @@ export const useRole = () => {
    * This is the central source of truth for all permissions in the app
    */
   const can = useMemo(() => ({
-    // Team and agent management - restricted to admins only
-    manageTeam: isCompanyOwner || checkRole('admin'),
-    manageAgents: isCompanyOwner || checkRole('admin'), 
+    // Team and agent management - restricted to admins only (or super admins)
+    manageTeam: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+    manageAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'), 
     viewAgents: true, // All authenticated users can view their assigned agents
-    createAgents: isCompanyOwner || checkRole('admin'),
-    assignAgents: isCompanyOwner || checkRole('admin'),
-    deleteAgents: isCompanyOwner || checkRole('admin'),
+    createAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+    assignAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+    deleteAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
     // Call management
     viewCalls: true, // Allow all authenticated users to view their own calls
-    uploadCalls: checkRole('member'), // Members and admins can upload calls
+    uploadCalls: isSuperAdmin || checkRole('member'), // Members and admins can upload calls
     
-    // Billing management - restricted to admins only
-    manageBalances: isCompanyOwner || checkRole('admin'),
+    // Billing management - restricted to admins only (or super admins)
+    manageBalances: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     viewBalance: true, // All users can view their own balance
-    accessBillingSettings: isCompanyOwner || checkRole('admin'),
+    accessBillingSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
     // Settings
-    editSettings: isCompanyOwner || checkRole('admin'),
-    uploadCompanyLogo: isCompanyOwner || checkRole('admin'),
-    inviteUsers: isCompanyOwner || checkRole('admin'),
-    removeUsers: isCompanyOwner || checkRole('admin'),
+    editSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+    uploadCompanyLogo: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+    inviteUsers: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+    removeUsers: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
     // Invitations
-    sendInvitations: isCompanyOwner || checkRole('admin')
-  }), [isCompanyOwner, checkRole, user, userRole, isCompanyLoading]);
+    sendInvitations: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+    
+    // Super admin privileges
+    superAdminAccess: isSuperAdmin
+  }), [isSuperAdmin, isCompanyOwner, checkRole, user, userRole, isCompanyLoading]);
 
-  return { isCompanyOwner, checkRole, can };
+  return { isSuperAdmin, isCompanyOwner, checkRole, can };
 };

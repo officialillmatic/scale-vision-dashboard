@@ -1,26 +1,25 @@
-
-import { User } from "@supabase/supabase-js";
+import { Session, User } from "@supabase/supabase-js";
 
 export interface Company {
   id: string;
   name: string;
   owner_id: string;
-  logo_url: string | null;
 }
 
-export type CompanyMember = {
+export interface CompanyMember {
   id: string;
   company_id: string;
   user_id: string;
-  role: 'admin' | 'member' | 'viewer';
-  status: 'active' | 'pending' | 'inactive';
-  created_at: Date;
-  updated_at: Date;
+  role: string;
+  status: string;
+  invited_by: string;
   user_details?: {
+    id: string;
     email: string;
-    name?: string;
+    name: string;
+    avatar_url: string;
   };
-};
+}
 
 export interface AuthContextType {
   user: User | null;
@@ -31,11 +30,15 @@ export interface AuthContextType {
   signUp: (email: string, password: string, options?: { metadata?: any }) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  updatePassword: (updatedPassword: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
   updateUserProfile: (data: { name?: string; avatar_url?: string }) => Promise<void>;
   isCompanyLoading: boolean;
   refreshCompany: () => Promise<void>;
   companyMembers: CompanyMember[];
-  userRole: 'admin' | 'member' | 'viewer' | null;
+  userRole: string | null;
   isCompanyOwner: boolean;
+}
+
+export interface AuthSession {
+  session: Session | null
 }

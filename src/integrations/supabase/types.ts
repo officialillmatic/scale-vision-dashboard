@@ -235,6 +235,30 @@ export type Database = {
           },
         ]
       }
+      super_admins: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
@@ -470,6 +494,10 @@ export type Database = {
       }
       is_member_of_company: {
         Args: { company_id: string }
+        Returns: boolean
+      }
+      is_super_admin: {
+        Args: { check_user_id?: string }
         Returns: boolean
       }
     }
