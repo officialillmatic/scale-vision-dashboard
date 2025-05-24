@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -58,9 +57,9 @@ const App = () => {
     init();
   }, []);
 
-  // Set the document title based on the environment variable
+  // Set the document title to the application name
   useEffect(() => {
-    document.title = import.meta.env.VITE_APP_TITLE || "Dr. Scale";
+    document.title = "Dr. Scale";
   }, []);
 
   // Listen for network status changes
