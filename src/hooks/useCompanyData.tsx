@@ -78,7 +78,7 @@ export const useCompanyData = (user: User | null) => {
         for (const member of members) {
           const { data: userProfile } = await supabase
             .from("user_profiles")
-            .select("email, name")
+            .select("id, email, name, avatar_url")
             .eq("id", member.user_id)
             .maybeSingle();
           
@@ -86,7 +86,12 @@ export const useCompanyData = (user: User | null) => {
             ...member,
             created_at: new Date(member.created_at),
             updated_at: new Date(member.updated_at),
-            user_details: userProfile || undefined
+            user_details: userProfile ? {
+              id: userProfile.id,
+              email: userProfile.email,
+              name: userProfile.name || '',
+              avatar_url: userProfile.avatar_url || ''
+            } : undefined
           });
           
           // Set user role if this is the current user

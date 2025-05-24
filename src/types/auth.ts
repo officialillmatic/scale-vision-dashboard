@@ -1,9 +1,11 @@
+
 import { Session, User } from "@supabase/supabase-js";
 
 export interface Company {
   id: string;
   name: string;
   owner_id: string;
+  logo_url?: string;
 }
 
 export interface CompanyMember {
