@@ -1,7 +1,7 @@
 
 import React from "react";
 import { CardTitle, CardDescription } from "@/components/ui/card";
-import { InvitationCheckResult } from "@/services/invitationService";
+import { InvitationCheckResult } from "@/services/invitation";
 import { InvitationAlert } from "./InvitationAlert";
 
 interface RegisterFormHeaderProps {
