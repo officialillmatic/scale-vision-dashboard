@@ -66,8 +66,20 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
       return { valid: false };
     }
 
-    // Access the first company from the array since it's a join result
+    // Add robust error handling for company data access
+    if (!invitation.companies) {
+      console.warn("Invalid invitation data: missing companies", invitation);
+      return { valid: false };
+    }
+
+    // Safely access the company data from the join result
     const company = Array.isArray(invitation.companies) ? invitation.companies[0] : invitation.companies;
+
+    // Validate company object structure
+    if (!company || typeof company !== 'object' || !company.id || !company.name) {
+      console.warn("Invalid or malformed company data", { company, invitation });
+      return { valid: false };
+    }
 
     return {
       valid: true,
