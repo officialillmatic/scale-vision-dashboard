@@ -46,7 +46,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <GlobalErrorBoundary>
-      <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+      <ThemeProvider storageKey="vite-ui-theme">
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <Toaster />

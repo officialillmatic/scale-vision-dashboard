@@ -9,6 +9,7 @@ export interface CompanyInvitation {
   expires_at: string;
   created_at: string;
   invited_by?: string;
+  company_name?: string;
 }
 
 export interface InvitationCheckResult {
@@ -18,6 +19,7 @@ export interface InvitationCheckResult {
     id: string;
     name: string;
   };
+  error?: string;
 }
 
 export type InvitationRole = 'admin' | 'member' | 'viewer';

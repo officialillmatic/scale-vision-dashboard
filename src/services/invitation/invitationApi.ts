@@ -46,7 +46,7 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
     if (error) {
       console.error("[INVITATION_API] Error checking invitation:", error);
       return {
-        isValid: false,
+        valid: false,
         error: `Database error: ${error.message}`
       };
     }
@@ -54,14 +54,14 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
     if (!data) {
       console.log("[INVITATION_API] Invitation not found or expired");
       return {
-        isValid: false,
+        valid: false,
         error: "Invitation not found or has expired"
       };
     }
 
     console.log("[INVITATION_API] Valid invitation found for company:", data.companies?.name);
     return {
-      isValid: true,
+      valid: true,
       invitation: {
         id: data.id,
         company_id: data.company_id,
@@ -77,7 +77,7 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
   } catch (error) {
     console.error("[INVITATION_API] Unexpected error:", error);
     return {
-      isValid: false,
+      valid: false,
       error: "An unexpected error occurred while checking the invitation"
     };
   }
