@@ -21,7 +21,7 @@ const TeamPage = () => {
   const { isSuperAdmin } = useSuperAdmin();
   const navigate = useNavigate();
   
-  // Only redirect non-admin users to dashboard - super admins should have full access
+  // Super admins should have unrestricted access - skip redirection
   useEffect(() => {
     if (user && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
       toast.error("You don't have permission to access team management");
@@ -30,7 +30,7 @@ const TeamPage = () => {
     }
   }, [user, isSuperAdmin, isCompanyOwner, can.manageTeam, navigate]);
   
-  // Allow super admins full access regardless of company membership
+  // Super admins should never be blocked from accessing this page
   if (!isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
     return <DashboardLayout>
       <Alert variant="destructive" className="border-red-200 bg-red-50">
@@ -90,45 +90,11 @@ const TeamPage = () => {
             
             <div className="p-6">
               <TabsContent value="members" className="space-y-6 mt-0">
-                {/* Allow super admins full access to team management */}
-                {isSuperAdmin ? (
-                  <TeamMembers />
-                ) : (
-                  <RoleCheck 
-                    allowedAction="sendInvitations"
-                    fallback={
-                      <Alert variant="destructive" className="border-red-200 bg-red-50">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          Only administrators can manage team members. Please contact your administrator for assistance.
-                        </AlertDescription>
-                      </Alert>
-                    }
-                  >
-                    <TeamMembers />
-                  </RoleCheck>
-                )}
+                <TeamMembers />
               </TabsContent>
               
               <TabsContent value="agents" className="space-y-6 mt-0">
-                {/* Allow super admins full access to agent management */}
-                {isSuperAdmin ? (
-                  <TeamAgents />
-                ) : (
-                  <RoleCheck 
-                    allowedAction="manageAgents"
-                    fallback={
-                      <Alert variant="destructive" className="border-red-200 bg-red-50">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          Only administrators can manage AI agents. You can only view agents assigned to you.
-                        </AlertDescription>
-                      </Alert>
-                    }
-                  >
-                    <TeamAgents />
-                  </RoleCheck>
-                )}
+                <TeamAgents />
               </TabsContent>
             </div>
           </Tabs>

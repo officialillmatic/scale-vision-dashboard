@@ -35,7 +35,7 @@ export function useAgents() {
   } = useQuery({
     queryKey: ['agents', company?.id],
     queryFn: () => fetchAgents(company?.id),
-    enabled: !!company?.id || isSuperAdmin // Allow super admins to query even without company
+    enabled: !!company?.id || isSuperAdmin // Always allow super admins to query
   });
 
   const {
@@ -46,7 +46,7 @@ export function useAgents() {
   } = useQuery({
     queryKey: ['user-agents', company?.id],
     queryFn: () => fetchUserAgents(company?.id),
-    enabled: !!company?.id || isSuperAdmin // Allow super admins to query even without company
+    enabled: !!company?.id || isSuperAdmin // Always allow super admins to query
   });
   
   // Filter agents based on user role - super admins see all

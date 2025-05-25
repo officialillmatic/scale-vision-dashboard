@@ -27,7 +27,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   const { isSuperAdmin } = useSuperAdmin();
 
   const fetchInvitations = async () => {
-    // Super admins can operate without a specific company
+    // Super admins can operate without a specific company - fetch global invitations
     if (!companyId && !isSuperAdmin) return;
 
     setIsLoading(true);
@@ -48,7 +48,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   };
   
   const fetchMembers = async () => {
-    // Super admins can operate without a specific company
+    // Super admins can operate without a specific company - fetch all members
     if (!companyId && !isSuperAdmin) return;
     
     setIsLoading(true);
@@ -66,6 +66,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   };
 
   useEffect(() => {
+    // Always allow super admins to fetch data, even without a company
     if (companyId || isSuperAdmin) {
       fetchInvitations();
       fetchMembers();
@@ -73,8 +74,6 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   }, [companyId, isSuperAdmin]);
 
   const handleCancelInvitation = async (invitationId: string) => {
-    if (!companyId && !isSuperAdmin) return;
-
     setIsLoading(true);
     try {
       const success = await cancelInvitation(invitationId);
@@ -93,8 +92,6 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   };
 
   const handleResendInvitation = async (invitationId: string) => {
-    if (!companyId && !isSuperAdmin) return;
-    
     setIsLoading(true);
     try {
       const success = await resendInvitation(invitationId);
@@ -114,6 +111,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
 
   // Direct implementation of handle invite using imported function
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
+    // Super admins can invite to any company or create global invitations
     if (!companyId && !isSuperAdmin) return false;
     
     setIsInviting(true);

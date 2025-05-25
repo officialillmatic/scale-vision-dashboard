@@ -2,6 +2,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole, Role } from "@/hooks/useRole";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -22,17 +23,22 @@ export const ProtectedRoute = ({
   const { user, isLoading, isCompanyLoading } = useAuth();
   const location = useLocation();
   const { checkRole, can, isCompanyOwner } = useRole();
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
   const [permissionChecked, setPermissionChecked] = useState(false);
   const [hasAccess, setHasAccess] = useState(false);
   
   useEffect(() => {
     // Only perform permission check when both auth and company data are loaded
-    if (!isLoading && !isCompanyLoading) {
+    if (!isLoading && !isSuperAdminLoading && (!isCompanyLoading || isSuperAdmin)) {
       let access = false;
       
       // If not authenticated, no access
       if (!user) {
         access = false;
+      }
+      // Super admins always have full access - bypass all other checks
+      else if (isSuperAdmin) {
+        access = true;
       }
       // Company owner always has full access
       else if (isCompanyOwner) {
@@ -55,15 +61,6 @@ export const ProtectedRoute = ({
         access = false;
         toast.error(`You don't have permission to ${requiredAction.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
       }
-      // Path-specific checks
-      else if (location.pathname.includes('/team') && !can.manageTeam) {
-        access = false;
-        toast.error("You don't have permission to access team management");
-      }
-      else if (location.pathname.includes('/settings/billing') && !can.accessBillingSettings) {
-        access = false;
-        toast.error("You don't have permission to access billing settings");
-      }
       else {
         access = true;
       }
@@ -75,6 +72,8 @@ export const ProtectedRoute = ({
     user, 
     isLoading, 
     isCompanyLoading, 
+    isSuperAdminLoading,
+    isSuperAdmin,
     isCompanyOwner, 
     checkRole, 
     can, 
@@ -85,7 +84,7 @@ export const ProtectedRoute = ({
   ]);
   
   // Check if loading
-  if (isLoading || isCompanyLoading || !permissionChecked) {
+  if (isLoading || isSuperAdminLoading || (!permissionChecked && !isSuperAdmin)) {
     return (
       <div className="h-screen w-screen flex items-center justify-center">
         <LoadingSpinner size="lg" className="text-brand-purple" />

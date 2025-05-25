@@ -1,96 +1,116 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
-import { corsHeaders } from "../_shared/corsUtils.ts";
-import { validateAuth } from "../_shared/authUtils.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log('[ADMIN_UPDATE_BALANCE] Starting balance update request');
-    
-    // Validate authentication
-    const { user, supabaseClient, error: authError } = await validateAuth(req);
-    if (authError) {
-      console.error('[ADMIN_UPDATE_BALANCE] Auth validation failed:', authError);
-      return authError;
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+
+    // Get the authorization header
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing Authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Get the user from the JWT token
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    )
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // Check if user is super admin
-    const { data: isSuperAdmin, error: superAdminError } = await supabaseClient.rpc('is_super_admin');
+    const { data: isSuperAdmin, error: superAdminError } = await supabaseClient
+      .rpc('is_super_admin', { check_user_id: user.id })
+
     if (superAdminError || !isSuperAdmin) {
-      console.error('[ADMIN_UPDATE_BALANCE] Super admin check failed:', superAdminError);
       return new Response(
         JSON.stringify({ error: 'Access denied: Super admin required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      )
     }
 
-    const { userId, companyId, amount, description } = await req.json();
+    const { userId, companyId, amount, description } = await req.json()
 
     if (!userId || !companyId || amount === undefined) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: userId, companyId, amount' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      )
     }
 
-    console.log(`[ADMIN_UPDATE_BALANCE] Updating balance for user ${userId}, company ${companyId}, amount ${amount}`);
-
     // Update user balance
-    const { error: balanceError } = await supabaseClient.rpc('update_user_balance', {
-      p_user_id: userId,
-      p_company_id: companyId,
-      p_amount: amount
-    });
+    const { error: balanceError } = await supabaseClient
+      .rpc('update_user_balance', {
+        p_user_id: userId,
+        p_company_id: companyId,
+        p_amount: amount
+      })
 
     if (balanceError) {
-      console.error('[ADMIN_UPDATE_BALANCE] Balance update failed:', balanceError);
+      console.error('Error updating balance:', balanceError)
       return new Response(
-        JSON.stringify({ error: 'Failed to update balance', details: balanceError.message }),
+        JSON.stringify({ error: 'Failed to update balance' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      )
     }
 
     // Create transaction record
+    const transactionType = amount > 0 ? 'credit' : 'debit'
     const { error: transactionError } = await supabaseClient
       .from('transactions')
       .insert({
         user_id: userId,
         company_id: companyId,
-        amount: amount,
-        transaction_type: amount > 0 ? 'credit' : 'debit',
-        description: description || `Admin balance adjustment: ${amount > 0 ? '+' : ''}${amount}`
-      });
+        amount: Math.abs(amount),
+        transaction_type: transactionType,
+        description: description || `Admin ${transactionType} adjustment`
+      })
 
     if (transactionError) {
-      console.error('[ADMIN_UPDATE_BALANCE] Transaction record failed:', transactionError);
-      // Don't fail the whole operation, just log the error
+      console.error('Error creating transaction record:', transactionError)
+      // Don't fail the request if transaction logging fails
     }
 
-    console.log('[ADMIN_UPDATE_BALANCE] Balance update completed successfully');
-
     return new Response(
-      JSON.stringify({ success: true, message: 'Balance updated successfully' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      JSON.stringify({ 
+        success: true, 
+        message: `Balance updated successfully. ${transactionType === 'credit' ? 'Added' : 'Deducted'} $${Math.abs(amount).toFixed(2)}` 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
 
   } catch (error) {
-    console.error('[ADMIN_UPDATE_BALANCE] Unexpected error:', error);
+    console.error('Error in admin-update-balance function:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    )
   }
-});
+})

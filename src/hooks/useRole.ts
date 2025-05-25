@@ -21,6 +21,9 @@ export const useRole = () => {
     // If company data is still loading, don't make assumptions
     if (isCompanyLoading || isSuperAdminLoading) return false;
     
+    // Super admins don't need a company context
+    if (isSuperAdmin) return true;
+    
     // Regular users need a company and role
     if (!company && !isSuperAdmin) return false;
     
@@ -67,7 +70,7 @@ export const useRole = () => {
     
     // Super admin privileges
     superAdminAccess: isSuperAdmin
-  }), [isSuperAdmin, isCompanyOwner, checkRole, user, userRole, isCompanyLoading, isSuperAdminLoading]);
+  }), [isSuperAdmin, isCompanyOwner, user, userRole, isCompanyLoading, isSuperAdminLoading]);
 
   return { isSuperAdmin, isCompanyOwner, checkRole, can };
 };
