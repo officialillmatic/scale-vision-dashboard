@@ -7,6 +7,7 @@ import { CallTableActions } from "./CallTableActions";
 import { CallDebugPanel } from "./CallDebugPanel";
 import { CallData } from "@/services/callService";
 import { CallDetailsModal } from "./CallDetailsModal";
+import { EmptyStateMessage } from "@/components/dashboard/EmptyStateMessage";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Info } from "lucide-react";
@@ -45,10 +46,10 @@ export function CallTable({ onSelectCall }: CallTableProps) {
 
   // Show debug panel for admin users or when there are issues
   const isAdmin = user?.email?.includes('admin');
-  const shouldShowDebug = isAdmin || calls.length === 0 || error;
+  const shouldShowDebug = isAdmin || error;
   
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 w-full">
       {/* Error Alert */}
       {error && (
         <Alert variant="destructive">
@@ -99,13 +100,27 @@ export function CallTable({ onSelectCall }: CallTableProps) {
         <CallDebugPanel />
       )}
 
-      <CallTableList 
-        calls={calls}
-        isLoading={isLoading}
-        searchTerm={searchTerm}
-        date={date}
-        onSelectCall={handleSelectCall}
-      />
+      {/* Show empty state when no calls and not loading */}
+      {!isLoading && calls.length === 0 && !error && (
+        <EmptyStateMessage
+          title="No calls found"
+          description="Start by syncing your calls or making your first AI call to see data here."
+          actionLabel={isSyncing ? "Syncing..." : "Sync Calls"}
+          onAction={handleSync}
+          isLoading={isSyncing}
+        />
+      )}
+
+      {/* Show call list when we have data or loading */}
+      {(calls.length > 0 || isLoading) && (
+        <CallTableList 
+          calls={calls}
+          isLoading={isLoading}
+          searchTerm={searchTerm}
+          date={date}
+          onSelectCall={handleSelectCall}
+        />
+      )}
 
       <CallDetailsModal 
         call={selectedCall} 

@@ -24,7 +24,7 @@ export function DashboardPage() {
     <DashboardLayout isLoading={isLoadingAuth}>
       <EnvWarning />
       
-      <div className="space-y-6">
+      <div className="space-y-8 w-full max-w-none">
         <div>
           <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
           <p className="text-gray-600">
@@ -33,26 +33,30 @@ export function DashboardPage() {
         </div>
         
         {/* Key Metrics */}
-        <DashboardMetrics />
+        <div className="w-full">
+          <DashboardMetrics />
+        </div>
         
         {/* Charts */}
-        <DashboardCharts />
+        <div className="w-full">
+          <DashboardCharts />
+        </div>
         
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 w-full">
           <UserBalance />
           <AgentUsageStats />
         </div>
 
         {/* Admin monitoring section */}
         <RoleCheck adminOnly>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2 w-full">
             <WebhookMonitor />
             <SystemHealth />
           </div>
         </RoleCheck>
         
         {/* Recent Calls Table */}
-        <div className="space-y-4">
+        <div className="space-y-4 w-full">
           <h2 className="text-xl font-semibold">Recent Calls</h2>
           <CallTable onSelectCall={handleSelectCall} />
         </div>

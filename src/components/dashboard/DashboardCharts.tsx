@@ -1,64 +1,50 @@
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDashboardData } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyStateMessage } from "./EmptyStateMessage";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useCallData } from "@/hooks/useCallData";
 
 export function DashboardCharts() {
-  const { metrics, isLoading } = useDashboardMetrics();
+  const { handleSync, isSyncing } = useCallData();
+  const { chartData, isLoading, error } = useDashboardData();
 
   if (isLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <Skeleton className="h-6 w-[140px]" />
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-48" />
           </CardHeader>
           <CardContent>
-            <Skeleton className="h-[300px] w-full" />
+            <Skeleton className="h-[200px] w-full" />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <Skeleton className="h-6 w-[120px]" />
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-48" />
           </CardHeader>
           <CardContent>
-            <Skeleton className="h-[300px] w-full" />
+            <Skeleton className="h-[200px] w-full" />
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  if (!metrics || metrics.dailyCallCounts.length === 0) {
+  if (error || !chartData || chartData.length === 0) {
     return (
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Daily Call Volume</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <p className="text-lg font-medium mb-2">No call data available</p>
-                <p className="text-sm">Start making calls to see analytics</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Call Outcomes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <p className="text-lg font-medium mb-2">No outcome data</p>
-                <p className="text-sm">Call outcomes will appear here</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-1">
+        <EmptyStateMessage
+          title="No data available – sync your first call"
+          description="Charts will appear here once you have call data. Start by syncing your calls or making your first AI call."
+          actionLabel={isSyncing ? "Syncing..." : "Sync Calls"}
+          onAction={handleSync}
+          isLoading={isSyncing}
+        />
       </div>
     );
   }
@@ -68,16 +54,25 @@ export function DashboardCharts() {
       <Card>
         <CardHeader>
           <CardTitle>Daily Call Volume</CardTitle>
+          <CardDescription>
+            Number of calls per day over the last 7 days
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={metrics.dailyCallCounts}>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="calls" fill="#8884d8" name="Calls" />
-              <Bar dataKey="minutes" fill="#82ca9d" name="Minutes" />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 12 }}
+                tickFormatter={(value) => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip 
+                labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                formatter={(value: number) => [value, 'Calls']}
+              />
+              <Bar dataKey="calls" fill="#3b82f6" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -85,37 +80,28 @@ export function DashboardCharts() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Call Outcomes</CardTitle>
+          <CardTitle>Daily Duration</CardTitle>
+          <CardDescription>
+            Total call duration per day (minutes)
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {metrics.callOutcomes.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={metrics.callOutcomes}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {metrics.callOutcomes.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <p className="text-lg font-medium mb-2">No outcome data</p>
-                <p className="text-sm">Call outcomes will appear here</p>
-              </div>
-            </div>
-          )}
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 12 }}
+                tickFormatter={(value) => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip 
+                labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                formatter={(value: number) => [`${value}m`, 'Duration']}
+              />
+              <Bar dataKey="duration" fill="#10b981" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
     </div>

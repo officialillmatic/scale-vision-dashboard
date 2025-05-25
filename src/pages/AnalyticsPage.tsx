@@ -7,6 +7,8 @@ import { CallDataTable } from '@/components/analytics/CallDataTable';
 import { EnhancedCallStatistics } from '@/components/analytics/EnhancedCallStatistics';
 import { CallChart } from '@/components/analytics/CallChart';
 import { CallFilterBar } from '@/components/analytics/CallFilterBar';
+import { EmptyStateMessage } from '@/components/dashboard/EmptyStateMessage';
+import { useCallData } from '@/hooks/useCallData';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 
@@ -45,6 +47,7 @@ export interface CallData {
 
 const AnalyticsPage = () => {
   const { company } = useAuth();
+  const { handleSync, isSyncing } = useCallData();
   const [isLoading, setIsLoading] = useState(true);
   const [callData, setCallData] = useState<CallData[]>([]);
   const [filteredData, setFilteredData] = useState<CallData[]>([]);
@@ -54,7 +57,10 @@ const AnalyticsPage = () => {
   ]);
 
   useEffect(() => {
-    if (!company?.id) return;
+    if (!company?.id) {
+      setIsLoading(false);
+      return;
+    }
 
     const fetchCalls = async () => {
       setIsLoading(true);
@@ -81,7 +87,7 @@ const AnalyticsPage = () => {
         }
         
         // Map the data to the CallData interface with proper date conversion
-        const mappedData: CallData[] = data.map((call) => ({
+        const mappedData: CallData[] = (data || []).map((call) => ({
           id: call.id,
           call_id: call.call_id,
           timestamp: new Date(call.timestamp),
@@ -155,7 +161,7 @@ const AnalyticsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-4">
+      <div className="container mx-auto py-4 w-full max-w-none">
         <h1 className="text-3xl font-bold mb-2">Call Analytics</h1>
         <p className="text-muted-foreground mb-6">
           Comprehensive analysis of your AI call performance and outcomes
@@ -168,31 +174,49 @@ const AnalyticsPage = () => {
           isLoading={isLoading}
         />
         
-        <div className="mt-6 mb-8">
-          {isLoading ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {Array(6).fill(0).map((_, i) => (
-                <Skeleton key={i} className="h-32" />
-              ))}
+        {/* Show empty state when no data */}
+        {!isLoading && filteredData.length === 0 && (
+          <div className="mt-8">
+            <EmptyStateMessage
+              title="No data available – sync your first call"
+              description="Analytics will appear here once you have call data. Start by syncing your calls or making your first AI call."
+              actionLabel={isSyncing ? "Syncing..." : "Sync Calls"}
+              onAction={handleSync}
+              isLoading={isSyncing}
+            />
+          </div>
+        )}
+
+        {/* Show content when we have data */}
+        {(filteredData.length > 0 || isLoading) && (
+          <>
+            <div className="mt-6 mb-8">
+              {isLoading ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {Array(6).fill(0).map((_, i) => (
+                    <Skeleton key={i} className="h-32" />
+                  ))}
+                </div>
+              ) : (
+                <EnhancedCallStatistics data={filteredData} />
+              )}
             </div>
-          ) : (
-            <EnhancedCallStatistics data={filteredData} />
-          )}
-        </div>
-        
-        <div className="mb-8">
-          <h2 className="text-xl font-bold mb-4">Call Volume</h2>
-          {isLoading ? (
-            <Skeleton className="h-[300px]" />
-          ) : (
-            <CallChart data={filteredData} />
-          )}
-        </div>
-        
-        <div>
-          <h2 className="text-xl font-bold mb-4">Detailed Call Data</h2>
-          <CallDataTable data={filteredData} isLoading={isLoading} />
-        </div>
+            
+            <div className="mb-8">
+              <h2 className="text-xl font-bold mb-4">Call Volume</h2>
+              {isLoading ? (
+                <Skeleton className="h-[300px]" />
+              ) : (
+                <CallChart data={filteredData} />
+              )}
+            </div>
+            
+            <div>
+              <h2 className="text-xl font-bold mb-4">Detailed Call Data</h2>
+              <CallDataTable data={filteredData} isLoading={isLoading} />
+            </div>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );
