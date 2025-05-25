@@ -53,8 +53,8 @@ export function useUserBalance() {
     user_id: userId!,
     company_id: companyId!,
     id: '', // Not needed for display
-    created_at: '', // Not needed for display
-    last_updated: '' // Not needed for display
+    created_at: new Date(), // Convert to Date object
+    last_updated: new Date() // Convert to Date object
   } : null;
 
   const transactions: Transaction[] = balanceData?.recent_transactions || [];
