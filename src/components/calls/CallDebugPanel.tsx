@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2, Bug, Database, Webhook, RefreshCw } from "lucide-react";
+import { Loader2, Bug, Database, Webhook, RefreshCw, Settings } from "lucide-react";
 import { toast } from "sonner";
+import { setupTestAgentUserLink } from "@/utils/setupTestData";
 
 interface DebugResults {
   databaseTest: any;
@@ -18,8 +19,26 @@ interface DebugResults {
 
 export function CallDebugPanel() {
   const [isDebugging, setIsDebugging] = useState(false);
+  const [isSetupRunning, setIsSetupRunning] = useState(false);
   const [results, setResults] = useState<DebugResults | null>(null);
   const { company, user } = useAuth();
+
+  const runSetupTestData = async () => {
+    setIsSetupRunning(true);
+    try {
+      const success = await setupTestAgentUserLink();
+      if (success) {
+        toast.success("Test data setup completed successfully");
+      } else {
+        toast.error("Failed to setup test data - check console for details");
+      }
+    } catch (error) {
+      console.error('Setup error:', error);
+      toast.error("Setup failed with error");
+    } finally {
+      setIsSetupRunning(false);
+    }
+  };
 
   const runDebugTests = async () => {
     if (!company?.id || !user?.id) {
@@ -86,7 +105,7 @@ export function CallDebugPanel() {
       // Test 3: Webhook connectivity
       console.log("[DEBUG] Testing webhook endpoint...");
       try {
-        const { data: webhookData, error: webhookError } = await supabase.functions.invoke('webhook-test');
+        const { data: webhookData, error: webhookError } = await supabase.functions.invoke('webhook-monitor');
         debugResults.webhookTest = {
           response: webhookData,
           error: webhookError?.message,
@@ -140,23 +159,37 @@ export function CallDebugPanel() {
           <Bug className="h-4 w-4" />
           Data Pipeline Debug
         </CardTitle>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={runDebugTests}
-          disabled={isDebugging}
-        >
-          {isDebugging ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={runSetupTestData}
+            disabled={isSetupRunning}
+          >
+            {isSetupRunning ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Settings className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={runDebugTests}
+            disabled={isDebugging}
+          >
+            {isDebugging ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {!results ? (
           <div className="text-center py-4 text-muted-foreground">
-            <p className="text-sm">Click "Debug" to test data pipeline connectivity</p>
+            <p className="text-sm">Click "Settings" to setup test data, then "Debug" to test connectivity</p>
           </div>
         ) : (
           <div className="space-y-3">
