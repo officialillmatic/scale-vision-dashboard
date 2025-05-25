@@ -1,116 +1,79 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
+import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
+import { validateAuth, getUserCompany, checkAdminAccess } from "../_shared/authUtils.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
+  console.log(`[ADMIN-UPDATE-BALANCE] ${new Date().toISOString()} - Request received`);
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
-
-    // Get the authorization header
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Get the user from the JWT token
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    // Validate authentication
+    const { user, supabaseClient, error: authError } = await validateAuth(req);
+    if (authError) return authError;
 
     // Check if user is super admin
-    const { data: isSuperAdmin, error: superAdminError } = await supabaseClient
-      .rpc('is_super_admin', { check_user_id: user.id })
-
+    const { data: isSuperAdmin, error: superAdminError } = await supabaseClient.rpc('is_super_admin');
+    
     if (superAdminError || !isSuperAdmin) {
-      return new Response(
-        JSON.stringify({ error: 'Access denied: Super admin required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.error('[ADMIN-UPDATE-BALANCE] Access denied - not super admin');
+      return createErrorResponse('Access denied: Super admin required', 403);
     }
 
-    const { userId, companyId, amount, description } = await req.json()
+    const { userId, companyId, amount, description } = await req.json();
 
     if (!userId || !companyId || amount === undefined) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: userId, companyId, amount' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return createErrorResponse('Missing required fields: userId, companyId, amount', 400);
     }
 
+    console.log(`[ADMIN-UPDATE-BALANCE] Updating balance for user ${userId} by ${amount}`);
+
     // Update user balance
-    const { error: balanceError } = await supabaseClient
-      .rpc('update_user_balance', {
-        p_user_id: userId,
-        p_company_id: companyId,
-        p_amount: amount
-      })
+    const { error: balanceError } = await supabaseClient.rpc('update_user_balance', {
+      p_user_id: userId,
+      p_company_id: companyId,
+      p_amount: amount
+    });
 
     if (balanceError) {
-      console.error('Error updating balance:', balanceError)
-      return new Response(
-        JSON.stringify({ error: 'Failed to update balance' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.error('[ADMIN-UPDATE-BALANCE] Failed to update balance:', balanceError);
+      return createErrorResponse(`Failed to update balance: ${balanceError.message}`, 500);
     }
 
     // Create transaction record
-    const transactionType = amount > 0 ? 'credit' : 'debit'
     const { error: transactionError } = await supabaseClient
       .from('transactions')
       .insert({
         user_id: userId,
         company_id: companyId,
-        amount: Math.abs(amount),
-        transaction_type: transactionType,
-        description: description || `Admin ${transactionType} adjustment`
-      })
+        amount: amount,
+        transaction_type: 'admin_adjustment',
+        description: description || `Admin balance adjustment: ${amount > 0 ? '+' : ''}${amount}`
+      });
 
     if (transactionError) {
-      console.error('Error creating transaction record:', transactionError)
-      // Don't fail the request if transaction logging fails
+      console.error('[ADMIN-UPDATE-BALANCE] Failed to create transaction:', transactionError);
+      // Don't fail the request, just log the error
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Balance updated successfully. ${transactionType === 'credit' ? 'Added' : 'Deducted'} $${Math.abs(amount).toFixed(2)}` 
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    console.log(`[ADMIN-UPDATE-BALANCE] Successfully updated balance for user ${userId}`);
+
+    return createSuccessResponse({
+      message: 'Balance updated successfully',
+      userId,
+      companyId,
+      amount,
+      timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
-    console.error('Error in admin-update-balance function:', error)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    console.error('[ADMIN-UPDATE-BALANCE] Fatal error:', error);
+    return createErrorResponse(`Internal server error: ${error.message}`, 500);
   }
-})
+});

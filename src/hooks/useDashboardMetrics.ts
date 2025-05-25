@@ -65,28 +65,30 @@ export const useDashboardMetrics = () => {
 
         const data = metricsData[0];
 
-        // Calculate percentage changes
+        // Calculate percentage changes safely
         const calculateChange = (current: number, previous: number): string => {
+          if (!current && !previous) return "0%";
           if (previous === 0) return current > 0 ? "+100%" : "0%";
           const change = ((current - previous) / previous) * 100;
           return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
         };
 
-        // Format duration
+        // Format duration safely
         const formatDuration = (seconds: number): string => {
+          if (!seconds || isNaN(seconds)) return "0:00";
           const minutes = Math.floor(seconds / 60);
           const remainingSeconds = Math.floor(seconds % 60);
           return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
         };
 
-        // Process daily data
+        // Process daily data safely
         const dailyCallCounts = (data.daily_data || []).map((day: any) => ({
           date: format(new Date(day.date), 'MMM dd'),
-          calls: Number(day.calls),
-          minutes: Number(day.minutes)
+          calls: Number(day.calls) || 0,
+          minutes: Number(day.minutes) || 0
         }));
 
-        // Process call outcomes
+        // Process call outcomes safely
         const outcomeColors = {
           completed: '#22c55e',
           'no-answer': '#ef4444',
@@ -96,20 +98,20 @@ export const useDashboardMetrics = () => {
 
         const callOutcomes = (data.outcomes_data || []).map((outcome: any) => ({
           name: outcome.name,
-          value: Number(outcome.value),
+          value: Number(outcome.value) || 0,
           color: outcomeColors[outcome.name as keyof typeof outcomeColors] || '#6b7280'
         }));
 
         const result: DashboardMetrics = {
-          totalCalls: Number(data.current_calls),
-          totalMinutes: Math.round(Number(data.current_duration_min)),
-          totalCost: `$${Number(data.current_cost).toFixed(2)}`,
-          avgDuration: formatDuration(Number(data.current_avg_duration)),
+          totalCalls: Number(data.current_calls) || 0,
+          totalMinutes: Math.round(Number(data.current_duration_min) || 0),
+          totalCost: `$${(Number(data.current_cost) || 0).toFixed(2)}`,
+          avgDuration: formatDuration(Number(data.current_avg_duration) || 0),
           percentChange: {
-            calls: calculateChange(Number(data.current_calls), Number(data.previous_calls)),
-            minutes: calculateChange(Number(data.current_duration_min), Number(data.previous_duration_min)),
-            duration: calculateChange(Number(data.current_avg_duration), Number(data.previous_avg_duration)),
-            cost: calculateChange(Number(data.current_cost), Number(data.previous_cost))
+            calls: calculateChange(Number(data.current_calls) || 0, Number(data.previous_calls) || 0),
+            minutes: calculateChange(Number(data.current_duration_min) || 0, Number(data.previous_duration_min) || 0),
+            duration: calculateChange(Number(data.current_avg_duration) || 0, Number(data.previous_avg_duration) || 0),
+            cost: calculateChange(Number(data.current_cost) || 0, Number(data.previous_cost) || 0)
           },
           dailyCallCounts,
           callOutcomes

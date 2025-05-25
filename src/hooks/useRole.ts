@@ -38,36 +38,61 @@ export const useRole = () => {
     }
   };
 
-  const can = useMemo(() => ({
-    // Team and agent management - Super admins get full access
-    manageTeam: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    manageAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'), 
-    viewAgents: isSuperAdmin || checkRole('viewer'), // Super admins can view all agents
-    createAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    assignAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    deleteAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    
-    // Call management
-    viewCalls: isSuperAdmin || checkRole('viewer'), // Super admins can view all calls
-    uploadCalls: isSuperAdmin || checkRole('member'),
-    
-    // Billing management - Super admins get full access
-    manageBalances: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    viewBalance: isSuperAdmin || checkRole('viewer'), // Super admins can view all balances
-    accessBillingSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    
-    // Settings - Optimized for consolidated RLS policies
-    editSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    uploadCompanyLogo: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    inviteUsers: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    removeUsers: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    
-    // Invitations
-    sendInvitations: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    
-    // Super admin privileges
-    superAdminAccess: isSuperAdmin
-  }), [isSuperAdmin, isCompanyOwner, user, userRole, company, isCompanyLoading, isSuperAdminLoading]);
+  const can = useMemo(() => {
+    // Early return for loading states
+    if (isCompanyLoading || isSuperAdminLoading) {
+      return {
+        manageTeam: false,
+        manageAgents: false,
+        viewAgents: false,
+        createAgents: false,
+        assignAgents: false,
+        deleteAgents: false,
+        viewCalls: false,
+        uploadCalls: false,
+        manageBalances: false,
+        viewBalance: false,
+        accessBillingSettings: false,
+        editSettings: false,
+        uploadCompanyLogo: false,
+        inviteUsers: false,
+        removeUsers: false,
+        sendInvitations: false,
+        superAdminAccess: false
+      };
+    }
+
+    return {
+      // Team and agent management - Super admins get full access
+      manageTeam: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      manageAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'), 
+      viewAgents: isSuperAdmin || checkRole('viewer'), // Super admins can view all agents
+      createAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      assignAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      deleteAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      
+      // Call management
+      viewCalls: isSuperAdmin || checkRole('viewer'), // Super admins can view all calls
+      uploadCalls: isSuperAdmin || checkRole('member'),
+      
+      // Billing management - Super admins get full access
+      manageBalances: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      viewBalance: isSuperAdmin || checkRole('viewer'), // Super admins can view all balances
+      accessBillingSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      
+      // Settings - Optimized for consolidated RLS policies
+      editSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      uploadCompanyLogo: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      inviteUsers: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      removeUsers: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      
+      // Invitations
+      sendInvitations: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      
+      // Super admin privileges
+      superAdminAccess: isSuperAdmin
+    };
+  }, [isSuperAdmin, isCompanyOwner, user, userRole, company, isCompanyLoading, isSuperAdminLoading, checkRole]);
 
   return { isSuperAdmin, isCompanyOwner, checkRole, can };
 };

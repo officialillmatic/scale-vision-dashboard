@@ -2,6 +2,7 @@
 import React from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { EnvWarning } from '@/components/common/EnvWarning';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { UserBalance } from '@/components/balance/UserBalance';
@@ -40,85 +41,101 @@ export function DashboardPage() {
   // Super Admin Dashboard
   if (isSuperAdmin) {
     return (
-      <GlobalDataProvider>
-        <DashboardLayout isLoading={isLoadingAuth}>
-          <EnvWarning />
-          <SuperAdminDashboard />
-        </DashboardLayout>
-      </GlobalDataProvider>
+      <ErrorBoundary>
+        <GlobalDataProvider>
+          <DashboardLayout isLoading={isLoadingAuth}>
+            <EnvWarning />
+            <SuperAdminDashboard />
+          </DashboardLayout>
+        </GlobalDataProvider>
+      </ErrorBoundary>
     );
   }
 
   // Regular User Dashboard
   return (
-    <DashboardLayout isLoading={isLoadingAuth}>
-      <EnvWarning />
-      
-      <div className="space-y-8 w-full max-w-none">
-        {/* Header Section */}
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-            Welcome back! 👋
-          </h1>
-          <p className="text-lg text-gray-600 font-medium">
-            Monitor your AI call analytics and agent performance for <span className="font-semibold text-brand-green">{company?.name || 'your company'}</span>
-          </p>
-        </div>
+    <ErrorBoundary>
+      <DashboardLayout isLoading={isLoadingAuth}>
+        <EnvWarning />
         
-        {/* Key Metrics */}
-        <div className="w-full">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Key Metrics</h2>
-            <p className="text-gray-600">Your AI call performance at a glance</p>
-          </div>
-          <DashboardMetrics />
-        </div>
-        
-        {/* Charts */}
-        <div className="w-full">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Performance Trends</h2>
-            <p className="text-gray-600">Track your call volume and duration over time</p>
-          </div>
-          <DashboardCharts />
-        </div>
-        
-        {/* Balance and Usage */}
-        <div className="grid gap-6 md:grid-cols-2 w-full">
-          <div className="space-y-3">
-            <h3 className="text-xl font-bold text-gray-900">Account Balance</h3>
-            <UserBalance />
-          </div>
-          <div className="space-y-3">
-            <h3 className="text-xl font-bold text-gray-900">Agent Usage</h3>
-            <AgentUsageStats />
-          </div>
-        </div>
-
-        {/* Admin monitoring section */}
-        <RoleCheck adminOnly>
-          <div className="w-full">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">System Monitoring</h2>
-              <p className="text-gray-600">Admin tools for system health and webhooks</p>
-            </div>
-            <div className="grid gap-6 md:grid-cols-2 w-full">
-              <WebhookMonitor />
-              <SystemHealth />
-            </div>
-          </div>
-        </RoleCheck>
-        
-        {/* Recent Calls Table */}
-        <div className="space-y-6 w-full">
+        <div className="space-y-8 w-full max-w-none">
+          {/* Header Section */}
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-gray-900">Recent Calls</h2>
-            <p className="text-gray-600">Latest AI call activity and details</p>
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+              Welcome back! 👋
+            </h1>
+            <p className="text-lg text-gray-600 font-medium">
+              Monitor your AI call analytics and agent performance for <span className="font-semibold text-brand-green">{company?.name || 'your company'}</span>
+            </p>
           </div>
-          <CallTable onSelectCall={handleSelectCall} />
+          
+          {/* Key Metrics */}
+          <ErrorBoundary fallback={<div className="text-center text-red-600 p-4">Failed to load metrics</div>}>
+            <div className="w-full">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Key Metrics</h2>
+                <p className="text-gray-600">Your AI call performance at a glance</p>
+              </div>
+              <DashboardMetrics />
+            </div>
+          </ErrorBoundary>
+          
+          {/* Charts */}
+          <ErrorBoundary fallback={<div className="text-center text-red-600 p-4">Failed to load charts</div>}>
+            <div className="w-full">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Performance Trends</h2>
+                <p className="text-gray-600">Track your call volume and duration over time</p>
+              </div>
+              <DashboardCharts />
+            </div>
+          </ErrorBoundary>
+          
+          {/* Balance and Usage */}
+          <div className="grid gap-6 md:grid-cols-2 w-full">
+            <ErrorBoundary fallback={<div className="text-center text-red-600 p-2">Failed to load balance</div>}>
+              <div className="space-y-3">
+                <h3 className="text-xl font-bold text-gray-900">Account Balance</h3>
+                <UserBalance />
+              </div>
+            </ErrorBoundary>
+            <ErrorBoundary fallback={<div className="text-center text-red-600 p-2">Failed to load usage stats</div>}>
+              <div className="space-y-3">
+                <h3 className="text-xl font-bold text-gray-900">Agent Usage</h3>
+                <AgentUsageStats />
+              </div>
+            </ErrorBoundary>
+          </div>
+
+          {/* Admin monitoring section */}
+          <RoleCheck adminOnly>
+            <ErrorBoundary fallback={<div className="text-center text-red-600 p-4">Failed to load admin tools</div>}>
+              <div className="w-full">
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">System Monitoring</h2>
+                  <p className="text-gray-600">Admin tools for system health and webhooks</p>
+                </div>
+                <div className="grid gap-6 md:grid-cols-2 w-full">
+                  <WebhookMonitor />
+                  <SystemHealth />
+                </div>
+              </div>
+            </ErrorBoundary>
+          </RoleCheck>
+          
+          {/* Recent Calls Table */}
+          <ErrorBoundary fallback={<div className="text-center text-red-600 p-4">Failed to load calls table</div>}>
+            <div className="space-y-6 w-full">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-gray-900">Recent Calls</h2>
+                <p className="text-gray-600">Latest AI call activity and details</p>
+              </div>
+              <CallTable onSelectCall={handleSelectCall} />
+            </div>
+          </ErrorBoundary>
         </div>
-      </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </ErrorBoundary>
   );
 }
 
