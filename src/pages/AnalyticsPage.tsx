@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,7 +10,7 @@ import { CallFilterBar } from '@/components/analytics/CallFilterBar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 
-// Define the CallData interface
+// Updated CallData interface to include all Retell AI fields
 export interface CallData {
   id: string;
   call_id: string;
@@ -17,17 +18,23 @@ export interface CallData {
   duration_sec: number;
   cost_usd: number;
   sentiment: string | null;
+  sentiment_score: number | null;
   disconnection_reason: string | null;
   call_status: string;
   from: string;
   to: string;
+  from_number: string | null;
+  to_number: string | null;
   audio_url: string | null;
+  recording_url: string | null;
   transcript: string | null;
+  transcript_url: string | null;
   user_id: string;
   company_id: string;
   call_type: string;
-  latency_ms: number;
+  latency_ms: number | null;
   call_summary: string | null;
+  disposition: string | null;
   agent: {
     id: string;
     name: string;
@@ -81,17 +88,23 @@ const AnalyticsPage = () => {
           duration_sec: call.duration_sec,
           cost_usd: call.cost_usd,
           sentiment: call.sentiment,
+          sentiment_score: call.sentiment_score,
           disconnection_reason: call.disconnection_reason,
           call_status: call.call_status,
           from: call.from,
           to: call.to,
+          from_number: call.from_number,
+          to_number: call.to_number,
           audio_url: call.audio_url,
+          recording_url: call.recording_url,
           transcript: call.transcript,
+          transcript_url: call.transcript_url,
           user_id: call.user_id,
           company_id: call.company_id,
           call_type: call.call_type || 'phone_call',
           latency_ms: call.latency_ms || 0,
           call_summary: call.call_summary,
+          disposition: call.disposition,
           agent: call.agent
         }));
         
