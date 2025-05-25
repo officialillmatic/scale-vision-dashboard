@@ -1,10 +1,13 @@
+
 import { useState } from "react";
 import { useCallData } from "@/hooks/useCallData";
 import { CallTableFilters } from "./CallTableFilters";
 import { CallTableList } from "./CallTableList";
 import { CallTableActions } from "./CallTableActions";
+import { CallDebugPanel } from "./CallDebugPanel";
 import { CallData } from "@/services/callService";
 import { CallDetailsModal } from "./CallDetailsModal";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CallTableProps {
   onSelectCall: (call: CallData) => void;
@@ -13,6 +16,8 @@ interface CallTableProps {
 export function CallTable({ onSelectCall }: CallTableProps) {
   const [selectedCall, setSelectedCall] = useState<CallData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [showDebug, setShowDebug] = useState<boolean>(false);
+  const { user } = useAuth();
   
   const {
     calls,
@@ -32,9 +37,11 @@ export function CallTable({ onSelectCall }: CallTableProps) {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    // Keep the selected call for a moment to avoid UI flicker
     setTimeout(() => setSelectedCall(null), 300);
   };
+
+  // Show debug panel for admin users or when no calls are found
+  const shouldShowDebug = user?.email?.includes('admin') || calls.length === 0;
   
   return (
     <div className="space-y-4">
@@ -44,6 +51,14 @@ export function CallTable({ onSelectCall }: CallTableProps) {
             isSyncing={isSyncing}
             onSync={handleSync}
           />
+          {shouldShowDebug && (
+            <button
+              onClick={() => setShowDebug(!showDebug)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showDebug ? 'Hide' : 'Show'} Debug
+            </button>
+          )}
         </div>
         <CallTableFilters 
           searchTerm={searchTerm} 
@@ -52,6 +67,10 @@ export function CallTable({ onSelectCall }: CallTableProps) {
           setDate={setDate}
         />
       </div>
+
+      {showDebug && shouldShowDebug && (
+        <CallDebugPanel />
+      )}
 
       <CallTableList 
         calls={calls}

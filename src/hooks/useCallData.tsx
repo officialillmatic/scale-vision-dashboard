@@ -23,19 +23,42 @@ export const useCallData = (initialCalls: CallData[] = []) => {
     queryKey: ["calls", company?.id, user?.id],
     queryFn: async () => {
       if (!company?.id || !user?.id) {
-        console.log("[USE_CALL_DATA] Missing company ID or user ID");
+        console.log("[USE_CALL_DATA] Missing company ID or user ID", { 
+          companyId: company?.id, 
+          userId: user?.id 
+        });
         return [];
       }
       
       console.log("[USE_CALL_DATA] Fetching calls for company:", company.id);
-      const result = await fetchCalls(company.id);
-      console.log(`[USE_CALL_DATA] Fetched ${result.length} calls`);
-      return result;
+      
+      try {
+        const result = await fetchCalls(company.id);
+        console.log(`[USE_CALL_DATA] Successfully fetched ${result.length} calls`);
+        
+        if (result.length === 0) {
+          console.log("[USE_CALL_DATA] No calls found - this might indicate:");
+          console.log("- No calls have been made yet");
+          console.log("- Webhook integration is not working");
+          console.log("- RLS policies are blocking access");
+          console.log("- Agent-company relationships are not set up");
+        }
+        
+        return result;
+      } catch (error: any) {
+        console.error("[USE_CALL_DATA] Error fetching calls:", {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        throw error;
+      }
     },
     enabled: !!company?.id && !!user?.id,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 2, // 2 minutes (reduced for better debugging)
     retry: (failureCount, error) => {
-      // Only retry twice for permission errors
+      console.log(`[USE_CALL_DATA] Retry attempt ${failureCount} for error:`, error?.message);
       if (error?.message?.includes("permission denied")) {
         return failureCount < 1;
       }
@@ -43,25 +66,52 @@ export const useCallData = (initialCalls: CallData[] = []) => {
     },
     meta: {
       onError: (error: any) => {
-        console.error("[USE_CALL_DATA] Error fetching calls:", error);
+        console.error("[USE_CALL_DATA] Query error:", error);
+        if (error?.message?.includes("permission denied")) {
+          console.error("[USE_CALL_DATA] Permission denied - check RLS policies");
+        }
       }
     }
   });
 
-  // Sync calls mutation
+  // Enhanced sync calls mutation with better error handling
   const { 
     mutate: handleSync, 
     isPending: isSyncing 
   } = useMutation({
     mutationFn: async () => {
       try {
-        console.log("[USE_CALL_DATA] Starting call sync");
+        console.log("[USE_CALL_DATA] Starting call sync...");
+        
+        // First test our webhook monitor
+        const { data: monitorData, error: monitorError } = await supabase.functions.invoke("webhook-monitor");
+        console.log("[USE_CALL_DATA] Webhook monitor status:", monitorData);
+        
+        // Then try the sync
         const { data, error } = await supabase.functions.invoke("sync-calls");
+        
         if (error) {
           console.error("[USE_CALL_DATA] Sync error:", error);
           throw error;
         }
+        
         console.log("[USE_CALL_DATA] Sync response:", data);
+        
+        // If no calls were synced, try to fetch directly from Retell
+        if (data?.synced_calls === 0) {
+          console.log("[USE_CALL_DATA] No calls synced, testing direct Retell fetch...");
+          const { data: fetchData, error: fetchError } = await supabase.functions.invoke("fetch-retell-calls", {
+            body: { limit: 10 }
+          });
+          
+          if (fetchError) {
+            console.error("[USE_CALL_DATA] Direct fetch error:", fetchError);
+          } else {
+            console.log("[USE_CALL_DATA] Direct fetch result:", fetchData);
+          }
+        }
+        
+        return data;
       } catch (error) {
         console.error("[USE_CALL_DATA] Sync exception:", error);
         return handleError(error, {
@@ -71,16 +121,23 @@ export const useCallData = (initialCalls: CallData[] = []) => {
         });
       }
     },
-    onSuccess: () => {
-      console.log("[USE_CALL_DATA] Sync successful, invalidating queries");
-      toast.success("Calls synchronized successfully");
+    onSuccess: (data) => {
+      console.log("[USE_CALL_DATA] Sync successful:", data);
+      toast.success(`Sync completed: ${data?.synced_calls || 0} calls synchronized`);
+      
+      // Invalidate and refetch all related queries
       queryClient.invalidateQueries({ queryKey: ["calls"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-calls"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
+      
+      // Force refetch after a short delay
+      setTimeout(() => {
+        refetch();
+      }, 1000);
     },
     onError: (error: any) => {
       console.error("[USE_CALL_DATA] Sync mutation error:", error);
-      toast.error(typeof error === 'string' ? error : "Failed to sync calls");
+      toast.error(typeof error === 'string' ? error : "Failed to sync calls. Check console for details.");
     },
   });
 
@@ -90,6 +147,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
       searchTerm === "" ||
       call.from?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       call.to?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      call.call_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (call.transcript && call.transcript.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesDate =

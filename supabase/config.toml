@@ -49,6 +49,9 @@ verify_jwt = true
 [functions.webhook-test]
 verify_jwt = false
 
+[functions.demo-data]
+verify_jwt = true
+
 [db]
 port = 54322
 
