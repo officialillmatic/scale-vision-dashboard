@@ -17,37 +17,42 @@ export type UserAgent = UserAgentTable & {
 
 export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
   try {
-    // Check if user is super admin
-    const { data: isSuperAdminData } = await supabase.rpc('is_super_admin');
-    const isSuperAdmin = isSuperAdminData || false;
-
-    let query = supabase.from("agents").select("*").order("name");
-
-    // If not super admin, filter by company access through user_agents
-    if (!isSuperAdmin && companyId) {
-      const { data: userAgents } = await supabase
-        .from("user_agents")
-        .select("agent_id")
-        .eq("company_id", companyId);
-      
-      if (userAgents && userAgents.length > 0) {
-        const agentIds = userAgents.map(ua => ua.agent_id);
-        query = query.in("id", agentIds);
-      } else {
-        // User has no agents assigned
-        return [];
-      }
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error fetching agents:", error);
-      toast.error("Failed to load agents");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.log("[AGENT-SERVICE] No authenticated user");
       return [];
     }
 
-    return data || [];
+    // Use optimized security definer function
+    if (companyId) {
+      const { data, error } = await supabase
+        .rpc('get_user_accessible_agents', {
+          p_user_id: user.id,
+          p_company_id: companyId
+        });
+
+      if (error) {
+        console.error("Error fetching agents:", error);
+        toast.error("Failed to load agents");
+        return [];
+      }
+
+      return data || [];
+    } else {
+      // Super admin fetching all agents
+      const { data, error } = await supabase
+        .from("agents")
+        .select("*")
+        .order("name");
+
+      if (error) {
+        console.error("Error fetching all agents:", error);
+        toast.error("Failed to load agents");
+        return [];
+      }
+
+      return data || [];
+    }
   } catch (error) {
     console.error("Error in fetchAgents:", error);
     toast.error("Failed to load agents");
@@ -59,23 +64,11 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
   if (!companyId) return [];
 
   try {
-    // Check if user is super admin
-    const { data: isSuperAdminData } = await supabase.rpc('is_super_admin');
-    const isSuperAdmin = isSuperAdminData || false;
-
-    let query = supabase
-      .from("user_agents")
-      .select(`
-        *,
-        agent:agents(*)
-      `);
-
-    // If super admin, get all user agents, otherwise filter by company
-    if (!isSuperAdmin) {
-      query = query.eq("company_id", companyId);
-    }
-
-    const { data, error } = await query;
+    // Use optimized security definer function
+    const { data, error } = await supabase
+      .rpc('get_company_user_agents', {
+        p_company_id: companyId
+      });
 
     if (error) {
       console.error("Error fetching user agents:", error);
@@ -83,23 +76,24 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
       return [];
     }
 
-    // Fetch user details for each user agent
-    const userAgentsWithDetails = await Promise.all(
-      (data || []).map(async (userAgent) => {
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select("email")
-          .eq("id", userAgent.user_id)
-          .single();
-
-        return {
-          ...userAgent,
-          user_details: userError 
-            ? { email: "Unknown" } 
-            : { email: userData?.email || "Unknown" }
-        };
-      })
-    );
+    // Transform the data to match the expected format
+    const userAgentsWithDetails = (data || []).map((item: any) => ({
+      id: item.id,
+      user_id: item.user_id,
+      agent_id: item.agent_id,
+      company_id: item.company_id,
+      is_primary: item.is_primary,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+      agent: item.agent_name ? {
+        id: item.agent_id,
+        name: item.agent_name,
+        description: item.agent_description
+      } : null,
+      user_details: {
+        email: item.user_email || "Unknown"
+      }
+    }));
 
     return userAgentsWithDetails;
   } catch (error) {
@@ -111,7 +105,6 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
 
 export const createAgent = async (agentData: Partial<Agent>): Promise<Agent | null> => {
   try {
-    // Add created_at and updated_at if not provided
     const dataWithTimestamps = {
       ...agentData,
       created_at: new Date().toISOString(),
@@ -141,7 +134,6 @@ export const createAgent = async (agentData: Partial<Agent>): Promise<Agent | nu
 
 export const updateAgent = async (id: string, agentData: Partial<Agent>): Promise<boolean> => {
   try {
-    // Add updated_at timestamp
     const dataWithTimestamp = {
       ...agentData,
       updated_at: new Date().toISOString(),
@@ -169,7 +161,6 @@ export const updateAgent = async (id: string, agentData: Partial<Agent>): Promis
 
 export const deleteAgent = async (id: string): Promise<boolean> => {
   try {
-    // First remove any user assignments for this agent
     const { error: assignmentError } = await supabase
       .from("user_agents")
       .delete()
@@ -181,7 +172,6 @@ export const deleteAgent = async (id: string): Promise<boolean> => {
       return false;
     }
 
-    // Then delete the agent
     const { error } = await supabase
       .from("agents")
       .delete()
@@ -206,7 +196,6 @@ export const assignAgentToUser = async (
   userAgent: Partial<UserAgentTable>
 ): Promise<UserAgent | null> => {
   try {
-    // Add timestamps
     const dataWithTimestamps = {
       ...userAgent,
       created_at: new Date().toISOString(),

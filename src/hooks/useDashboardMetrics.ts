@@ -2,7 +2,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { CallData } from "@/services/callService";
 import { subDays, format } from "date-fns";
 
 interface DashboardMetrics {
@@ -32,7 +31,7 @@ export const useDashboardMetrics = () => {
   const { company, user } = useAuth();
   
   const { data: metrics, isLoading, error } = useQuery({
-    queryKey: ['dashboard-metrics', company?.id, user?.id],
+    queryKey: ['dashboard-metrics-optimized', company?.id, user?.id],
     queryFn: async (): Promise<DashboardMetrics | null> => {
       if (!company?.id || !user?.id) {
         console.log("[DASHBOARD-METRICS] Missing company ID or user ID");
@@ -40,74 +39,31 @@ export const useDashboardMetrics = () => {
       }
 
       try {
-        console.log("[DASHBOARD-METRICS] Fetching metrics for company:", company.id);
+        console.log("[DASHBOARD-METRICS] Fetching optimized metrics for company:", company.id);
         
         // Define time periods
         const now = new Date();
         const thirtyDaysAgo = subDays(now, 30);
-        const sixtyDaysAgo = subDays(now, 60);
 
-        // Get current period metrics
-        const { data: currentMetrics, error: currentError } = await supabase
-          .rpc('get_call_metrics_for_period', {
-            company_id_param: company.id,
-            start_date_param: thirtyDaysAgo.toISOString(),
-            end_date_param: now.toISOString()
+        // Use optimized function to get all metrics in one call
+        const { data: metricsData, error: metricsError } = await supabase
+          .rpc('get_dashboard_metrics_optimized', {
+            p_company_id: company.id,
+            p_start_date: thirtyDaysAgo.toISOString(),
+            p_end_date: now.toISOString()
           });
 
-        if (currentError) {
-          console.error("[DASHBOARD-METRICS] Error fetching current metrics:", currentError);
-          throw currentError;
+        if (metricsError) {
+          console.error("[DASHBOARD-METRICS] Error fetching optimized metrics:", metricsError);
+          throw metricsError;
         }
 
-        // Get previous period metrics for comparison
-        const { data: previousMetrics, error: previousError } = await supabase
-          .rpc('get_call_metrics_for_period', {
-            company_id_param: company.id,
-            start_date_param: sixtyDaysAgo.toISOString(),
-            end_date_param: thirtyDaysAgo.toISOString()
-          });
-
-        if (previousError) {
-          console.error("[DASHBOARD-METRICS] Error fetching previous metrics:", previousError);
+        if (!metricsData || metricsData.length === 0) {
+          console.log("[DASHBOARD-METRICS] No metrics data returned");
+          return null;
         }
 
-        // Get daily distribution
-        const { data: dailyData, error: dailyError } = await supabase
-          .rpc('get_daily_call_distribution', {
-            company_id_param: company.id,
-            start_date_param: thirtyDaysAgo.toISOString(),
-            end_date_param: now.toISOString()
-          });
-
-        if (dailyError) {
-          console.error("[DASHBOARD-METRICS] Error fetching daily data:", dailyError);
-        }
-
-        // Get call outcomes
-        const { data: outcomes, error: outcomesError } = await supabase
-          .rpc('get_call_outcomes', {
-            company_id_param: company.id
-          });
-
-        if (outcomesError) {
-          console.error("[DASHBOARD-METRICS] Error fetching outcomes:", outcomesError);
-        }
-
-        // Process current metrics
-        const current = currentMetrics?.[0] || {
-          total_calls: 0,
-          total_duration_min: 0,
-          avg_duration_sec: 0,
-          total_cost: 0
-        };
-
-        const previous = previousMetrics?.[0] || {
-          total_calls: 0,
-          total_duration_min: 0,
-          avg_duration_sec: 0,
-          total_cost: 0
-        };
+        const data = metricsData[0];
 
         // Calculate percentage changes
         const calculateChange = (current: number, previous: number): string => {
@@ -124,10 +80,10 @@ export const useDashboardMetrics = () => {
         };
 
         // Process daily data
-        const dailyCallCounts = (dailyData || []).map(day => ({
+        const dailyCallCounts = (data.daily_data || []).map((day: any) => ({
           date: format(new Date(day.date), 'MMM dd'),
-          calls: Number(day.call_count),
-          minutes: Number(day.total_duration_min)
+          calls: Number(day.calls),
+          minutes: Number(day.minutes)
         }));
 
         // Process call outcomes
@@ -138,32 +94,32 @@ export const useDashboardMetrics = () => {
           hangup: '#6b7280'
         };
 
-        const callOutcomes = (outcomes || []).map(outcome => ({
-          name: outcome.status_type,
-          value: Number(outcome.count),
-          color: outcomeColors[outcome.status_type as keyof typeof outcomeColors] || '#6b7280'
+        const callOutcomes = (data.outcomes_data || []).map((outcome: any) => ({
+          name: outcome.name,
+          value: Number(outcome.value),
+          color: outcomeColors[outcome.name as keyof typeof outcomeColors] || '#6b7280'
         }));
 
         const result: DashboardMetrics = {
-          totalCalls: Number(current.total_calls),
-          totalMinutes: Math.round(Number(current.total_duration_min)),
-          totalCost: `$${Number(current.total_cost).toFixed(2)}`,
-          avgDuration: formatDuration(Number(current.avg_duration_sec)),
+          totalCalls: Number(data.current_calls),
+          totalMinutes: Math.round(Number(data.current_duration_min)),
+          totalCost: `$${Number(data.current_cost).toFixed(2)}`,
+          avgDuration: formatDuration(Number(data.current_avg_duration)),
           percentChange: {
-            calls: calculateChange(Number(current.total_calls), Number(previous.total_calls)),
-            minutes: calculateChange(Number(current.total_duration_min), Number(previous.total_duration_min)),
-            duration: calculateChange(Number(current.avg_duration_sec), Number(previous.avg_duration_sec)),
-            cost: calculateChange(Number(current.total_cost), Number(previous.total_cost))
+            calls: calculateChange(Number(data.current_calls), Number(data.previous_calls)),
+            minutes: calculateChange(Number(data.current_duration_min), Number(data.previous_duration_min)),
+            duration: calculateChange(Number(data.current_avg_duration), Number(data.previous_avg_duration)),
+            cost: calculateChange(Number(data.current_cost), Number(data.previous_cost))
           },
           dailyCallCounts,
           callOutcomes
         };
 
-        console.log("[DASHBOARD-METRICS] Successfully calculated metrics:", result);
+        console.log("[DASHBOARD-METRICS] Successfully calculated optimized metrics:", result);
         return result;
 
       } catch (error) {
-        console.error("[DASHBOARD-METRICS] Error in metrics calculation:", error);
+        console.error("[DASHBOARD-METRICS] Error in optimized metrics calculation:", error);
         throw error;
       }
     },
