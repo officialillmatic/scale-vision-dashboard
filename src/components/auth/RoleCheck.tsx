@@ -11,9 +11,9 @@ interface RoleCheckProps {
   role?: Role;
   allowedAction?: keyof ReturnType<typeof useRole>['can'];
   fallback?: React.ReactNode;
-  adminOnly?: boolean; // Shorthand for company owner or admin role
-  superAdminOnly?: boolean; // Shorthand for super admin only
-  showLoading?: boolean; // Whether to show loading state or not
+  adminOnly?: boolean;
+  superAdminOnly?: boolean;
+  showLoading?: boolean;
 }
 
 export const RoleCheck: React.FC<RoleCheckProps> = ({ 
@@ -27,10 +27,10 @@ export const RoleCheck: React.FC<RoleCheckProps> = ({
 }) => {
   const { checkRole, can, isCompanyOwner } = useRole();
   const { isCompanyLoading } = useAuth();
-  const { isSuperAdmin } = useSuperAdmin();
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
   
-  // If company data is still loading, show loading state or nothing
-  if (isCompanyLoading) {
+  // Show loading while checking permissions
+  if (isCompanyLoading || isSuperAdminLoading) {
     if (showLoading) {
       return (
         <div className="space-y-2 animate-pulse">
@@ -39,22 +39,21 @@ export const RoleCheck: React.FC<RoleCheckProps> = ({
         </div>
       );
     }
-    // Don't render anything until we know the permissions
     return null;
   }
   
   const hasPermission = () => {
-    // Super admin always has all permissions
+    // Super admin always has all permissions except for super admin only checks
     if (isSuperAdmin) {
       return true;
     }
     
-    // Super admin only check
+    // Super admin only check - only super admin can access
     if (superAdminOnly) {
-      return false; // Only super admin can access, regular users cannot
+      return false;
     }
     
-    // Company owner always has all permissions (except super admin only)
+    // Company owner always has admin permissions (except super admin only)
     if (isCompanyOwner) {
       return true;
     }

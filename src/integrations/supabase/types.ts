@@ -614,6 +614,10 @@ export type Database = {
         Args: { company_id: string }
         Returns: boolean
       }
+      user_can_access_company_safe: {
+        Args: { target_company_id: string }
+        Returns: boolean
+      }
       user_has_company_access: {
         Args: { target_company_id: string }
         Returns: boolean

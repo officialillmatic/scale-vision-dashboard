@@ -5,19 +5,10 @@ import { useSuperAdmin } from './useSuperAdmin';
 
 export type Role = 'admin' | 'member' | 'viewer';
 
-/**
- * Hook for checking user roles and permissions throughout the application
- * Provides consistent access control based on user role and company ownership
- */
 export const useRole = () => {
   const { company, user, companyMembers, userRole, isCompanyOwner, isCompanyLoading } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
 
-  /**
-   * Check if a user has a specific role or higher in the role hierarchy
-   * @param role The role to check against
-   * @returns boolean indicating if user has the specified role or higher
-   */
   const checkRole = (role: Role): boolean => {
     if (!user) return false;
     
@@ -27,15 +18,15 @@ export const useRole = () => {
     // Company owners always have admin privileges
     if (isCompanyOwner) return true;
     
-    // If company data is still loading, don't make any assumptions
+    // If company data is still loading, don't make assumptions
     if (isCompanyLoading) return false;
     
-    // If company data is loaded but no company exists, user doesn't have roles
-    if (!company && !isCompanyLoading) {
-      return false;
-    }
+    // Super admins can operate without a company
+    if (isSuperAdmin && !company) return true;
     
-    // Use the userRole from AuthContext 
+    // Regular users need a company and role
+    if (!company && !isSuperAdmin) return false;
+    
     if (!userRole) {
       console.log("No userRole found, returning false");
       return false;
@@ -50,26 +41,22 @@ export const useRole = () => {
     }
   };
 
-  /**
-   * Permission map defining what actions each user can perform
-   * This is the central source of truth for all permissions in the app
-   */
   const can = useMemo(() => ({
-    // Team and agent management - Super admins can manage everything globally
+    // Team and agent management
     manageTeam: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     manageAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'), 
-    viewAgents: true, // All authenticated users can view their assigned agents
+    viewAgents: true,
     createAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     assignAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     deleteAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
-    // Call management - Super admins can see all calls globally
-    viewCalls: true, // Allow all authenticated users to view their own calls
-    uploadCalls: isSuperAdmin || checkRole('member'), // Members and admins can upload calls
+    // Call management
+    viewCalls: true,
+    uploadCalls: isSuperAdmin || checkRole('member'),
     
-    // Billing management - Super admins can manage all balances
+    // Billing management
     manageBalances: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    viewBalance: true, // All users can view their own balance
+    viewBalance: true,
     accessBillingSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
     // Settings

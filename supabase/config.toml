@@ -31,3 +31,5 @@ enable_signup = true
 verify_jwt = false
 
 [functions.sync-calls]
+
+[functions.admin-update-balance]

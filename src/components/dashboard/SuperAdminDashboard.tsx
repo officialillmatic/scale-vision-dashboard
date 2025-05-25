@@ -1,200 +1,233 @@
 
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useGlobalData } from "./GlobalDataProvider";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, Users, Phone, DollarSign, TrendingUp, Activity } from "lucide-react";
-import { formatCurrency } from "@/lib/formatters";
+import { useGlobalData } from './GlobalDataProvider';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  Users, 
+  Building2, 
+  Phone, 
+  DollarSign, 
+  TrendingUp, 
+  Activity 
+} from 'lucide-react';
 
 export function SuperAdminDashboard() {
-  const { superAdminData, globalAgents, globalCalls } = useGlobalData();
-  const { globalMetrics, companyMetrics, isLoading, error } = superAdminData;
+  const { 
+    isSuperAdmin, 
+    superAdminData, 
+    globalAgents, 
+    globalCalls 
+  } = useGlobalData();
 
-  if (isLoading) {
+  if (!isSuperAdmin) {
     return (
-      <div className="space-y-8">
-        <div className="space-y-3">
-          <Skeleton className="h-10 w-80" />
-          <Skeleton className="h-6 w-96" />
-        </div>
-        
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="hover:shadow-md transition-shadow duration-200">
-              <CardHeader className="space-y-3">
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-5 w-5 rounded" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-20 mb-2" />
-                <Skeleton className="h-4 w-32" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-48" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-40 w-full" />
-          </CardContent>
-        </Card>
+      <div className="text-center py-8">
+        <p className="text-gray-600">Access denied: Super admin required</p>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="space-y-3">
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">
-            Super Admin Dashboard
-          </h1>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-700 font-medium">Error loading super admin data: {error}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const { globalMetrics, companyMetrics, isLoading: metricsLoading } = superAdminData;
+  const { agents, isLoading: agentsLoading } = globalAgents;
+  const { calls, isLoading: callsLoading } = globalCalls;
 
   return (
     <div className="space-y-8 w-full max-w-none">
       {/* Header */}
       <div className="space-y-3">
-        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-          Super Admin Dashboard 👑
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            Super Admin Dashboard 🚀
+          </h1>
+          <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">
+            ADMIN MODE
+          </Badge>
+        </div>
         <p className="text-lg text-gray-600 font-medium">
-          Global platform analytics and system management
+          Global platform overview and management tools
         </p>
       </div>
 
       {/* Global Metrics */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-sm">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-60" />
-          <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-semibold text-gray-700">Total Calls</CardTitle>
-            <div className="p-2.5 rounded-xl bg-blue-100 shadow-sm">
-              <Phone className="h-5 w-5 text-blue-600" />
-            </div>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="relative pt-0">
-            <div className="text-3xl font-bold text-gray-900 tracking-tight">
-              {globalMetrics?.totalCalls?.toLocaleString() || globalCalls.calls.length.toLocaleString()}
-            </div>
-            <p className="text-sm text-gray-600 font-medium">
-              Across all companies
-            </p>
+          <CardContent>
+            {metricsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold">{globalMetrics?.totalCompanies || 0}</div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-sm">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 opacity-60" />
-          <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-semibold text-gray-700">Total Revenue</CardTitle>
-            <div className="p-2.5 rounded-xl bg-emerald-100 shadow-sm">
-              <DollarSign className="h-5 w-5 text-emerald-600" />
-            </div>
+        <Card className="border-l-4 border-l-green-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="relative pt-0">
-            <div className="text-3xl font-bold text-gray-900 tracking-tight">
-              {formatCurrency(globalMetrics?.totalCost || globalCalls.calls.reduce((sum, call) => sum + (call.cost_usd || 0), 0))}
-            </div>
-            <p className="text-sm text-gray-600 font-medium">
-              Platform wide revenue
-            </p>
+          <CardContent>
+            {metricsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold">{globalMetrics?.totalUsers || 0}</div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-sm">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50 opacity-60" />
-          <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-semibold text-gray-700">Total Agents</CardTitle>
-            <div className="p-2.5 rounded-xl bg-purple-100 shadow-sm">
-              <Building2 className="h-5 w-5 text-purple-600" />
-            </div>
+        <Card className="border-l-4 border-l-purple-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Calls (30d)</CardTitle>
+            <Phone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="relative pt-0">
-            <div className="text-3xl font-bold text-gray-900 tracking-tight">
-              {globalAgents.agents.length || '0'}
-            </div>
-            <p className="text-sm text-gray-600 font-medium">
-              Active AI agents
-            </p>
+          <CardContent>
+            {metricsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold">{globalMetrics?.totalCalls || 0}</div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-sm">
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-orange-100/50 opacity-60" />
-          <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-semibold text-gray-700">Total Companies</CardTitle>
-            <div className="p-2.5 rounded-xl bg-orange-100 shadow-sm">
-              <Users className="h-5 w-5 text-orange-600" />
-            </div>
+        <Card className="border-l-4 border-l-yellow-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Revenue (30d)</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="relative pt-0">
-            <div className="text-3xl font-bold text-gray-900 tracking-tight">
-              {globalMetrics?.totalCompanies || companyMetrics.length || '0'}
-            </div>
-            <p className="text-sm text-gray-600 font-medium">
-              Active organizations
-            </p>
+          <CardContent>
+            {metricsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold">
+                ${globalMetrics?.totalCost?.toFixed(2) || '0.00'}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Company Performance Table */}
-      <Card className="hover:shadow-lg transition-shadow duration-300 border-0 shadow-sm">
-        <CardHeader className="space-y-3 pb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-indigo-100">
-              <TrendingUp className="h-5 w-5 text-indigo-600" />
-            </div>
-            <div>
-              <CardTitle className="text-lg font-bold text-gray-900">Company Performance</CardTitle>
-              <CardDescription className="text-sm text-gray-600 font-medium">
-                Top performing companies by call volume
-              </CardDescription>
-            </div>
-          </div>
+      {/* Global Agents Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Global AI Agents
+          </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
-          {companyMetrics && companyMetrics.length > 0 ? (
+        <CardContent>
+          {agentsLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+          ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                <div>Company</div>
-                <div className="text-right">Calls</div>
-                <div className="text-right">Revenue</div>
-                <div className="text-right">Users</div>
-              </div>
-              <div className="space-y-3">
-                {companyMetrics.slice(0, 10).map((company, index) => (
-                  <div key={company.companyId || index} className="grid grid-cols-4 text-sm items-center py-3 px-4 rounded-lg bg-gray-50/60 hover:bg-gray-100/80 transition-colors duration-200">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-400 to-purple-400 flex items-center justify-center text-white text-xs font-bold">
-                        {index + 1}
-                      </div>
-                      <span className="font-semibold text-gray-900 truncate">{company.companyName}</span>
+              <div className="text-2xl font-bold">{agents.length} Active Agents</div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {agents.slice(0, 6).map((agent) => (
+                  <div key={agent.id} className="p-3 border rounded-lg">
+                    <div className="font-medium">{agent.name}</div>
+                    <div className="text-sm text-gray-600">
+                      Rate: ${agent.rate_per_minute}/min
                     </div>
-                    <div className="text-right font-bold text-gray-900">{Number(company.totalCalls).toLocaleString()}</div>
-                    <div className="text-right font-bold text-green-600">{formatCurrency(Number(company.totalCost))}</div>
-                    <div className="text-right font-semibold text-gray-700">{Number(company.totalUsers)}</div>
+                    <Badge variant="secondary" className="mt-1">
+                      {agent.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+              {agents.length > 6 && (
+                <p className="text-sm text-gray-600">
+                  And {agents.length - 6} more agents...
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recent Global Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Recent Global Call Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {callsLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-2xl font-bold">{calls.length} Recent Calls</div>
+              <div className="space-y-2">
+                {calls.slice(0, 5).map((call) => (
+                  <div key={call.id} className="flex justify-between items-center p-2 border rounded">
+                    <div>
+                      <div className="font-medium">Call {call.call_id}</div>
+                      <div className="text-sm text-gray-600">
+                        {call.timestamp.toLocaleDateString()} - Duration: {call.duration_sec}s
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium">${call.cost_usd.toFixed(2)}</div>
+                      <Badge variant={call.call_status === 'completed' ? 'default' : 'secondary'}>
+                        {call.call_status}
+                      </Badge>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Company Performance */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Top Performing Companies</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {metricsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
           ) : (
-            <div className="text-center py-8">
-              <div className="p-3 rounded-full bg-gray-100 w-fit mx-auto mb-3">
-                <Activity className="h-6 w-6 text-gray-400" />
-              </div>
-              <p className="text-gray-600 font-medium">No company performance data available</p>
-              <p className="text-sm text-gray-500 mt-1">Data will appear as companies start using the platform</p>
+            <div className="space-y-3">
+              {companyMetrics.slice(0, 5).map((company, index) => (
+                <div key={company.companyId} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <div className="font-medium">{company.companyName}</div>
+                      <div className="text-sm text-gray-600">
+                        {company.totalUsers} users • {company.totalCalls} calls
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-green-600">
+                      ${company.totalCost.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-500">30d revenue</div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

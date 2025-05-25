@@ -3,15 +3,18 @@ import { useState, useEffect } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Company, CompanyMember } from "@/types/auth";
+import { fetchCompany } from "@/services/companyService";
+import { useSuperAdmin } from "./useSuperAdmin";
 
 export const useCompanyData = (user: User | null) => {
+  const { isSuperAdmin } = useSuperAdmin();
   const [company, setCompany] = useState<Company | null>(null);
-  const [isCompanyLoading, setIsCompanyLoading] = useState(true);
   const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<'admin' | 'member' | 'viewer' | null>(null);
   const [isCompanyOwner, setIsCompanyOwner] = useState(false);
+  const [isCompanyLoading, setIsCompanyLoading] = useState(true);
 
-  const fetchCompanyData = async () => {
+  const refreshCompany = async () => {
     if (!user) {
       setCompany(null);
       setCompanyMembers([]);
@@ -21,116 +24,87 @@ export const useCompanyData = (user: User | null) => {
       return;
     }
 
+    // Super admins don't need a company to function
+    if (isSuperAdmin) {
+      setIsCompanyOwner(false);
+      setUserRole('admin'); // Super admins have admin-level permissions
+      setIsCompanyLoading(false);
+      return;
+    }
+
+    setIsCompanyLoading(true);
     try {
       console.log("[COMPANY_DATA] Fetching company data for user:", user.id);
       
-      // First, try to get company where user is owner
-      const { data: ownedCompany, error: ownedError } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('owner_id', user.id)
-        .maybeSingle();
+      const companyData = await fetchCompany(user.id);
+      setCompany(companyData);
 
-      if (ownedError && ownedError.code !== 'PGRST116') {
-        console.error("[COMPANY_DATA] Error fetching owned company:", ownedError);
-      }
+      if (companyData) {
+        // Check if user is the company owner
+        const isOwner = companyData.owner_id === user.id;
+        setIsCompanyOwner(isOwner);
+        
+        if (isOwner) {
+          setUserRole('admin');
+        } else {
+          // Fetch user's role in the company
+          const { data: memberData, error: memberError } = await supabase
+            .from("company_members")
+            .select("role")
+            .eq("company_id", companyData.id)
+            .eq("user_id", user.id)
+            .eq("status", "active")
+            .single();
 
-      if (ownedCompany) {
-        console.log("[COMPANY_DATA] Found owned company:", ownedCompany.id);
-        setCompany(ownedCompany);
-        setUserRole('owner');
-        setIsCompanyOwner(true);
-        await fetchCompanyMembers(ownedCompany.id);
-        setIsCompanyLoading(false);
-        return;
-      }
+          if (memberError) {
+            console.error("[COMPANY_DATA] Error fetching member role:", memberError);
+            setUserRole('viewer'); // Default to most restrictive role
+          } else {
+            setUserRole(memberData.role as 'admin' | 'member' | 'viewer');
+          }
+        }
 
-      // If no owned company, check if user is a member of any company
-      const { data: memberData, error: memberError } = await supabase
-        .from('company_members')
-        .select(`
-          *,
-          companies:company_id (*)
-        `)
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .maybeSingle();
+        // Fetch company members
+        const { data: membersData, error: membersError } = await supabase
+          .from("company_members")
+          .select(`
+            *,
+            user_details:user_profiles(id, email, name, avatar_url)
+          `)
+          .eq("company_id", companyData.id)
+          .eq("status", "active");
 
-      if (memberError && memberError.code !== 'PGRST116') {
-        console.error("[COMPANY_DATA] Error fetching member data:", memberError);
-      }
-
-      if (memberData && memberData.companies) {
-        console.log("[COMPANY_DATA] Found member company:", memberData.companies.id);
-        setCompany(memberData.companies as Company);
-        setUserRole(memberData.role);
-        setIsCompanyOwner(false);
-        await fetchCompanyMembers(memberData.companies.id);
+        if (membersError) {
+          console.error("[COMPANY_DATA] Error fetching company members:", membersError);
+        } else {
+          setCompanyMembers(membersData || []);
+        }
       } else {
-        console.log("[COMPANY_DATA] No company found for user");
-        setCompany(null);
-        setUserRole(null);
         setIsCompanyOwner(false);
+        setUserRole(null);
         setCompanyMembers([]);
       }
     } catch (error) {
-      console.error("[COMPANY_DATA] Unexpected error:", error);
+      console.error("[COMPANY_DATA] Error in company data fetch:", error);
       setCompany(null);
+      setCompanyMembers([]);
       setUserRole(null);
       setIsCompanyOwner(false);
-      setCompanyMembers([]);
     } finally {
       setIsCompanyLoading(false);
     }
   };
 
-  const fetchCompanyMembers = async (companyId: string) => {
-    try {
-      console.log("[COMPANY_DATA] Fetching members for company:", companyId);
-      
-      const { data: members, error } = await supabase
-        .from('company_members')
-        .select(`
-          *,
-          user_details:user_id (
-            id,
-            email,
-            name,
-            avatar_url
-          )
-        `)
-        .eq('company_id', companyId)
-        .eq('status', 'active');
-
-      if (error) {
-        console.error("[COMPANY_DATA] Error fetching company members:", error);
-        return;
-      }
-
-      console.log("[COMPANY_DATA] Found members:", members?.length || 0);
-      setCompanyMembers(members || []);
-    } catch (error) {
-      console.error("[COMPANY_DATA] Error in fetchCompanyMembers:", error);
-      setCompanyMembers([]);
-    }
-  };
-
-  const refreshCompany = async () => {
-    console.log("[COMPANY_DATA] Refreshing company data");
-    setIsCompanyLoading(true);
-    await fetchCompanyData();
-  };
-
   useEffect(() => {
-    fetchCompanyData();
-  }, [user]);
+    refreshCompany();
+  }, [user, isSuperAdmin]);
 
   return {
     company,
-    isCompanyLoading,
     companyMembers,
     userRole,
     isCompanyOwner,
+    isCompanyLoading,
     refreshCompany
   };
 };
