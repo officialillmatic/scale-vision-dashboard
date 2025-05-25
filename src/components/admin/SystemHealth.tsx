@@ -48,14 +48,14 @@ export function SystemHealth() {
         body: { limit: 1 }
       });
 
-      // Get system metrics
-      const { data: callsCount } = await supabase
+      // Get system metrics with proper count handling
+      const { count: callsCount, error: callsCountError } = await supabase
         .from('calls')
-        .select('id', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true });
         
-      const { data: agentsCount } = await supabase
+      const { count: agentsCount, error: agentsCountError } = await supabase
         .from('agents')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('status', 'active');
 
       const healthStatus: SystemStatus = {
