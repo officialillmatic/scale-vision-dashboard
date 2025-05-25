@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
+import { mapRetellCallToDatabase, validateCallData, type RetellCallData } from "../_shared/retellDataMapper.ts";
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -41,46 +42,46 @@ serve(async (req) => {
 
     console.log(`[WEBHOOK] Processing event: ${event} for call: ${call.call_id || 'unknown'}`);
 
-    const {
-      call_id,
-      agent_id: retell_agent_id,
-      from_number,
-      to_number,
-      start_timestamp,
-      end_timestamp,
-      duration,
-      duration_ms,
-      disconnection_reason,
-      call_status,
-      recording_url,
-      transcript,
-      transcript_url,
-      sentiment_score,
-      sentiment,
-      disposition,
-      latency_ms
-    } = call;
+    const retellCall: RetellCallData = {
+      call_id: call.call_id,
+      agent_id: call.agent_id,
+      from_number: call.from_number,
+      to_number: call.to_number,
+      start_timestamp: call.start_timestamp,
+      end_timestamp: call.end_timestamp,
+      duration: call.duration,
+      duration_ms: call.duration_ms,
+      disconnection_reason: call.disconnection_reason,
+      call_status: call.call_status,
+      recording_url: call.recording_url,
+      transcript: call.transcript,
+      transcript_url: call.transcript_url,
+      sentiment_score: call.sentiment_score,
+      sentiment: call.sentiment,
+      disposition: call.disposition,
+      latency_ms: call.latency_ms
+    };
 
-    if (!call_id || !retell_agent_id) {
+    if (!retellCall.call_id || !retellCall.agent_id) {
       console.error('[WEBHOOK ERROR] Missing required fields:', { 
-        hasCallId: !!call_id, 
-        hasAgentId: !!retell_agent_id 
+        hasCallId: !!retellCall.call_id, 
+        hasAgentId: !!retellCall.agent_id 
       });
       return createErrorResponse('Missing required call data: call_id or agent_id', 400);
     }
 
-    console.log(`[WEBHOOK] Looking up agent with retell_agent_id: ${retell_agent_id}`);
+    console.log(`[WEBHOOK] Looking up agent with retell_agent_id: ${retellCall.agent_id}`);
 
     // Find the agent in our database using retell_agent_id
     const { data: agent, error: agentError } = await supabaseClient
       .from('agents')
       .select('id, name, rate_per_minute')
-      .eq('retell_agent_id', retell_agent_id)
+      .eq('retell_agent_id', retellCall.agent_id)
       .single();
 
     if (agentError || !agent) {
-      console.error('[WEBHOOK ERROR] Agent not found:', { retell_agent_id, error: agentError });
-      return createErrorResponse(`Agent not found for retell_agent_id: ${retell_agent_id}`, 400);
+      console.error('[WEBHOOK ERROR] Agent not found:', { retell_agent_id: retellCall.agent_id, error: agentError });
+      return createErrorResponse(`Agent not found for retell_agent_id: ${retellCall.agent_id}`, 400);
     }
 
     console.log(`[WEBHOOK] Found agent:`, { id: agent.id, name: agent.name });
@@ -105,45 +106,31 @@ serve(async (req) => {
       company_id: userAgent.company_id 
     });
 
-    // Calculate duration in seconds from either duration or duration_ms
-    const durationSeconds = duration ? duration / 1000 : (duration_ms ? duration_ms / 1000 : 0);
-    const durationMinutes = durationSeconds / 60;
-    const ratePerMinute = agent.rate_per_minute || 0.02;
-    const cost = durationMinutes * ratePerMinute;
+    // Map Retell call data to our schema
+    const mappedCallData = mapRetellCallToDatabase(
+      retellCall,
+      userAgent.user_id,
+      userAgent.company_id,
+      agent.id,
+      agent.rate_per_minute || 0.02
+    );
 
-    console.log(`[WEBHOOK] Cost calculation:`, { 
-      duration, 
-      duration_ms,
-      durationSeconds, 
-      durationMinutes, 
-      ratePerMinute, 
-      cost 
-    });
+    // Validate the mapped data
+    const validationErrors = validateCallData(mappedCallData);
+    if (validationErrors.length > 0) {
+      console.error('[WEBHOOK ERROR] Call data validation failed:', validationErrors);
+      return createErrorResponse(`Invalid call data: ${validationErrors.join(', ')}`, 400);
+    }
 
-    // Convert timestamp to ISO string
-    const startTime = start_timestamp ? new Date(start_timestamp).toISOString() : new Date().toISOString();
-
-    // Prepare call data based on webhook event
-    let callData: any = {
-      call_id,
-      user_id: userAgent.user_id,
-      company_id: userAgent.company_id,
-      agent_id: agent.id,
-      from_number: from_number || 'unknown',
-      to_number: to_number || 'unknown',
-      from: from_number || 'unknown', // Backward compatibility
-      to: to_number || 'unknown', // Backward compatibility
-      call_type: 'phone_call',
-      latency_ms: latency_ms || 0,
-      start_time: startTime,
-      timestamp: startTime // Backward compatibility
-    };
+    console.log(`[WEBHOOK] Mapped call data:`, JSON.stringify(mappedCallData, null, 2));
 
     // Handle different webhook events
+    let finalCallData = { ...mappedCallData };
+    
     switch (event) {
       case 'call_started':
-        callData = {
-          ...callData,
+        finalCallData = {
+          ...finalCallData,
           duration_sec: 0,
           cost_usd: 0,
           call_status: 'in_progress',
@@ -155,26 +142,13 @@ serve(async (req) => {
           transcript_url: null,
           disposition: null
         };
-        console.log(`[WEBHOOK] Processing call_started event for call: ${call_id}`);
+        console.log(`[WEBHOOK] Processing call_started event for call: ${retellCall.call_id}`);
         break;
 
       case 'call_ended':
       case 'call_analyzed':
-        callData = {
-          ...callData,
-          duration_sec: durationSeconds,
-          cost_usd: cost,
-          call_status: call_status || 'completed',
-          disconnection_reason: disconnection_reason,
-          sentiment: sentiment || 'neutral',
-          sentiment_score: sentiment_score,
-          recording_url: recording_url,
-          transcript: transcript,
-          transcript_url: transcript_url,
-          disposition: disposition,
-          audio_url: recording_url // Backward compatibility
-        };
-        console.log(`[WEBHOOK] Processing ${event} event for call: ${call_id}`);
+        // Use the fully mapped data
+        console.log(`[WEBHOOK] Processing ${event} event for call: ${retellCall.call_id}`);
         break;
 
       default:
@@ -182,17 +156,15 @@ serve(async (req) => {
         return createSuccessResponse({ 
           message: 'Event received but not processed', 
           event,
-          call_id,
+          call_id: retellCall.call_id,
           status: 'acknowledged'
         });
     }
 
-    console.log(`[WEBHOOK] Upserting call data:`, JSON.stringify(callData, null, 2));
-
     // Upsert the call data
     const { data: upsertedCall, error: upsertError } = await supabaseClient
       .from('calls')
-      .upsert(callData, {
+      .upsert(finalCallData, {
         onConflict: 'call_id',
         ignoreDuplicates: false
       })
@@ -207,52 +179,52 @@ serve(async (req) => {
     console.log(`[WEBHOOK] Successfully upserted call with ID: ${upsertedCall?.id}`);
 
     // Create transaction record for cost tracking (only for completed calls)
-    if ((event === 'call_ended' || event === 'call_analyzed') && cost > 0) {
-      console.log(`[WEBHOOK] Creating transaction record for cost: ${cost}`);
+    if ((event === 'call_ended' || event === 'call_analyzed') && finalCallData.cost_usd > 0) {
+      console.log(`[WEBHOOK] Creating transaction record for cost: ${finalCallData.cost_usd}`);
       
       const { error: transactionError } = await supabaseClient
         .from('transactions')
         .insert({
           user_id: userAgent.user_id,
           company_id: userAgent.company_id,
-          amount: -cost, // Negative for debit
+          amount: -finalCallData.cost_usd, // Negative for debit
           transaction_type: 'call_cost',
-          description: `Call cost for ${call_id}`,
-          call_id: call_id // Reference the call_id string (now properly typed as text)
+          description: `Call cost for ${finalCallData.call_id}`,
+          call_id: finalCallData.call_id
         });
 
       if (transactionError) {
         console.error('[WEBHOOK ERROR] Failed to create transaction:', transactionError);
         // Don't fail the webhook for transaction errors, just log it
       } else {
-        console.log(`[WEBHOOK] Successfully created transaction record for cost: ${cost}`);
+        console.log(`[WEBHOOK] Successfully created transaction record for cost: ${finalCallData.cost_usd}`);
       }
 
       // Update user balance
       const { error: balanceError } = await supabaseClient.rpc('update_user_balance', {
         p_user_id: userAgent.user_id,
         p_company_id: userAgent.company_id,
-        p_amount: -cost
+        p_amount: -finalCallData.cost_usd
       });
 
       if (balanceError) {
         console.error('[WEBHOOK ERROR] Failed to update user balance:', balanceError);
         // Don't fail the webhook for balance errors, just log it
       } else {
-        console.log(`[WEBHOOK] Successfully updated user balance with cost: ${cost}`);
+        console.log(`[WEBHOOK] Successfully updated user balance with cost: ${finalCallData.cost_usd}`);
       }
     }
     
-    console.log(`[WEBHOOK SUCCESS] Successfully processed ${event} webhook for call ${call_id}`);
+    console.log(`[WEBHOOK SUCCESS] Successfully processed ${event} webhook for call ${retellCall.call_id}`);
     
     return createSuccessResponse({
       message: `Webhook ${event} processed successfully`,
-      call_id,
+      call_id: retellCall.call_id,
       event,
       agent_id: agent.id,
       user_id: userAgent.user_id,
       company_id: userAgent.company_id,
-      cost_usd: cost,
+      cost_usd: finalCallData.cost_usd,
       status: 'success'
     });
 

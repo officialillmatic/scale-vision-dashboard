@@ -485,6 +485,38 @@ export type Database = {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean
       }
+      get_call_metrics_for_period: {
+        Args: {
+          company_id_param: string
+          start_date_param: string
+          end_date_param: string
+        }
+        Returns: {
+          total_calls: number
+          total_duration_min: number
+          avg_duration_sec: number
+          total_cost: number
+        }[]
+      }
+      get_call_outcomes: {
+        Args: { company_id_param: string }
+        Returns: {
+          status_type: string
+          count: number
+        }[]
+      }
+      get_daily_call_distribution: {
+        Args: {
+          company_id_param: string
+          start_date_param: string
+          end_date_param: string
+        }
+        Returns: {
+          date: string
+          call_count: number
+          total_duration_min: number
+        }[]
+      }
       get_user_balance: {
         Args: { p_user_id: string }
         Returns: number
