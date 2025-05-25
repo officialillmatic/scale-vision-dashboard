@@ -8,50 +8,6 @@ schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
-[auth]
-enabled = true
-port = 54324
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["https://lovable.dev"]
-jwt_expiry = 3600
-enable_signup = true
-email_double_confirm_changes = true
-enable_manual_linking = false
-
-[edge_functions]
-enabled = true
-port = 54323
-
-[functions.retell-webhook]
-verify_jwt = false
-
-[functions.sync-calls]
-verify_jwt = true
-
-[functions.fetch-retell-calls]
-verify_jwt = true
-
-[functions.webhook-monitor]
-verify_jwt = false
-
-[functions.send-invitation]
-verify_jwt = true
-
-[functions.check-email-config]
-verify_jwt = true
-
-[functions.admin-update-balance]
-verify_jwt = true
-
-[functions.enforce-agent-permissions]
-verify_jwt = true
-
-[functions.webhook-test]
-verify_jwt = false
-
-[functions.demo-data]
-verify_jwt = true
-
 [db]
 port = 54322
 
@@ -59,6 +15,19 @@ port = 54322
 enabled = true
 port = 54323
 
-[inbucket]
+[ingest]
+enabled = false
+
+[auth]
 enabled = true
-port = 54324
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://lovable.dev"]
+jwt_expiry = 3600
+
+[auth.email]
+enable_signup = true
+
+[functions.retell-webhook]
+verify_jwt = false
+
+[functions.sync-calls]

@@ -1,8 +1,8 @@
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useSuperAdmin } from "./useSuperAdmin";
 import { Agent } from "@/services/agentService";
+import { fetchGlobalAgents } from "@/services/globalDataService";
 
 export const useGlobalAgents = () => {
   const { isSuperAdmin } = useSuperAdmin();
@@ -10,8 +10,9 @@ export const useGlobalAgents = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchGlobalAgents = async () => {
+  const fetchAgents = async () => {
     if (!isSuperAdmin) {
+      setAgents([]);
       setIsLoading(false);
       return;
     }
@@ -20,21 +21,10 @@ export const useGlobalAgents = () => {
     setError(null);
 
     try {
-      // Super admin can see all agents
-      const { data, error } = await supabase
-        .from("agents")
-        .select("*")
-        .order("name");
-
-      if (error) {
-        console.error("Error fetching global agents:", error);
-        setError("Failed to load agents");
-        setAgents([]);
-      } else {
-        setAgents(data || []);
-      }
-    } catch (error) {
-      console.error("Error in global agents fetch:", error);
+      const data = await fetchGlobalAgents();
+      setAgents(data);
+    } catch (error: any) {
+      console.error("Error fetching global agents:", error);
       setError("Failed to load agents");
       setAgents([]);
     } finally {
@@ -43,7 +33,7 @@ export const useGlobalAgents = () => {
   };
 
   useEffect(() => {
-    fetchGlobalAgents();
+    fetchAgents();
   }, [isSuperAdmin]);
 
   return {
@@ -52,7 +42,7 @@ export const useGlobalAgents = () => {
     error,
     refetch: () => {
       if (isSuperAdmin) {
-        fetchGlobalAgents();
+        fetchAgents();
       }
     }
   };

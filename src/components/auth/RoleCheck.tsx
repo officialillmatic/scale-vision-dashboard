@@ -3,6 +3,7 @@ import React from 'react';
 import { useRole } from '@/hooks/useRole';
 import { Role } from '@/hooks/useRole';
 import { useAuth } from "@/contexts/AuthContext";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface RoleCheckProps {
@@ -24,8 +25,9 @@ export const RoleCheck: React.FC<RoleCheckProps> = ({
   superAdminOnly = false,
   showLoading = false
 }) => {
-  const { checkRole, can, isCompanyOwner, isSuperAdmin } = useRole();
+  const { checkRole, can, isCompanyOwner } = useRole();
   const { isCompanyLoading } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
   
   // If company data is still loading, show loading state or nothing
   if (isCompanyLoading) {

@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Users, Bot } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRole } from '@/hooks/useRole';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -16,19 +17,20 @@ const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
   const { user } = useAuth();
   const { isCompanyOwner, can } = useRole();
+  const { isSuperAdmin } = useSuperAdmin();
   const navigate = useNavigate();
   
   // Redirect non-admin users to dashboard with enhanced security
   useEffect(() => {
-    if (user && !isCompanyOwner && !can.manageTeam) {
+    if (user && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
       toast.error("You don't have permission to access team management");
       navigate('/dashboard');
       return;
     }
-  }, [user, isCompanyOwner, can.manageTeam, navigate]);
+  }, [user, isSuperAdmin, isCompanyOwner, can.manageTeam, navigate]);
   
   // Additional security check to prevent unauthorized access
-  if (!isCompanyOwner && !can.manageTeam) {
+  if (!isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
     return <DashboardLayout>
       <Alert variant="destructive" className="border-red-200 bg-red-50">
         <AlertTriangle className="h-4 w-4" />
@@ -48,7 +50,7 @@ const TeamPage = () => {
             Team Management 👥
           </h1>
           <p className="text-lg text-gray-600 font-medium">
-            Manage your team members and AI agents with complete control
+            {isSuperAdmin ? 'Manage all teams and AI agents across the platform' : 'Manage your team members and AI agents with complete control'}
           </p>
         </div>
         
@@ -94,7 +96,6 @@ const TeamPage = () => {
               <TabsContent value="agents" className="space-y-6 mt-0">
                 <RoleCheck 
                   allowedAction="manageAgents"
-                  adminOnly
                   fallback={
                     <Alert variant="destructive" className="border-red-200 bg-red-50">
                       <AlertTriangle className="h-4 w-4" />

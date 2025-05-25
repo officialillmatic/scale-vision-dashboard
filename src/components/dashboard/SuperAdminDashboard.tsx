@@ -1,14 +1,15 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useSuperAdminData } from "@/hooks/useSuperAdminData";
+import { useGlobalData } from "./GlobalDataProvider";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Building2, Users, Phone, DollarSign, TrendingUp, Activity } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 
 export function SuperAdminDashboard() {
-  const { globalMetrics, companyMetrics, isLoading, error } = useSuperAdminData();
+  const { superAdminData, globalAgents, globalCalls } = useGlobalData();
+  const { globalMetrics, companyMetrics, isLoading, error } = superAdminData;
 
   if (isLoading) {
     return (
@@ -84,7 +85,7 @@ export function SuperAdminDashboard() {
           </CardHeader>
           <CardContent className="relative pt-0">
             <div className="text-3xl font-bold text-gray-900 tracking-tight">
-              {globalMetrics?.totalCalls?.toLocaleString() || '0'}
+              {globalMetrics?.totalCalls?.toLocaleString() || globalCalls.calls.length.toLocaleString()}
             </div>
             <p className="text-sm text-gray-600 font-medium">
               Across all companies
@@ -102,7 +103,7 @@ export function SuperAdminDashboard() {
           </CardHeader>
           <CardContent className="relative pt-0">
             <div className="text-3xl font-bold text-gray-900 tracking-tight">
-              {formatCurrency(globalMetrics?.totalCost || 0)}
+              {formatCurrency(globalMetrics?.totalCost || globalCalls.calls.reduce((sum, call) => sum + (call.cost_usd || 0), 0))}
             </div>
             <p className="text-sm text-gray-600 font-medium">
               Platform wide revenue
@@ -113,17 +114,17 @@ export function SuperAdminDashboard() {
         <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-sm">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50 opacity-60" />
           <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-semibold text-gray-700">Total Companies</CardTitle>
+            <CardTitle className="text-sm font-semibold text-gray-700">Total Agents</CardTitle>
             <div className="p-2.5 rounded-xl bg-purple-100 shadow-sm">
               <Building2 className="h-5 w-5 text-purple-600" />
             </div>
           </CardHeader>
           <CardContent className="relative pt-0">
             <div className="text-3xl font-bold text-gray-900 tracking-tight">
-              {globalMetrics?.totalCompanies || '0'}
+              {globalAgents.agents.length || '0'}
             </div>
             <p className="text-sm text-gray-600 font-medium">
-              Active organizations
+              Active AI agents
             </p>
           </CardContent>
         </Card>
@@ -131,17 +132,17 @@ export function SuperAdminDashboard() {
         <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-sm">
           <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-orange-100/50 opacity-60" />
           <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-semibold text-gray-700">Active Users</CardTitle>
+            <CardTitle className="text-sm font-semibold text-gray-700">Total Companies</CardTitle>
             <div className="p-2.5 rounded-xl bg-orange-100 shadow-sm">
               <Users className="h-5 w-5 text-orange-600" />
             </div>
           </CardHeader>
           <CardContent className="relative pt-0">
             <div className="text-3xl font-bold text-gray-900 tracking-tight">
-              {globalMetrics?.totalUsers || '0'}
+              {globalMetrics?.totalCompanies || companyMetrics.length || '0'}
             </div>
             <p className="text-sm text-gray-600 font-medium">
-              Platform users
+              Active organizations
             </p>
           </CardContent>
         </Card>
@@ -173,7 +174,7 @@ export function SuperAdminDashboard() {
               </div>
               <div className="space-y-3">
                 {companyMetrics.slice(0, 10).map((company, index) => (
-                  <div key={company.companyId} className="grid grid-cols-4 text-sm items-center py-3 px-4 rounded-lg bg-gray-50/60 hover:bg-gray-100/80 transition-colors duration-200">
+                  <div key={company.companyId || index} className="grid grid-cols-4 text-sm items-center py-3 px-4 rounded-lg bg-gray-50/60 hover:bg-gray-100/80 transition-colors duration-200">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-400 to-purple-400 flex items-center justify-center text-white text-xs font-bold">
                         {index + 1}
