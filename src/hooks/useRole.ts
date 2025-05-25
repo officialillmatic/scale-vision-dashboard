@@ -56,7 +56,7 @@ export const useRole = () => {
     viewBalance: isSuperAdmin || checkRole('viewer'), // Super admins can view all balances
     accessBillingSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
-    // Settings
+    // Settings - Optimized for consolidated RLS policies
     editSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     uploadCompanyLogo: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     inviteUsers: isSuperAdmin || isCompanyOwner || checkRole('admin'),
