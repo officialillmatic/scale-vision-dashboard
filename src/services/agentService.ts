@@ -140,9 +140,8 @@ export const updateAgent = async (agentId: string, updates: Partial<Agent>): Pro
     }
 
     return data;
-  } catch (error: any) {
-    console.error("[AGENT_SERVICE] Error in updateAgent:", error);
-    throw new Error(`Failed to update agent: ${error.message}`);
+  } finally {
+    // Clean up
   }
 };
 

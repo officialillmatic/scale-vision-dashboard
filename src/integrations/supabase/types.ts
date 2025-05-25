@@ -562,9 +562,32 @@ export type Database = {
           total_users: number
         }[]
       }
+      get_user_accessible_agents: {
+        Args: { p_user_id: string; p_company_id: string }
+        Returns: {
+          id: string
+          name: string
+          description: string
+          rate_per_minute: number
+          retell_agent_id: string
+          avatar_url: string
+          status: string
+          created_at: string
+          updated_at: string
+        }[]
+      }
       get_user_balance: {
         Args: { p_user_id: string }
         Returns: number
+      }
+      get_user_balance_detailed: {
+        Args: { p_user_id: string; p_company_id: string }
+        Returns: {
+          balance: number
+          warning_threshold: number
+          recent_transactions: Json
+          remaining_minutes: number
+        }[]
       }
       get_user_companies: {
         Args: Record<PropertyKey, never>
@@ -576,6 +599,10 @@ export type Database = {
       }
       get_user_company_role: {
         Args: { p_user_id: string; p_company_id: string }
+        Returns: string
+      }
+      get_user_company_simple: {
+        Args: Record<PropertyKey, never>
         Returns: string
       }
       get_user_email: {
@@ -594,6 +621,10 @@ export type Database = {
         Args: { p_company_id: string; p_user_id: string }
         Returns: boolean
       }
+      is_company_admin_simple: {
+        Args: { p_user_id: string; p_company_id: string }
+        Returns: boolean
+      }
       is_company_member: {
         Args: { p_company_id: string; p_user_id: string }
         Returns: boolean
@@ -610,29 +641,13 @@ export type Database = {
         Args: { check_user_id?: string }
         Returns: boolean
       }
+      is_super_admin_safe: {
+        Args: { check_user_id?: string }
+        Returns: boolean
+      }
       update_user_balance: {
         Args: { p_user_id: string; p_company_id: string; p_amount: number }
         Returns: undefined
-      }
-      user_can_access_company: {
-        Args: { company_id: string }
-        Returns: boolean
-      }
-      user_can_access_company_data: {
-        Args: { p_user_id: string; p_company_id: string }
-        Returns: boolean
-      }
-      user_can_access_company_safe: {
-        Args: { target_company_id: string }
-        Returns: boolean
-      }
-      user_has_company_access: {
-        Args: { target_company_id: string }
-        Returns: boolean
-      }
-      user_has_company_access_safe: {
-        Args: { target_company_id: string }
-        Returns: boolean
       }
       user_is_company_admin: {
         Args: { p_user_id: string; p_company_id: string }

@@ -36,7 +36,7 @@ export function SystemHealth() {
       
       console.log("[SYSTEM_HEALTH] Starting comprehensive health check...");
 
-      // Test database connectivity
+      // Test database connectivity using new secure functions
       console.log("[SYSTEM_HEALTH] Testing database connectivity...");
       const { count: callsCount, error: callsError } = await supabase
         .from('calls')
@@ -53,7 +53,7 @@ export function SystemHealth() {
 
       // Test AI API connectivity
       console.log("[SYSTEM_HEALTH] Testing AI API connectivity...");
-      const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-ai-calls', {
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-retell-calls', {
         body: { limit: 1 }
       });
 
