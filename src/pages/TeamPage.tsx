@@ -4,7 +4,6 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { TeamMembers } from '@/components/team/TeamMembers';
 import { TeamAgents } from '@/components/team/TeamAgents';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RoleCheck } from '@/components/auth/RoleCheck';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Users, Bot, Crown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';

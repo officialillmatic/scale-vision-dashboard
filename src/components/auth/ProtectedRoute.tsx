@@ -11,14 +11,16 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: Role;
   requiredAction?: keyof ReturnType<typeof useRole>['can'];
-  adminOnly?: boolean; // Shorthand for requiring admin or owner status
+  adminOnly?: boolean;
+  superAdminOnly?: boolean;
 }
 
 export const ProtectedRoute = ({ 
   children, 
   requiredRole, 
   requiredAction,
-  adminOnly = false
+  adminOnly = false,
+  superAdminOnly = false
 }: ProtectedRouteProps) => {
   const { user, isLoading, isCompanyLoading } = useAuth();
   const location = useLocation();
@@ -28,7 +30,7 @@ export const ProtectedRoute = ({
   const [hasAccess, setHasAccess] = useState(false);
   
   useEffect(() => {
-    // Only perform permission check when both auth and company data are loaded
+    // Only perform permission check when auth data is loaded
     if (!isLoading && !isSuperAdminLoading && (!isCompanyLoading || isSuperAdmin)) {
       let access = false;
       
@@ -36,7 +38,14 @@ export const ProtectedRoute = ({
       if (!user) {
         access = false;
       }
-      // Super admins always have full access - bypass all other checks
+      // Super admin only check - only super admin can access
+      else if (superAdminOnly) {
+        access = isSuperAdmin;
+        if (!access) {
+          toast.error("This area requires super administrator permissions");
+        }
+      }
+      // Super admins always have full access (except for super admin only areas)
       else if (isSuperAdmin) {
         access = true;
       }
@@ -80,6 +89,7 @@ export const ProtectedRoute = ({
     requiredRole, 
     requiredAction, 
     adminOnly,
+    superAdminOnly,
     location.pathname
   ]);
   

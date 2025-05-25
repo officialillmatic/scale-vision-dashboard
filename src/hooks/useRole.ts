@@ -18,17 +18,14 @@ export const useRole = () => {
     // Company owners always have admin privileges
     if (isCompanyOwner) return true;
     
-    // If company data is still loading, don't make assumptions
+    // If data is still loading, don't make assumptions
     if (isCompanyLoading || isSuperAdminLoading) return false;
     
-    // Super admins don't need a company context
-    if (isSuperAdmin) return true;
-    
-    // Regular users need a company and role
+    // Regular users need a company and role (super admins bypass this)
     if (!company && !isSuperAdmin) return false;
     
-    if (!userRole) {
-      console.log("No userRole found, returning false");
+    if (!userRole && !isSuperAdmin) {
+      console.log("No userRole found and not super admin, returning false");
       return false;
     }
     
@@ -45,18 +42,18 @@ export const useRole = () => {
     // Team and agent management - Super admins get full access
     manageTeam: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     manageAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'), 
-    viewAgents: isSuperAdmin || true, // Super admins can view all agents
+    viewAgents: isSuperAdmin || checkRole('viewer'), // Super admins can view all agents
     createAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     assignAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     deleteAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
     // Call management
-    viewCalls: isSuperAdmin || true, // Super admins can view all calls
+    viewCalls: isSuperAdmin || checkRole('viewer'), // Super admins can view all calls
     uploadCalls: isSuperAdmin || checkRole('member'),
     
     // Billing management - Super admins get full access
     manageBalances: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    viewBalance: isSuperAdmin || true, // Super admins can view all balances
+    viewBalance: isSuperAdmin || checkRole('viewer'), // Super admins can view all balances
     accessBillingSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
     // Settings
@@ -70,7 +67,7 @@ export const useRole = () => {
     
     // Super admin privileges
     superAdminAccess: isSuperAdmin
-  }), [isSuperAdmin, isCompanyOwner, user, userRole, isCompanyLoading, isSuperAdminLoading]);
+  }), [isSuperAdmin, isCompanyOwner, user, userRole, company, isCompanyLoading, isSuperAdminLoading]);
 
   return { isSuperAdmin, isCompanyOwner, checkRole, can };
 };

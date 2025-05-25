@@ -33,8 +33,8 @@ export function useAgents() {
     refetch: refetchAgents,
     error: agentsError
   } = useQuery({
-    queryKey: ['agents', company?.id],
-    queryFn: () => fetchAgents(company?.id),
+    queryKey: ['agents', company?.id, isSuperAdmin],
+    queryFn: () => fetchAgents(isSuperAdmin ? undefined : company?.id), // Super admins fetch all agents
     enabled: !!company?.id || isSuperAdmin // Always allow super admins to query
   });
 
@@ -44,13 +44,13 @@ export function useAgents() {
     refetch: refetchUserAgents,
     error: userAgentsError
   } = useQuery({
-    queryKey: ['user-agents', company?.id],
-    queryFn: () => fetchUserAgents(company?.id),
+    queryKey: ['user-agents', company?.id, isSuperAdmin],
+    queryFn: () => fetchUserAgents(isSuperAdmin ? undefined : company?.id), // Super admins fetch all assignments
     enabled: !!company?.id || isSuperAdmin // Always allow super admins to query
   });
   
   // Filter agents based on user role - super admins see all
-  const agents = allAgents ? (isAdmin 
+  const agents = allAgents ? (isSuperAdmin || isAdmin 
     ? allAgents 
     : allAgents.filter(agent => {
         // Check if agent is assigned to current user
@@ -61,7 +61,7 @@ export function useAgents() {
   ) : [];
 
   const handleCreateAgent = async (agentData: Partial<Agent>) => {
-    if (!isAdmin) return false;
+    if (!isSuperAdmin && !isAdmin) return false;
     
     setIsCreating(true);
     try {
@@ -77,7 +77,7 @@ export function useAgents() {
   };
 
   const handleUpdateAgent = async (id: string, agentData: Partial<Agent>) => {
-    if (!isAdmin) return false;
+    if (!isSuperAdmin && !isAdmin) return false;
     
     setIsUpdating(true);
     try {
@@ -93,7 +93,7 @@ export function useAgents() {
   };
 
   const handleDeleteAgent = async (id: string) => {
-    if (!isAdmin) return false;
+    if (!isSuperAdmin && !isAdmin) return false;
     
     setIsDeleting(true);
     try {
@@ -109,7 +109,7 @@ export function useAgents() {
   };
 
   const handleAssignAgent = async (userAgentData: Partial<UserAgent>) => {
-    if (!isAdmin) {
+    if (!isSuperAdmin && !isAdmin) {
       return false;
     }
 
@@ -136,7 +136,7 @@ export function useAgents() {
   };
 
   const handleRemoveAgentAssignment = async (id: string) => {
-    if (!isAdmin) return false;
+    if (!isSuperAdmin && !isAdmin) return false;
     
     setIsAssigning(true);
     try {
@@ -167,6 +167,6 @@ export function useAgents() {
     handleDeleteAgent,
     handleAssignAgent,
     handleRemoveAgentAssignment,
-    isAdmin
+    isAdmin: isSuperAdmin || isAdmin
   };
 }
