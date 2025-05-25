@@ -1,8 +1,7 @@
-
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
-  Sidebar,
+  Sidebar as SidebarComponent,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
@@ -108,7 +107,7 @@ export function DashboardSidebar() {
   ];
 
   return (
-    <Sidebar
+    <SidebarComponent
       className={cn(
         "border-r border-border transition-all duration-300 ease-in-out",
         collapsed ? "w-16" : "w-56"
@@ -177,6 +176,6 @@ export function DashboardSidebar() {
           </Button>
         </div>
       </SidebarContent>
-    </Sidebar>
+    </SidebarComponent>
   );
 }

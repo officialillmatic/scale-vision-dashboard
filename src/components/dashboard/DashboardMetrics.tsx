@@ -64,8 +64,8 @@ export function DashboardMetrics() {
 
   const hasData = metrics && (
     metrics.totalCalls > 0 || 
-    metrics.totalCost > 0 || 
-    metrics.totalDuration > 0
+    Number(metrics.totalCost.replace('$', '')) > 0 || 
+    metrics.totalMinutes > 0
   );
 
   if (!hasData) {
@@ -81,6 +81,10 @@ export function DashboardMetrics() {
       </div>
     );
   }
+
+  const totalCostNumber = Number(metrics.totalCost.replace('$', ''));
+  const avgCostPerCall = metrics.totalCalls > 0 ? totalCostNumber / metrics.totalCalls : 0;
+  const avgDurationSeconds = metrics.totalMinutes > 0 ? (metrics.totalMinutes * 60) / Math.max(metrics.totalCalls, 1) : 0;
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -103,9 +107,9 @@ export function DashboardMetrics() {
           <DollarSign className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">${metrics.totalCost.toFixed(2)}</div>
+          <div className="text-2xl font-bold">{metrics.totalCost}</div>
           <p className="text-xs text-muted-foreground">
-            ${(metrics.totalCost / Math.max(metrics.totalCalls, 1)).toFixed(3)} per call
+            ${avgCostPerCall.toFixed(3)} per call
           </p>
         </CardContent>
       </Card>
@@ -117,10 +121,10 @@ export function DashboardMetrics() {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {Math.round(metrics.totalDuration)}m
+            {metrics.totalMinutes}m
           </div>
           <p className="text-xs text-muted-foreground">
-            {Math.round(metrics.avgDuration)}s avg duration
+            {Math.round(avgDurationSeconds)}s avg duration
           </p>
         </CardContent>
       </Card>

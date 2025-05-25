@@ -8,8 +8,8 @@ import { subDays, format } from "date-fns";
 interface DashboardMetrics {
   totalCalls: number;
   totalMinutes: number;
-  avgDuration: string;
   totalCost: string;
+  avgDuration: string;
   percentChange: {
     calls: string;
     minutes: string;
@@ -147,8 +147,8 @@ export const useDashboardMetrics = () => {
         const result: DashboardMetrics = {
           totalCalls: Number(current.total_calls),
           totalMinutes: Math.round(Number(current.total_duration_min)),
-          avgDuration: formatDuration(Number(current.avg_duration_sec)),
           totalCost: `$${Number(current.total_cost).toFixed(2)}`,
+          avgDuration: formatDuration(Number(current.avg_duration_sec)),
           percentChange: {
             calls: calculateChange(Number(current.total_calls), Number(previous.total_calls)),
             minutes: calculateChange(Number(current.total_duration_min), Number(previous.total_duration_min)),
