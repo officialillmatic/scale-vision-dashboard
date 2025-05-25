@@ -1,19 +1,41 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { AgentsTable } from "@/types/supabase";
+import { AgentTable } from "@/types/supabase";
 
-export type Agent = AgentsTable & {
-  retell_agent_id?: string;
+export type Agent = AgentTable & {
+  ai_agent_id?: string;
 };
 
-export const fetchAgents = async (companyId: string): Promise<Agent[]> => {
+export type UserAgent = {
+  id: string;
+  user_id: string;
+  agent_id: string;
+  company_id: string;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+  agent?: Agent;
+  user_details?: {
+    email: string;
+    name?: string;
+  };
+};
+
+export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
   console.log("[AGENT_SERVICE] Fetching agents for company:", companyId);
   
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("agents")
       .select("*")
       .order("name");
+
+    // If companyId is provided, filter by it (for non-super admin users)
+    if (companyId) {
+      query = query.eq("company_id", companyId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("[AGENT_SERVICE] Database error:", error);
@@ -25,6 +47,39 @@ export const fetchAgents = async (companyId: string): Promise<Agent[]> => {
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchAgents:", error);
     throw new Error(`Failed to fetch agents: ${error.message}`);
+  }
+};
+
+export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> => {
+  console.log("[AGENT_SERVICE] Fetching user agents for company:", companyId);
+  
+  try {
+    let query = supabase
+      .from("user_agents")
+      .select(`
+        *,
+        agent:agents(*),
+        user_details:user_profiles(email, name)
+      `)
+      .order("created_at", { ascending: false });
+
+    // If companyId is provided, filter by it
+    if (companyId) {
+      query = query.eq("company_id", companyId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("[AGENT_SERVICE] Database error:", error);
+      throw error;
+    }
+
+    console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "user agents");
+    return data || [];
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in fetchUserAgents:", error);
+    throw new Error(`Failed to fetch user agents: ${error.message}`);
   }
 };
 
@@ -91,7 +146,7 @@ export const updateAgent = async (agentId: string, updates: Partial<Agent>): Pro
   }
 };
 
-export const deleteAgent = async (agentId: string): Promise<void> => {
+export const deleteAgent = async (agentId: string): Promise<boolean> => {
   try {
     const { error } = await supabase
       .from("agents")
@@ -102,6 +157,8 @@ export const deleteAgent = async (agentId: string): Promise<void> => {
       console.error("[AGENT_SERVICE] Error deleting agent:", error);
       throw error;
     }
+    
+    return true;
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in deleteAgent:", error);
     throw new Error(`Failed to delete agent: ${error.message}`);
@@ -126,40 +183,39 @@ export const fetchCompanyUserAgents = async (companyId: string): Promise<any[]> 
   }
 };
 
-export const assignAgentToUser = async (userId: string, agentId: string, companyId: string, isPrimary: boolean = false): Promise<void> => {
+export const assignAgentToUser = async (userAgentData: Partial<UserAgent>): Promise<UserAgent | null> => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("user_agents")
-      .insert([{
-        user_id: userId,
-        agent_id: agentId,
-        company_id: companyId,
-        is_primary: isPrimary
-      }]);
+      .insert([userAgentData])
+      .select()
+      .single();
 
     if (error) {
       console.error("[AGENT_SERVICE] Error assigning agent to user:", error);
       throw error;
     }
+
+    return data;
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in assignAgentToUser:", error);
     throw new Error(`Failed to assign agent to user: ${error.message}`);
   }
 };
 
-export const removeAgentFromUser = async (userId: string, agentId: string, companyId: string): Promise<void> => {
+export const removeAgentFromUser = async (userAgentId: string): Promise<boolean> => {
   try {
     const { error } = await supabase
       .from("user_agents")
       .delete()
-      .eq("user_id", userId)
-      .eq("agent_id", agentId)
-      .eq("company_id", companyId);
+      .eq("id", userAgentId);
 
     if (error) {
       console.error("[AGENT_SERVICE] Error removing agent from user:", error);
       throw error;
     }
+    
+    return true;
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in removeAgentFromUser:", error);
     throw new Error(`Failed to remove agent from user: ${error.message}`);

@@ -81,8 +81,8 @@ export function useAgents() {
     
     setIsUpdating(true);
     try {
-      const success = await updateAgent(id, agentData);
-      if (success) {
+      const result = await updateAgent(id, agentData);
+      if (result) {
         refetchAgents();
         return true;
       }
