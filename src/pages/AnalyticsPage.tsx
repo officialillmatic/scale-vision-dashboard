@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { CallDataTable } from '@/components/analytics/CallDataTable';
-import { CallStatistics } from '@/components/analytics/CallStatistics';
+import { EnhancedCallStatistics } from '@/components/analytics/EnhancedCallStatistics';
 import { CallChart } from '@/components/analytics/CallChart';
 import { CallFilterBar } from '@/components/analytics/CallFilterBar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -146,7 +145,7 @@ const AnalyticsPage = () => {
       <div className="container mx-auto py-4">
         <h1 className="text-3xl font-bold mb-2">Call Analytics</h1>
         <p className="text-muted-foreground mb-6">
-          Analyze your AI call performance and outcomes
+          Comprehensive analysis of your AI call performance and outcomes
         </p>
         
         <CallFilterBar 
@@ -156,15 +155,15 @@ const AnalyticsPage = () => {
           isLoading={isLoading}
         />
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 mt-6">
+        <div className="mt-6 mb-8">
           {isLoading ? (
-            <>
-              <Skeleton className="h-32" />
-              <Skeleton className="h-32" />
-              <Skeleton className="h-32" />
-            </>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array(6).fill(0).map((_, i) => (
+                <Skeleton key={i} className="h-32" />
+              ))}
+            </div>
           ) : (
-            <CallStatistics data={filteredData} />
+            <EnhancedCallStatistics data={filteredData} />
           )}
         </div>
         
@@ -178,7 +177,7 @@ const AnalyticsPage = () => {
         </div>
         
         <div>
-          <h2 className="text-xl font-bold mb-4">Call Details</h2>
+          <h2 className="text-xl font-bold mb-4">Detailed Call Data</h2>
           <CallDataTable data={filteredData} isLoading={isLoading} />
         </div>
       </div>

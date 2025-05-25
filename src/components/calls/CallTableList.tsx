@@ -1,6 +1,6 @@
 
 import { format } from "date-fns";
-import { Loader2, Play, Download, FileText } from "lucide-react";
+import { Loader2, Play, Download, FileText, ExternalLink, Clock } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -62,21 +62,26 @@ export function CallTableList({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[180px]">Date/Time</TableHead>
+            <TableHead className="w-[100px]">Call ID</TableHead>
+            <TableHead className="w-[140px]">Date/Time</TableHead>
             <TableHead>AI Number</TableHead>
             <TableHead>Customer</TableHead>
             <TableHead>Duration</TableHead>
+            <TableHead>Agent</TableHead>
             <TableHead>Recording</TableHead>
             <TableHead>Disposition</TableHead>
             <TableHead>Sentiment</TableHead>
             <TableHead>Transcript</TableHead>
             <TableHead>Status</TableHead>
+            {calls.some(call => call.latency_ms) && (
+              <TableHead>Latency</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell colSpan={9} className="h-24 text-center">
+              <TableCell colSpan={12} className="h-24 text-center">
                 <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
               </TableCell>
             </TableRow>
@@ -87,8 +92,16 @@ export function CallTableList({
                 className="cursor-pointer hover:bg-muted"
                 onClick={() => onSelectCall(call)}
               >
-                <TableCell className="font-medium">
-                  {format(call.start_time || call.timestamp, "MMM dd, yyyy HH:mm")}
+                <TableCell className="font-mono text-xs">
+                  <span className="bg-muted px-1 py-0.5 rounded text-xs">
+                    {call.call_id.slice(0, 8)}
+                  </span>
+                </TableCell>
+                <TableCell className="font-medium text-sm">
+                  {format(call.start_time || call.timestamp, "MMM dd")}<br />
+                  <span className="text-xs text-muted-foreground">
+                    {format(call.start_time || call.timestamp, "HH:mm")}
+                  </span>
                 </TableCell>
                 <TableCell className="font-mono text-sm">
                   {call.from_number || call.from}
@@ -96,8 +109,11 @@ export function CallTableList({
                 <TableCell className="font-mono text-sm">
                   {call.to_number || call.to}
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-sm">
                   {formatDuration(call.duration_sec)}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {call.agent?.name || 'N/A'}
                 </TableCell>
                 <TableCell>
                   {call.recording_url ? (
@@ -112,7 +128,7 @@ export function CallTableList({
                       <Play className="h-4 w-4" />
                     </Button>
                   ) : (
-                    <span className="text-muted-foreground text-sm">No recording</span>
+                    <span className="text-muted-foreground text-sm">-</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -135,40 +151,54 @@ export function CallTableList({
                   )}
                 </TableCell>
                 <TableCell>
-                  {call.transcript_url ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(call.transcript_url!, '_blank');
-                      }}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  ) : call.transcript ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectCall(call);
-                      }}
-                    >
-                      <FileText className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">No transcript</span>
-                  )}
+                  <div className="flex gap-1">
+                    {call.transcript_url ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(call.transcript_url!, '_blank');
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    ) : call.transcript ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectCall(call);
+                        }}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <CallTableStatus status={call.call_status} />
                 </TableCell>
+                {calls.some(call => call.latency_ms) && (
+                  <TableCell>
+                    {call.latency_ms ? (
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span className="text-xs">{call.latency_ms}ms</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={9} className="h-24 text-center">
+              <TableCell colSpan={12} className="h-24 text-center">
                 {searchTerm || date ? "No matching calls found." : "No calls found. Try syncing your call history."}
               </TableCell>
             </TableRow>

@@ -4,6 +4,8 @@ import { formatDuration, formatCurrency } from '@/lib/formatters';
 import { CallStatusIcon } from './icons/CallStatusIcon';
 import { CallData } from '@/services/callService';
 import { Badge } from '@/components/ui/badge';
+import { Clock, ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface CallInfoProps {
   duration: number;
@@ -51,6 +53,10 @@ export const CallInfo: React.FC<CallInfoProps | CallInfoWithCallObjectProps> = (
   const sentimentScore = isCallObject ? props.call.sentiment_score : null;
   const disposition = isCallObject ? props.call.disposition : null;
   const recordingUrl = isCallObject ? props.call.recording_url : null;
+  const transcriptUrl = isCallObject ? props.call.transcript_url : null;
+  const latencyMs = isCallObject ? props.call.latency_ms : null;
+  const callId = isCallObject ? props.call.call_id : null;
+  const disconnectionReason = isCallObject ? props.call.disconnection_reason : null;
 
   const getSentimentColor = (score: number | null) => {
     if (score === null) return "secondary";
@@ -74,6 +80,15 @@ export const CallInfo: React.FC<CallInfoProps | CallInfoWithCallObjectProps> = (
       </div>
       
       <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+        {callId && (
+          <>
+            <div className="text-muted-foreground">Call ID</div>
+            <div className="font-mono text-xs bg-muted px-2 py-1 rounded">
+              {callId}
+            </div>
+          </>
+        )}
+        
         <div className="text-muted-foreground">Date & Time</div>
         <div>{formattedDate}</div>
         
@@ -95,11 +110,33 @@ export const CallInfo: React.FC<CallInfoProps | CallInfoWithCallObjectProps> = (
         <div className="text-muted-foreground">Customer Number</div>
         <div className="font-mono">{toNumber}</div>
 
+        {latencyMs !== null && latencyMs > 0 && (
+          <>
+            <div className="text-muted-foreground">End-to-End Latency</div>
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>{latencyMs}ms</span>
+              <Badge variant={latencyMs < 100 ? "default" : latencyMs < 300 ? "outline" : "destructive"}>
+                {latencyMs < 100 ? "Excellent" : latencyMs < 300 ? "Good" : "Slow"}
+              </Badge>
+            </div>
+          </>
+        )}
+
         {disposition && (
           <>
             <div className="text-muted-foreground">Disposition</div>
             <div>
               <Badge variant="outline">{disposition}</Badge>
+            </div>
+          </>
+        )}
+
+        {disconnectionReason && (
+          <>
+            <div className="text-muted-foreground">End Reason</div>
+            <div>
+              <Badge variant="outline">{disconnectionReason}</Badge>
             </div>
           </>
         )}
@@ -122,14 +159,30 @@ export const CallInfo: React.FC<CallInfoProps | CallInfoWithCallObjectProps> = (
           <>
             <div className="text-muted-foreground">Recording</div>
             <div>
-              <a 
-                href={recordingUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 underline text-sm"
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.open(recordingUrl, '_blank')}
               >
+                <ExternalLink className="h-3 w-3 mr-1" />
                 Play Recording
-              </a>
+              </Button>
+            </div>
+          </>
+        )}
+
+        {transcriptUrl && (
+          <>
+            <div className="text-muted-foreground">Transcript Download</div>
+            <div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.open(transcriptUrl, '_blank')}
+              >
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Download
+              </Button>
             </div>
           </>
         )}
