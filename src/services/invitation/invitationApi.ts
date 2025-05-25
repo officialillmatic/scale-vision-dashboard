@@ -1,110 +1,91 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { handleError } from "@/lib/errorHandling";
-import { CompanyInvitation, InvitationCheckResult } from "./types";
+import type { CompanyInvitation, InvitationCheckResult } from "./types";
 
 export const fetchCompanyInvitations = async (companyId: string): Promise<CompanyInvitation[]> => {
+  console.log("[INVITATION_API] Fetching invitations for company:", companyId);
+  
   try {
     const { data, error } = await supabase
-      .from("company_invitations")
-      .select(`
-        id,
-        company_id,
-        email,
-        role,
-        status,
-        token,
-        expires_at,
-        created_at,
-        invited_by
-      `)
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false });
+      .from('company_invitations')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false });
 
     if (error) {
-      throw error;
+      console.error("[INVITATION_API] Error fetching invitations:", error);
+      throw new Error(`Failed to fetch invitations: ${error.message}`);
     }
 
+    console.log("[INVITATION_API] Successfully fetched invitations:", data?.length || 0);
     return data || [];
   } catch (error) {
-    console.error("Error fetching company invitations:", error);
-    handleError(error, {
-      fallbackMessage: "Failed to fetch invitations"
-    });
-    return [];
+    console.error("[INVITATION_API] Unexpected error:", error);
+    throw error;
   }
 };
 
 export const checkInvitation = async (token: string): Promise<InvitationCheckResult> => {
+  console.log("[INVITATION_API] Checking invitation with token:", token);
+  
   try {
-    const { data: invitation, error } = await supabase
-      .from("company_invitations")
+    const { data, error } = await supabase
+      .from('company_invitations')
       .select(`
-        id,
-        company_id,
-        email,
-        role,
-        status,
-        token,
-        expires_at,
-        created_at,
-        companies!inner (
+        *,
+        companies:company_id (
           id,
           name
         )
       `)
-      .eq("token", token)
-      .eq("status", "pending")
-      .gt("expires_at", new Date().toISOString())
+      .eq('token', token)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString())
       .maybeSingle();
 
     if (error) {
-      throw error;
+      console.error("[INVITATION_API] Error checking invitation:", error);
+      return {
+        isValid: false,
+        error: `Database error: ${error.message}`
+      };
     }
 
-    if (!invitation) {
-      return { valid: false };
+    if (!data) {
+      console.log("[INVITATION_API] Invitation not found or expired");
+      return {
+        isValid: false,
+        error: "Invitation not found or has expired"
+      };
     }
 
-    // Add robust error handling for company data access
-    if (!invitation.companies) {
-      console.warn("Invalid invitation data: missing companies", invitation);
-      return { valid: false };
-    }
-
-    // Safely access the company data from the join result
-    const company = Array.isArray(invitation.companies) ? invitation.companies[0] : invitation.companies;
-
-    // Validate company object structure
-    if (!company || typeof company !== 'object' || !company.id || !company.name) {
-      console.warn("Invalid or malformed company data", { company, invitation });
-      return { valid: false };
-    }
-
+    console.log("[INVITATION_API] Valid invitation found for company:", data.companies?.name);
     return {
-      valid: true,
+      isValid: true,
       invitation: {
-        id: invitation.id,
-        company_id: invitation.company_id,
-        email: invitation.email,
-        role: invitation.role,
-        status: invitation.status,
-        token: invitation.token,
-        expires_at: invitation.expires_at,
-        created_at: invitation.created_at
-      },
-      company: {
-        id: company.id,
-        name: company.name
+        id: data.id,
+        company_id: data.company_id,
+        email: data.email,
+        role: data.role as 'admin' | 'member' | 'viewer',
+        token: data.token,
+        status: data.status,
+        created_at: data.created_at,
+        expires_at: data.expires_at,
+        company_name: data.companies?.name || 'Unknown Company'
       }
     };
   } catch (error) {
-    console.error("Error checking invitation:", error);
-    return { valid: false };
+    console.error("[INVITATION_API] Unexpected error:", error);
+    return {
+      isValid: false,
+      error: "An unexpected error occurred while checking the invitation"
+    };
   }
 };
 
-export const acceptInvitation = async (token: string, userId?: string): Promise<boolean> => {
+export const acceptInvitation = async (token: string, userId: string): Promise<boolean> => {
+  console.log("[INVITATION_API] Accepting invitation for user:", userId);
+  
   try {
     const { data, error } = await supabase.rpc('accept_invitation', {
       p_token: token,
@@ -112,15 +93,14 @@ export const acceptInvitation = async (token: string, userId?: string): Promise<
     });
 
     if (error) {
-      throw error;
+      console.error("[INVITATION_API] Error accepting invitation:", error);
+      throw new Error(`Failed to accept invitation: ${error.message}`);
     }
 
-    return data;
+    console.log("[INVITATION_API] Invitation accepted successfully:", data);
+    return data === true;
   } catch (error) {
-    console.error("Error accepting invitation:", error);
-    handleError(error, {
-      fallbackMessage: "Failed to accept invitation"
-    });
-    return false;
+    console.error("[INVITATION_API] Unexpected error:", error);
+    throw error;
   }
 };

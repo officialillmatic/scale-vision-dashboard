@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,42 +51,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   } = useCompanyData(user);
 
   useEffect(() => {
+    console.log("[AUTH_CONTEXT] Setting up auth state listener");
+    
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setIsLoading(false);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error("[AUTH_CONTEXT] Error getting session:", error);
+        }
+        setUser(session?.user ?? null);
+        setIsLoading(false);
+        console.log("[AUTH_CONTEXT] Initial session loaded, user:", session?.user?.id || 'none');
+      } catch (error) {
+        console.error("[AUTH_CONTEXT] Unexpected error getting session:", error);
+        setUser(null);
+        setIsLoading(false);
+      }
     };
 
     getSession();
 
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[AUTH_CONTEXT] Auth state change:", event, session?.user?.id || 'none');
       setUser(session?.user ?? null);
+      
+      if (event === 'SIGNED_OUT') {
+        setIsLoading(false);
+      }
     });
+
+    return () => {
+      console.log("[AUTH_CONTEXT] Cleaning up auth listener");
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Combine local loading state with auth loading state
   const combinedIsLoading = isLoading || isAuthLoading;
 
+  const contextValue: AuthContextType = {
+    user,
+    company,
+    isLoading: combinedIsLoading,
+    isLoadingCompany: isCompanyLoading,
+    signIn,
+    signUp,
+    signOut,
+    resetPassword,
+    updatePassword,
+    updateUserProfile,
+    isCompanyLoading,
+    refreshCompany,
+    companyMembers,
+    userRole,
+    isCompanyOwner,
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        company,
-        isLoading: combinedIsLoading,
-        isLoadingCompany: isCompanyLoading,
-        signIn,
-        signUp,
-        signOut,
-        resetPassword,
-        updatePassword,
-        updateUserProfile,
-        isCompanyLoading,
-        refreshCompany,
-        companyMembers,
-        userRole,
-        isCompanyOwner,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
