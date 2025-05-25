@@ -4,7 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
 import { validateAuth, getUserCompany, checkCompanyAccess } from "../_shared/authUtils.ts";
 import { getUserBalance, updateUserBalance, recordTransactions } from "../_shared/userBalanceUtils.ts";
-import { generateMockCalls, getUserAgents } from "../_shared/callUtils.ts";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -42,104 +41,169 @@ serve(async (req) => {
     const accessResult = await checkCompanyAccess(supabaseClient, companyId, user.id);
     if (accessResult.error) return accessResult.error;
 
-    // Get the user's assigned agents
-    const agentsResult = await getUserAgents(supabaseClient, user.id, companyId);
-    if (agentsResult.error) {
+    // Get the user's assigned agents with their retell_agent_ids
+    const { data: userAgents, error: userAgentsError } = await supabaseClient
+      .from("user_agents")
+      .select(`
+        agent_id,
+        is_primary,
+        agents!inner (
+          id,
+          name,
+          retell_agent_id,
+          rate_per_minute
+        )
+      `)
+      .eq("user_id", user.id)
+      .eq("company_id", companyId);
+
+    if (userAgentsError) {
+      console.error("Error fetching user agents:", userAgentsError);
       return createErrorResponse('Error fetching user agent data', 500);
     }
 
-    const { userAgentIds, primaryAgentId } = agentsResult;
-
-    // Check the user's balance before generating mock calls
-    const balanceResult = await getUserBalance(supabaseClient, user.id, companyId);
-    if (balanceResult.error) {
-      return createErrorResponse('Error managing user balance', 500);
+    if (!userAgents || userAgents.length === 0) {
+      return createErrorResponse('No agents assigned to user', 400);
     }
 
-    const { balanceId, balance: currentBalance, warningThreshold } = balanceResult;
+    // Get retell agent IDs for this user
+    const retellAgentIds = userAgents
+      .map(ua => ua.agents.retell_agent_id)
+      .filter(id => id); // Filter out null/undefined values
 
-    // Don't generate calls if balance is too low
-    if (currentBalance <= 0) {
-      return createSuccessResponse({ 
-        error: 'Insufficient balance', 
-        balance: currentBalance,
-        message: 'Your balance is too low to make calls. Please add funds.' 
-      }, 403);
+    if (retellAgentIds.length === 0) {
+      return createErrorResponse('No Retell agents configured for assigned agents', 400);
     }
-    
-    // Generate mock call data for development purposes
-    const mockCallsCount = 5;
-    const { calls: mockCalls, totalCost } = generateMockCalls(
-      mockCallsCount,
-      companyId,
-      user.id,
-      currentBalance,
-      primaryAgentId
-    );
-    
-    if (mockCalls.length === 0) {
-      return createSuccessResponse({ 
-        warning: 'No calls generated due to low balance', 
-        balance: currentBalance 
-      });
+
+    const primaryAgent = userAgents.find(ua => ua.is_primary)?.agents;
+    const primaryAgentId = primaryAgent?.id;
+
+    // Fetch calls from Retell AI
+    const retellApiKey = Deno.env.get('RETELL_API_KEY');
+    if (!retellApiKey) {
+      return createErrorResponse('RETELL_API_KEY not configured', 500);
     }
-    
-    // Insert the mock calls into the database
-    const { data: insertedCalls, error: insertError } = await supabaseClient
+
+    console.log(`Fetching calls from Retell AI for agents: ${retellAgentIds.join(', ')}`);
+
+    const retellResponse = await fetch('https://api.retellai.com/v1/calls', {
+      headers: {
+        'Authorization': `Bearer ${retellApiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!retellResponse.ok) {
+      console.error('Retell API error:', retellResponse.status, retellResponse.statusText);
+      return createErrorResponse(`Retell API error: ${retellResponse.statusText}`, 500);
+    }
+
+    const retellData = await retellResponse.json();
+    console.log(`Fetched ${retellData.calls?.length || 0} calls from Retell AI`);
+
+    // Filter calls to only include those from user's assigned agents
+    const userCalls = retellData.calls?.filter((call: any) => 
+      retellAgentIds.includes(call.agent_id)
+    ) || [];
+
+    console.log(`Found ${userCalls.length} calls for user's assigned agents`);
+
+    let insertedCount = 0;
+    let skippedCount = 0;
+    const errors: string[] = [];
+
+    // Process each call
+    for (const retellCall of userCalls) {
+      try {
+        // Find the corresponding agent in our database
+        const agentMapping = userAgents.find(ua => 
+          ua.agents.retell_agent_id === retellCall.agent_id
+        );
+
+        if (!agentMapping) {
+          skippedCount++;
+          errors.push(`No agent mapping found for retell_agent_id: ${retellCall.agent_id}`);
+          continue;
+        }
+
+        // Calculate cost based on duration and agent rate
+        const durationMinutes = (retellCall.duration || 0) / 60;
+        const ratePerMinute = agentMapping.agents.rate_per_minute || 0.02;
+        const cost = durationMinutes * ratePerMinute;
+
+        // Prepare call data for insertion
+        const callData = {
+          call_id: retellCall.call_id,
+          user_id: user.id,
+          company_id: companyId,
+          agent_id: agentMapping.agent_id,
+          from_number: retellCall.from_number || 'unknown',
+          to_number: retellCall.to_number || 'unknown',
+          from: retellCall.from_number || 'unknown', // Keep for backward compatibility
+          to: retellCall.to_number || 'unknown', // Keep for backward compatibility
+          duration_sec: retellCall.duration || 0,
+          start_time: retellCall.start_time || new Date().toISOString(),
+          timestamp: retellCall.start_time || new Date().toISOString(), // Keep for backward compatibility
+          recording_url: retellCall.recording_url,
+          transcript_url: retellCall.transcript_url,
+          transcript: retellCall.transcript,
+          sentiment_score: retellCall.sentiment_score,
+          sentiment: retellCall.sentiment || 'neutral',
+          disposition: retellCall.disposition,
+          call_status: retellCall.call_status || 'completed',
+          call_type: 'phone_call',
+          cost_usd: cost,
+          audio_url: retellCall.recording_url // Keep for backward compatibility
+        };
+
+        // Insert or update the call
+        const { error: insertError } = await supabaseClient
+          .from("calls")
+          .upsert(callData, { 
+            onConflict: 'call_id',
+            ignoreDuplicates: false
+          });
+
+        if (insertError) {
+          console.error('Error inserting call:', insertError);
+          errors.push(`Failed to insert call ${retellCall.call_id}: ${insertError.message}`);
+          skippedCount++;
+        } else {
+          insertedCount++;
+          console.log(`Successfully processed call ${retellCall.call_id}`);
+        }
+
+      } catch (error) {
+        console.error('Error processing call:', error);
+        errors.push(`Error processing call ${retellCall.call_id}: ${error.message}`);
+        skippedCount++;
+      }
+    }
+
+    // Get updated call count for this user
+    const { data: allCalls, error: callsError } = await supabaseClient
       .from("calls")
-      .upsert(mockCalls, { 
-        onConflict: 'call_id',
-        ignoreDuplicates: false
-      })
-      .select();
-    
-    if (insertError) {
-      return createErrorResponse('Failed to insert calls', 500, insertError);
-    }
+      .select('id')
+      .eq("company_id", companyId);
 
-    // Record the transactions for each call
-    const transactions = mockCalls.map(call => ({
-      user_id: user.id,
-      company_id: companyId,
-      amount: call.cost_usd,
-      transaction_type: 'deduction',
-      description: `Call charge: ${call.duration_sec}s (${call.call_id})`,
-    }));
+    const totalCalls = allCalls?.length || 0;
 
-    const transactionResult = await recordTransactions(supabaseClient, transactions);
-    if (transactionResult.error) {
-      console.error('Error recording transactions:', transactionResult.error);
-    }
+    console.log(`Sync completed: ${insertedCount} inserted, ${skippedCount} skipped, ${totalCalls} total calls`);
 
-    // Update the user's balance
-    const newBalance = Math.max(0, currentBalance - totalCost);
-    const updateResult = await updateUserBalance(supabaseClient, balanceId, newBalance);
-    if (updateResult.error) {
-      console.error('Error updating balance:', updateResult.error);
-    }
-    
-    // Get all calls for the company to return
-    const { data: calls, error: callsError } = await supabaseClient
-      .from("calls")
-      .select()
-      .eq("company_id", companyId)
-      .order("timestamp", { ascending: false });
-    
-    if (callsError) {
-      return createErrorResponse('Failed to fetch calls', 500, callsError);
-    }
-    
     return createSuccessResponse({
       success: true,
-      newCalls: insertedCalls?.length || 0,
-      totalCalls: calls?.length || 0,
-      totalCost: totalCost.toFixed(2),
-      newBalance: newBalance.toFixed(2),
-      calls,
-      balanceWarning: newBalance < warningThreshold ? `Your balance is low (${newBalance.toFixed(2)})` : null
+      totalFetched: userCalls.length,
+      inserted: insertedCount,
+      skipped: skippedCount,
+      totalCalls: totalCalls,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `Successfully synced ${insertedCount} calls from Retell AI`,
+      retellAgentsFound: retellAgentIds.length,
+      userAgentsCount: userAgents.length
     });
+
   } catch (error) {
-    console.error("Error in function:", error);
+    console.error("Error in sync-calls function:", error);
     return createErrorResponse("Internal server error", 500, error.message);
   }
 });

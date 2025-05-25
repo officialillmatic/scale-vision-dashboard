@@ -56,15 +56,22 @@ export type Database = {
           company_id: string
           cost_usd: number
           disconnection_reason: string | null
+          disposition: string | null
           duration_sec: number
           from: string
+          from_number: string | null
           id: string
           latency_ms: number | null
+          recording_url: string | null
           result_sentiment: Json | null
           sentiment: string | null
+          sentiment_score: number | null
+          start_time: string | null
           timestamp: string
           to: string
+          to_number: string | null
           transcript: string | null
+          transcript_url: string | null
           user_id: string
         }
         Insert: {
@@ -77,15 +84,22 @@ export type Database = {
           company_id: string
           cost_usd?: number
           disconnection_reason?: string | null
+          disposition?: string | null
           duration_sec?: number
           from?: string
+          from_number?: string | null
           id?: string
           latency_ms?: number | null
+          recording_url?: string | null
           result_sentiment?: Json | null
           sentiment?: string | null
+          sentiment_score?: number | null
+          start_time?: string | null
           timestamp?: string
           to?: string
+          to_number?: string | null
           transcript?: string | null
+          transcript_url?: string | null
           user_id: string
         }
         Update: {
@@ -98,15 +112,22 @@ export type Database = {
           company_id?: string
           cost_usd?: number
           disconnection_reason?: string | null
+          disposition?: string | null
           duration_sec?: number
           from?: string
+          from_number?: string | null
           id?: string
           latency_ms?: number | null
+          recording_url?: string | null
           result_sentiment?: Json | null
           sentiment?: string | null
+          sentiment_score?: number | null
+          start_time?: string | null
           timestamp?: string
           to?: string
+          to_number?: string | null
           transcript?: string | null
+          transcript_url?: string | null
           user_id?: string
         }
         Relationships: [
