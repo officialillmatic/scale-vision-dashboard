@@ -1,6 +1,5 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { handleError } from "@/lib/errorHandling";
 
 export interface UserProfile {
@@ -8,8 +7,8 @@ export interface UserProfile {
   email: string;
   name?: string;
   avatar_url?: string;
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
@@ -18,40 +17,53 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
       .from("user_profiles")
       .select("*")
       .eq("id", userId)
-      .maybeSingle();
+      .single();
 
     if (error) {
-      throw error;
+      console.error("Error fetching user profile:", error);
+      return null;
     }
 
-    return data;
+    return {
+      ...data,
+      created_at: new Date(data.created_at),
+      updated_at: new Date(data.updated_at)
+    };
   } catch (error) {
-    console.error("Error fetching user profile:", error);
+    console.error("Error in fetchUserProfile:", error);
     return null;
   }
 };
 
 export const fetchUserProfiles = async (userIds: string[]): Promise<UserProfile[]> => {
-  if (!userIds.length) return [];
-  
   try {
+    if (userIds.length === 0) return [];
+
     const { data, error } = await supabase
       .from("user_profiles")
       .select("*")
       .in("id", userIds);
 
     if (error) {
-      throw error;
+      console.error("Error fetching user profiles:", error);
+      return [];
     }
 
-    return data || [];
+    return (data || []).map(profile => ({
+      ...profile,
+      created_at: new Date(profile.created_at),
+      updated_at: new Date(profile.updated_at)
+    }));
   } catch (error) {
-    console.error("Error fetching user profiles:", error);
+    console.error("Error in fetchUserProfiles:", error);
     return [];
   }
 };
 
-export const updateUserProfile = async (userId: string, updates: Partial<UserProfile>): Promise<UserProfile | null> => {
+export const updateUserProfile = async (
+  userId: string, 
+  updates: Partial<Omit<UserProfile, "id" | "created_at" | "updated_at">>
+): Promise<UserProfile | null> => {
   try {
     const { data, error } = await supabase
       .from("user_profiles")
@@ -67,31 +79,16 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
       throw error;
     }
 
-    toast.success("Profile updated successfully");
-    return data;
+    return {
+      ...data,
+      created_at: new Date(data.created_at),
+      updated_at: new Date(data.updated_at)
+    };
   } catch (error) {
+    console.error("Error updating user profile:", error);
     handleError(error, {
-      fallbackMessage: "Failed to update profile"
+      fallbackMessage: "Failed to update user profile"
     });
-    return null;
-  }
-};
-
-export const getUserByEmail = async (email: string): Promise<UserProfile | null> => {
-  try {
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .select("*")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
-
-    return data;
-  } catch (error) {
-    console.error("Error fetching user by email:", error);
     return null;
   }
 };

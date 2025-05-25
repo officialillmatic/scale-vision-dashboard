@@ -574,6 +574,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_user_company_role: {
+        Args: { p_user_id: string; p_company_id: string }
+        Returns: string
+      }
       get_user_email: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -614,6 +618,10 @@ export type Database = {
         Args: { company_id: string }
         Returns: boolean
       }
+      user_can_access_company_data: {
+        Args: { p_user_id: string; p_company_id: string }
+        Returns: boolean
+      }
       user_can_access_company_safe: {
         Args: { target_company_id: string }
         Returns: boolean
@@ -624,6 +632,10 @@ export type Database = {
       }
       user_has_company_access_safe: {
         Args: { target_company_id: string }
+        Returns: boolean
+      }
+      user_is_company_admin: {
+        Args: { p_user_id: string; p_company_id: string }
         Returns: boolean
       }
     }
