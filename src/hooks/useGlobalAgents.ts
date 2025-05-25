@@ -10,39 +10,39 @@ export const useGlobalAgents = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchGlobalAgents = async () => {
-      if (!isSuperAdmin) {
-        setIsLoading(false);
-        return;
-      }
+  const fetchGlobalAgents = async () => {
+    if (!isSuperAdmin) {
+      setIsLoading(false);
+      return;
+    }
 
-      setIsLoading(true);
-      setError(null);
+    setIsLoading(true);
+    setError(null);
 
-      try {
-        // Super admin can see all agents
-        const { data, error } = await supabase
-          .from("agents")
-          .select("*")
-          .order("name");
+    try {
+      // Super admin can see all agents
+      const { data, error } = await supabase
+        .from("agents")
+        .select("*")
+        .order("name");
 
-        if (error) {
-          console.error("Error fetching global agents:", error);
-          setError("Failed to load agents");
-          setAgents([]);
-        } else {
-          setAgents(data || []);
-        }
-      } catch (error) {
-        console.error("Error in global agents fetch:", error);
+      if (error) {
+        console.error("Error fetching global agents:", error);
         setError("Failed to load agents");
         setAgents([]);
-      } finally {
-        setIsLoading(false);
+      } else {
+        setAgents(data || []);
       }
-    };
+    } catch (error) {
+      console.error("Error in global agents fetch:", error);
+      setError("Failed to load agents");
+      setAgents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchGlobalAgents();
   }, [isSuperAdmin]);
 
@@ -52,8 +52,6 @@ export const useGlobalAgents = () => {
     error,
     refetch: () => {
       if (isSuperAdmin) {
-        setIsLoading(true);
-        // Re-run the effect
         fetchGlobalAgents();
       }
     }

@@ -15,6 +15,7 @@ import { CallTable } from '@/components/calls/CallTable';
 import { SuperAdminDashboard } from '@/components/dashboard/SuperAdminDashboard';
 import { GlobalDataProvider } from '@/components/dashboard/GlobalDataProvider';
 import { CallData } from '@/services/callService';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 export function DashboardPage() {
   const { company, isLoading: isLoadingAuth } = useAuth();
@@ -26,7 +27,14 @@ export function DashboardPage() {
 
   // Show loading while checking super admin status
   if (isSuperAdminLoading) {
-    return <DashboardLayout isLoading={true} />;
+    return (
+      <DashboardLayout isLoading={true}>
+        <div className="text-center space-y-4">
+          <LoadingSpinner size="lg" />
+          <p className="text-gray-600 text-sm font-medium">Loading your dashboard...</p>
+        </div>
+      </DashboardLayout>
+    );
   }
 
   // Super Admin Dashboard
