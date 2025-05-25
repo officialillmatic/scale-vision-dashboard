@@ -1,7 +1,8 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { CallsTable } from "@/types/supabase";
 
-export type CallData = CallsTable & {
+export type CallData = Omit<CallsTable, 'timestamp' | 'start_time'> & {
   timestamp: Date;
   start_time?: Date;
   agent?: {
