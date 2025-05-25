@@ -105,3 +105,5 @@ backend = "postgres"
 verify_jwt = true
 [functions.check-email-config]
 verify_jwt = true
+[functions.retell-webhook]
+verify_jwt = false
