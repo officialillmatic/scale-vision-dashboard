@@ -140,8 +140,9 @@ export const updateAgent = async (agentId: string, updates: Partial<Agent>): Pro
     }
 
     return data;
-  } finally {
-    // Clean up
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in updateAgent:", error);
+    throw new Error(`Failed to update agent: ${error.message}`);
   }
 };
 
@@ -166,6 +167,7 @@ export const deleteAgent = async (agentId: string): Promise<boolean> => {
 
 export const fetchCompanyUserAgents = async (companyId: string): Promise<any[]> => {
   try {
+    // Use the new secure function that respects RLS policies
     const { data, error } = await supabase.rpc('get_company_user_agents', {
       p_company_id: companyId
     });

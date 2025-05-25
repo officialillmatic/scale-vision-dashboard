@@ -526,6 +526,20 @@ export type Database = {
           count: number
         }[]
       }
+      get_company_user_agents: {
+        Args: { p_company_id: string }
+        Returns: {
+          id: string
+          user_id: string
+          agent_id: string
+          company_id: string
+          is_primary: boolean
+          created_at: string
+          updated_at: string
+          agent: Json
+          user_details: Json
+        }[]
+      }
       get_daily_call_distribution: {
         Args: {
           company_id_param: string
