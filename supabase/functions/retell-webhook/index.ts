@@ -12,7 +12,8 @@ serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
-  console.log(`[WEBHOOK] Received ${req.method} request to retell-webhook`);
+  console.log(`[WEBHOOK] ${new Date().toISOString()} - Received ${req.method} request`);
+  console.log(`[WEBHOOK] Headers:`, Object.fromEntries(req.headers.entries()));
 
   if (req.method !== 'POST') {
     console.log(`[WEBHOOK ERROR] Invalid method: ${req.method}`);
@@ -25,8 +26,14 @@ serve(async (req) => {
     // Parse webhook payload with detailed logging
     let payload;
     try {
-      payload = await req.json();
+      const rawPayload = await req.text();
+      console.log(`[WEBHOOK] Raw payload length: ${rawPayload.length}`);
+      console.log(`[WEBHOOK] Raw payload preview: ${rawPayload.substring(0, 200)}...`);
+      
+      payload = JSON.parse(rawPayload);
       console.log('[WEBHOOK] Received payload keys:', Object.keys(payload));
+      console.log('[WEBHOOK] Event type:', payload.event);
+      console.log('[WEBHOOK] Call ID:', payload.call?.call_id);
     } catch (parseError) {
       console.error('[WEBHOOK ERROR] Failed to parse JSON payload:', parseError);
       return createErrorResponse('Invalid JSON payload', 400);
@@ -36,11 +43,10 @@ serve(async (req) => {
     
     if (!event || !call) {
       console.error('[WEBHOOK ERROR] Invalid webhook payload: missing event or call data');
-      console.log('[WEBHOOK DEBUG] Payload structure:', { hasEvent: !!event, hasCall: !!call });
       return createErrorResponse('Invalid webhook payload: missing event or call data', 400);
     }
 
-    console.log(`[WEBHOOK] Processing event: ${event} for call: ${call.call_id || 'unknown'}`);
+    console.log(`[WEBHOOK] Processing event: ${event} for call: ${call.call_id}`);
 
     // Enhanced validation for required fields
     if (!call.call_id) {
@@ -89,7 +95,7 @@ serve(async (req) => {
 
     console.log(`[WEBHOOK] Found agent:`, { id: agent.id, name: agent.name });
 
-    // Find user associated with this agent
+    // Find user associated with this agent using the new user_can_access_company function
     const { data: userAgent, error: userAgentError } = await supabaseClient
       .from('user_agents')
       .select('user_id, company_id')
@@ -108,6 +114,13 @@ serve(async (req) => {
       user_id: userAgent.user_id, 
       company_id: userAgent.company_id 
     });
+
+    // Verify company access
+    const { data: companyAccess } = await supabaseClient.rpc('user_can_access_company', {
+      company_id: userAgent.company_id
+    });
+
+    console.log(`[WEBHOOK] Company access verified: ${companyAccess}`);
 
     // Map Retell call data to our schema with enhanced validation
     const mappedCallData = mapRetellCallToDatabase(
@@ -150,18 +163,12 @@ serve(async (req) => {
 
       case 'call_ended':
       case 'call_analyzed':
-        // Use the fully mapped data with all available fields
         console.log(`[WEBHOOK] Processing ${event} event for call: ${retellCall.call_id}`);
         break;
 
       default:
-        console.log(`[WEBHOOK] Unknown event type: ${event}, returning success anyway`);
-        return createSuccessResponse({ 
-          message: 'Event received but not processed', 
-          event,
-          call_id: retellCall.call_id,
-          status: 'acknowledged'
-        });
+        console.log(`[WEBHOOK] Unknown event type: ${event}, storing anyway`);
+        break;
     }
 
     // Upsert the call data with improved conflict handling
@@ -190,7 +197,7 @@ serve(async (req) => {
         .insert({
           user_id: userAgent.user_id,
           company_id: userAgent.company_id,
-          amount: -finalCallData.cost_usd, // Negative for debit
+          amount: -finalCallData.cost_usd,
           transaction_type: 'call_cost',
           description: `Call cost for ${finalCallData.call_id}`,
           call_id: finalCallData.call_id
@@ -198,12 +205,11 @@ serve(async (req) => {
 
       if (transactionError) {
         console.error('[WEBHOOK ERROR] Failed to create transaction:', transactionError);
-        // Don't fail the webhook for transaction errors, just log it
       } else {
         console.log(`[WEBHOOK] Successfully created transaction record`);
       }
 
-      // Update user balance using the new safe function
+      // Update user balance
       const { error: balanceError } = await supabaseClient.rpc('update_user_balance', {
         p_user_id: userAgent.user_id,
         p_company_id: userAgent.company_id,
@@ -212,15 +218,12 @@ serve(async (req) => {
 
       if (balanceError) {
         console.error('[WEBHOOK ERROR] Failed to update user balance:', balanceError);
-        // Don't fail the webhook for balance errors, just log it
       } else {
         console.log(`[WEBHOOK] Successfully updated user balance`);
       }
     }
     
-    console.log(`[WEBHOOK SUCCESS] Successfully processed ${event} webhook for call ${retellCall.call_id}`);
-    
-    return createSuccessResponse({
+    const response = {
       message: `Webhook ${event} processed successfully`,
       call_id: retellCall.call_id,
       event,
@@ -228,8 +231,13 @@ serve(async (req) => {
       user_id: userAgent.user_id,
       company_id: userAgent.company_id,
       cost_usd: finalCallData.cost_usd,
-      status: 'success'
-    });
+      status: 'success',
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`[WEBHOOK SUCCESS] ${JSON.stringify(response)}`);
+    
+    return createSuccessResponse(response);
 
   } catch (error) {
     console.error('[WEBHOOK FATAL ERROR] Webhook processing error:', error);

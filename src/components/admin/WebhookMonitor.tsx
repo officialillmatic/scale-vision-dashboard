@@ -1,107 +1,165 @@
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { RoleCheck } from "@/components/auth/RoleCheck";
-import { format } from 'date-fns';
+import { Loader2, Activity, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface WebhookHealth {
-  last_hour_count: number;
-  status: 'active' | 'inactive';
-  last_activity: string | null;
-}
-
-interface RecentActivity {
-  call_id: string;
-  timestamp: string;
-  call_status: string;
-  event_type: string;
-}
-
-interface WebhookMonitorData {
-  webhook_health: WebhookHealth;
-  recent_activity: RecentActivity[];
+  status: 'active' | 'inactive' | 'error';
+  last_hour_calls: number;
+  recent_calls: number;
+  health_score: 'excellent' | 'good' | 'poor';
+  agents_active: number;
+  last_webhook_time?: string;
   timestamp: string;
 }
 
 export function WebhookMonitor() {
-  const { data: monitorData, isLoading, error } = useQuery({
-    queryKey: ['webhook-monitor'],
-    queryFn: async (): Promise<WebhookMonitorData> => {
+  const [health, setHealth] = useState<WebhookHealth | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  const fetchWebhookHealth = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      
       const { data, error } = await supabase.functions.invoke('webhook-monitor');
       
       if (error) {
-        throw new Error(`Webhook monitor error: ${error.message}`);
+        throw error;
       }
       
-      return data;
-    },
-    refetchInterval: 30000, // Refresh every 30 seconds
-    retry: 3
-  });
+      setHealth(data);
+    } catch (err: any) {
+      console.error('Error fetching webhook health:', err);
+      setError(err.message || 'Failed to fetch webhook health');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWebhookHealth();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchWebhookHealth, 30000);
+    
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-500';
+      case 'inactive': return 'bg-yellow-500';
+      case 'error': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getHealthScoreColor = (score: string) => {
+    switch (score) {
+      case 'excellent': return 'text-green-600';
+      case 'good': return 'text-yellow-600';
+      case 'poor': return 'text-red-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'active': return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'inactive': return <Activity className="h-4 w-4 text-yellow-600" />;
+      case 'error': return <AlertCircle className="h-4 w-4 text-red-600" />;
+      default: return <Activity className="h-4 w-4 text-gray-600" />;
+    }
+  };
 
   return (
-    <RoleCheck adminOnly>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Webhook Monitor
-            {monitorData?.webhook_health && (
-              <Badge variant={monitorData.webhook_health.status === 'active' ? 'default' : 'destructive'}>
-                {monitorData.webhook_health.status}
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-lg font-medium">Webhook Monitor</CardTitle>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchWebhookHealth}
+          disabled={isLoading}
+        >
           {isLoading ? (
-            <div className="text-muted-foreground">Loading webhook status...</div>
-          ) : error ? (
-            <div className="text-red-600">Error: {error.message}</div>
-          ) : monitorData ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-muted-foreground">Webhooks (Last Hour)</div>
-                  <div className="text-2xl font-bold">{monitorData.webhook_health.last_hour_count}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Last Activity</div>
-                  <div className="text-sm">
-                    {monitorData.webhook_health.last_activity 
-                      ? format(new Date(monitorData.webhook_health.last_activity), 'PPp')
-                      : 'No activity'
-                    }
-                  </div>
-                </div>
-              </div>
-              
-              {monitorData.recent_activity.length > 0 && (
-                <div>
-                  <div className="text-sm font-medium mb-2">Recent Activity</div>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {monitorData.recent_activity.slice(0, 10).map((activity) => (
-                      <div key={activity.call_id} className="flex justify-between items-center text-xs">
-                        <span className="font-mono">{activity.call_id.slice(0, 8)}...</span>
-                        <Badge variant="outline" className="text-xs">
-                          {activity.call_status}
-                        </Badge>
-                        <span className="text-muted-foreground">
-                          {format(new Date(activity.timestamp), 'HH:mm')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <div className="text-muted-foreground">No data available</div>
+            <RefreshCw className="h-4 w-4" />
           )}
-        </CardContent>
-      </Card>
-    </RoleCheck>
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <div className="text-center py-8">
+            <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+            <p className="text-sm text-red-600">{error}</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchWebhookHealth} 
+              className="mt-2"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : health ? (
+          <>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {getStatusIcon(health.status)}
+                <span className="text-sm font-medium">
+                  Status: {health.status}
+                </span>
+              </div>
+              <Badge variant="outline" className={getHealthScoreColor(health.health_score)}>
+                {health.health_score}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Last Hour</p>
+                <p className="font-medium">{health.last_hour_calls} calls</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Recent (5min)</p>
+                <p className="font-medium">{health.recent_calls} calls</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Active Agents</p>
+                <p className="font-medium">{health.agents_active}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Last Activity</p>
+                <p className="font-medium text-xs">
+                  {health.last_webhook_time 
+                    ? new Date(health.last_webhook_time).toLocaleTimeString()
+                    : 'No recent activity'
+                  }
+                </p>
+              </div>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              Last updated: {new Date(health.timestamp).toLocaleTimeString()}
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
