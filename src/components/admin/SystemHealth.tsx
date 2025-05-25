@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface SystemStatus {
   database: 'healthy' | 'warning' | 'error';
-  retellApi: 'healthy' | 'warning' | 'error';
+  aiApi: 'healthy' | 'warning' | 'error';
   webhooks: 'healthy' | 'warning' | 'error';
   edgeFunctions: 'healthy' | 'warning' | 'error';
   lastCheck: string;
@@ -51,23 +51,23 @@ export function SystemHealth() {
       console.log("[SYSTEM_HEALTH] Testing webhook monitor...");
       const { data: webhookData, error: webhookError } = await supabase.functions.invoke('webhook-monitor');
 
-      // Test Retell API connectivity
-      console.log("[SYSTEM_HEALTH] Testing Retell API...");
-      const { data: retellData, error: retellError } = await supabase.functions.invoke('fetch-retell-calls', {
+      // Test AI API connectivity
+      console.log("[SYSTEM_HEALTH] Testing AI API connectivity...");
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-ai-calls', {
         body: { limit: 1 }
       });
 
       const healthStatus: SystemStatus = {
         database: callsError || agentsError ? 'error' : 'healthy',
-        retellApi: retellError ? 'error' : 'healthy',
+        aiApi: aiError ? 'error' : 'healthy',
         webhooks: webhookError ? 'error' : 'healthy',
-        edgeFunctions: webhookError || retellError ? 'warning' : 'healthy',
+        edgeFunctions: webhookError || aiError ? 'warning' : 'healthy',
         lastCheck: new Date().toISOString(),
         details: {
           totalCalls: callsCount || 0,
           activeAgents: agentsCount || 0,
           recentErrors: 0,
-          apiConnectivity: !retellError
+          apiConnectivity: !aiError
         }
       };
 
@@ -155,8 +155,8 @@ export function SystemHealth() {
               </div>
               <div className="flex items-center gap-2">
                 <Wifi className="h-4 w-4" />
-                <span className="text-sm">Retell API</span>
-                {getStatusIcon(status.retellApi)}
+                <span className="text-sm">AI API</span>
+                {getStatusIcon(status.aiApi)}
               </div>
               <div className="flex items-center gap-2">
                 <Server className="h-4 w-4" />

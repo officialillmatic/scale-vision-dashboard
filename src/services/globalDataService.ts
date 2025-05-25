@@ -33,7 +33,7 @@ export const fetchGlobalCalls = async (): Promise<CallData[]> => {
       .from("calls")
       .select(`
         *,
-        agent:agents(id, name, retell_agent_id, rate_per_minute)
+        agent:agents(id, name, agent_id, rate_per_minute)
       `)
       .order("timestamp", { ascending: false })
       .limit(1000);

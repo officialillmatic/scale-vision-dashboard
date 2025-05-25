@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { CallsTable } from "@/types/supabase";
 
@@ -8,7 +7,7 @@ export type CallData = Omit<CallsTable, 'timestamp' | 'start_time'> & {
   agent?: {
     id: string;
     name: string;
-    retell_agent_id?: string;
+    agent_id?: string;
     rate_per_minute?: number;
   };
   from_number?: string;
@@ -30,7 +29,7 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
       .from("calls")
       .select(`
         *,
-        agent:agents(id, name, retell_agent_id)
+        agent:agents(id, name, agent_id)
       `)
       .eq("company_id", companyId)
       .order("timestamp", { ascending: false })

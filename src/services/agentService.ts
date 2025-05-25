@@ -1,249 +1,167 @@
-import { supabase } from "@/integrations/supabase/client";
-import { AgentTable, UserAgentTable } from "@/types/supabase";
-import { toast } from "sonner";
 
-export type Agent = AgentTable & {
-  rate_per_minute?: number;
+import { supabase } from "@/integrations/supabase/client";
+import { AgentsTable } from "@/types/supabase";
+
+export type Agent = AgentsTable & {
   retell_agent_id?: string;
 };
 
-export type UserAgent = UserAgentTable & {
-  agent?: Agent;
-  user_details?: {
-    email: string;
-    name?: string;
-  };
-};
-
-export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
+export const fetchAgents = async (companyId: string): Promise<Agent[]> => {
+  console.log("[AGENT_SERVICE] Fetching agents for company:", companyId);
+  
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.log("[AGENT-SERVICE] No authenticated user");
-      return [];
+    const { data, error } = await supabase
+      .from("agents")
+      .select("*")
+      .order("name");
+
+    if (error) {
+      console.error("[AGENT_SERVICE] Database error:", error);
+      throw error;
     }
 
-    // Use optimized security definer function
-    if (companyId) {
-      const { data, error } = await supabase
-        .rpc('get_user_accessible_agents', {
-          p_user_id: user.id,
-          p_company_id: companyId
-        });
-
-      if (error) {
-        console.error("Error fetching agents:", error);
-        toast.error("Failed to load agents");
-        return [];
-      }
-
-      return data || [];
-    } else {
-      // Super admin fetching all agents
-      const { data, error } = await supabase
-        .from("agents")
-        .select("*")
-        .order("name");
-
-      if (error) {
-        console.error("Error fetching all agents:", error);
-        toast.error("Failed to load agents");
-        return [];
-      }
-
-      return data || [];
-    }
-  } catch (error) {
-    console.error("Error in fetchAgents:", error);
-    toast.error("Failed to load agents");
-    return [];
+    console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "agents");
+    return data || [];
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in fetchAgents:", error);
+    throw new Error(`Failed to fetch agents: ${error.message}`);
   }
 };
 
-export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> => {
-  if (!companyId) return [];
-
+export const fetchUserAccessibleAgents = async (userId: string, companyId: string): Promise<Agent[]> => {
+  console.log("[AGENT_SERVICE] Fetching user accessible agents for user:", userId, "company:", companyId);
+  
   try {
-    // Use optimized security definer function
-    const { data, error } = await supabase
-      .rpc('get_company_user_agents', {
-        p_company_id: companyId
-      });
+    const { data, error } = await supabase.rpc('get_user_accessible_agents', {
+      p_user_id: userId,
+      p_company_id: companyId
+    });
 
     if (error) {
-      console.error("Error fetching user agents:", error);
-      toast.error("Failed to load agent assignments");
-      return [];
+      console.error("[AGENT_SERVICE] Database error:", error);
+      throw error;
     }
 
-    // Transform the data to match the expected format
-    const userAgentsWithDetails = (data || []).map((item: any) => ({
-      id: item.id,
-      user_id: item.user_id,
-      agent_id: item.agent_id,
-      company_id: item.company_id,
-      is_primary: item.is_primary,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
-      agent: item.agent_name ? {
-        id: item.agent_id,
-        name: item.agent_name,
-        description: item.agent_description
-      } : null,
-      user_details: {
-        email: item.user_email || "Unknown"
-      }
-    }));
-
-    return userAgentsWithDetails;
-  } catch (error) {
-    console.error("Error in fetchUserAgents:", error);
-    toast.error("Failed to load agent assignments");
-    return [];
+    console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "accessible agents");
+    return data || [];
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in fetchUserAccessibleAgents:", error);
+    throw new Error(`Failed to fetch accessible agents: ${error.message}`);
   }
 };
 
 export const createAgent = async (agentData: Partial<Agent>): Promise<Agent | null> => {
   try {
-    const dataWithTimestamps = {
-      ...agentData,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
     const { data, error } = await supabase
       .from("agents")
-      .insert([dataWithTimestamps])
+      .insert([agentData])
       .select()
       .single();
 
     if (error) {
-      console.error("Error creating agent:", error);
-      toast.error("Failed to create agent");
-      return null;
+      console.error("[AGENT_SERVICE] Error creating agent:", error);
+      throw error;
     }
 
-    toast.success("Agent created successfully");
     return data;
-  } catch (error) {
-    console.error("Error in createAgent:", error);
-    toast.error("Failed to create agent");
-    return null;
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in createAgent:", error);
+    throw new Error(`Failed to create agent: ${error.message}`);
   }
 };
 
-export const updateAgent = async (id: string, agentData: Partial<Agent>): Promise<boolean> => {
+export const updateAgent = async (agentId: string, updates: Partial<Agent>): Promise<Agent | null> => {
   try {
-    const dataWithTimestamp = {
-      ...agentData,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase
-      .from("agents")
-      .update(dataWithTimestamp)
-      .eq("id", id);
-
-    if (error) {
-      console.error("Error updating agent:", error);
-      toast.error("Failed to update agent");
-      return false;
-    }
-
-    toast.success("Agent updated successfully");
-    return true;
-  } catch (error) {
-    console.error("Error in updateAgent:", error);
-    toast.error("Failed to update agent");
-    return false;
-  }
-};
-
-export const deleteAgent = async (id: string): Promise<boolean> => {
-  try {
-    const { error: assignmentError } = await supabase
-      .from("user_agents")
-      .delete()
-      .eq("agent_id", id);
-      
-    if (assignmentError) {
-      console.error("Error removing agent assignments:", assignmentError);
-      toast.error("Failed to remove agent assignments");
-      return false;
-    }
-
-    const { error } = await supabase
-      .from("agents")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      console.error("Error deleting agent:", error);
-      toast.error("Failed to delete agent");
-      return false;
-    }
-
-    toast.success("Agent deleted successfully");
-    return true;
-  } catch (error) {
-    console.error("Error in deleteAgent:", error);
-    toast.error("Failed to delete agent");
-    return false;
-  }
-};
-
-export const assignAgentToUser = async (
-  userAgent: Partial<UserAgentTable>
-): Promise<UserAgent | null> => {
-  try {
-    const dataWithTimestamps = {
-      ...userAgent,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
     const { data, error } = await supabase
-      .from("user_agents")
-      .insert([dataWithTimestamps])
-      .select(`
-        *,
-        agent:agents(*)
-      `)
+      .from("agents")
+      .update(updates)
+      .eq("id", agentId)
+      .select()
       .single();
 
     if (error) {
-      console.error("Error assigning agent to user:", error);
-      toast.error("Failed to assign agent");
-      return null;
+      console.error("[AGENT_SERVICE] Error updating agent:", error);
+      throw error;
     }
 
-    toast.success("Agent assigned successfully");
     return data;
-  } catch (error) {
-    console.error("Error in assignAgentToUser:", error);
-    toast.error("Failed to assign agent");
-    return null;
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in updateAgent:", error);
+    throw new Error(`Failed to update agent: ${error.message}`);
   }
 };
 
-export const removeAgentFromUser = async (id: string): Promise<boolean> => {
+export const deleteAgent = async (agentId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from("agents")
+      .delete()
+      .eq("id", agentId);
+
+    if (error) {
+      console.error("[AGENT_SERVICE] Error deleting agent:", error);
+      throw error;
+    }
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in deleteAgent:", error);
+    throw new Error(`Failed to delete agent: ${error.message}`);
+  }
+};
+
+export const fetchCompanyUserAgents = async (companyId: string): Promise<any[]> => {
+  try {
+    const { data, error } = await supabase.rpc('get_company_user_agents', {
+      p_company_id: companyId
+    });
+
+    if (error) {
+      console.error("[AGENT_SERVICE] Error fetching company user agents:", error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in fetchCompanyUserAgents:", error);
+    throw new Error(`Failed to fetch company user agents: ${error.message}`);
+  }
+};
+
+export const assignAgentToUser = async (userId: string, agentId: string, companyId: string, isPrimary: boolean = false): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from("user_agents")
+      .insert([{
+        user_id: userId,
+        agent_id: agentId,
+        company_id: companyId,
+        is_primary: isPrimary
+      }]);
+
+    if (error) {
+      console.error("[AGENT_SERVICE] Error assigning agent to user:", error);
+      throw error;
+    }
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in assignAgentToUser:", error);
+    throw new Error(`Failed to assign agent to user: ${error.message}`);
+  }
+};
+
+export const removeAgentFromUser = async (userId: string, agentId: string, companyId: string): Promise<void> => {
   try {
     const { error } = await supabase
       .from("user_agents")
       .delete()
-      .eq("id", id);
+      .eq("user_id", userId)
+      .eq("agent_id", agentId)
+      .eq("company_id", companyId);
 
     if (error) {
-      console.error("Error removing agent from user:", error);
-      toast.error("Failed to remove agent assignment");
-      return false;
+      console.error("[AGENT_SERVICE] Error removing agent from user:", error);
+      throw error;
     }
-
-    toast.success("Agent assignment removed successfully");
-    return true;
-  } catch (error) {
-    console.error("Error in removeAgentFromUser:", error);
-    toast.error("Failed to remove agent assignment");
-    return false;
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in removeAgentFromUser:", error);
+    throw new Error(`Failed to remove agent from user: ${error.message}`);
   }
 };
