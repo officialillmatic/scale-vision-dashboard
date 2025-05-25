@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { AgentTable } from "@/types/supabase";
 
@@ -30,11 +29,6 @@ export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
       .select("*")
       .order("name");
 
-    // If companyId is provided, filter by it (for non-super admin users)
-    if (companyId) {
-      query = query.eq("company_id", companyId);
-    }
-
     const { data, error } = await query;
 
     if (error) {
@@ -62,11 +56,6 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
         user_details:user_profiles(email, name)
       `)
       .order("created_at", { ascending: false });
-
-    // If companyId is provided, filter by it
-    if (companyId) {
-      query = query.eq("company_id", companyId);
-    }
 
     const { data, error } = await query;
 

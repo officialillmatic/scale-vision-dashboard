@@ -12,7 +12,7 @@ export const useRole = () => {
   const checkRole = (role: Role): boolean => {
     if (!user) return false;
     
-    // Super admins always have all privileges - this should be checked first
+    // Super admins always have all privileges
     if (isSuperAdmin) return true;
     
     // Company owners always have admin privileges
@@ -63,31 +63,31 @@ export const useRole = () => {
     }
 
     return {
-      // Team and agent management - Super admins get full access
-      manageTeam: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-      manageAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'), 
-      viewAgents: isSuperAdmin || checkRole('viewer'), // Super admins can view all agents
-      createAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-      assignAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-      deleteAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      // Team and agent management - Super admins and company owners get full access
+      manageTeam: isSuperAdmin || isCompanyOwner,
+      manageAgents: isSuperAdmin || isCompanyOwner, 
+      viewAgents: isSuperAdmin || isCompanyOwner || checkRole('viewer'), 
+      createAgents: isSuperAdmin || isCompanyOwner,
+      assignAgents: isSuperAdmin || isCompanyOwner,
+      deleteAgents: isSuperAdmin || isCompanyOwner,
       
-      // Call management
-      viewCalls: isSuperAdmin || checkRole('viewer'), // Super admins can view all calls
-      uploadCalls: isSuperAdmin || checkRole('member'),
+      // Call management - simplified permissions
+      viewCalls: isSuperAdmin || isCompanyOwner || checkRole('viewer'),
+      uploadCalls: isSuperAdmin || isCompanyOwner,
       
-      // Billing management - Super admins get full access
-      manageBalances: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-      viewBalance: isSuperAdmin || checkRole('viewer'), // Super admins can view all balances
-      accessBillingSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      // Billing management - Super admins and company owners get full access
+      manageBalances: isSuperAdmin || isCompanyOwner,
+      viewBalance: isSuperAdmin || isCompanyOwner || checkRole('viewer'),
+      accessBillingSettings: isSuperAdmin || isCompanyOwner,
       
-      // Settings - Optimized for consolidated RLS policies
-      editSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-      uploadCompanyLogo: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-      inviteUsers: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-      removeUsers: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      // Settings - Company owners and super admins only
+      editSettings: isSuperAdmin || isCompanyOwner,
+      uploadCompanyLogo: isSuperAdmin || isCompanyOwner,
+      inviteUsers: isSuperAdmin || isCompanyOwner,
+      removeUsers: isSuperAdmin || isCompanyOwner,
       
       // Invitations
-      sendInvitations: isSuperAdmin || isCompanyOwner || checkRole('admin'),
+      sendInvitations: isSuperAdmin || isCompanyOwner,
       
       // Super admin privileges
       superAdminAccess: isSuperAdmin
