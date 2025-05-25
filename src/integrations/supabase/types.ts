@@ -538,6 +538,30 @@ export type Database = {
           total_duration_min: number
         }[]
       }
+      get_super_admin_call_metrics: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          total_calls: number
+          total_duration_min: number
+          total_cost: number
+          total_companies: number
+          total_users: number
+        }[]
+      }
+      get_super_admin_companies: {
+        Args: Record<PropertyKey, never>
+        Returns: string[]
+      }
+      get_super_admin_company_metrics: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          company_id: string
+          company_name: string
+          total_calls: number
+          total_cost: number
+          total_users: number
+        }[]
+      }
       get_user_balance: {
         Args: { p_user_id: string }
         Returns: number

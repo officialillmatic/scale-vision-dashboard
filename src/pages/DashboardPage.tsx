@@ -3,6 +3,7 @@ import React from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { EnvWarning } from '@/components/common/EnvWarning';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { UserBalance } from '@/components/balance/UserBalance';
 import { AgentUsageStats } from '@/components/calls/AgentUsageStats';
 import { WebhookMonitor } from '@/components/admin/WebhookMonitor';
@@ -11,15 +12,36 @@ import { RoleCheck } from '@/components/auth/RoleCheck';
 import { DashboardMetrics } from '@/components/dashboard/DashboardMetrics';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { CallTable } from '@/components/calls/CallTable';
+import { SuperAdminDashboard } from '@/components/dashboard/SuperAdminDashboard';
+import { GlobalDataProvider } from '@/components/dashboard/GlobalDataProvider';
 import { CallData } from '@/services/callService';
 
 export function DashboardPage() {
   const { company, isLoading: isLoadingAuth } = useAuth();
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
 
   const handleSelectCall = (call: CallData) => {
     console.log('Selected call:', call);
   };
 
+  // Show loading while checking super admin status
+  if (isSuperAdminLoading) {
+    return <DashboardLayout isLoading={true} />;
+  }
+
+  // Super Admin Dashboard
+  if (isSuperAdmin) {
+    return (
+      <GlobalDataProvider>
+        <DashboardLayout isLoading={isLoadingAuth}>
+          <EnvWarning />
+          <SuperAdminDashboard />
+        </DashboardLayout>
+      </GlobalDataProvider>
+    );
+  }
+
+  // Regular User Dashboard
   return (
     <DashboardLayout isLoading={isLoadingAuth}>
       <EnvWarning />

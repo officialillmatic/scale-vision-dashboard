@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { AgentTable, UserAgentTable } from "@/types/supabase";
 import { toast } from "sonner";
@@ -18,10 +17,29 @@ export type UserAgent = UserAgentTable & {
 
 export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
   try {
-    const { data, error } = await supabase
-      .from("agents")
-      .select("*")
-      .order("name");
+    // Check if user is super admin
+    const { data: isSuperAdminData } = await supabase.rpc('is_super_admin');
+    const isSuperAdmin = isSuperAdminData || false;
+
+    let query = supabase.from("agents").select("*").order("name");
+
+    // If not super admin, filter by company access through user_agents
+    if (!isSuperAdmin && companyId) {
+      const { data: userAgents } = await supabase
+        .from("user_agents")
+        .select("agent_id")
+        .eq("company_id", companyId);
+      
+      if (userAgents && userAgents.length > 0) {
+        const agentIds = userAgents.map(ua => ua.agent_id);
+        query = query.in("id", agentIds);
+      } else {
+        // User has no agents assigned
+        return [];
+      }
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching agents:", error);
@@ -41,13 +59,23 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
   if (!companyId) return [];
 
   try {
-    const { data, error } = await supabase
+    // Check if user is super admin
+    const { data: isSuperAdminData } = await supabase.rpc('is_super_admin');
+    const isSuperAdmin = isSuperAdminData || false;
+
+    let query = supabase
       .from("user_agents")
       .select(`
         *,
         agent:agents(*)
-      `)
-      .eq("company_id", companyId);
+      `);
+
+    // If super admin, get all user agents, otherwise filter by company
+    if (!isSuperAdmin) {
+      query = query.eq("company_id", companyId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching user agents:", error);

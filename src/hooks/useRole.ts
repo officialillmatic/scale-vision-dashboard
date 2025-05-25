@@ -55,7 +55,7 @@ export const useRole = () => {
    * This is the central source of truth for all permissions in the app
    */
   const can = useMemo(() => ({
-    // Team and agent management - restricted to admins only (or super admins)
+    // Team and agent management - Super admins can manage everything globally
     manageTeam: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     manageAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'), 
     viewAgents: true, // All authenticated users can view their assigned agents
@@ -63,11 +63,11 @@ export const useRole = () => {
     assignAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     deleteAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
-    // Call management
+    // Call management - Super admins can see all calls globally
     viewCalls: true, // Allow all authenticated users to view their own calls
     uploadCalls: isSuperAdmin || checkRole('member'), // Members and admins can upload calls
     
-    // Billing management - restricted to admins only (or super admins)
+    // Billing management - Super admins can manage all balances
     manageBalances: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     viewBalance: true, // All users can view their own balance
     accessBillingSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
