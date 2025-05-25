@@ -95,7 +95,7 @@ serve(async (req) => {
 
     console.log(`[WEBHOOK] Found agent:`, { id: agent.id, name: agent.name });
 
-    // Find user associated with this agent using the new user_can_access_company function
+    // Find user associated with this agent
     const { data: userAgent, error: userAgentError } = await supabaseClient
       .from('user_agents')
       .select('user_id, company_id')
@@ -115,14 +115,7 @@ serve(async (req) => {
       company_id: userAgent.company_id 
     });
 
-    // Verify company access
-    const { data: companyAccess } = await supabaseClient.rpc('user_can_access_company', {
-      company_id: userAgent.company_id
-    });
-
-    console.log(`[WEBHOOK] Company access verified: ${companyAccess}`);
-
-    // Map Retell call data to our schema with enhanced validation
+    // Map Retell call data to our schema
     const mappedCallData = mapRetellCallToDatabase(
       retellCall,
       userAgent.user_id,
@@ -140,7 +133,7 @@ serve(async (req) => {
 
     console.log(`[WEBHOOK] Mapped call data successfully for call: ${retellCall.call_id}`);
 
-    // Handle different webhook events with improved logic
+    // Handle different webhook events
     let finalCallData = { ...mappedCallData };
     
     switch (event) {
@@ -171,7 +164,7 @@ serve(async (req) => {
         break;
     }
 
-    // Upsert the call data with improved conflict handling
+    // Upsert the call data
     const { data: upsertedCall, error: upsertError } = await supabaseClient
       .from('calls')
       .upsert(finalCallData, {
