@@ -7,6 +7,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
@@ -17,46 +18,66 @@ serve(async (req) => {
   try {
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Get recent webhook activity by checking call insertions
+    // Get calls from the last hour to check webhook activity
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    
     const { data: recentCalls, error: callsError } = await supabaseClient
       .from('calls')
-      .select('call_id, timestamp, call_status, event_type:call_type')
+      .select('call_id, call_status, timestamp, start_time')
+      .gte('timestamp', oneHourAgo)
       .order('timestamp', { ascending: false })
-      .limit(20);
+      .limit(10);
 
     if (callsError) {
       console.error('Error fetching recent calls:', callsError);
       return createErrorResponse('Failed to fetch webhook activity', 500);
     }
 
-    // Get webhook health metrics
-    const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    
-    const { data: recentWebhooks, error: webhookError } = await supabaseClient
+    // Get the most recent call to determine last activity
+    const { data: lastCall, error: lastCallError } = await supabaseClient
       .from('calls')
-      .select('call_id')
-      .gte('timestamp', oneHourAgo.toISOString());
+      .select('timestamp, start_time')
+      .order('timestamp', { ascending: false })
+      .limit(1)
+      .single();
 
-    if (webhookError) {
-      console.error('Error fetching webhook metrics:', webhookError);
-      return createErrorResponse('Failed to fetch webhook metrics', 500);
-    }
+    const lastActivity = lastCall?.timestamp || lastCall?.start_time || null;
+    const lastHourCount = recentCalls?.length || 0;
+    
+    // Determine webhook health status
+    const isActive = lastHourCount > 0 && lastActivity && 
+      (new Date(lastActivity).getTime() > Date.now() - 30 * 60 * 1000); // Active if calls in last 30 minutes
 
     const webhookHealth = {
-      last_hour_count: recentWebhooks?.length || 0,
-      status: (recentWebhooks?.length || 0) > 0 ? 'active' : 'inactive',
-      last_activity: recentCalls?.[0]?.timestamp || null
+      last_hour_count: lastHourCount,
+      status: isActive ? 'active' : 'inactive',
+      last_activity: lastActivity
     };
 
-    return createSuccessResponse({
+    const recentActivity = (recentCalls || []).map(call => ({
+      call_id: call.call_id,
+      timestamp: call.timestamp || call.start_time,
+      call_status: call.call_status,
+      event_type: 'webhook_received'
+    }));
+
+    const monitorData = {
       webhook_health: webhookHealth,
-      recent_activity: recentCalls || [],
-      timestamp: now.toISOString()
-    });
+      recent_activity: recentActivity,
+      timestamp: new Date().toISOString(),
+      webhook_endpoints: {
+        retell_webhook: '/functions/v1/retell-webhook',
+        webhook_test: '/functions/v1/webhook-test',
+        webhook_monitor: '/functions/v1/webhook-monitor'
+      }
+    };
+
+    console.log('Webhook monitor data:', JSON.stringify(monitorData, null, 2));
+
+    return createSuccessResponse(monitorData);
 
   } catch (error) {
-    console.error('Monitor error:', error);
+    console.error('Webhook monitor error:', error);
     return createErrorResponse('Internal server error', 500);
   }
 });
