@@ -25,7 +25,7 @@ export const transformCallData = (call: any): CallData => ({
   call_type: call.call_type || 'phone_call',
   latency_ms: call.latency_ms || 0,
   call_summary: call.call_summary,
-  start_time: new Date(call.start_time || call.timestamp),
+  start_time: call.start_time ? new Date(call.start_time) : new Date(call.timestamp),
   disposition: call.disposition,
   agent: call.agent
 });

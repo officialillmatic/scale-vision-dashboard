@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { CallsTable } from "@/types/supabase";
 
@@ -9,7 +8,17 @@ export type CallData = CallsTable & {
     id: string;
     name: string;
     retell_agent_id?: string;
+    rate_per_minute?: number;
   };
+  from_number?: string;
+  to_number?: string;
+  recording_url?: string;
+  transcript_url?: string;
+  sentiment_score?: number;
+  disposition?: string;
+  latency_ms?: number;
+  call_type?: string;
+  call_summary?: string;
 };
 
 export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
