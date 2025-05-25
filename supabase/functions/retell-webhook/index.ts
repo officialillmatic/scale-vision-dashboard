@@ -12,6 +12,7 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   if (req.method !== 'POST') {
+    console.log(`Invalid method: ${req.method}`);
     return createErrorResponse('Method not allowed', 405);
   }
 
@@ -63,6 +64,8 @@ serve(async (req) => {
       return createErrorResponse(`Agent not found: ${retell_agent_id}`, 400);
     }
 
+    console.log('Found agent:', agent);
+
     // Find user associated with this agent
     const { data: userAgent, error: userAgentError } = await supabaseClient
       .from('user_agents')
@@ -74,6 +77,8 @@ serve(async (req) => {
       console.error('User agent mapping not found for agent:', agent.id, userAgentError);
       return createErrorResponse(`User mapping not found for agent: ${agent.id}`, 400);
     }
+
+    console.log('Found user agent mapping:', userAgent);
 
     // Calculate cost based on duration and agent rate
     const durationMinutes = duration ? duration / 60 : 0;
@@ -150,6 +155,8 @@ serve(async (req) => {
         return createSuccessResponse({ message: 'Event received but not processed', event });
     }
 
+    console.log('Upserting call data:', callData);
+
     // Upsert the call data
     const { error: upsertError } = await supabaseClient
       .from('calls')
@@ -163,7 +170,29 @@ serve(async (req) => {
       return createErrorResponse('Failed to save call data', 500);
     }
 
+    // Log successful processing
     console.log(`Successfully processed ${event} webhook for call ${call_id}`);
+    
+    // Create transaction record for cost tracking
+    if (event === 'call_ended' || event === 'call_analyzed') {
+      const { error: transactionError } = await supabaseClient
+        .from('transactions')
+        .insert({
+          user_id: userAgent.user_id,
+          company_id: userAgent.company_id,
+          amount: -cost, // Negative for debit
+          transaction_type: 'call_cost',
+          description: `Call cost for ${call_id}`,
+          call_id: callData.call_id
+        });
+
+      if (transactionError) {
+        console.error('Error creating transaction:', transactionError);
+        // Don't fail the webhook for transaction errors
+      } else {
+        console.log('Created transaction record for call cost:', cost);
+      }
+    }
     
     return createSuccessResponse({
       message: `Webhook ${event} processed successfully`,
@@ -171,7 +200,8 @@ serve(async (req) => {
       event,
       agent_id: agent.id,
       user_id: userAgent.user_id,
-      company_id: userAgent.company_id
+      company_id: userAgent.company_id,
+      cost_usd: cost
     });
 
   } catch (error) {

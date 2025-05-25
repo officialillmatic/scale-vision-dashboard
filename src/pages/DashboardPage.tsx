@@ -12,6 +12,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { format, subDays } from 'date-fns';
 import { UserBalance } from '@/components/balance/UserBalance';
 import { AgentUsageStats } from '@/components/calls/AgentUsageStats';
+import { WebhookMonitor } from '@/components/admin/WebhookMonitor';
+import { SystemHealth } from '@/components/admin/SystemHealth';
+import { RoleCheck } from '@/components/auth/RoleCheck';
 
 export function DashboardPage() {
   const { company, isLoading: isLoadingAuth } = useAuth();
@@ -54,6 +57,14 @@ export function DashboardPage() {
         <div className="grid gap-6 md:grid-cols-1">
           <AgentUsageStats />
         </div>
+
+        {/* Admin monitoring section */}
+        <RoleCheck adminOnly>
+          <div className="grid gap-6 md:grid-cols-2">
+            <WebhookMonitor />
+            <SystemHealth />
+          </div>
+        </RoleCheck>
         
         <Tabs defaultValue="recent" className="animate-fade-in">
           <TabsList>
