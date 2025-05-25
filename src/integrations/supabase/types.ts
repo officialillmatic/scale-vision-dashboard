@@ -145,6 +145,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_calls_agent_id"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
         ]
       }
       companies: {
@@ -358,6 +365,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_user_agents_agent_id"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_user_agents_company_id"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "user_agents_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
@@ -570,6 +591,10 @@ export type Database = {
         Returns: boolean
       }
       user_has_company_access: {
+        Args: { target_company_id: string }
+        Returns: boolean
+      }
+      user_has_company_access_safe: {
         Args: { target_company_id: string }
         Returns: boolean
       }

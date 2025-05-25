@@ -34,7 +34,8 @@ export function SystemHealth() {
       setIsLoading(true);
       setError(null);
       
-      // Test database connectivity
+      // Test database connectivity with improved error handling
+      console.log("[SYSTEM_HEALTH] Testing database connectivity...");
       const { data: dbTest, error: dbError } = await supabase
         .from('calls')
         .select('count')
@@ -43,12 +44,12 @@ export function SystemHealth() {
       // Test edge functions
       const { data: webhookTest, error: webhookError } = await supabase.functions.invoke('webhook-monitor');
       
-      // Test Retell API connectivity (through our edge function)
+      // Test Retell API connectivity
       const { data: retellTest, error: retellError } = await supabase.functions.invoke('fetch-retell-calls', {
         body: { limit: 1 }
       });
 
-      // Get system metrics with proper count handling
+      // Get system metrics with proper error handling
       const { count: callsCount, error: callsCountError } = await supabase
         .from('calls')
         .select('*', { count: 'exact', head: true });
@@ -73,6 +74,7 @@ export function SystemHealth() {
       };
 
       setStatus(healthStatus);
+      console.log("[SYSTEM_HEALTH] Health check completed:", healthStatus);
       
     } catch (err: any) {
       console.error('Error performing health check:', err);
