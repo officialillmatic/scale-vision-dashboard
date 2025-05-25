@@ -525,6 +525,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string[]
       }
+      get_user_company_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_user_email: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       has_sufficient_balance: {
         Args: { p_user_id: string; p_amount: number }
         Returns: boolean
@@ -551,6 +559,14 @@ export type Database = {
       }
       is_super_admin: {
         Args: { check_user_id?: string }
+        Returns: boolean
+      }
+      update_user_balance: {
+        Args: { p_user_id: string; p_company_id: string; p_amount: number }
+        Returns: undefined
+      }
+      user_has_company_access: {
+        Args: { target_company_id: string }
         Returns: boolean
       }
     }

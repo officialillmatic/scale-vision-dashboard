@@ -2,8 +2,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
-import { validateAuth, getUserCompany, checkCompanyAccess } from "../_shared/authUtils.ts";
-import { mapRetellCallToDatabase, validateCallData, type RetellCallData } from "../_shared/retellDataMapper.ts";
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const retellApiKey = Deno.env.get('RETELL_API_KEY')!;
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -12,243 +14,207 @@ serve(async (req) => {
 
   console.log(`[SYNC-CALLS] Received ${req.method} request`);
 
+  if (req.method !== 'POST') {
+    console.error(`[SYNC-CALLS] Invalid method: ${req.method}`);
+    return createErrorResponse('Method not allowed', 405);
+  }
+
+  if (!retellApiKey) {
+    console.error('[SYNC-CALLS ERROR] Retell API key not configured');
+    return createErrorResponse('Retell API key not configured', 500);
+  }
+
   try {
-    // Validate auth and get user
-    const authResult = await validateAuth(req);
-    if (authResult.error) return authResult.error;
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
     
-    const { user, supabaseClient } = authResult;
-
-    // Get the company ID from query parameters or request body
-    const url = new URL(req.url);
-    let companyId = url.searchParams.get('company_id');
-    
-    if (!companyId) {
-      try {
-        const body = await req.json();
-        companyId = body.company_id;
-      } catch (e) {
-        // No body or not JSON
+    // Parse request body to get optional parameters
+    let requestBody = {};
+    try {
+      const text = await req.text();
+      if (text) {
+        requestBody = JSON.parse(text);
       }
+    } catch (parseError) {
+      console.log('[SYNC-CALLS] No valid JSON body provided, using defaults');
     }
 
-    // If no company ID provided, try to get the user's company
-    if (!companyId) {
-      const companyResult = await getUserCompany(supabaseClient, user.id);
-      if (companyResult.error) return companyResult.error;
-      companyId = companyResult.companyId;
-    }
+    const { 
+      agent_id, 
+      limit = 50, 
+      after_call_id,
+      sort_order = 'desc'
+    } = requestBody as any;
+
+    console.log(`[SYNC-CALLS] Starting sync with params:`, { agent_id, limit, after_call_id, sort_order });
+
+    // Build Retell API URL with query parameters
+    const params = new URLSearchParams();
+    if (agent_id) params.append('agent_id', agent_id);
+    if (limit) params.append('limit', String(Math.min(limit, 100))); // Cap at 100
+    if (after_call_id) params.append('after_call_id', after_call_id);
+    if (sort_order) params.append('sort_order', sort_order);
+
+    const retellUrl = `https://api.retellai.com/v2/call?${params.toString()}`;
     
-    // Check if the user has access to the company
-    const accessResult = await checkCompanyAccess(supabaseClient, companyId, user.id);
-    if (accessResult.error) return accessResult.error;
+    console.log(`[SYNC-CALLS] Fetching from Retell API: ${retellUrl}`);
 
-    console.log(`[SYNC-CALLS] Processing sync for company: ${companyId}, user: ${user.id}`);
-
-    // Get the user's assigned agents with their retell_agent_ids
-    const { data: userAgents, error: userAgentsError } = await supabaseClient
-      .from("user_agents")
-      .select(`
-        agent_id,
-        is_primary,
-        agents!inner (
-          id,
-          name,
-          retell_agent_id,
-          rate_per_minute
-        )
-      `)
-      .eq("user_id", user.id)
-      .eq("company_id", companyId);
-
-    if (userAgentsError) {
-      console.error("[SYNC-CALLS ERROR] Error fetching user agents:", userAgentsError);
-      return createErrorResponse('Error fetching user agent data', 500);
-    }
-
-    if (!userAgents || userAgents.length === 0) {
-      console.log("[SYNC-CALLS] No agents assigned to user");
-      return createErrorResponse('No agents assigned to user', 400);
-    }
-
-    // Get retell agent IDs for this user
-    const retellAgentIds = userAgents
-      .map(ua => ua.agents.retell_agent_id)
-      .filter(id => id); // Filter out null/undefined values
-
-    if (retellAgentIds.length === 0) {
-      console.log("[SYNC-CALLS] No Retell agents configured");
-      return createErrorResponse('No Retell agents configured for assigned agents', 400);
-    }
-
-    console.log(`[SYNC-CALLS] Found ${retellAgentIds.length} Retell agent IDs: ${retellAgentIds.join(', ')}`);
-
-    // Fetch calls from Retell AI
-    const retellApiKey = Deno.env.get('RETELL_API_KEY');
-    if (!retellApiKey) {
-      console.error("[SYNC-CALLS ERROR] RETELL_API_KEY not configured");
-      return createErrorResponse('RETELL_API_KEY not configured', 500);
-    }
-
-    console.log(`[SYNC-CALLS] Fetching calls from Retell AI`);
-
-    const retellResponse = await fetch('https://api.retellai.com/v1/calls', {
+    // Fetch calls from Retell API
+    const retellResponse = await fetch(retellUrl, {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${retellApiKey}`,
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     });
 
     if (!retellResponse.ok) {
-      console.error('[SYNC-CALLS ERROR] Retell API error:', retellResponse.status, retellResponse.statusText);
       const errorText = await retellResponse.text();
-      console.error('[SYNC-CALLS ERROR] Retell API response:', errorText);
-      return createErrorResponse(`Retell API error: ${retellResponse.statusText}`, 500);
+      console.error('[SYNC-CALLS ERROR] Retell API error:', {
+        status: retellResponse.status,
+        statusText: retellResponse.statusText,
+        error: errorText
+      });
+      return createErrorResponse(`Retell API error: ${retellResponse.status} ${retellResponse.statusText}`, 500);
     }
 
     const retellData = await retellResponse.json();
-    console.log(`[SYNC-CALLS] Fetched ${retellData.calls?.length || 0} calls from Retell AI`);
+    const calls = retellData.calls || [];
+    
+    console.log(`[SYNC-CALLS] Retrieved ${calls.length} calls from Retell API`);
 
-    if (!retellData.calls || !Array.isArray(retellData.calls)) {
-      console.error('[SYNC-CALLS ERROR] Invalid response format from Retell API');
-      return createErrorResponse('Invalid response format from Retell API', 500);
+    if (calls.length === 0) {
+      return createSuccessResponse({
+        message: 'No calls to sync',
+        synced_count: 0,
+        total_retrieved: 0
+      });
     }
 
-    // Filter calls to only include those from user's assigned agents
-    const userCalls = retellData.calls.filter((call: any) => 
-      retellAgentIds.includes(call.agent_id)
-    );
+    let syncedCount = 0;
+    let errors = [];
 
-    console.log(`[SYNC-CALLS] Found ${userCalls.length} calls for user's assigned agents`);
+    // Process calls in batches to avoid overwhelming the database
+    const batchSize = 10;
+    for (let i = 0; i < calls.length; i += batchSize) {
+      const batch = calls.slice(i, i + batchSize);
+      
+      console.log(`[SYNC-CALLS] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(calls.length / batchSize)}`);
 
-    let insertedCount = 0;
-    let updatedCount = 0;
-    let skippedCount = 0;
-    const errors: string[] = [];
-
-    // Process each call
-    for (const retellCall of userCalls) {
-      try {
-        console.log(`[SYNC-CALLS] Processing call: ${retellCall.call_id}`);
-
-        // Find the corresponding agent in our database
-        const agentMapping = userAgents.find(ua => 
-          ua.agents.retell_agent_id === retellCall.agent_id
-        );
-
-        if (!agentMapping) {
-          skippedCount++;
-          const error = `No agent mapping found for retell_agent_id: ${retellCall.agent_id}`;
-          errors.push(error);
-          console.warn(`[SYNC-CALLS WARN] ${error}`);
-          continue;
-        }
-
-        // Map the Retell call data to our schema
-        const mappedCallData = mapRetellCallToDatabase(
-          retellCall as RetellCallData,
-          user.id,
-          companyId,
-          agentMapping.agent_id,
-          agentMapping.agents.rate_per_minute || 0.02
-        );
-
-        // Validate the mapped data
-        const validationErrors = validateCallData(mappedCallData);
-        if (validationErrors.length > 0) {
-          skippedCount++;
-          const error = `Invalid call data for ${retellCall.call_id}: ${validationErrors.join(', ')}`;
-          errors.push(error);
-          console.error(`[SYNC-CALLS ERROR] ${error}`);
-          continue;
-        }
-
-        // Check if call already exists
-        const { data: existingCall, error: checkError } = await supabaseClient
-          .from("calls")
-          .select('id')
-          .eq("call_id", retellCall.call_id)
-          .maybeSingle();
-
-        if (checkError) {
-          console.error('[SYNC-CALLS ERROR] Error checking existing call:', checkError);
-          skippedCount++;
-          errors.push(`Error checking call ${retellCall.call_id}: ${checkError.message}`);
-          continue;
-        }
-
-        // Insert or update the call
-        const { error: upsertError } = await supabaseClient
-          .from("calls")
-          .upsert(mappedCallData, { 
-            onConflict: 'call_id',
-            ignoreDuplicates: false
-          });
-
-        if (upsertError) {
-          console.error('[SYNC-CALLS ERROR] Error upserting call:', upsertError);
-          errors.push(`Failed to upsert call ${retellCall.call_id}: ${upsertError.message}`);
-          skippedCount++;
-        } else {
-          if (existingCall) {
-            updatedCount++;
-            console.log(`[SYNC-CALLS] Updated existing call ${retellCall.call_id}`);
-          } else {
-            insertedCount++;
-            console.log(`[SYNC-CALLS] Inserted new call ${retellCall.call_id}`);
-            
-            // Create transaction for new calls only
-            if (mappedCallData.cost_usd > 0) {
-              const { error: transactionError } = await supabaseClient
-                .from('transactions')
-                .insert({
-                  user_id: user.id,
-                  company_id: companyId,
-                  amount: -mappedCallData.cost_usd,
-                  transaction_type: 'call_cost',
-                  description: `Call cost for ${mappedCallData.call_id}`,
-                  call_id: mappedCallData.call_id
-                });
-                
-              if (transactionError) {
-                console.error('[SYNC-CALLS WARN] Failed to create transaction:', transactionError);
-              }
-            }
+      for (const call of batch) {
+        try {
+          if (!call.call_id || !call.agent_id) {
+            console.warn(`[SYNC-CALLS] Skipping call with missing data:`, { 
+              call_id: call.call_id, 
+              agent_id: call.agent_id 
+            });
+            continue;
           }
-        }
 
-      } catch (error) {
-        console.error('[SYNC-CALLS ERROR] Error processing call:', error);
-        errors.push(`Error processing call ${retellCall.call_id}: ${error.message}`);
-        skippedCount++;
+          // Find the agent mapping
+          const { data: agent, error: agentError } = await supabaseClient
+            .from('agents')
+            .select('id, rate_per_minute')
+            .eq('retell_agent_id', call.agent_id)
+            .single();
+
+          if (agentError || !agent) {
+            console.warn(`[SYNC-CALLS] Agent not found for retell_agent_id: ${call.agent_id}`);
+            errors.push(`Agent not found: ${call.agent_id}`);
+            continue;
+          }
+
+          // Find user agent mapping
+          const { data: userAgent, error: userAgentError } = await supabaseClient
+            .from('user_agents')
+            .select('user_id, company_id')
+            .eq('agent_id', agent.id)
+            .single();
+
+          if (userAgentError || !userAgent) {
+            console.warn(`[SYNC-CALLS] User mapping not found for agent: ${agent.id}`);
+            errors.push(`User mapping not found for agent: ${agent.id}`);
+            continue;
+          }
+
+          // Calculate duration and cost
+          let durationSec = 0;
+          if (call.duration_ms) {
+            durationSec = Math.round(call.duration_ms / 1000);
+          } else if (call.duration) {
+            durationSec = Math.round(call.duration);
+          } else if (call.start_timestamp && call.end_timestamp) {
+            durationSec = Math.round((call.end_timestamp - call.start_timestamp) / 1000);
+          }
+
+          const costUsd = (durationSec / 60) * (agent.rate_per_minute || 0.02);
+
+          // Prepare call data
+          const callData = {
+            call_id: call.call_id,
+            user_id: userAgent.user_id,
+            company_id: userAgent.company_id,
+            agent_id: agent.id,
+            from_number: call.from_number || 'unknown',
+            to_number: call.to_number || 'unknown',
+            from: call.from_number || 'unknown',
+            to: call.to_number || 'unknown',
+            duration_sec: durationSec,
+            start_time: call.start_timestamp ? new Date(call.start_timestamp).toISOString() : new Date().toISOString(),
+            timestamp: call.start_timestamp ? new Date(call.start_timestamp).toISOString() : new Date().toISOString(),
+            cost_usd: costUsd,
+            call_status: call.call_status || 'completed',
+            call_type: 'phone_call',
+            sentiment: call.sentiment || 'neutral',
+            sentiment_score: call.sentiment_score,
+            disconnection_reason: call.disconnection_reason,
+            recording_url: call.recording_url,
+            audio_url: call.recording_url,
+            transcript: call.transcript,
+            transcript_url: call.transcript_url,
+            disposition: call.disposition,
+            latency_ms: call.latency_ms || 0
+          };
+
+          // Upsert the call
+          const { error: upsertError } = await supabaseClient
+            .from('calls')
+            .upsert(callData, {
+              onConflict: 'call_id',
+              ignoreDuplicates: false
+            });
+
+          if (upsertError) {
+            console.error(`[SYNC-CALLS] Failed to upsert call ${call.call_id}:`, upsertError);
+            errors.push(`Failed to sync call ${call.call_id}: ${upsertError.message}`);
+          } else {
+            syncedCount++;
+            console.log(`[SYNC-CALLS] Successfully synced call: ${call.call_id}`);
+          }
+
+        } catch (callError) {
+          console.error(`[SYNC-CALLS] Error processing call ${call.call_id}:`, callError);
+          errors.push(`Error processing call ${call.call_id}: ${callError.message}`);
+        }
+      }
+
+      // Small delay between batches to be gentle on the database
+      if (i + batchSize < calls.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 
-    // Get updated call count for this user
-    const { data: allCalls, error: callsError } = await supabaseClient
-      .from("calls")
-      .select('id')
-      .eq("company_id", companyId);
-
-    const totalCalls = allCalls?.length || 0;
-
-    console.log(`[SYNC-CALLS] Sync completed: ${insertedCount} inserted, ${updatedCount} updated, ${skippedCount} skipped, ${totalCalls} total calls`);
+    console.log(`[SYNC-CALLS] Sync completed: ${syncedCount}/${calls.length} calls synced`);
 
     return createSuccessResponse({
-      success: true,
-      totalFetched: userCalls.length,
-      inserted: insertedCount,
-      updated: updatedCount,
-      skipped: skippedCount,
-      totalCalls: totalCalls,
-      errors: errors.length > 0 ? errors : undefined,
-      message: `Successfully synced ${insertedCount + updatedCount} calls from Retell AI`,
-      retellAgentsFound: retellAgentIds.length,
-      userAgentsCount: userAgents.length
+      message: `Successfully synced ${syncedCount} out of ${calls.length} calls`,
+      synced_count: syncedCount,
+      total_retrieved: calls.length,
+      errors: errors.length > 0 ? errors.slice(0, 10) : undefined, // Limit error reporting
+      has_more_errors: errors.length > 10
     });
 
   } catch (error) {
-    console.error("[SYNC-CALLS FATAL ERROR] Error in sync-calls function:", error);
-    return createErrorResponse("Internal server error", 500, error.message);
+    console.error('[SYNC-CALLS FATAL ERROR] Sync error:', error);
+    return createErrorResponse(`Sync failed: ${error.message}`, 500);
   }
 });

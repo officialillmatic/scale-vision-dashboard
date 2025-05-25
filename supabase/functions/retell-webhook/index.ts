@@ -26,7 +26,7 @@ serve(async (req) => {
     let payload;
     try {
       payload = await req.json();
-      console.log('[WEBHOOK] Received payload:', JSON.stringify(payload, null, 2));
+      console.log('[WEBHOOK] Received payload keys:', Object.keys(payload));
     } catch (parseError) {
       console.error('[WEBHOOK ERROR] Failed to parse JSON payload:', parseError);
       return createErrorResponse('Invalid JSON payload', 400);
@@ -42,17 +42,28 @@ serve(async (req) => {
 
     console.log(`[WEBHOOK] Processing event: ${event} for call: ${call.call_id || 'unknown'}`);
 
+    // Enhanced validation for required fields
+    if (!call.call_id) {
+      console.error('[WEBHOOK ERROR] Missing required field: call_id');
+      return createErrorResponse('Missing required field: call_id', 400);
+    }
+
+    if (!call.agent_id) {
+      console.error('[WEBHOOK ERROR] Missing required field: agent_id');
+      return createErrorResponse('Missing required field: agent_id', 400);
+    }
+
     const retellCall: RetellCallData = {
       call_id: call.call_id,
       agent_id: call.agent_id,
-      from_number: call.from_number,
-      to_number: call.to_number,
+      from_number: call.from_number || 'unknown',
+      to_number: call.to_number || 'unknown',
       start_timestamp: call.start_timestamp,
       end_timestamp: call.end_timestamp,
       duration: call.duration,
       duration_ms: call.duration_ms,
       disconnection_reason: call.disconnection_reason,
-      call_status: call.call_status,
+      call_status: call.call_status || 'unknown',
       recording_url: call.recording_url,
       transcript: call.transcript,
       transcript_url: call.transcript_url,
@@ -61,14 +72,6 @@ serve(async (req) => {
       disposition: call.disposition,
       latency_ms: call.latency_ms
     };
-
-    if (!retellCall.call_id || !retellCall.agent_id) {
-      console.error('[WEBHOOK ERROR] Missing required fields:', { 
-        hasCallId: !!retellCall.call_id, 
-        hasAgentId: !!retellCall.agent_id 
-      });
-      return createErrorResponse('Missing required call data: call_id or agent_id', 400);
-    }
 
     console.log(`[WEBHOOK] Looking up agent with retell_agent_id: ${retellCall.agent_id}`);
 
@@ -106,7 +109,7 @@ serve(async (req) => {
       company_id: userAgent.company_id 
     });
 
-    // Map Retell call data to our schema
+    // Map Retell call data to our schema with enhanced validation
     const mappedCallData = mapRetellCallToDatabase(
       retellCall,
       userAgent.user_id,
@@ -122,9 +125,9 @@ serve(async (req) => {
       return createErrorResponse(`Invalid call data: ${validationErrors.join(', ')}`, 400);
     }
 
-    console.log(`[WEBHOOK] Mapped call data:`, JSON.stringify(mappedCallData, null, 2));
+    console.log(`[WEBHOOK] Mapped call data successfully for call: ${retellCall.call_id}`);
 
-    // Handle different webhook events
+    // Handle different webhook events with improved logic
     let finalCallData = { ...mappedCallData };
     
     switch (event) {
@@ -147,7 +150,7 @@ serve(async (req) => {
 
       case 'call_ended':
       case 'call_analyzed':
-        // Use the fully mapped data
+        // Use the fully mapped data with all available fields
         console.log(`[WEBHOOK] Processing ${event} event for call: ${retellCall.call_id}`);
         break;
 
@@ -161,7 +164,7 @@ serve(async (req) => {
         });
     }
 
-    // Upsert the call data
+    // Upsert the call data with improved conflict handling
     const { data: upsertedCall, error: upsertError } = await supabaseClient
       .from('calls')
       .upsert(finalCallData, {
@@ -197,10 +200,10 @@ serve(async (req) => {
         console.error('[WEBHOOK ERROR] Failed to create transaction:', transactionError);
         // Don't fail the webhook for transaction errors, just log it
       } else {
-        console.log(`[WEBHOOK] Successfully created transaction record for cost: ${finalCallData.cost_usd}`);
+        console.log(`[WEBHOOK] Successfully created transaction record`);
       }
 
-      // Update user balance
+      // Update user balance using the new safe function
       const { error: balanceError } = await supabaseClient.rpc('update_user_balance', {
         p_user_id: userAgent.user_id,
         p_company_id: userAgent.company_id,
@@ -211,7 +214,7 @@ serve(async (req) => {
         console.error('[WEBHOOK ERROR] Failed to update user balance:', balanceError);
         // Don't fail the webhook for balance errors, just log it
       } else {
-        console.log(`[WEBHOOK] Successfully updated user balance with cost: ${finalCallData.cost_usd}`);
+        console.log(`[WEBHOOK] Successfully updated user balance`);
       }
     }
     

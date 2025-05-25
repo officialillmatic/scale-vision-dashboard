@@ -13,7 +13,8 @@ serve(async (req) => {
 
   console.log(`[WEBHOOK-MONITOR] Received ${req.method} request`);
 
-  if (req.method !== 'GET') {
+  // Accept both GET and POST methods for monitoring
+  if (req.method !== 'GET' && req.method !== 'POST') {
     console.error(`[WEBHOOK-MONITOR] Invalid method: ${req.method}`);
     return createErrorResponse('Method not allowed', 405);
   }
@@ -29,10 +30,10 @@ serve(async (req) => {
     
     const { data: recentCalls, error: callsError } = await supabaseClient
       .from('calls')
-      .select('call_id, call_status, timestamp, start_time, duration_sec, cost_usd')
+      .select('call_id, call_status, timestamp, start_time, duration_sec, cost_usd, agent_id')
       .gte('timestamp', oneHourAgo)
       .order('timestamp', { ascending: false })
-      .limit(20);
+      .limit(50);
 
     if (callsError) {
       console.error('[WEBHOOK-MONITOR ERROR] Error fetching recent calls:', callsError);
@@ -59,13 +60,21 @@ serve(async (req) => {
     
     // Determine webhook health status
     const isActive = recentActivityCount > 0 && lastActivity && 
-      (new Date(lastActivity).getTime() > Date.now() - 30 * 60 * 1000); // Active if calls in last 30 minutes
+      (new Date(lastActivity).getTime() > Date.now() - 30 * 60 * 1000);
 
-    // Calculate total cost and average duration from recent calls
+    // Calculate metrics from recent calls
     const totalCost = recentCalls?.reduce((sum, call) => sum + (call.cost_usd || 0), 0) || 0;
     const avgDuration = recentCalls?.length > 0 
       ? recentCalls.reduce((sum, call) => sum + (call.duration_sec || 0), 0) / recentCalls.length 
       : 0;
+
+    // Get agent usage statistics
+    const agentStats = recentCalls?.reduce((acc, call) => {
+      if (call.agent_id) {
+        acc[call.agent_id] = (acc[call.agent_id] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>) || {};
 
     const webhookHealth = {
       last_hour_count: lastHourCount,
@@ -74,36 +83,42 @@ serve(async (req) => {
       last_activity: lastActivity,
       total_cost_last_hour: totalCost.toFixed(4),
       avg_duration_sec: Math.round(avgDuration),
-      health_score: isActive ? (recentActivityCount > 5 ? 'excellent' : 'good') : 'poor'
+      health_score: isActive ? (recentActivityCount > 5 ? 'excellent' : 'good') : 'poor',
+      agent_usage: agentStats
     };
 
-    const recentActivity = (recentCalls || []).map(call => ({
+    const recentActivity = (recentCalls || []).slice(0, 20).map(call => ({
       call_id: call.call_id,
       timestamp: call.timestamp || call.start_time,
       call_status: call.call_status,
       duration_sec: call.duration_sec,
       cost_usd: call.cost_usd,
+      agent_id: call.agent_id,
       event_type: 'webhook_received'
     }));
 
-    // Check webhook endpoints health
+    // Enhanced webhook endpoints health check
     const webhookEndpoints = {
       retell_webhook: {
         path: '/functions/v1/retell-webhook',
-        status: 'unknown',
-        last_used: lastActivity
+        status: isActive ? 'active' : 'inactive',
+        last_used: lastActivity,
+        method: 'POST'
       },
       webhook_test: {
         path: '/functions/v1/webhook-test',
-        status: 'available'
+        status: 'available',
+        method: 'POST'
       },
       webhook_monitor: {
         path: '/functions/v1/webhook-monitor',
-        status: 'active'
+        status: 'active',
+        method: 'GET|POST'
       },
       sync_calls: {
         path: '/functions/v1/sync-calls',
-        status: 'available'
+        status: 'available',
+        method: 'POST'
       }
     };
 
@@ -115,7 +130,8 @@ serve(async (req) => {
       system_info: {
         monitoring_window: '1 hour',
         activity_threshold: '30 minutes',
-        total_endpoints: Object.keys(webhookEndpoints).length
+        total_endpoints: Object.keys(webhookEndpoints).length,
+        data_points_analyzed: lastHourCount
       }
     };
 
@@ -123,13 +139,14 @@ serve(async (req) => {
       status: webhookHealth.status,
       last_hour_calls: lastHourCount,
       recent_calls: recentActivityCount,
-      health_score: webhookHealth.health_score
+      health_score: webhookHealth.health_score,
+      agents_active: Object.keys(agentStats).length
     });
 
     return createSuccessResponse(monitorData);
 
   } catch (error) {
     console.error('[WEBHOOK-MONITOR FATAL ERROR] Webhook monitor error:', error);
-    return createErrorResponse('Internal server error', 500);
+    return createErrorResponse(`Internal server error: ${error.message}`, 500);
   }
 });
