@@ -69,7 +69,7 @@ export function useDashboardData() {
 
         const { data: callsData, error: callsError } = await supabase
           .from('calls')
-          .select('timestamp, duration_sec, cost_usd, agent_id, agents(id, name)')
+          .select('timestamp, duration_sec, cost_usd, call_status, agent_id, agents(id, name)')
           .eq('company_id', company.id)
           .gte('timestamp', sevenDaysAgo.toISOString())
           .order('timestamp', { ascending: true });
@@ -139,7 +139,8 @@ export function useDashboardData() {
         const agentStats = (callsData || []).reduce((acc: Record<string, AgentUsage>, call) => {
           if (call.agent_id && call.agents) {
             const agentId = call.agent_id;
-            const agentName = call.agents.name || 'Unknown Agent';
+            // Fix: agents is a single object, not an array
+            const agentName = (call.agents as any)?.name || 'Unknown Agent';
             
             if (!acc[agentId]) {
               acc[agentId] = {
