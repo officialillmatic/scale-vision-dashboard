@@ -9,7 +9,7 @@ import { updateUserProfile } from "@/services/userService";
 import { Camera } from "lucide-react";
 
 export function ProfileAvatar() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   
@@ -32,35 +32,20 @@ export function ProfileAvatar() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload an image file",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload an image smaller than 5MB",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     setIsUploading(true);
     
     try {
-      // Upload avatar
+      // Upload avatar using the storage service
       const avatarUrl = await uploadAvatar(user.id, file);
       
       if (avatarUrl) {
         // Update user profile with new avatar URL
         await updateUserProfile(user.id, { avatar_url: avatarUrl });
+        
+        // Refresh user data to show new avatar
+        if (refreshUser) {
+          await refreshUser();
+        }
         
         toast({
           title: "Avatar updated",
@@ -76,6 +61,8 @@ export function ProfileAvatar() {
       });
     } finally {
       setIsUploading(false);
+      // Clear the file input
+      e.target.value = '';
     }
   };
   
@@ -93,14 +80,14 @@ export function ProfileAvatar() {
       
       <div className="absolute bottom-0 right-0">
         <label htmlFor="avatar-upload" className="cursor-pointer">
-          <div className="h-8 w-8 bg-brand-green text-white rounded-full flex items-center justify-center shadow-md">
+          <div className="h-8 w-8 bg-brand-green text-white rounded-full flex items-center justify-center shadow-md hover:bg-brand-green/90 transition-colors">
             <Camera size={16} />
           </div>
           <input 
             type="file" 
             id="avatar-upload" 
             className="hidden" 
-            accept="image/*" 
+            accept="image/jpeg,image/png,image/gif,image/webp" 
             onChange={handleFileChange}
             disabled={isUploading}
           />

@@ -2,89 +2,22 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const requiredBuckets = [
-  {
-    id: 'avatars',
-    public: true,
-    fileSizeLimit: 5 * 1024 * 1024, // 5MB
-    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
-  },
-  {
-    id: 'company-logos',
-    public: true,
-    fileSizeLimit: 5 * 1024 * 1024, // 5MB
-    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml']
-  },
-  {
-    id: 'recordings',
-    public: false, // private storage for call recordings
-    fileSizeLimit: 50 * 1024 * 1024, // 50MB
-    allowedMimeTypes: ['audio/mpeg', 'audio/mp4', 'audio/wav']
-  }
-];
-
-// Initialize storage buckets - now that RLS is properly configured, this should work
-export const initializeStorage = async () => {
-  let hasError = false;
-  const results = [];
-
-  for (const bucket of requiredBuckets) {
-    try {
-      // Check if bucket exists first
-      const { data: existingBuckets, error: listError } = await supabase.storage.listBuckets();
-      
-      if (listError) {
-        console.error(`Error listing buckets:`, listError);
-        results.push({
-          bucket: bucket.id,
-          success: false,
-          error: listError
-        });
-        continue;
-      }
-      
-      const bucketExists = existingBuckets.some(b => b.name === bucket.id);
-      
-      if (bucketExists) {
-        console.log(`Bucket ${bucket.id} already exists`);
-        results.push({
-          bucket: bucket.id,
-          success: true,
-          existed: true
-        });
-      } else {
-        console.log(`Bucket ${bucket.id} should have been created by migration`);
-        results.push({
-          bucket: bucket.id,
-          success: true,
-          note: 'Created by migration'
-        });
-      }
-    } catch (error) {
-      console.error(`Unexpected error with bucket ${bucket.id}:`, error);
-      hasError = true;
-      results.push({
-        bucket: bucket.id,
-        success: false,
-        error
-      });
-    }
-  }
-
-  if (hasError) {
-    console.warn("Some storage buckets could not be verified. This may limit functionality, but the app will continue to work.");
-    toast.error("Some storage features may be limited. Please contact support if you experience issues.");
-  } else {
-    console.log("All storage buckets are properly configured");
-  }
-
-  return { results, hasError };
-};
-
-// Upload profile avatar - now with proper error handling for RLS
+// Upload profile avatar with proper error handling
 export const uploadAvatar = async (userId: string, file: File): Promise<string | null> => {
   try {
     console.log("Uploading avatar for user:", userId, "File:", file.name);
+    
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image.");
+      return null;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error("File too large. Please upload an image smaller than 5MB.");
+      return null;
+    }
     
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -96,7 +29,8 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
 
     if (uploadError) {
       console.error("Upload error:", uploadError);
-      throw uploadError;
+      toast.error("Failed to upload avatar. Please try again.");
+      return null;
     }
 
     const { data } = supabase.storage
@@ -112,10 +46,22 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
   }
 };
 
-// Upload company logo - enhanced with better error handling
+// Upload company logo with enhanced error handling
 export const uploadCompanyLogo = async (companyId: string, file: File): Promise<string | null> => {
   try {
     console.log("Uploading company logo for company:", companyId, "File:", file.name);
+    
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Invalid file type. Please upload a JPEG, PNG, GIF, WebP, or SVG image.");
+      return null;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error("File too large. Please upload an image smaller than 5MB.");
+      return null;
+    }
     
     const fileExt = file.name.split('.').pop();
     const fileName = `${companyId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -127,7 +73,8 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
 
     if (uploadError) {
       console.error("Company logo upload error:", uploadError);
-      throw uploadError;
+      toast.error("Failed to upload company logo. Please try again.");
+      return null;
     }
 
     const { data } = supabase.storage
@@ -143,10 +90,22 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
   }
 };
 
-// Upload call recording - enhanced with proper signed URL generation
+// Upload call recording with proper signed URL generation
 export const uploadRecording = async (userId: string, companyId: string, file: File): Promise<string | null> => {
   try {
     console.log("Uploading recording for user:", userId, "company:", companyId, "File:", file.name);
+    
+    // Validate file type and size
+    const allowedTypes = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Invalid file type. Please upload an MP3, MP4, WAV, or WebM audio file.");
+      return null;
+    }
+    
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      toast.error("File too large. Please upload an audio file smaller than 50MB.");
+      return null;
+    }
     
     const fileExt = file.name.split('.').pop();
     const fileName = `${companyId}/${userId}-${Date.now()}.${fileExt}`;
@@ -157,7 +116,8 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
 
     if (uploadError) {
       console.error("Recording upload error:", uploadError);
-      throw uploadError;
+      toast.error("Failed to upload recording. Please try again.");
+      return null;
     }
 
     // Use signed URL for private recordings
@@ -167,7 +127,8 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
       
     if (result.error) {
       console.error("Error creating signed URL:", result.error);
-      throw result.error;
+      toast.error("Failed to generate access URL for recording.");
+      return null;
     }
 
     console.log("Recording uploaded successfully with signed URL");
@@ -179,7 +140,7 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
   }
 };
 
-// Get a signed URL for a recording (private access) - enhanced error handling
+// Get a signed URL for a recording (private access)
 export const getRecordingUrl = async (filePath: string): Promise<string | null> => {
   try {
     console.log("Getting signed URL for recording:", filePath);
@@ -190,7 +151,7 @@ export const getRecordingUrl = async (filePath: string): Promise<string | null> 
 
     if (result.error) {
       console.error("Error creating signed URL:", result.error);
-      throw result.error;
+      return null;
     }
 
     console.log("Signed URL created successfully");
@@ -198,5 +159,33 @@ export const getRecordingUrl = async (filePath: string): Promise<string | null> 
   } catch (error) {
     console.error("Error getting recording URL:", error);
     return null;
+  }
+};
+
+// Storage bucket validation (simplified)
+export const validateStorageBuckets = async (): Promise<boolean> => {
+  try {
+    const { data: buckets, error } = await supabase.storage.listBuckets();
+    
+    if (error) {
+      console.error("Error listing buckets:", error);
+      return false;
+    }
+    
+    const requiredBuckets = ['avatars', 'company-logos', 'recordings'];
+    const existingBuckets = buckets.map(bucket => bucket.id);
+    const missingBuckets = requiredBuckets.filter(bucket => !existingBuckets.includes(bucket));
+    
+    if (missingBuckets.length > 0) {
+      console.warn("Missing storage buckets:", missingBuckets);
+      toast.error("Some storage features may be unavailable. Please contact support.");
+      return false;
+    }
+    
+    console.log("All required storage buckets are available");
+    return true;
+  } catch (error) {
+    console.error("Error validating storage buckets:", error);
+    return false;
   }
 };

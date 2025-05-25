@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -74,20 +75,9 @@ export function CompanySettings() {
       return;
     }
 
-    // Check if file is an image and under 5MB
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Logo file must be less than 5MB');
-      return;
-    }
-
     setIsUploading(true);
     try {
-      // Upload logo to storage bucket
+      // Upload logo using the storage service
       const logoUrl = await uploadCompanyLogo(company.id, file);
       
       if (logoUrl) {
@@ -103,8 +93,6 @@ export function CompanySettings() {
         } else {
           throw new Error("Failed to update company record with logo URL");
         }
-      } else {
-        throw new Error("Failed to upload logo file to storage");
       }
     } catch (error: any) {
       console.error("Error uploading logo:", error);
@@ -233,7 +221,7 @@ export function CompanySettings() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
                   className="hidden"
                   onChange={handleLogoChange}
                   disabled={isUploading}
