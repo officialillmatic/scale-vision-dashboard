@@ -8,26 +8,31 @@ import { useAuth } from "@/contexts/AuthContext";
 import { handleError } from "@/lib/errorHandling";
 
 export const useCallData = (initialCalls: CallData[] = []) => {
-  const { company } = useAuth();
+  const { company, user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
 
-  // Fetch calls from the database
+  // Fetch calls from the database with proper filtering
   const { 
     data: calls = [], 
     isLoading,
     error,
     refetch
   } = useQuery({
-    queryKey: ["calls", company?.id],
-    queryFn: () => {
-      if (!company?.id) {
-        return Promise.resolve([]);
+    queryKey: ["calls", company?.id, user?.id],
+    queryFn: async () => {
+      if (!company?.id || !user?.id) {
+        console.log("[USE_CALL_DATA] Missing company ID or user ID");
+        return [];
       }
-      return fetchCalls(company.id);
+      
+      console.log("[USE_CALL_DATA] Fetching calls for company:", company.id);
+      const result = await fetchCalls(company.id);
+      console.log(`[USE_CALL_DATA] Fetched ${result.length} calls`);
+      return result;
     },
-    enabled: !!company?.id,
+    enabled: !!company?.id && !!user?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: (failureCount, error) => {
       // Only retry twice for permission errors
@@ -38,7 +43,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
     },
     meta: {
       onError: (error: any) => {
-        console.error("Error fetching calls:", error);
+        console.error("[USE_CALL_DATA] Error fetching calls:", error);
       }
     }
   });
@@ -50,22 +55,31 @@ export const useCallData = (initialCalls: CallData[] = []) => {
   } = useMutation({
     mutationFn: async () => {
       try {
-        const { error } = await supabase.functions.invoke("sync-calls");
-        if (error) throw error;
+        console.log("[USE_CALL_DATA] Starting call sync");
+        const { data, error } = await supabase.functions.invoke("sync-calls");
+        if (error) {
+          console.error("[USE_CALL_DATA] Sync error:", error);
+          throw error;
+        }
+        console.log("[USE_CALL_DATA] Sync response:", data);
       } catch (error) {
+        console.error("[USE_CALL_DATA] Sync exception:", error);
         return handleError(error, {
           fallbackMessage: "Failed to sync calls",
-          showToast: false, // We'll handle toast in onError
+          showToast: false,
           logToConsole: true
         });
       }
     },
     onSuccess: () => {
+      console.log("[USE_CALL_DATA] Sync successful, invalidating queries");
       toast.success("Calls synchronized successfully");
       queryClient.invalidateQueries({ queryKey: ["calls"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-calls"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
     },
     onError: (error: any) => {
-      console.error("Error syncing calls:", error);
+      console.error("[USE_CALL_DATA] Sync mutation error:", error);
       toast.error(typeof error === 'string' ? error : "Failed to sync calls");
     },
   });
