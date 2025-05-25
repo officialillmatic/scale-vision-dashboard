@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { useUserBalance } from '@/hooks/useUserBalance';
+import { useUserBalance } from '@/hooks/useUserBalance.tsx';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { AlertTriangle, Coins, Clock3, Calendar, Info } from 'lucide-react';
