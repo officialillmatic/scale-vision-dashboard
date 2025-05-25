@@ -14,16 +14,25 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   const sizeClasses = {
     'sm': 'h-4 w-4 border-2',
     'md': 'h-8 w-8 border-2',
-    'lg': 'h-12 w-12 border-2'
+    'lg': 'h-12 w-12 border-3'
   };
 
   return (
-    <div 
-      className={cn(
-        "animate-spin rounded-full border-t-2 border-b-2 border-brand-purple", 
-        sizeClasses[size],
-        className
-      )}
-    />
+    <div className="relative">
+      <div 
+        className={cn(
+          "animate-spin rounded-full border-t-brand-green border-r-transparent border-b-brand-green border-l-transparent", 
+          sizeClasses[size],
+          className
+        )}
+      />
+      <div 
+        className={cn(
+          "absolute top-0 left-0 animate-spin rounded-full border-t-transparent border-r-brand-green/30 border-b-transparent border-l-brand-green/30", 
+          sizeClasses[size],
+          "animation-delay-75"
+        )}
+      />
+    </div>
   );
 };

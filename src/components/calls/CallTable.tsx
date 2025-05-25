@@ -10,7 +10,7 @@ import { CallDetailsModal } from "./CallDetailsModal";
 import { EmptyStateMessage } from "@/components/dashboard/EmptyStateMessage";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle, Info, Search, Filter } from "lucide-react";
 
 interface CallTableProps {
   onSelectCall: (call: CallData) => void;
@@ -52,7 +52,7 @@ export function CallTable({ onSelectCall }: CallTableProps) {
     <div className="space-y-6 w-full">
       {/* Error Alert */}
       {error && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="border-red-200 bg-red-50">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Unable to load calls. {error.message?.includes('permission') 
@@ -64,16 +64,17 @@ export function CallTable({ onSelectCall }: CallTableProps) {
 
       {/* No Company Warning */}
       {!company && (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
+        <Alert className="border-blue-200 bg-blue-50">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800">
             You need to be associated with a company to view calls. Please contact your administrator.
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="flex gap-2">
+      {/* Controls Section */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+        <div className="flex items-center gap-3">
           <CallTableActions 
             isSyncing={isSyncing}
             onSync={handleSync}
@@ -82,12 +83,21 @@ export function CallTable({ onSelectCall }: CallTableProps) {
           {shouldShowDebug && (
             <button
               onClick={() => setShowDebug(!showDebug)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-md border border-gray-200 hover:border-gray-300 transition-all duration-200 font-medium"
             >
               {showDebug ? 'Hide' : 'Show'} Debug
             </button>
           )}
         </div>
+        
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Search className="h-4 w-4" />
+          <span className="font-medium">Find & Filter</span>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-gray-50/80 rounded-lg p-4 border border-gray-200/60">
         <CallTableFilters 
           searchTerm={searchTerm} 
           setSearchTerm={setSearchTerm} 
@@ -97,7 +107,9 @@ export function CallTable({ onSelectCall }: CallTableProps) {
       </div>
 
       {showDebug && shouldShowDebug && (
-        <CallDebugPanel />
+        <div className="bg-yellow-50 rounded-lg border border-yellow-200">
+          <CallDebugPanel />
+        </div>
       )}
 
       {/* Show empty state when no calls and not loading */}
@@ -113,13 +125,15 @@ export function CallTable({ onSelectCall }: CallTableProps) {
 
       {/* Show call list when we have data or loading */}
       {(calls.length > 0 || isLoading) && (
-        <CallTableList 
-          calls={calls}
-          isLoading={isLoading}
-          searchTerm={searchTerm}
-          date={date}
-          onSelectCall={handleSelectCall}
-        />
+        <div className="bg-white rounded-lg border border-gray-200/60 overflow-hidden shadow-sm">
+          <CallTableList 
+            calls={calls}
+            isLoading={isLoading}
+            searchTerm={searchTerm}
+            date={date}
+            onSelectCall={handleSelectCall}
+          />
+        </div>
       )}
 
       <CallDetailsModal 

@@ -161,24 +161,32 @@ const AnalyticsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-4 w-full max-w-none">
-        <h1 className="text-3xl font-bold mb-2">Call Analytics</h1>
-        <p className="text-muted-foreground mb-6">
-          Comprehensive analysis of your AI call performance and outcomes
-        </p>
+      <div className="space-y-8 w-full max-w-none">
+        {/* Header Section */}
+        <div className="space-y-3">
+          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+            Call Analytics 📊
+          </h1>
+          <p className="text-lg text-gray-600 font-medium">
+            Comprehensive analysis of your AI call performance and outcomes
+          </p>
+        </div>
         
-        <CallFilterBar 
-          dateRange={dateRange} 
-          setDateRange={setDateRange} 
-          totalCalls={filteredData.length}
-          isLoading={isLoading}
-        />
+        {/* Filter Bar */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 p-6">
+          <CallFilterBar 
+            dateRange={dateRange} 
+            setDateRange={setDateRange} 
+            totalCalls={filteredData.length}
+            isLoading={isLoading}
+          />
+        </div>
         
         {/* Show empty state when no data */}
         {!isLoading && filteredData.length === 0 && (
           <div className="mt-8">
             <EmptyStateMessage
-              title="No data available – sync your first call"
+              title="No analytics data available yet"
               description="Analytics will appear here once you have call data. Start by syncing your calls or making your first AI call."
               actionLabel={isSyncing ? "Syncing..." : "Sync Calls"}
               onAction={handleSync}
@@ -190,11 +198,16 @@ const AnalyticsPage = () => {
         {/* Show content when we have data */}
         {(filteredData.length > 0 || isLoading) && (
           <>
-            <div className="mt-6 mb-8">
+            {/* Statistics Cards */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-gray-900">Performance Statistics</h2>
+                <p className="text-gray-600">Key metrics for your selected time period</p>
+              </div>
               {isLoading ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {Array(6).fill(0).map((_, i) => (
-                    <Skeleton key={i} className="h-32" />
+                    <Skeleton key={i} className="h-32 rounded-xl" />
                   ))}
                 </div>
               ) : (
@@ -202,18 +215,30 @@ const AnalyticsPage = () => {
               )}
             </div>
             
-            <div className="mb-8">
-              <h2 className="text-xl font-bold mb-4">Call Volume</h2>
-              {isLoading ? (
-                <Skeleton className="h-[300px]" />
-              ) : (
-                <CallChart data={filteredData} />
-              )}
+            {/* Chart Section */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-gray-900">Call Volume Trends</h2>
+                <p className="text-gray-600">Visual representation of your call activity</p>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 p-6">
+                {isLoading ? (
+                  <Skeleton className="h-[350px] rounded-lg" />
+                ) : (
+                  <CallChart data={filteredData} />
+                )}
+              </div>
             </div>
             
-            <div>
-              <h2 className="text-xl font-bold mb-4">Detailed Call Data</h2>
-              <CallDataTable data={filteredData} isLoading={isLoading} />
+            {/* Data Table */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-gray-900">Detailed Call Data</h2>
+                <p className="text-gray-600">Complete call records with full details</p>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 overflow-hidden">
+                <CallDataTable data={filteredData} isLoading={isLoading} />
+              </div>
             </div>
           </>
         )}

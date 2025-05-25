@@ -13,6 +13,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const navigationItems = [
   {
@@ -77,47 +78,77 @@ export function DashboardSidebar() {
   const collapsed = state === "collapsed";
 
   return (
-    <Sidebar collapsible="icon">
-      <div className="flex items-center justify-between p-4">
+    <Sidebar collapsible="icon" className="border-r border-gray-200/60 bg-white/80 backdrop-blur-sm">
+      <div className="flex items-center justify-between p-6 border-b border-gray-200/60">
         {!collapsed && (
-          <div className="flex items-center gap-2 px-2">
-            <img 
-              src="/lovable-uploads/3cab64ed-2b97-4974-9c76-8ae4f310234d.png" 
-              alt="Dr. Scale Logo" 
-              className="h-8 w-auto"
-            />
-            <span className="font-semibold">Dr. Scale</span>
+          <div className="flex items-center gap-3 px-2">
+            <div className="relative">
+              <img 
+                src="/lovable-uploads/3cab64ed-2b97-4974-9c76-8ae4f310234d.png" 
+                alt="Dr. Scale Logo" 
+                className="h-8 w-auto"
+              />
+              <div className="absolute -top-1 -right-1">
+                <Badge variant="secondary" className="text-xs px-1.5 py-0.5 bg-brand-green/10 text-brand-green border-brand-green/20">
+                  AI
+                </Badge>
+              </div>
+            </div>
+            <div>
+              <span className="font-bold text-gray-900">Dr. Scale</span>
+              <p className="text-xs text-gray-500 font-medium">AI Call Analytics</p>
+            </div>
           </div>
         )}
         {collapsed && (
-          <div className="mx-auto">
+          <div className="mx-auto relative">
             <img 
               src="/lovable-uploads/3cab64ed-2b97-4974-9c76-8ae4f310234d.png" 
               alt="Dr. Scale Logo" 
               className="h-8 w-auto"
             />
+            <div className="absolute -top-1 -right-1">
+              <Badge variant="secondary" className="text-xs px-1 py-0.5 bg-brand-green/10 text-brand-green border-brand-green/20">
+                AI
+              </Badge>
+            </div>
           </div>
         )}
-        <SidebarTrigger className={cn(collapsed ? "hidden" : "ml-auto")} />
+        <SidebarTrigger className={cn(
+          "transition-opacity duration-200 hover:bg-gray-100 rounded-md p-1.5",
+          collapsed ? "hidden" : "ml-auto"
+        )} />
       </div>
 
-      <SidebarContent className="px-3 py-2">
+      <SidebarContent className="px-4 py-6">
         <SidebarGroup>
-          <SidebarMenu>
+          <SidebarMenu className="space-y-2">
             {navigationItems.map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild>
                   <Link
                     to={item.href}
                     className={cn(
-                      "flex items-center py-2 px-3 rounded-md w-full transition-colors duration-200",
+                      "flex items-center py-3 px-4 rounded-xl w-full transition-all duration-200 group relative overflow-hidden",
                       location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))
-                        ? "bg-brand-light-purple text-brand-purple font-medium" 
-                        : "hover:bg-muted/50"
+                        ? "bg-gradient-to-r from-brand-green/15 to-brand-green/5 text-brand-green font-semibold shadow-sm border border-brand-green/20" 
+                        : "hover:bg-gray-100/80 text-gray-700 hover:text-gray-900 font-medium"
                     )}
                   >
-                    <item.icon />
-                    {!collapsed && <span className="ml-2">{item.label}</span>}
+                    <div className={cn(
+                      "transition-transform duration-200",
+                      location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))
+                        ? "scale-110" 
+                        : "group-hover:scale-105"
+                    )}>
+                      <item.icon />
+                    </div>
+                    {!collapsed && (
+                      <span className="ml-3 transition-all duration-200">{item.label}</span>
+                    )}
+                    {!collapsed && (location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))) && (
+                      <div className="absolute right-3 w-2 h-2 bg-brand-green rounded-full shadow-sm"></div>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -125,22 +156,25 @@ export function DashboardSidebar() {
           </SidebarMenu>
         </SidebarGroup>
 
-        <div className="mt-auto pt-4">
+        <div className="mt-auto pt-6 border-t border-gray-200/60">
           <Button
             variant="outline"
             size="sm"
             className={cn(
-              "w-full border-dashed justify-start",
+              "w-full border-dashed justify-start hover:bg-gray-50 hover:border-gray-300 transition-all duration-200",
               collapsed && "px-2"
             )}
             asChild
           >
-            <Link to="/support">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 mr-2">
-                <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-                <path d="M9 18c-4.51 2-5-2-7-2" />
+            <Link to="/support" className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 1v6m0 6v6" />
+                <path d="m15.4 2.9 4.2 4.2m-7.4 0L7.5 7.1" />
+                <path d="m21 12-6 0m-6 0-6 0" />
+                <path d="m16.9 16.9-4.2-4.2m0-7.4-4.2-4.2" />
               </svg>
-              {!collapsed && "Help & Support"}
+              {!collapsed && <span className="ml-2 font-medium">Help & Support</span>}
             </Link>
           </Button>
         </div>
