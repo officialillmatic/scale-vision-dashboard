@@ -11,7 +11,10 @@ serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
+  console.log(`[WEBHOOK-MONITOR] Received ${req.method} request`);
+
   if (req.method !== 'GET') {
+    console.error(`[WEBHOOK-MONITOR] Invalid method: ${req.method}`);
     return createErrorResponse('Method not allowed', 405);
   }
 
@@ -39,7 +42,7 @@ serve(async (req) => {
       .select('timestamp, start_time')
       .order('timestamp', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     const lastActivity = lastCall?.timestamp || lastCall?.start_time || null;
     const lastHourCount = recentCalls?.length || 0;

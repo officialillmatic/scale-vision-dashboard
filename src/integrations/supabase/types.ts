@@ -317,7 +317,7 @@ export type Database = {
             columns: ["call_id"]
             isOneToOne: false
             referencedRelation: "calls"
-            referencedColumns: ["id"]
+            referencedColumns: ["call_id"]
           },
           {
             foreignKeyName: "transactions_company_id_fkey"

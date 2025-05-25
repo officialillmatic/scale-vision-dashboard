@@ -49,6 +49,7 @@ serve(async (req) => {
       start_timestamp,
       end_timestamp,
       duration,
+      duration_ms,
       disconnection_reason,
       call_status,
       recording_url,
@@ -104,17 +105,23 @@ serve(async (req) => {
       company_id: userAgent.company_id 
     });
 
-    // Calculate cost based on duration and agent rate
-    const durationMinutes = duration ? duration / 60 : 0;
+    // Calculate duration in seconds from either duration or duration_ms
+    const durationSeconds = duration ? duration / 1000 : (duration_ms ? duration_ms / 1000 : 0);
+    const durationMinutes = durationSeconds / 60;
     const ratePerMinute = agent.rate_per_minute || 0.02;
     const cost = durationMinutes * ratePerMinute;
 
     console.log(`[WEBHOOK] Cost calculation:`, { 
       duration, 
+      duration_ms,
+      durationSeconds, 
       durationMinutes, 
       ratePerMinute, 
       cost 
     });
+
+    // Convert timestamp to ISO string
+    const startTime = start_timestamp ? new Date(start_timestamp).toISOString() : new Date().toISOString();
 
     // Prepare call data based on webhook event
     let callData: any = {
@@ -127,7 +134,9 @@ serve(async (req) => {
       from: from_number || 'unknown', // Backward compatibility
       to: to_number || 'unknown', // Backward compatibility
       call_type: 'phone_call',
-      latency_ms: latency_ms || 0
+      latency_ms: latency_ms || 0,
+      start_time: startTime,
+      timestamp: startTime // Backward compatibility
     };
 
     // Handle different webhook events
@@ -135,8 +144,6 @@ serve(async (req) => {
       case 'call_started':
         callData = {
           ...callData,
-          start_time: start_timestamp || new Date().toISOString(),
-          timestamp: start_timestamp || new Date().toISOString(), // Backward compatibility
           duration_sec: 0,
           cost_usd: 0,
           call_status: 'in_progress',
@@ -152,31 +159,10 @@ serve(async (req) => {
         break;
 
       case 'call_ended':
-        callData = {
-          ...callData,
-          start_time: start_timestamp || new Date().toISOString(),
-          timestamp: start_timestamp || new Date().toISOString(), // Backward compatibility
-          duration_sec: duration || 0,
-          cost_usd: cost,
-          call_status: call_status || 'completed',
-          disconnection_reason: disconnection_reason,
-          sentiment: sentiment || 'neutral',
-          sentiment_score: sentiment_score,
-          recording_url: recording_url,
-          transcript: transcript,
-          transcript_url: transcript_url,
-          disposition: disposition,
-          audio_url: recording_url // Backward compatibility
-        };
-        console.log(`[WEBHOOK] Processing call_ended event for call: ${call_id}`);
-        break;
-
       case 'call_analyzed':
         callData = {
           ...callData,
-          start_time: start_timestamp || new Date().toISOString(),
-          timestamp: start_timestamp || new Date().toISOString(), // Backward compatibility
-          duration_sec: duration || 0,
+          duration_sec: durationSeconds,
           cost_usd: cost,
           call_status: call_status || 'completed',
           disconnection_reason: disconnection_reason,
@@ -188,7 +174,7 @@ serve(async (req) => {
           disposition: disposition,
           audio_url: recording_url // Backward compatibility
         };
-        console.log(`[WEBHOOK] Processing call_analyzed event for call: ${call_id}`);
+        console.log(`[WEBHOOK] Processing ${event} event for call: ${call_id}`);
         break;
 
       default:
@@ -232,7 +218,7 @@ serve(async (req) => {
           amount: -cost, // Negative for debit
           transaction_type: 'call_cost',
           description: `Call cost for ${call_id}`,
-          call_id: call_id // Reference the call_id string instead of the database ID
+          call_id: call_id // Reference the call_id string (now properly typed as text)
         });
 
       if (transactionError) {
@@ -240,6 +226,20 @@ serve(async (req) => {
         // Don't fail the webhook for transaction errors, just log it
       } else {
         console.log(`[WEBHOOK] Successfully created transaction record for cost: ${cost}`);
+      }
+
+      // Update user balance
+      const { error: balanceError } = await supabaseClient.rpc('update_user_balance', {
+        p_user_id: userAgent.user_id,
+        p_company_id: userAgent.company_id,
+        p_amount: -cost
+      });
+
+      if (balanceError) {
+        console.error('[WEBHOOK ERROR] Failed to update user balance:', balanceError);
+        // Don't fail the webhook for balance errors, just log it
+      } else {
+        console.log(`[WEBHOOK] Successfully updated user balance with cost: ${cost}`);
       }
     }
     
