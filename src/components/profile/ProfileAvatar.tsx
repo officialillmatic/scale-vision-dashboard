@@ -9,7 +9,7 @@ import { updateUserProfile } from "@/services/userService";
 import { Camera } from "lucide-react";
 
 export function ProfileAvatar() {
-  const { user, refreshUser } = useAuth();
+  const { user, updateUserProfile: updateProfile } = useAuth();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   
@@ -40,12 +40,7 @@ export function ProfileAvatar() {
       
       if (avatarUrl) {
         // Update user profile with new avatar URL
-        await updateUserProfile(user.id, { avatar_url: avatarUrl });
-        
-        // Refresh user data to show new avatar
-        if (refreshUser) {
-          await refreshUser();
-        }
+        await updateProfile({ avatar_url: avatarUrl });
         
         toast({
           title: "Avatar updated",
