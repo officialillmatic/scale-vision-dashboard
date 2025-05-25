@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitation";
 import { handleError } from "@/lib/errorHandling";
 import { fetchCompanyMembers, CompanyMember, inviteTeamMember } from "@/services/memberService";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 
 interface UseTeamMembersResult {
   invitations: CompanyInvitation[];
@@ -23,9 +24,11 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<CompanyMember[]>([]);
   const [isInviting, setIsInviting] = useState(false);
+  const { isSuperAdmin } = useSuperAdmin();
 
   const fetchInvitations = async () => {
-    if (!companyId) return;
+    // Super admins can operate without a specific company
+    if (!companyId && !isSuperAdmin) return;
 
     setIsLoading(true);
     setError(null);
@@ -45,7 +48,8 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   };
   
   const fetchMembers = async () => {
-    if (!companyId) return;
+    // Super admins can operate without a specific company
+    if (!companyId && !isSuperAdmin) return;
     
     setIsLoading(true);
     try {
@@ -62,14 +66,14 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   };
 
   useEffect(() => {
-    if (companyId) {
+    if (companyId || isSuperAdmin) {
       fetchInvitations();
       fetchMembers();
     }
-  }, [companyId]);
+  }, [companyId, isSuperAdmin]);
 
   const handleCancelInvitation = async (invitationId: string) => {
-    if (!companyId) return;
+    if (!companyId && !isSuperAdmin) return;
 
     setIsLoading(true);
     try {
@@ -89,7 +93,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   };
 
   const handleResendInvitation = async (invitationId: string) => {
-    if (!companyId) return;
+    if (!companyId && !isSuperAdmin) return;
     
     setIsLoading(true);
     try {
@@ -110,10 +114,10 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
 
   // Direct implementation of handle invite using imported function
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
-    if (!companyId) return false;
+    if (!companyId && !isSuperAdmin) return false;
     
     setIsInviting(true);
-    console.log("useTeamMembers: Inviting", email, "with role", role);
+    console.log("useTeamMembers: Inviting", email, "with role", role, "for company", companyId);
     try {
       // Use the inviteTeamMember service function directly from memberService
       const success = await inviteTeamMember(companyId, email, role);

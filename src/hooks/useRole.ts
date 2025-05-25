@@ -7,22 +7,19 @@ export type Role = 'admin' | 'member' | 'viewer';
 
 export const useRole = () => {
   const { company, user, companyMembers, userRole, isCompanyOwner, isCompanyLoading } = useAuth();
-  const { isSuperAdmin } = useSuperAdmin();
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
 
   const checkRole = (role: Role): boolean => {
     if (!user) return false;
     
-    // Super admins always have all privileges
+    // Super admins always have all privileges - this should be checked first
     if (isSuperAdmin) return true;
     
     // Company owners always have admin privileges
     if (isCompanyOwner) return true;
     
     // If company data is still loading, don't make assumptions
-    if (isCompanyLoading) return false;
-    
-    // Super admins can operate without a company
-    if (isSuperAdmin && !company) return true;
+    if (isCompanyLoading || isSuperAdminLoading) return false;
     
     // Regular users need a company and role
     if (!company && !isSuperAdmin) return false;
@@ -42,21 +39,21 @@ export const useRole = () => {
   };
 
   const can = useMemo(() => ({
-    // Team and agent management
+    // Team and agent management - Super admins get full access
     manageTeam: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     manageAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'), 
-    viewAgents: true,
+    viewAgents: isSuperAdmin || true, // Super admins can view all agents
     createAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     assignAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     deleteAgents: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
     // Call management
-    viewCalls: true,
+    viewCalls: isSuperAdmin || true, // Super admins can view all calls
     uploadCalls: isSuperAdmin || checkRole('member'),
     
-    // Billing management
+    // Billing management - Super admins get full access
     manageBalances: isSuperAdmin || isCompanyOwner || checkRole('admin'),
-    viewBalance: true,
+    viewBalance: isSuperAdmin || true, // Super admins can view all balances
     accessBillingSettings: isSuperAdmin || isCompanyOwner || checkRole('admin'),
     
     // Settings
@@ -70,7 +67,7 @@ export const useRole = () => {
     
     // Super admin privileges
     superAdminAccess: isSuperAdmin
-  }), [isSuperAdmin, isCompanyOwner, checkRole, user, userRole, isCompanyLoading]);
+  }), [isSuperAdmin, isCompanyOwner, checkRole, user, userRole, isCompanyLoading, isSuperAdminLoading]);
 
   return { isSuperAdmin, isCompanyOwner, checkRole, can };
 };

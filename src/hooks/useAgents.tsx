@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { 
   fetchAgents, 
   fetchUserAgents, 
@@ -18,7 +19,8 @@ import {
 export function useAgents() {
   const { company, user } = useAuth();
   const { isCompanyOwner, can } = useRole();
-  const isAdmin = isCompanyOwner || can.manageAgents;
+  const { isSuperAdmin } = useSuperAdmin();
+  const isAdmin = isSuperAdmin || isCompanyOwner || can.manageAgents;
   
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -31,8 +33,9 @@ export function useAgents() {
     refetch: refetchAgents,
     error: agentsError
   } = useQuery({
-    queryKey: ['agents'],
+    queryKey: ['agents', company?.id],
     queryFn: () => fetchAgents(company?.id),
+    enabled: !!company?.id || isSuperAdmin // Allow super admins to query even without company
   });
 
   const {
@@ -43,10 +46,10 @@ export function useAgents() {
   } = useQuery({
     queryKey: ['user-agents', company?.id],
     queryFn: () => fetchUserAgents(company?.id),
-    enabled: !!company?.id
+    enabled: !!company?.id || isSuperAdmin // Allow super admins to query even without company
   });
   
-  // Filter agents based on user role
+  // Filter agents based on user role - super admins see all
   const agents = allAgents ? (isAdmin 
     ? allAgents 
     : allAgents.filter(agent => {
@@ -106,7 +109,13 @@ export function useAgents() {
   };
 
   const handleAssignAgent = async (userAgentData: Partial<UserAgent>) => {
-    if (!isAdmin || !company?.id) {
+    if (!isAdmin) {
+      return false;
+    }
+
+    // Super admins can assign agents even without a specific company
+    const targetCompanyId = company?.id || userAgentData.company_id;
+    if (!targetCompanyId && !isSuperAdmin) {
       return false;
     }
 
@@ -114,7 +123,7 @@ export function useAgents() {
     try {
       const newUserAgent = await assignAgentToUser({
         ...userAgentData,
-        company_id: company.id
+        company_id: targetCompanyId
       });
       if (newUserAgent) {
         refetchUserAgents();
@@ -157,6 +166,7 @@ export function useAgents() {
     handleUpdateAgent,
     handleDeleteAgent,
     handleAssignAgent,
-    handleRemoveAgentAssignment
+    handleRemoveAgentAssignment,
+    isAdmin
   };
 }

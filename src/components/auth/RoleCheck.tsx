@@ -44,13 +44,13 @@ export const RoleCheck: React.FC<RoleCheckProps> = ({
   
   const hasPermission = () => {
     // Super admin always has all permissions except for super admin only checks
-    if (isSuperAdmin) {
+    if (isSuperAdmin && !superAdminOnly) {
       return true;
     }
     
     // Super admin only check - only super admin can access
     if (superAdminOnly) {
-      return false;
+      return isSuperAdmin;
     }
     
     // Company owner always has admin permissions (except super admin only)

@@ -6,12 +6,13 @@ import { TeamAgents } from '@/components/team/TeamAgents';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RoleCheck } from '@/components/auth/RoleCheck';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Users, Bot } from 'lucide-react';
+import { AlertTriangle, Users, Bot, Crown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRole } from '@/hooks/useRole';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 
 const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
@@ -20,7 +21,7 @@ const TeamPage = () => {
   const { isSuperAdmin } = useSuperAdmin();
   const navigate = useNavigate();
   
-  // Redirect non-admin users to dashboard with enhanced security
+  // Only redirect non-admin users to dashboard - super admins should have full access
   useEffect(() => {
     if (user && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
       toast.error("You don't have permission to access team management");
@@ -29,7 +30,7 @@ const TeamPage = () => {
     }
   }, [user, isSuperAdmin, isCompanyOwner, can.manageTeam, navigate]);
   
-  // Additional security check to prevent unauthorized access
+  // Allow super admins full access regardless of company membership
   if (!isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
     return <DashboardLayout>
       <Alert variant="destructive" className="border-red-200 bg-red-50">
@@ -46,11 +47,22 @@ const TeamPage = () => {
       <div className="space-y-8 w-full max-w-none">
         {/* Header Section */}
         <div className="space-y-3">
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-            Team Management 👥
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+              Team Management 👥
+            </h1>
+            {isSuperAdmin && (
+              <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200 flex items-center gap-1">
+                <Crown className="h-3 w-3" />
+                SUPER ADMIN
+              </Badge>
+            )}
+          </div>
           <p className="text-lg text-gray-600 font-medium">
-            {isSuperAdmin ? 'Manage all teams and AI agents across the platform' : 'Manage your team members and AI agents with complete control'}
+            {isSuperAdmin 
+              ? 'Manage all teams and AI agents across the platform with super admin privileges' 
+              : 'Manage your team members and AI agents with complete control'
+            }
           </p>
         </div>
         
@@ -78,35 +90,45 @@ const TeamPage = () => {
             
             <div className="p-6">
               <TabsContent value="members" className="space-y-6 mt-0">
-                <RoleCheck 
-                  allowedAction="sendInvitations"
-                  fallback={
-                    <Alert variant="destructive" className="border-red-200 bg-red-50">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription>
-                        Only administrators can manage team members. Please contact your administrator for assistance.
-                      </AlertDescription>
-                    </Alert>
-                  }
-                >
+                {/* Allow super admins full access to team management */}
+                {isSuperAdmin ? (
                   <TeamMembers />
-                </RoleCheck>
+                ) : (
+                  <RoleCheck 
+                    allowedAction="sendInvitations"
+                    fallback={
+                      <Alert variant="destructive" className="border-red-200 bg-red-50">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          Only administrators can manage team members. Please contact your administrator for assistance.
+                        </AlertDescription>
+                      </Alert>
+                    }
+                  >
+                    <TeamMembers />
+                  </RoleCheck>
+                )}
               </TabsContent>
               
               <TabsContent value="agents" className="space-y-6 mt-0">
-                <RoleCheck 
-                  allowedAction="manageAgents"
-                  fallback={
-                    <Alert variant="destructive" className="border-red-200 bg-red-50">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription>
-                        Only administrators can manage AI agents. You can only view agents assigned to you.
-                      </AlertDescription>
-                    </Alert>
-                  }
-                >
+                {/* Allow super admins full access to agent management */}
+                {isSuperAdmin ? (
                   <TeamAgents />
-                </RoleCheck>
+                ) : (
+                  <RoleCheck 
+                    allowedAction="manageAgents"
+                    fallback={
+                      <Alert variant="destructive" className="border-red-200 bg-red-50">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          Only administrators can manage AI agents. You can only view agents assigned to you.
+                        </AlertDescription>
+                      </Alert>
+                    }
+                  >
+                    <TeamAgents />
+                  </RoleCheck>
+                )}
               </TabsContent>
             </div>
           </Tabs>
