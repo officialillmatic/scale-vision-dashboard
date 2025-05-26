@@ -497,9 +497,98 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_errors: {
+        Row: {
+          agent_id: string | null
+          call_data: Json | null
+          call_id: string | null
+          created_at: string | null
+          error_details: string | null
+          error_type: string
+          event_type: string | null
+          id: string
+          retell_agent_id: string | null
+          stack_trace: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          call_data?: Json | null
+          call_id?: string | null
+          created_at?: string | null
+          error_details?: string | null
+          error_type: string
+          event_type?: string | null
+          id?: string
+          retell_agent_id?: string | null
+          stack_trace?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          call_data?: Json | null
+          call_id?: string | null
+          created_at?: string | null
+          error_details?: string | null
+          error_type?: string
+          event_type?: string | null
+          id?: string
+          retell_agent_id?: string | null
+          stack_trace?: string | null
+        }
+        Relationships: []
+      }
+      webhook_logs: {
+        Row: {
+          agent_id: string | null
+          call_id: string | null
+          company_id: string | null
+          cost_usd: number | null
+          created_at: string | null
+          duration_sec: number | null
+          event_type: string
+          id: string
+          processing_time_ms: number | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          call_id?: string | null
+          company_id?: string | null
+          cost_usd?: number | null
+          created_at?: string | null
+          duration_sec?: number | null
+          event_type: string
+          id?: string
+          processing_time_ms?: number | null
+          status: string
+          user_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          call_id?: string | null
+          company_id?: string | null
+          cost_usd?: number | null
+          created_at?: string | null
+          duration_sec?: number | null
+          event_type?: string
+          id?: string
+          processing_time_ms?: number | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      performance_metrics: {
+        Row: {
+          avg_cost: number | null
+          latest_record: string | null
+          row_count: number | null
+          table_name: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_invitation: {
