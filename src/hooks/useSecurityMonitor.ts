@@ -98,13 +98,19 @@ export const useSecurityMonitor = () => {
       // Check if RLS is enabled on critical tables
       const criticalTables = ['calls', 'companies', 'user_balances', 'transactions'];
       for (const table of criticalTables) {
-        const { error } = await supabase
-          .from(table)
-          .select('id')
-          .limit(1);
+        try {
+          const { error } = await supabase
+            .from(table)
+            .select('id')
+            .limit(1);
           
-        if (error && error.message.includes('row-level security')) {
-          securityChecks.push(`RLS properly enforced on ${table}`);
+          if (error && error.message.includes('row-level security')) {
+            securityChecks.push(`RLS properly enforced on ${table}`);
+          } else if (!error) {
+            securityChecks.push(`${table} accessible (RLS may need review)`);
+          }
+        } catch (tableError) {
+          securityChecks.push(`${table} access verification failed`);
         }
       }
       

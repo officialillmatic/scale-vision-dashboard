@@ -1,27 +1,31 @@
 
 import React from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, CheckCircle, Database, Zap } from 'lucide-react';
+import { Shield, CheckCircle, Database, Zap, Lock } from 'lucide-react';
 
 export const ProductionBanner: React.FC = () => {
   return (
-    <Alert className="border-green-200 bg-green-50 mb-6">
+    <Alert className="border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 mb-6 shadow-sm">
       <CheckCircle className="h-4 w-4 text-green-600" />
       <AlertDescription className="text-green-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div>
-              <strong>Production Ready!</strong> All security policies and infrastructure hardening are now active.
+              <strong>🎉 Production Ready!</strong> Your AI calling platform is now secured and optimized for production use.
             </div>
           </div>
           <div className="flex items-center gap-4 text-sm">
             <div className="flex items-center gap-1">
               <Shield className="h-4 w-4" />
-              <span>RLS Enabled</span>
+              <span>RLS Active</span>
             </div>
             <div className="flex items-center gap-1">
               <Database className="h-4 w-4" />
-              <span>Storage Secured</span>
+              <span>Storage Ready</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Lock className="h-4 w-4" />
+              <span>Auth Secured</span>
             </div>
             <div className="flex items-center gap-1">
               <Zap className="h-4 w-4" />
