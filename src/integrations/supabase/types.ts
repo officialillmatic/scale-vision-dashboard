@@ -540,6 +540,14 @@ export type Database = {
           user_details: Json
         }[]
       }
+      get_current_user_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_daily_call_distribution: {
         Args: {
           company_id_param: string
@@ -654,6 +662,10 @@ export type Database = {
       update_user_balance: {
         Args: { p_user_id: string; p_company_id: string; p_amount: number }
         Returns: undefined
+      }
+      user_has_company_access: {
+        Args: { p_company_id: string }
+        Returns: boolean
       }
       user_is_company_admin: {
         Args: { p_user_id: string; p_company_id: string }
