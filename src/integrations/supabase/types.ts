@@ -284,6 +284,24 @@ export type Database = {
         }
         Relationships: []
       }
+      request_log: {
+        Row: {
+          created_at: string
+          id: number
+          uid: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          uid: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          uid?: string
+        }
+        Relationships: []
+      }
       super_admins: {
         Row: {
           created_at: string
@@ -621,11 +639,9 @@ export type Database = {
         Returns: boolean
       }
       check_rate_limit: {
-        Args: {
-          p_identifier: string
-          p_action: string
-          p_limit_per_hour: number
-        }
+        Args:
+          | { _uid: string; _limit?: number; _window?: unknown }
+          | { p_identifier: string; p_action: string; p_limit_per_hour: number }
         Returns: boolean
       }
       get_call_metrics_for_period: {

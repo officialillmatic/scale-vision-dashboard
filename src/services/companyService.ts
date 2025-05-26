@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Company } from "@/types/auth";
 import { handleError } from "@/lib/errorHandling";
+import { User } from "@supabase/supabase-js";
 
 export interface CompanyMember {
   id: string;
@@ -16,6 +17,23 @@ export interface CompanyMember {
     name?: string;
     avatar_url?: string;
   };
+}
+
+export async function loadCompany(user: User | null): Promise<Company | null> {
+  if (!user) return null;
+
+  const { data, error, status } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('owner_id', user.id)
+    .single();
+
+  if (status === 403 || status === 404) {
+    return null; // break the retry loop
+  }
+
+  if (error) throw error;
+  return data;
 }
 
 export const fetchCompany = async (userId: string): Promise<Company | null> => {
