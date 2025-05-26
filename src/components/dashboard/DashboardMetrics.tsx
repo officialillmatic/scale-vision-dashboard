@@ -9,13 +9,13 @@ import { AlertTriangle, DollarSign, Clock, Phone, TrendingUp } from "lucide-reac
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 
 export function DashboardMetrics() {
-  const { company, user } = useAuth();
+  const { company, user, isCompanyLoading } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { handleSync, isSyncing } = useCallData();
   const { data, isLoading, error } = useDashboardData();
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading || isCompanyLoading) {
     return (
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -48,25 +48,16 @@ export function DashboardMetrics() {
     );
   }
 
-  // Show warning if no company (for non-super admins)
+  // Show setup message for users without company (non-super admins)
   if (!isSuperAdmin && !company) {
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 text-amber-700">
-              <div className="p-2 rounded-full bg-amber-100">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-sm font-semibold">No Company Associated</span>
-                <p className="text-xs text-amber-600 mt-1">
-                  Contact support to get started
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-6 md:grid-cols-1">
+        <EmptyStateMessage
+          title="Welcome to Dr Scale AI!"
+          description="We're setting up your account. If this takes more than a few moments, please refresh the page."
+          actionLabel="Refresh Page"
+          onAction={() => window.location.reload()}
+        />
       </div>
     );
   }

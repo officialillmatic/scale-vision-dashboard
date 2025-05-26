@@ -1,5 +1,3 @@
-
-
 import { supabase } from "@/integrations/supabase/client";
 import { Company } from "@/types/auth";
 import { handleError } from "@/lib/errorHandling";
@@ -22,7 +20,7 @@ export interface CompanyMember {
 
 export const fetchCompany = async (userId: string): Promise<Company | null> => {
   try {
-    console.log("Fetching company data for user:", userId);
+    console.log("[COMPANY_SERVICE] Fetching company data for user:", userId);
     
     // First try to get a company where the user is the owner
     const { data: ownedCompany, error: ownedError } = await supabase
@@ -32,12 +30,12 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
       .limit(1)
       .maybeSingle();
 
-    if (ownedError) {
-      console.error("Error fetching owned company:", ownedError);
+    if (ownedError && ownedError.code !== 'PGRST116') {
+      console.error("[COMPANY_SERVICE] Error fetching owned company:", ownedError);
     }
 
     if (ownedCompany) {
-      console.log("Found owned company:", ownedCompany);
+      console.log("[COMPANY_SERVICE] Found owned company:", ownedCompany.id);
       return ownedCompany;
     }
 
@@ -50,9 +48,8 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
       .limit(1)
       .maybeSingle();
 
-    if (memberError) {
-      console.error("Error fetching member company:", memberError);
-      return null;
+    if (memberError && memberError.code !== 'PGRST116') {
+      console.error("[COMPANY_SERVICE] Error fetching member company:", memberError);
     }
 
     if (membership?.company_id) {
@@ -64,28 +61,36 @@ export const fetchCompany = async (userId: string): Promise<Company | null> => {
         .single();
 
       if (companyError) {
-        console.error("Error fetching member company details:", companyError);
+        console.error("[COMPANY_SERVICE] Error fetching member company details:", companyError);
         return null;
       }
 
-      console.log("Found member company:", memberCompany);
+      console.log("[COMPANY_SERVICE] Found member company:", memberCompany.id);
       return memberCompany;
     }
 
-    console.log("No company found for user");
+    console.log("[COMPANY_SERVICE] No company found for user, creating default company");
+    
+    // Create a default company for the user
+    const defaultCompanyName = `My Company`;
+    const newCompany = await createCompany(defaultCompanyName, userId);
+    
+    if (newCompany) {
+      console.log("[COMPANY_SERVICE] Created default company:", newCompany.id);
+      return newCompany;
+    }
+
+    console.log("[COMPANY_SERVICE] Failed to create company, returning null");
     return null;
   } catch (error) {
-    console.error("Error in fetchCompany:", error);
-    handleError(error, {
-      fallbackMessage: "Failed to fetch company data"
-    });
+    console.error("[COMPANY_SERVICE] Error in fetchCompany:", error);
     return null;
   }
 };
 
 export const createCompany = async (name: string, userId: string): Promise<Company | null> => {
   try {
-    console.log("Creating company:", name);
+    console.log("[COMPANY_SERVICE] Creating company:", name, "for user:", userId);
     
     const { data, error } = await supabase
       .from("companies")
@@ -97,13 +102,14 @@ export const createCompany = async (name: string, userId: string): Promise<Compa
       .single();
 
     if (error) {
+      console.error("[COMPANY_SERVICE] Error creating company:", error);
       throw error;
     }
 
-    console.log("Company created successfully:", data);
+    console.log("[COMPANY_SERVICE] Company created successfully:", data.id);
     return data;
   } catch (error) {
-    console.error("Error creating company:", error);
+    console.error("[COMPANY_SERVICE] Error creating company:", error);
     handleError(error, {
       fallbackMessage: "Failed to create company"
     });

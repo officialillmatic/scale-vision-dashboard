@@ -16,11 +16,8 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 // Create a placeholder client if the environment variables are missing (for development only)
 // This prevents the app from crashing during development if .env is not set up
-const devFallbackUrl = 'https://placeholder-project.supabase.co';
-const devFallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
-
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+const devFallbackUrl = 'https://jqkkhwoybcenxqpvodev.supabase.co';
+const devFallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8';
 
 export const supabase = createClient<ExtendedDatabase>(
   SUPABASE_URL || devFallbackUrl, 
@@ -30,6 +27,12 @@ export const supabase = createClient<ExtendedDatabase>(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true
+    },
+    global: {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
     }
   }
 );

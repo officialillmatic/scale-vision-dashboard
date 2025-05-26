@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCalls, CallData } from "@/services/callService";
 import { useAuth } from "@/contexts/AuthContext";
-import { handleError } from "@/lib/errorHandling";
 
 export const useCallData = (initialCalls: CallData[] = []) => {
   const { company, user } = useAuth();
@@ -21,7 +20,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
     refetch
   } = useQuery({
     queryKey: ["calls", company?.id, user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<CallData[]> => {
       if (!company?.id || !user?.id) {
         console.log("[USE_CALL_DATA] Missing required IDs", { 
           companyId: company?.id, 
@@ -33,22 +32,53 @@ export const useCallData = (initialCalls: CallData[] = []) => {
       console.log("[USE_CALL_DATA] Fetching calls for company:", company.id);
       
       try {
-        const result = await fetchCalls(company.id);
-        console.log(`[USE_CALL_DATA] Successfully fetched ${result.length} calls`);
-        return result;
-      } catch (error: any) {
-        console.error("[USE_CALL_DATA] Error fetching calls:", {
-          error: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
+        // Use proper headers for Supabase requests
+        const { data, error } = await supabase
+          .from('calls')
+          .select(`
+            *,
+            agent:agent_id (
+              id, 
+              name,
+              rate_per_minute
+            )
+          `)
+          .eq('company_id', company.id)
+          .order('timestamp', { ascending: false })
+          .limit(50);
+          
+        if (error) {
+          console.error("[USE_CALL_DATA] Database error:", error);
+          if (error.code === 'PGRST301') {
+            console.log("[USE_CALL_DATA] No calls found - returning empty array");
+            return [];
+          }
+          throw error;
+        }
         
-        // Show user-friendly error message
+        if (!data) {
+          console.log("[USE_CALL_DATA] No call data returned");
+          return [];
+        }
+        
+        // Transform the data to ensure proper date objects
+        const transformedCalls: CallData[] = data.map((call) => ({
+          ...call,
+          timestamp: new Date(call.timestamp),
+          start_time: call.start_time ? new Date(call.start_time) : undefined,
+        }));
+        
+        console.log(`[USE_CALL_DATA] Successfully fetched ${transformedCalls.length} calls`);
+        return transformedCalls;
+      } catch (error: any) {
+        console.error("[USE_CALL_DATA] Error fetching calls:", error);
+        
+        // Show user-friendly error messages
         if (error?.message?.includes("permission denied")) {
           toast.error("Access denied. Please check your permissions.");
         } else if (error?.code === "PGRST301") {
           console.log("[USE_CALL_DATA] No calls found - this is normal for new accounts");
+          return [];
         } else {
           toast.error("Failed to load calls. Please try again.");
         }
@@ -64,11 +94,6 @@ export const useCallData = (initialCalls: CallData[] = []) => {
         return false;
       }
       return failureCount < 2;
-    },
-    meta: {
-      onError: (error: any) => {
-        console.error("[USE_CALL_DATA] Query error:", error);
-      }
     }
   });
 
@@ -81,14 +106,12 @@ export const useCallData = (initialCalls: CallData[] = []) => {
       try {
         console.log("[USE_CALL_DATA] Starting call sync...");
         
-        // Test webhook monitor first
-        const { data: monitorData, error: monitorError } = await supabase.functions.invoke("webhook-monitor");
-        if (monitorError) {
-          console.warn("[USE_CALL_DATA] Webhook monitor issue:", monitorError);
-        }
-        
-        // Attempt the sync
-        const { data, error } = await supabase.functions.invoke("sync-calls");
+        const { data, error } = await supabase.functions.invoke("sync-calls", {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
         
         if (error) {
           console.error("[USE_CALL_DATA] Sync error:", error);
