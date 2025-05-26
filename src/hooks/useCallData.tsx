@@ -120,19 +120,21 @@ export const useCallData = (initialCalls: CallData[] = []) => {
       try {
         console.log("[USE_CALL_DATA] Starting call sync...");
         
-        // Add timeout to prevent hanging
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        // Create a timeout promise
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Sync timed out")), 30000); // 30 second timeout
+        });
         
-        const { data, error } = await supabase.functions.invoke("sync-calls", {
+        // Create the sync promise
+        const syncPromise = supabase.functions.invoke("sync-calls", {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
-          },
-          signal: controller.signal
+          }
         });
         
-        clearTimeout(timeoutId);
+        // Race between sync and timeout
+        const { data, error } = await Promise.race([syncPromise, timeoutPromise]) as any;
         
         if (error) {
           console.error("[USE_CALL_DATA] Sync error:", error);
@@ -144,7 +146,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
       } catch (error: any) {
         console.error("[USE_CALL_DATA] Sync exception:", error);
         
-        if (error.name === 'AbortError') {
+        if (error.message?.includes("timed out")) {
           throw new Error("Sync timed out. Please try again.");
         }
         
