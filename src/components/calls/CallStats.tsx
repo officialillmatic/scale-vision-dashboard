@@ -5,7 +5,7 @@ import { useDashboardData } from "@/hooks/useDashboardData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 export function CallStats() {
-  const { metrics, callOutcomes, isLoading } = useDashboardData();
+  const { data, isLoading } = useDashboardData();
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -32,6 +32,15 @@ export function CallStats() {
     );
   }
 
+  const metrics = data?.metrics || {
+    totalCalls: 0,
+    totalCost: '$0.00',
+    totalMinutes: 0,
+    avgDuration: 0
+  };
+
+  const callOutcomes = data?.callOutcomes || [];
+
   // Check if we have any call data
   const hasCallData = metrics.totalCalls > 0;
 
@@ -45,9 +54,7 @@ export function CallStats() {
           <div className="text-3xl font-bold">{metrics.totalCalls}</div>
           {hasCallData ? (
             <p className="text-xs text-muted-foreground mt-1">
-              <span className={metrics.percentChange.calls.startsWith('+') ? "text-green-500" : "text-red-500"}>
-                {metrics.percentChange.calls}
-              </span> from last period
+              Last 30 days
             </p>
           ) : (
             <p className="text-xs text-muted-foreground mt-1">
@@ -65,9 +72,7 @@ export function CallStats() {
           <div className="text-3xl font-bold">{metrics.totalMinutes}</div>
           {hasCallData ? (
             <p className="text-xs text-muted-foreground mt-1">
-              <span className={metrics.percentChange.minutes.startsWith('+') ? "text-green-500" : "text-red-500"}>
-                {metrics.percentChange.minutes}
-              </span> from last period
+              Call duration
             </p>
           ) : (
             <p className="text-xs text-muted-foreground mt-1">
@@ -85,9 +90,7 @@ export function CallStats() {
           <div className="text-3xl font-bold">{metrics.totalCost}</div>
           {hasCallData ? (
             <p className="text-xs text-muted-foreground mt-1">
-              <span className={metrics.percentChange.cost.startsWith('+') ? "text-green-500" : "text-red-500"}>
-                {metrics.percentChange.cost}
-              </span> from last period
+              AI call costs
             </p>
           ) : (
             <p className="text-xs text-muted-foreground mt-1">
@@ -102,7 +105,7 @@ export function CallStats() {
           <CardTitle className="text-sm font-medium">Call Outcomes</CardTitle>
         </CardHeader>
         <CardContent className="h-[120px]">
-          {callOutcomes.some(outcome => outcome.value > 0) ? (
+          {callOutcomes.some(outcome => outcome.count > 0) ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -111,10 +114,10 @@ export function CallStats() {
                   cy="50%"
                   innerRadius={25}
                   outerRadius={45}
-                  dataKey="value"
+                  dataKey="count"
                 >
                   {callOutcomes.map((entry, index) => (
-                    <Cell key={`cell-outcome-${index}`} fill={entry.color} />
+                    <Cell key={`cell-outcome-${index}`} fill={`hsl(${index * 60}, 70%, 50%)`} />
                   ))}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />

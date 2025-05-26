@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, Activity } from "lucide-react";
 
 export function AgentUsageStats() {
-  const { agentUsage, isLoading } = useDashboardData();
+  const { data, isLoading } = useDashboardData();
 
   if (isLoading) {
     return (
@@ -27,6 +27,8 @@ export function AgentUsageStats() {
       </Card>
     );
   }
+
+  const agentUsage = data?.agentUsage || [];
 
   return (
     <Card className="hover:shadow-lg transition-all duration-300 border-0 shadow-sm relative overflow-hidden">

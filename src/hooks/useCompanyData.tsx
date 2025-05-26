@@ -78,7 +78,7 @@ export function useCompanyData(user?: any) {
             return null;
           }
 
-          return membership?.companies || null;
+          return membership?.companies as CompanyData || null;
         }
 
         return company;

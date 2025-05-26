@@ -1,3 +1,4 @@
+
 import { Session, User } from "@supabase/supabase-js";
 
 export interface Company {
@@ -13,8 +14,8 @@ export interface CompanyMember {
   user_id: string;
   role: string;
   status: string;
-  created_at: Date;
-  updated_at: Date;
+  created_at: string;
+  updated_at: string;
   user_details?: {
     id: string;
     email: string;

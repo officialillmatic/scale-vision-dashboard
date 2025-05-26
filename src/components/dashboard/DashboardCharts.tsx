@@ -8,7 +8,7 @@ import { useCallData } from "@/hooks/useCallData";
 
 export function DashboardCharts() {
   const { handleSync, isSyncing } = useCallData();
-  const { chartData, isLoading, error } = useDashboardData();
+  const { data, isLoading, error } = useDashboardData();
 
   if (isLoading) {
     return (
@@ -27,6 +27,8 @@ export function DashboardCharts() {
       </div>
     );
   }
+
+  const chartData = data?.chartData || [];
 
   if (error || !chartData || chartData.length === 0) {
     return (
