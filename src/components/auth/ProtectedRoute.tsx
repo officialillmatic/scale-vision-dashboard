@@ -1,6 +1,6 @@
 
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContextFixed";
 import { useRole, Role } from "@/hooks/useRole";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { toast } from "sonner";
