@@ -34,11 +34,6 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   refreshCompany: () => Promise<void>;
   updateUserProfile: (data: { name?: string; avatar_url?: string }) => Promise<void>;
-  signIn?: (email: string, password: string) => Promise<void>;
-  signUp?: (email: string, password: string, options?: { metadata?: any }) => Promise<void>;
-  resetPassword?: (email: string) => Promise<void>;
-  updatePassword?: (password: string) => Promise<void>;
-  isLoadingCompany?: boolean;
 }
 
 export interface AuthSession {
