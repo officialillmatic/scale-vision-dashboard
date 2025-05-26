@@ -655,6 +655,14 @@ export type Database = {
         Args: { p_user_id: string; p_company_id: string; p_amount: number }
         Returns: undefined
       }
+      user_is_company_admin: {
+        Args: { p_user_id: string; p_company_id: string }
+        Returns: boolean
+      }
+      user_is_company_member: {
+        Args: { p_user_id: string; p_company_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

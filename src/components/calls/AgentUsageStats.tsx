@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, Activity } from "lucide-react";
 
 export function AgentUsageStats() {
-  const { data, isLoading } = useDashboardData();
+  const { data, isLoading, error } = useDashboardData();
 
   if (isLoading) {
     return (
@@ -23,6 +23,31 @@ export function AgentUsageStats() {
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    console.error("AgentUsageStats error:", error);
+    return (
+      <Card className="hover:shadow-lg transition-shadow duration-300 border-0 shadow-sm">
+        <CardHeader className="space-y-3 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-red-100">
+              <Bot className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <CardTitle className="text-lg font-bold text-gray-900">Agent Performance</CardTitle>
+              <p className="text-sm text-red-600 font-medium">Error loading data</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <p className="text-gray-600 font-medium">Failed to load agent data</p>
+            <p className="text-sm text-gray-500 mt-1">Please try refreshing the page</p>
+          </div>
         </CardContent>
       </Card>
     );
@@ -55,7 +80,7 @@ export function AgentUsageStats() {
             </div>
             <div className="space-y-3">
               {agentUsage.map((agent, index) => (
-                <div key={agent.id} className="grid grid-cols-4 text-sm items-center py-2 px-3 rounded-lg bg-white/60 hover:bg-white/80 transition-colors duration-200">
+                <div key={agent.id || index} className="grid grid-cols-4 text-sm items-center py-2 px-3 rounded-lg bg-white/60 hover:bg-white/80 transition-colors duration-200">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-400 to-blue-400"></div>
                     <span className="font-semibold text-gray-900 truncate">{agent.name}</span>

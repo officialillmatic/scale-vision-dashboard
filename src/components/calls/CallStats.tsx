@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function CallStats() {
-  const { data, isLoading } = useDashboardData();
+  const { data, isLoading, error } = useDashboardData();
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -24,10 +25,25 @@ export function CallStats() {
         {Array(4).fill(0).map((_, index) => (
           <Card key={index} className="xl:col-span-3">
             <CardContent className="pt-6 flex justify-center items-center h-[124px]">
-              <LoadingSpinner size="md" />
+              <Skeleton className="h-20 w-20 rounded-full" />
             </CardContent>
           </Card>
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    console.error("CallStats error:", error);
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-12 gap-4 mb-6">
+        <Card className="xl:col-span-12">
+          <CardContent className="pt-6">
+            <div className="text-center text-muted-foreground">
+              Error loading call statistics. Please try refreshing the page.
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

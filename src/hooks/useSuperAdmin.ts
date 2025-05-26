@@ -17,6 +17,8 @@ export const useSuperAdmin = () => {
       }
 
       try {
+        console.log("[SUPER_ADMIN] Checking status for user:", user.id);
+        
         // Use the new secure function
         const { data, error } = await supabase.rpc('is_super_admin_safe');
         
@@ -24,6 +26,7 @@ export const useSuperAdmin = () => {
           console.error('Error checking super admin status:', error);
           setIsSuperAdmin(false);
         } else {
+          console.log("[SUPER_ADMIN] Result:", data);
           setIsSuperAdmin(data || false);
         }
       } catch (error) {

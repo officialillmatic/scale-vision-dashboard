@@ -36,6 +36,8 @@ export function useCompanyData(user?: any) {
       if (!user) return null;
 
       try {
+        console.log("[COMPANY_DATA] Fetching company for user:", user.id, "isSuperAdmin:", isSuperAdmin);
+
         // For super admins, get all companies
         if (isSuperAdmin) {
           const { data: companies, error } = await supabase
@@ -49,6 +51,7 @@ export function useCompanyData(user?: any) {
             return null;
           }
 
+          console.log("[COMPANY_DATA] Super admin companies:", companies);
           return companies?.[0] || null;
         }
 
@@ -57,32 +60,48 @@ export function useCompanyData(user?: any) {
           .from('companies')
           .select('*')
           .eq('owner_id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (companyError && companyError.code !== 'PGRST116') {
+        if (companyError) {
           console.error('Error fetching user company:', companyError);
-          
-          // Try to get company through membership
-          const { data: membership, error: membershipError } = await supabase
-            .from('company_members')
-            .select(`
-              company_id,
-              companies!inner (*)
-            `)
-            .eq('user_id', user.id)
-            .eq('status', 'active')
-            .single();
-
-          if (membershipError) {
-            console.error('Error fetching company membership:', membershipError);
-            return null;
-          }
-
-          // Fix the type casting - companies is the nested object, not an array
-          return (membership?.companies as unknown as CompanyData) || null;
         }
 
-        return company;
+        if (company) {
+          console.log("[COMPANY_DATA] Found owned company:", company);
+          return company;
+        }
+
+        // Try to get company through membership using the new safe query structure
+        const { data: membership, error: membershipError } = await supabase
+          .from('company_members')
+          .select(`
+            company_id,
+            companies!inner (
+              id,
+              name,
+              logo_url,
+              owner_id,
+              created_at,
+              updated_at
+            )
+          `)
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (membershipError) {
+          console.error('Error fetching company membership:', membershipError);
+          return null;
+        }
+
+        if (membership?.companies) {
+          console.log("[COMPANY_DATA] Found membership company:", membership.companies);
+          // Fix the type casting - companies is the nested object, not an array
+          return (membership.companies as unknown as CompanyData) || null;
+        }
+
+        console.log("[COMPANY_DATA] No company found for user");
+        return null;
       } catch (error) {
         console.error('Error in useCompanyData:', error);
         return null;
@@ -99,6 +118,8 @@ export function useCompanyData(user?: any) {
       if (!companyQuery.data?.id) return [];
 
       try {
+        console.log("[COMPANY_DATA] Fetching members for company:", companyQuery.data.id);
+        
         const { data: members, error } = await supabase
           .from('company_members')
           .select(`
@@ -113,6 +134,7 @@ export function useCompanyData(user?: any) {
           return [];
         }
 
+        console.log("[COMPANY_DATA] Found members:", members);
         return members || [];
       } catch (error) {
         console.error('Error fetching company members:', error);
@@ -134,6 +156,14 @@ export function useCompanyData(user?: any) {
     await companyQuery.refetch();
     await membersQuery.refetch();
   };
+
+  console.log("[COMPANY_DATA] Final state:", {
+    company: companyQuery.data,
+    isLoading: companyQuery.isLoading || membersQuery.isLoading,
+    userRole,
+    isCompanyOwner,
+    membersCount: membersQuery.data?.length || 0
+  });
 
   return {
     company: companyQuery.data || null,

@@ -58,10 +58,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
           console.error("[AUTH_CONTEXT] Error getting session:", error);
+          setUser(null);
+        } else {
+          setUser(session?.user ?? null);
+          console.log("[AUTH_CONTEXT] Initial session loaded, user:", session?.user?.id || 'none');
         }
-        setUser(session?.user ?? null);
         setIsLoading(false);
-        console.log("[AUTH_CONTEXT] Initial session loaded, user:", session?.user?.id || 'none');
       } catch (error) {
         console.error("[AUTH_CONTEXT] Unexpected error getting session:", error);
         setUser(null);
@@ -76,6 +78,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       
       if (event === 'SIGNED_OUT') {
+        setIsLoading(false);
+      } else if (event === 'SIGNED_IN') {
         setIsLoading(false);
       }
     });
@@ -106,6 +110,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userRole,
     isCompanyOwner,
   };
+
+  console.log("[AUTH_CONTEXT] Providing context:", {
+    user: user?.id || 'none',
+    company: company?.id || 'none',
+    isLoading: combinedIsLoading,
+    isCompanyLoading,
+    userRole,
+    isCompanyOwner
+  });
 
   return (
     <AuthContext.Provider value={contextValue}>
