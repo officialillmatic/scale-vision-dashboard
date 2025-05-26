@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
-import { mapRetellCallToDatabase, validateCallData, type RetellCallData } from "../_shared/retellDataMapper.ts";
+import { mapRetellCallToDatabase, validateCallData, sanitizeCallData, type RetellCallData } from "../_shared/retellDataMapper.ts";
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -15,6 +15,22 @@ serve(async (req) => {
 
   console.log(`[WEBHOOK] ${new Date().toISOString()} - Received ${req.method} request`);
   console.log(`[WEBHOOK] Headers:`, Object.fromEntries(req.headers.entries()));
+
+  // Add a simple GET endpoint for health checks and secret validation
+  if (req.method === 'GET') {
+    console.log('[WEBHOOK] Health check requested');
+    
+    if (!retellSecret) {
+      return createErrorResponse('RETELL_SECRET not configured', 500);
+    }
+    
+    return createSuccessResponse({
+      status: 'healthy',
+      message: 'Retell webhook is ready to receive calls',
+      timestamp: new Date().toISOString(),
+      secret_configured: true
+    });
+  }
 
   if (req.method !== 'POST') {
     console.log(`[WEBHOOK ERROR] Invalid method: ${req.method}`);
@@ -218,10 +234,13 @@ serve(async (req) => {
       return createErrorResponse(`Invalid call data: ${validationErrors.join(', ')}`, 400);
     }
 
-    console.log(`[WEBHOOK] Mapped call data successfully for call: ${retellCall.call_id}`);
+    // Sanitize the data before insertion
+    const sanitizedCallData = sanitizeCallData(mappedCallData);
+
+    console.log(`[WEBHOOK] Mapped and sanitized call data successfully for call: ${retellCall.call_id}`);
 
     // Handle different webhook events with improved logic
-    let finalCallData = { ...mappedCallData };
+    let finalCallData = { ...sanitizedCallData };
     
     switch (event) {
       case 'call_started':
