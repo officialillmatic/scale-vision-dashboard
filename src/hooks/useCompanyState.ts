@@ -41,7 +41,7 @@ export const useCompanyState = (user: User | null) => {
       
       if (companyData) {
         // Get user role in the company
-        const { data: memberData } = await supabase
+        const { data: memberData, error: memberError } = await supabase
           .from('company_members')
           .select('role')
           .eq('user_id', userId)
@@ -49,15 +49,19 @@ export const useCompanyState = (user: User | null) => {
           .eq('status', 'active')
           .single();
         
+        if (memberError) {
+          console.log("[COMPANY_STATE] Member not found, checking if owner:", memberError);
+        }
+        
         if (memberData) {
           setUserRole(memberData.role);
         } else if (companyData.owner_id === userId) {
           setUserRole('admin');
         }
 
-        // Load company members
+        // Load company members with proper headers
         try {
-          const { data: membersData } = await supabase
+          const { data: membersData, error: membersError } = await supabase
             .from('company_members')
             .select(`
               id,
@@ -71,7 +75,12 @@ export const useCompanyState = (user: User | null) => {
             .eq('company_id', companyData.id)
             .eq('status', 'active');
 
-          setCompanyMembers(membersData || []);
+          if (membersError) {
+            console.error("[COMPANY_STATE] Error loading company members:", membersError);
+            setCompanyMembers([]);
+          } else {
+            setCompanyMembers(membersData || []);
+          }
         } catch (error) {
           console.error("[COMPANY_STATE] Error loading company members:", error);
           setCompanyMembers([]);

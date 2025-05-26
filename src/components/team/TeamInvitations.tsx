@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,11 +32,19 @@ export function TeamInvitations() {
   const {
     data: invitations,
     isLoading,
-    refetch
+    refetch,
+    error
   } = useQuery({
     queryKey: ['company-invitations', company?.id],
     queryFn: () => company?.id ? fetchCompanyInvitations(company.id) : Promise.resolve([]),
-    enabled: !!company?.id
+    enabled: !!company?.id,
+    retry: (failureCount, error) => {
+      // Don't retry on 403 or 401 errors
+      if (error?.message?.includes('403') || error?.message?.includes('401')) {
+        return false;
+      }
+      return failureCount < 3;
+    }
   });
 
   const handleResend = async (invitationId: string) => {
@@ -45,6 +54,10 @@ export function TeamInvitations() {
     try {
       await resendInvitation(invitationId);
       refetch();
+      toast.success("Invitation resent successfully");
+    } catch (error) {
+      console.error("Error resending invitation:", error);
+      toast.error("Failed to resend invitation");
     } finally {
       setIsProcessing(null);
     }
@@ -57,6 +70,10 @@ export function TeamInvitations() {
     try {
       await cancelInvitation(invitationId);
       refetch();
+      toast.success("Invitation cancelled successfully");
+    } catch (error) {
+      console.error("Error cancelling invitation:", error);
+      toast.error("Failed to cancel invitation");
     } finally {
       setIsProcessing(null);
     }
@@ -93,6 +110,19 @@ export function TeamInvitations() {
   
   if (!company) {
     return null;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold">Pending Invitations</h2>
+        <Card className="p-6">
+          <div className="text-center text-destructive">
+            Error loading invitations. Please check your permissions.
+          </div>
+        </Card>
+      </div>
+    );
   }
 
   return (
