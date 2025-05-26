@@ -7,6 +7,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
@@ -14,6 +15,16 @@ serve(async (req) => {
 
   try {
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Simple database connectivity test
+    const { data: dbTest, error: dbError } = await supabaseClient
+      .from('agents')
+      .select('count', { count: 'exact', head: true });
+
+    if (dbError) {
+      console.error('[WEBHOOK-MONITOR] Database connectivity error:', dbError);
+      return createErrorResponse(`Database error: ${dbError.message}`, 500);
+    }
 
     // Get webhook activity data
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -43,10 +54,10 @@ serve(async (req) => {
       .select('timestamp')
       .order('timestamp', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (hourError || recentError || agentsError) {
-      console.error('[WEBHOOK-MONITOR] Database errors:', { hourError, recentError, agentsError });
+      console.error('[WEBHOOK-MONITOR] Database query errors:', { hourError, recentError, agentsError });
     }
 
     // Determine webhook status
@@ -71,7 +82,8 @@ serve(async (req) => {
       health_score: healthScore,
       agents_active: activeAgents || 0,
       last_webhook_time: latestCall?.timestamp || null,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      database_healthy: !dbError
     };
 
     console.log(`[WEBHOOK-MONITOR] Health check result:`, response);

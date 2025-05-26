@@ -6,6 +6,7 @@ export const corsHeaders = {
 };
 
 export function handleCors(req: Request): Response | null {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { 
       status: 204, 

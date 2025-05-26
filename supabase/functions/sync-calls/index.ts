@@ -8,17 +8,77 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const retellApiKey = Deno.env.get('RETELL_API_KEY');
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
   console.log(`[SYNC-CALLS] Received ${req.method} request`);
 
+  // Health check endpoint
+  if (req.method === 'GET') {
+    console.log('[SYNC-CALLS] Health check requested');
+    
+    if (!retellApiKey) {
+      return createErrorResponse('RETELL_API_KEY not configured', 500);
+    }
+    
+    return createSuccessResponse({
+      status: 'healthy',
+      message: 'Sync calls function is ready',
+      timestamp: new Date().toISOString(),
+      retell_configured: true
+    });
+  }
+
   try {
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Parse request body
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (e) {
+      requestBody = {};
+    }
+    
+    const { company_id, test, force, limit } = requestBody;
+
+    console.log(`[SYNC-CALLS] Request body:`, requestBody);
 
     if (!retellApiKey) {
       console.error('[SYNC-CALLS] RETELL_API_KEY not configured');
       return createErrorResponse('Retell API key not configured', 500);
+    }
+
+    // If this is a test request, just verify API connectivity
+    if (test) {
+      console.log('[SYNC-CALLS] Test mode - checking Retell API connectivity');
+      
+      try {
+        const retellResponse = await fetch(`https://api.retellai.com/v2/get-calls?limit=1`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${retellApiKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!retellResponse.ok) {
+          throw new Error(`Retell API responded with ${retellResponse.status}`);
+        }
+
+        const retellData = await retellResponse.json();
+        console.log('[SYNC-CALLS] Test successful, Retell API accessible');
+        
+        return createSuccessResponse({
+          message: 'Test successful - Retell API is accessible',
+          api_status: 'healthy',
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('[SYNC-CALLS] Test failed:', error);
+        return createErrorResponse(`Retell API test failed: ${error.message}`, 500);
+      }
     }
 
     // Get all agents from our database that have retell_agent_id
@@ -34,6 +94,49 @@ serve(async (req) => {
 
     if (!agents || agents.length === 0) {
       console.log('[SYNC-CALLS] No agents with retell_agent_id found');
+      
+      // Create a test call record if force is enabled
+      if (force && company_id) {
+        console.log('[SYNC-CALLS] Force mode - creating test call record');
+        
+        const testCallData = {
+          call_id: `test_call_${Date.now()}`,
+          user_id: '123e4567-e89b-12d3-a456-426614174000', // Dummy user ID for test
+          company_id: company_id,
+          agent_id: null,
+          timestamp: new Date().toISOString(),
+          start_time: new Date().toISOString(),
+          duration_sec: 60,
+          cost_usd: 0.02,
+          call_status: 'completed',
+          from: '+1234567890',
+          to: '+0987654321',
+          call_type: 'phone_call',
+          transcript: 'Test call transcript for system health verification'
+        };
+
+        const { data: testCall, error: testCallError } = await supabaseClient
+          .from('calls')
+          .insert(testCallData)
+          .select()
+          .single();
+
+        if (testCallError) {
+          console.error('[SYNC-CALLS] Error creating test call:', testCallError);
+          return createErrorResponse(`Failed to create test call: ${testCallError.message}`, 500);
+        }
+
+        console.log('[SYNC-CALLS] Test call created successfully:', testCall.id);
+        
+        return createSuccessResponse({
+          message: 'Test call created successfully',
+          test_call_id: testCall.id,
+          synced_calls: 1,
+          agents_checked: 0,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       return createSuccessResponse({
         message: 'No agents with Retell integration found',
         synced_calls: 0,
