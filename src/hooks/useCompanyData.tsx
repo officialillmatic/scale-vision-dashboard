@@ -1,8 +1,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useSuperAdmin } from "./useSuperAdmin";
 
 export interface CompanyData {
   id: string;
@@ -28,18 +26,38 @@ export interface CompanyMember {
 }
 
 export function useCompanyData(user?: any) {
-  const { isSuperAdmin } = useSuperAdmin();
+  // First check if user is super admin
+  const superAdminQuery = useQuery({
+    queryKey: ['super-admin-check', user?.id],
+    queryFn: async (): Promise<boolean> => {
+      if (!user) return false;
+      
+      try {
+        const { data, error } = await supabase.rpc('is_super_admin_safe');
+        if (error) {
+          console.error('Error checking super admin status:', error);
+          return false;
+        }
+        return data || false;
+      } catch (error) {
+        console.error('Error in super admin check:', error);
+        return false;
+      }
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5 // 5 minutes
+  });
 
   const companyQuery = useQuery({
-    queryKey: ['company-data', user?.id],
+    queryKey: ['company-data', user?.id, superAdminQuery.data],
     queryFn: async (): Promise<CompanyData | null> => {
       if (!user) return null;
 
       try {
-        console.log("[COMPANY_DATA] Fetching company for user:", user.id, "isSuperAdmin:", isSuperAdmin);
+        console.log("[COMPANY_DATA] Fetching company for user:", user.id, "isSuperAdmin:", superAdminQuery.data);
 
         // For super admins, get all companies
-        if (isSuperAdmin) {
+        if (superAdminQuery.data) {
           const { data: companies, error } = await supabase
             .from('companies')
             .select('*')
@@ -71,7 +89,7 @@ export function useCompanyData(user?: any) {
           return company;
         }
 
-        // Try to get company through membership using the new safe query structure
+        // Try to get company through membership
         const { data: membership, error: membershipError } = await supabase
           .from('company_members')
           .select(`
@@ -96,7 +114,6 @@ export function useCompanyData(user?: any) {
 
         if (membership?.companies) {
           console.log("[COMPANY_DATA] Found membership company:", membership.companies);
-          // Fix the type casting - companies is the nested object, not an array
           return (membership.companies as unknown as CompanyData) || null;
         }
 
@@ -107,7 +124,7 @@ export function useCompanyData(user?: any) {
         return null;
       }
     },
-    enabled: !!user,
+    enabled: !!user && !superAdminQuery.isLoading,
     retry: 2,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
@@ -155,24 +172,27 @@ export function useCompanyData(user?: any) {
   const refreshCompany = async () => {
     await companyQuery.refetch();
     await membersQuery.refetch();
+    await superAdminQuery.refetch();
   };
 
   console.log("[COMPANY_DATA] Final state:", {
     company: companyQuery.data,
-    isLoading: companyQuery.isLoading || membersQuery.isLoading,
+    isLoading: companyQuery.isLoading || membersQuery.isLoading || superAdminQuery.isLoading,
     userRole,
     isCompanyOwner,
+    isSuperAdmin: superAdminQuery.data,
     membersCount: membersQuery.data?.length || 0
   });
 
   return {
     company: companyQuery.data || null,
-    isCompanyLoading: companyQuery.isLoading || membersQuery.isLoading,
+    isCompanyLoading: companyQuery.isLoading || membersQuery.isLoading || superAdminQuery.isLoading,
     companyMembers: membersQuery.data || [],
     userRole,
     isCompanyOwner,
     refreshCompany,
-    isLoading: companyQuery.isLoading,
-    error: companyQuery.error || membersQuery.error,
+    isLoading: companyQuery.isLoading || superAdminQuery.isLoading,
+    error: companyQuery.error || membersQuery.error || superAdminQuery.error,
+    isSuperAdmin: superAdminQuery.data || false,
   };
 }

@@ -47,7 +47,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     companyMembers, 
     userRole, 
     isCompanyOwner, 
-    refreshCompany 
+    refreshCompany,
+    isSuperAdmin
   } = useCompanyData(user);
 
   useEffect(() => {
@@ -117,7 +118,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isLoading: combinedIsLoading,
     isCompanyLoading,
     userRole,
-    isCompanyOwner
+    isCompanyOwner,
+    isSuperAdmin
   });
 
   return (
