@@ -6,6 +6,22 @@ import { Company } from '@/types/auth';
 import { fetchCompany } from '@/services/companyService';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
+interface CompanyMember {
+  id: string;
+  company_id: string;
+  user_id: string;
+  role: 'admin' | 'member' | 'viewer';
+  status: 'active' | 'inactive';
+  created_at: Date;
+  updated_at: Date;
+  user_details?: {
+    id: string;
+    email: string;
+    name?: string;
+    avatar_url?: string;
+  };
+}
+
 interface AuthContextType {
   user: User | null;
   company: Company | null;
@@ -14,8 +30,10 @@ interface AuthContextType {
   userRole: string | null;
   isCompanyOwner: boolean;
   isSuperAdmin: boolean;
+  companyMembers: CompanyMember[];
   signOut: () => Promise<void>;
   refreshCompany: () => Promise<void>;
+  updateUserProfile: (data: { name?: string; avatar_url?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,6 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isCompanyLoading, setIsCompanyLoading] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
 
   const { isSuperAdmin } = useSuperAdmin();
 
@@ -72,11 +91,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else if (companyData.owner_id === userId) {
           setUserRole('admin');
         }
+
+        // Load company members
+        try {
+          const { data: membersData } = await supabase
+            .from('company_members')
+            .select(`
+              id,
+              company_id,
+              user_id,
+              role,
+              status,
+              created_at,
+              updated_at
+            `)
+            .eq('company_id', companyData.id)
+            .eq('status', 'active');
+
+          setCompanyMembers(membersData || []);
+        } catch (error) {
+          console.error("[AUTH_CONTEXT] Error loading company members:", error);
+          setCompanyMembers([]);
+        }
       }
     } catch (error) {
       console.error("[AUTH_CONTEXT] Error loading company:", error);
       setCompany(null);
       setUserRole(null);
+      setCompanyMembers([]);
     } finally {
       setIsCompanyLoading(false);
     }
@@ -85,6 +127,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshCompany = async () => {
     if (user?.id) {
       await loadCompanyData(user.id);
+    }
+  };
+
+  const updateUserProfile = async (data: { name?: string; avatar_url?: string }) => {
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      
+      if (!userData.user) {
+        throw new Error("No user logged in");
+      }
+      
+      // Update user profile in Supabase
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          name: data.name,
+          avatar_url: data.avatar_url
+        })
+        .eq('id', userData.user.id);
+        
+      if (error) {
+        throw error;
+      }
+      
+      console.log('Profile updated successfully');
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      throw error;
     }
   };
 
@@ -122,6 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCompany(null);
           setUserRole(null);
           setIsCompanyLoading(false);
+          setCompanyMembers([]);
         }
       }
     );
@@ -141,6 +213,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCompany(null);
     setUserRole(null);
     setSession(null);
+    setCompanyMembers([]);
   };
 
   const isCompanyOwner = company?.owner_id === user?.id;
@@ -153,8 +226,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userRole,
     isCompanyOwner,
     isSuperAdmin: isSuperAdmin || false,
+    companyMembers,
     signOut,
     refreshCompany,
+    updateUserProfile,
   };
 
   return (
