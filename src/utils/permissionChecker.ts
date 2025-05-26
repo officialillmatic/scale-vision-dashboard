@@ -8,9 +8,9 @@ import { useRole } from "@/hooks/useRole";
  */
 export const useIsAdmin = () => {
   const { isCompanyOwner } = useAuth();
-  const { checkRole } = useRole();
+  const { checkRole, isSuperAdmin } = useRole();
   
-  return isCompanyOwner || checkRole('admin');
+  return isSuperAdmin || isCompanyOwner || checkRole('admin');
 };
 
 /**
@@ -19,10 +19,10 @@ export const useIsAdmin = () => {
  * @returns boolean indicating if user has permission
  */
 export const useHasPermission = (feature: keyof ReturnType<typeof useRole>['can']) => {
-  const { can, isCompanyOwner } = useRole();
+  const { can, isCompanyOwner, isSuperAdmin } = useRole();
   
-  // Company owners have all permissions
-  if (isCompanyOwner) {
+  // Super admins and company owners have all permissions
+  if (isSuperAdmin || isCompanyOwner) {
     return true;
   }
   
@@ -35,12 +35,13 @@ export const useHasPermission = (feature: keyof ReturnType<typeof useRole>['can'
  */
 export const usePermissionDebug = () => {
   const { user, company, isCompanyOwner } = useAuth();
-  const { can, checkRole } = useRole();
+  const { can, checkRole, isSuperAdmin } = useRole();
   
   const debugPermissions = () => {
     console.group('Permission Diagnostics');
     console.log('User:', user?.id);
     console.log('Company:', company?.id);
+    console.log('Is Super Admin:', isSuperAdmin);
     console.log('Is Company Owner:', isCompanyOwner);
     
     console.log('Role Checks:');

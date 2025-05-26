@@ -611,6 +611,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_user_company_id_simple: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_user_company_role: {
         Args: { p_user_id: string; p_company_id: string }
         Returns: string
@@ -627,30 +631,6 @@ export type Database = {
         Args: { p_user_id: string; p_amount: number }
         Returns: boolean
       }
-      is_admin_of_company: {
-        Args: { company_id: string }
-        Returns: boolean
-      }
-      is_company_admin: {
-        Args: { p_company_id: string; p_user_id: string }
-        Returns: boolean
-      }
-      is_company_admin_simple: {
-        Args: { p_user_id: string; p_company_id: string }
-        Returns: boolean
-      }
-      is_company_member: {
-        Args: { p_company_id: string; p_user_id: string }
-        Returns: boolean
-      }
-      is_company_owner: {
-        Args: { company_id: string }
-        Returns: boolean
-      }
-      is_member_of_company: {
-        Args: { company_id: string }
-        Returns: boolean
-      }
       is_super_admin: {
         Args: { check_user_id?: string }
         Returns: boolean
@@ -659,13 +639,13 @@ export type Database = {
         Args: { check_user_id?: string }
         Returns: boolean
       }
+      is_user_company_owner_simple: {
+        Args: { p_user_id: string; p_company_id: string }
+        Returns: boolean
+      }
       update_user_balance: {
         Args: { p_user_id: string; p_company_id: string; p_amount: number }
         Returns: undefined
-      }
-      user_is_company_admin: {
-        Args: { p_user_id: string; p_company_id: string }
-        Returns: boolean
       }
     }
     Enums: {

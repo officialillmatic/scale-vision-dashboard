@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { AgentTable } from "@/types/supabase";
 
@@ -156,7 +157,7 @@ export const deleteAgent = async (agentId: string): Promise<boolean> => {
 
 export const fetchCompanyUserAgents = async (companyId: string): Promise<any[]> => {
   try {
-    // Use the new secure function that respects RLS policies
+    // Use the secure function that respects RLS policies
     const { data, error } = await supabase.rpc('get_company_user_agents', {
       p_company_id: companyId
     });
