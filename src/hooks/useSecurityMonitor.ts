@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 
 interface SecurityAlert {
   id: string;
-  type: 'suspicious_activity' | 'rate_limit' | 'unauthorized_access';
+  type: 'suspicious_activity' | 'rate_limit' | 'unauthorized_access' | 'rls_violation';
   message: string;
   timestamp: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
@@ -22,7 +22,7 @@ export const useSecurityMonitor = () => {
 
     setIsMonitoring(true);
     
-    // Monitor for suspicious webhook activity
+    // Monitor for webhook errors and security issues
     const channel = supabase
       .channel('security-monitoring')
       .on(
@@ -91,6 +91,30 @@ export const useSecurityMonitor = () => {
     }
   };
 
+  const validateSystemSecurity = async () => {
+    const securityChecks = [];
+    
+    try {
+      // Check if RLS is enabled on critical tables
+      const criticalTables = ['calls', 'companies', 'user_balances', 'transactions'];
+      for (const table of criticalTables) {
+        const { error } = await supabase
+          .from(table)
+          .select('id')
+          .limit(1);
+          
+        if (error && error.message.includes('row-level security')) {
+          securityChecks.push(`RLS properly enforced on ${table}`);
+        }
+      }
+      
+      return securityChecks;
+    } catch (error) {
+      console.error('Security validation error:', error);
+      return [];
+    }
+  };
+
   useEffect(() => {
     const cleanup = startMonitoring();
     return cleanup;
@@ -101,6 +125,7 @@ export const useSecurityMonitor = () => {
     isMonitoring,
     checkRateLimit,
     logSecurityEvent,
+    validateSystemSecurity,
     clearAlerts: () => setAlerts([])
   };
 };

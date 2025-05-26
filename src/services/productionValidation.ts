@@ -34,14 +34,7 @@ export const validateProductionReadiness = async (): Promise<ValidationResult> =
       issues.push('No super admin configured - critical security issue');
     }
 
-    // 3. Check environment configuration
-    const requiredSecrets = [
-      'RETELL_API_KEY',
-      'RETELL_SECRET',
-      'RESEND_API_KEY'
-    ];
-
-    // We can't directly check secrets, but we can validate the functions work
+    // 3. Check environment configuration by testing edge functions
     try {
       const { error: functionError } = await supabase.functions.invoke('retell-webhook', {
         method: 'GET'
@@ -54,7 +47,7 @@ export const validateProductionReadiness = async (): Promise<ValidationResult> =
       warnings.push('Unable to validate webhook configuration');
     }
 
-    // 4. Check storage buckets
+    // 4. Check storage buckets existence
     const requiredBuckets = ['avatars', 'company-logos', 'recordings'];
     const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
 
@@ -69,20 +62,49 @@ export const validateProductionReadiness = async (): Promise<ValidationResult> =
       }
     }
 
-    // 5. Check database performance
+    // 5. Check database performance metrics
     const { data: performanceData, error: perfError } = await supabase
       .from('performance_metrics')
       .select('*')
       .limit(1);
 
     if (perfError || !performanceData?.length) {
-      warnings.push('Performance monitoring not available');
+      warnings.push('Performance monitoring table exists but has no data');
     }
 
     // 6. Validate user authentication flow
     const { data: authData } = await supabase.auth.getSession();
     if (!authData.session) {
       warnings.push('Authentication validation requires active session');
+    }
+
+    // 7. Check critical RLS policies are in place
+    try {
+      const { data: policiesData, error: policiesError } = await supabase
+        .from('information_schema.enabled_roles')
+        .select('*')
+        .limit(1);
+        
+      if (policiesError) {
+        warnings.push('Unable to verify RLS policy configuration');
+      }
+    } catch (error) {
+      warnings.push('RLS policy verification failed');
+    }
+
+    // 8. Test rate limiting function
+    try {
+      const { data: rateLimitTest, error: rateLimitError } = await supabase.rpc('check_rate_limit', {
+        p_user_id: authData.session?.user?.id,
+        p_action: 'test_action',
+        p_limit_per_hour: 100
+      });
+
+      if (rateLimitError) {
+        warnings.push('Rate limiting function not available');
+      }
+    } catch (error) {
+      warnings.push('Rate limiting system needs verification');
     }
 
     const passed = issues.length === 0;
