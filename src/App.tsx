@@ -4,39 +4,40 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
-import { AuthProviderFixed } from "@/contexts/AuthContextFixed";
-import { GlobalDataProvider } from "@/components/dashboard/GlobalDataProvider";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { CompanyDataLoader } from "@/components/auth/components/CompanyDataLoader";
+import { GlobalErrorBoundary } from "@/components/common/GlobalErrorBoundary";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+
+// Pages
 import Index from "./pages/Index";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import CallsPage from "./pages/CallsPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
 import TeamPage from "./pages/TeamPage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
-import AnalyticsPage from "./pages/AnalyticsPage";
 import SupportPage from "./pages/SupportPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { GlobalErrorBoundary } from "@/components/common/GlobalErrorBoundary";
-import { EnvWarning } from "@/components/common/EnvWarning";
-import { ProductionBanner } from "@/components/common/ProductionBanner";
+
 import "./App.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 5 * 60 * 1000, // 5 minutes
       retry: (failureCount, error: any) => {
-        // Don't retry on authentication errors
-        if (error?.message?.includes('JWT') || error?.status === 401) {
+        // Don't retry on 4xx errors
+        if (error?.status >= 400 && error?.status < 500) {
           return false;
         }
-        return failureCount < 2;
+        return failureCount < 3;
       },
     },
   },
@@ -45,87 +46,90 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <GlobalErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
           <TooltipProvider>
-            <AuthProviderFixed>
-              <GlobalDataProvider>
-                <BrowserRouter>
-                  <div className="min-h-screen bg-background">
-                    <ProductionBanner />
-                    <EnvWarning />
-                    <Routes>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/login" element={<LoginPage />} />
-                      <Route path="/register" element={<RegisterPage />} />
-                      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                      <Route path="/reset-password" element={<ResetPasswordPage />} />
-                      <Route path="/terms" element={<TermsOfServicePage />} />
-                      <Route path="/privacy" element={<PrivacyPolicyPage />} />
-                      <Route 
-                        path="/dashboard" 
-                        element={
-                          <ProtectedRoute>
-                            <DashboardPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/calls" 
-                        element={
-                          <ProtectedRoute>
-                            <CallsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/team" 
-                        element={
-                          <ProtectedRoute>
-                            <TeamPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/settings" 
-                        element={
-                          <ProtectedRoute>
-                            <SettingsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/profile" 
-                        element={
-                          <ProtectedRoute>
-                            <ProfilePage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/analytics" 
-                        element={
-                          <ProtectedRoute>
-                            <AnalyticsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route path="/support" element={<SupportPage />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                    <Toaster 
-                      richColors 
-                      position="top-right" 
-                      duration={4000}
-                      closeButton
+            <Toaster />
+            <BrowserRouter>
+              <AuthProvider>
+                <CompanyDataLoader>
+                  <Routes>
+                    {/* Public routes */}
+                    <Route path="/" element={<Index />} />
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/register" element={<RegisterPage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
+                    <Route path="/terms" element={<TermsOfServicePage />} />
+                    <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                    
+                    {/* Protected routes */}
+                    <Route
+                      path="/dashboard"
+                      element={
+                        <ProtectedRoute>
+                          <DashboardPage />
+                        </ProtectedRoute>
+                      }
                     />
-                  </div>
-                </BrowserRouter>
-              </GlobalDataProvider>
-            </AuthProviderFixed>
+                    <Route
+                      path="/calls"
+                      element={
+                        <ProtectedRoute>
+                          <CallsPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/analytics"
+                      element={
+                        <ProtectedRoute>
+                          <AnalyticsPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/team"
+                      element={
+                        <ProtectedRoute requiredAction="manageTeam">
+                          <TeamPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/settings"
+                      element={
+                        <ProtectedRoute>
+                          <SettingsPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/profile"
+                      element={
+                        <ProtectedRoute>
+                          <ProfilePage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/support"
+                      element={
+                        <ProtectedRoute>
+                          <SupportPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    {/* 404 route */}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </CompanyDataLoader>
+              </AuthProvider>
+            </BrowserRouter>
           </TooltipProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
     </GlobalErrorBoundary>
   );
 }

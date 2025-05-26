@@ -3,7 +3,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, Activity, Database, Settings } from "lucide-react";
-import { SystemHealthFixed } from "@/components/admin/SystemHealthFixed";
+import { SystemHealth } from "@/components/admin/SystemHealth";
 import { WebhookMonitor } from "@/components/admin/WebhookMonitor";
 import { SecurityDashboard } from "@/components/admin/SecurityDashboard";
 import { ProductionReadinessPanel } from "@/components/admin/ProductionReadinessPanel";
@@ -82,19 +82,19 @@ export const SuperAdminDashboard = () => {
       <ProductionReadinessPanel />
 
       {/* Detailed Admin Sections */}
-      <Tabs defaultValue="system" className="space-y-4">
+      <Tabs defaultValue="security" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="system">System Health</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="system">System Health</TabsTrigger>
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="system">
-          <SystemHealthFixed />
-        </TabsContent>
-        
         <TabsContent value="security">
           <SecurityDashboard />
+        </TabsContent>
+        
+        <TabsContent value="system">
+          <SystemHealth />
         </TabsContent>
         
         <TabsContent value="webhooks">

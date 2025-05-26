@@ -63,22 +63,11 @@ serve(async (req) => {
           }
         });
 
-        const responseText = await retellResponse.text();
-        console.log(`[SYNC-CALLS] Retell API response status: ${retellResponse.status}`);
-        console.log(`[SYNC-CALLS] Retell API response: ${responseText}`);
-
         if (!retellResponse.ok) {
-          // This is expected if no API key is configured or account doesn't exist
-          console.log('[SYNC-CALLS] Retell API not accessible, but this is expected for test environments');
-          
-          return createSuccessResponse({
-            message: 'Test mode - Retell API check completed',
-            api_status: 'not_configured',
-            note: 'This is expected for development/test environments',
-            timestamp: new Date().toISOString()
-          });
+          throw new Error(`Retell API responded with ${retellResponse.status}`);
         }
 
+        const retellData = await retellResponse.json();
         console.log('[SYNC-CALLS] Test successful, Retell API accessible');
         
         return createSuccessResponse({
@@ -87,78 +76,12 @@ serve(async (req) => {
           timestamp: new Date().toISOString()
         });
       } catch (error) {
-        console.log('[SYNC-CALLS] Test mode - API not accessible (expected):', error.message);
-        return createSuccessResponse({
-          message: 'Test mode - Retell API check completed',
-          api_status: 'not_configured',
-          note: 'This is expected for development/test environments',
-          timestamp: new Date().toISOString()
-        });
+        console.error('[SYNC-CALLS] Test failed:', error);
+        return createErrorResponse(`Retell API test failed: ${error.message}`, 500);
       }
     }
 
-    // Force mode: Create test call records
-    if (force && company_id) {
-      console.log('[SYNC-CALLS] Force mode - creating multiple test call records');
-      
-      const testCalls = [];
-      const numberOfCalls = 5; // Create 5 test calls
-      
-      for (let i = 0; i < numberOfCalls; i++) {
-        const testCallData = {
-          call_id: `test_call_${Date.now()}_${i}`,
-          user_id: '53392e76-008c-4e46-8443-a6ebd6bd4504', // Default test user ID
-          company_id: company_id,
-          agent_id: null,
-          timestamp: new Date(Date.now() - (i * 3600000)).toISOString(), // Spread calls over hours
-          start_time: new Date(Date.now() - (i * 3600000)).toISOString(),
-          duration_sec: 60 + (i * 30), // Varying durations
-          cost_usd: (60 + (i * 30)) * 0.02 / 60, // Cost based on duration
-          call_status: i === 0 ? 'completed' : (i === 1 ? 'failed' : 'completed'),
-          from: '+1234567890',
-          to: '+0987654321',
-          call_type: 'phone_call',
-          transcript: `Test call transcript ${i + 1} for system health verification. This is a sample conversation to demonstrate the system is working correctly.`,
-          sentiment: i % 2 === 0 ? 'positive' : 'neutral',
-          sentiment_score: 0.5 + (i * 0.1),
-          disposition: i === 1 ? 'voicemail' : 'answered'
-        };
-
-        try {
-          const { data: insertedCall, error: insertError } = await supabaseClient
-            .from('calls')
-            .insert(testCallData)
-            .select()
-            .single();
-
-          if (insertError) {
-            console.error(`[SYNC-CALLS] Error creating test call ${i}:`, insertError);
-          } else {
-            testCalls.push(insertedCall);
-            console.log(`[SYNC-CALLS] Test call ${i + 1} created successfully:`, insertedCall.id);
-          }
-        } catch (callError) {
-          console.error(`[SYNC-CALLS] Exception creating test call ${i}:`, callError);
-        }
-      }
-
-      if (testCalls.length > 0) {
-        console.log(`[SYNC-CALLS] Created ${testCalls.length} test calls successfully`);
-        
-        return createSuccessResponse({
-          message: `${testCalls.length} test calls created successfully`,
-          test_calls_created: testCalls.length,
-          synced_calls: testCalls.length,
-          agents_checked: 0,
-          call_ids: testCalls.map(call => call.call_id),
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        return createErrorResponse('Failed to create any test calls', 500);
-      }
-    }
-
-    // Normal sync operation
+    // Get all agents from our database that have retell_agent_id
     const { data: agents, error: agentsError } = await supabaseClient
       .from('agents')
       .select('id, retell_agent_id, rate_per_minute')
@@ -172,6 +95,48 @@ serve(async (req) => {
     if (!agents || agents.length === 0) {
       console.log('[SYNC-CALLS] No agents with retell_agent_id found');
       
+      // Create a test call record if force is enabled
+      if (force && company_id) {
+        console.log('[SYNC-CALLS] Force mode - creating test call record');
+        
+        const testCallData = {
+          call_id: `test_call_${Date.now()}`,
+          user_id: '123e4567-e89b-12d3-a456-426614174000', // Dummy user ID for test
+          company_id: company_id,
+          agent_id: null,
+          timestamp: new Date().toISOString(),
+          start_time: new Date().toISOString(),
+          duration_sec: 60,
+          cost_usd: 0.02,
+          call_status: 'completed',
+          from: '+1234567890',
+          to: '+0987654321',
+          call_type: 'phone_call',
+          transcript: 'Test call transcript for system health verification'
+        };
+
+        const { data: testCall, error: testCallError } = await supabaseClient
+          .from('calls')
+          .insert(testCallData)
+          .select()
+          .single();
+
+        if (testCallError) {
+          console.error('[SYNC-CALLS] Error creating test call:', testCallError);
+          return createErrorResponse(`Failed to create test call: ${testCallError.message}`, 500);
+        }
+
+        console.log('[SYNC-CALLS] Test call created successfully:', testCall.id);
+        
+        return createSuccessResponse({
+          message: 'Test call created successfully',
+          test_call_id: testCall.id,
+          synced_calls: 1,
+          agents_checked: 0,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       return createSuccessResponse({
         message: 'No agents with Retell integration found',
         synced_calls: 0,
@@ -184,11 +149,12 @@ serve(async (req) => {
     let totalSyncedCalls = 0;
     const syncResults = [];
 
-    // Try to sync calls for each agent, but don't fail if Retell API is not available
+    // Sync calls for each agent
     for (const agent of agents) {
       try {
-        console.log(`[SYNC-CALLS] Attempting to sync calls for agent: ${agent.retell_agent_id}`);
+        console.log(`[SYNC-CALLS] Syncing calls for agent: ${agent.retell_agent_id}`);
 
+        // Fetch calls from Retell API for this agent
         const retellResponse = await fetch(`https://api.retellai.com/v2/get-calls`, {
           method: 'GET',
           headers: {
@@ -198,13 +164,7 @@ serve(async (req) => {
         });
 
         if (!retellResponse.ok) {
-          console.log(`[SYNC-CALLS] Retell API not available for agent ${agent.retell_agent_id} (status: ${retellResponse.status})`);
-          syncResults.push({
-            agent_id: agent.retell_agent_id,
-            calls_found: 0,
-            calls_synced: 0,
-            note: 'Retell API not available'
-          });
+          console.error(`[SYNC-CALLS] Retell API error for agent ${agent.retell_agent_id}:`, retellResponse.status);
           continue;
         }
 
@@ -213,7 +173,67 @@ serve(async (req) => {
 
         console.log(`[SYNC-CALLS] Found ${agentCalls.length} calls for agent ${agent.retell_agent_id}`);
 
-        // Process calls (implementation would go here)
+        // Get user mapping for this agent
+        const { data: userAgent, error: userAgentError } = await supabaseClient
+          .from('user_agents')
+          .select('user_id, company_id')
+          .eq('agent_id', agent.id)
+          .single();
+
+        if (userAgentError || !userAgent) {
+          console.error(`[SYNC-CALLS] No user mapping found for agent ${agent.id}`);
+          continue;
+        }
+
+        // Process each call
+        for (const retellCall of agentCalls) {
+          try {
+            const callData = {
+              call_id: retellCall.call_id,
+              user_id: userAgent.user_id,
+              company_id: userAgent.company_id,
+              agent_id: agent.id,
+              timestamp: retellCall.start_timestamp ? new Date(retellCall.start_timestamp).toISOString() : new Date().toISOString(),
+              start_time: retellCall.start_timestamp ? new Date(retellCall.start_timestamp).toISOString() : null,
+              duration_sec: retellCall.duration || 0,
+              cost_usd: (retellCall.duration || 0) * (agent.rate_per_minute || 0.02) / 60,
+              call_status: retellCall.call_status || 'completed',
+              from: retellCall.from_number || 'unknown',
+              to: retellCall.to_number || 'unknown',
+              from_number: retellCall.from_number,
+              to_number: retellCall.to_number,
+              recording_url: retellCall.recording_url,
+              transcript: retellCall.transcript,
+              transcript_url: retellCall.transcript_url,
+              sentiment: retellCall.sentiment,
+              sentiment_score: retellCall.sentiment_score,
+              disposition: retellCall.disposition,
+              disconnection_reason: retellCall.disconnection_reason,
+              latency_ms: retellCall.latency_ms,
+              call_type: 'phone_call',
+              call_summary: retellCall.call_summary
+            };
+
+            // Upsert call data
+            const { error: upsertError } = await supabaseClient
+              .from('calls')
+              .upsert(callData, {
+                onConflict: 'call_id',
+                ignoreDuplicates: false
+              });
+
+            if (upsertError) {
+              console.error(`[SYNC-CALLS] Error upserting call ${retellCall.call_id}:`, upsertError);
+            } else {
+              totalSyncedCalls++;
+              console.log(`[SYNC-CALLS] Successfully synced call: ${retellCall.call_id}`);
+            }
+
+          } catch (callError) {
+            console.error(`[SYNC-CALLS] Error processing call ${retellCall.call_id}:`, callError);
+          }
+        }
+
         syncResults.push({
           agent_id: agent.retell_agent_id,
           calls_found: agentCalls.length,
@@ -221,12 +241,12 @@ serve(async (req) => {
         });
 
       } catch (agentError) {
-        console.log(`[SYNC-CALLS] Expected error processing agent ${agent.retell_agent_id}:`, agentError.message);
+        console.error(`[SYNC-CALLS] Error processing agent ${agent.retell_agent_id}:`, agentError);
         syncResults.push({
           agent_id: agent.retell_agent_id,
           calls_found: 0,
           calls_synced: 0,
-          note: 'API not configured'
+          error: agentError.message
         });
       }
     }
