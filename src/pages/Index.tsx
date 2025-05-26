@@ -1,7 +1,8 @@
+
 import React, { useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContextFixed";
+import { useAuth } from "@/contexts/AuthContext";
 import { Check } from "lucide-react";
 
 const Index = () => {
