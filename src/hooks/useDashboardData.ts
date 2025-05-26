@@ -11,13 +11,37 @@ interface DashboardMetrics {
   avgDuration: number;
 }
 
+interface AgentUsage {
+  id: string;
+  name: string;
+  calls: number;
+  minutes: number;
+  cost: number;
+}
+
+interface CallOutcome {
+  status: string;
+  count: number;
+}
+
+interface ChartData {
+  date: string;
+  calls: number;
+  cost: number;
+}
+
 export function useDashboardData() {
   const { user, company } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
 
   return useQuery({
     queryKey: ['dashboard-data', user?.id, company?.id],
-    queryFn: async (): Promise<{ metrics: DashboardMetrics }> => {
+    queryFn: async (): Promise<{ 
+      metrics: DashboardMetrics;
+      agentUsage: AgentUsage[];
+      callOutcomes: CallOutcome[];
+      chartData: ChartData[];
+    }> => {
       if (!user) {
         return {
           metrics: {
@@ -25,7 +49,10 @@ export function useDashboardData() {
             totalCost: '$0.00',
             totalMinutes: 0,
             avgDuration: 0
-          }
+          },
+          agentUsage: [],
+          callOutcomes: [],
+          chartData: []
         };
       }
 
@@ -51,7 +78,10 @@ export function useDashboardData() {
               totalCost: '$0.00',
               totalMinutes: 0,
               avgDuration: 0
-            }
+            },
+            agentUsage: [],
+            callOutcomes: [],
+            chartData: []
           };
         }
 
@@ -61,13 +91,64 @@ export function useDashboardData() {
         const totalMinutes = Math.round(totalSeconds / 60);
         const avgDuration = totalCalls > 0 ? totalSeconds / totalCalls : 0;
 
+        // Calculate agent usage
+        const agentUsageMap = new Map<string, AgentUsage>();
+        calls?.forEach(call => {
+          if (call.agent_id) {
+            const existing = agentUsageMap.get(call.agent_id) || {
+              id: call.agent_id,
+              name: 'Unknown Agent',
+              calls: 0,
+              minutes: 0,
+              cost: 0
+            };
+            
+            existing.calls += 1;
+            existing.minutes += (call.duration_sec || 0) / 60;
+            existing.cost += call.cost_usd || 0;
+            
+            agentUsageMap.set(call.agent_id, existing);
+          }
+        });
+
+        // Calculate call outcomes
+        const outcomeMap = new Map<string, number>();
+        calls?.forEach(call => {
+          const status = call.call_status || 'unknown';
+          outcomeMap.set(status, (outcomeMap.get(status) || 0) + 1);
+        });
+
+        const callOutcomes = Array.from(outcomeMap.entries()).map(([status, count]) => ({
+          status,
+          count
+        }));
+
+        // Calculate chart data (daily aggregation)
+        const chartMap = new Map<string, { calls: number; cost: number }>();
+        calls?.forEach(call => {
+          const date = new Date(call.timestamp).toISOString().split('T')[0];
+          const existing = chartMap.get(date) || { calls: 0, cost: 0 };
+          existing.calls += 1;
+          existing.cost += call.cost_usd || 0;
+          chartMap.set(date, existing);
+        });
+
+        const chartData = Array.from(chartMap.entries()).map(([date, data]) => ({
+          date,
+          calls: data.calls,
+          cost: data.cost
+        })).sort((a, b) => a.date.localeCompare(b.date));
+
         return {
           metrics: {
             totalCalls,
             totalCost: `$${totalCost.toFixed(2)}`,
             totalMinutes,
             avgDuration: Math.round(avgDuration)
-          }
+          },
+          agentUsage: Array.from(agentUsageMap.values()),
+          callOutcomes,
+          chartData
         };
       } catch (error) {
         console.error('Error in useDashboardData:', error);
@@ -78,7 +159,10 @@ export function useDashboardData() {
             totalCost: '$0.00',
             totalMinutes: 0,
             avgDuration: 0
-          }
+          },
+          agentUsage: [],
+          callOutcomes: [],
+          chartData: []
         };
       }
     },

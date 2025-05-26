@@ -13,11 +13,24 @@ export interface CompanyData {
   updated_at: string;
 }
 
-export function useCompanyData() {
-  const { user } = useAuth();
+export interface CompanyMember {
+  id: string;
+  company_id: string;
+  user_id: string;
+  role: 'admin' | 'member' | 'viewer';
+  status: 'active' | 'inactive';
+  created_at: string;
+  updated_at: string;
+  user_details?: {
+    email: string;
+    name?: string;
+  };
+}
+
+export function useCompanyData(user?: any) {
   const { isSuperAdmin } = useSuperAdmin();
 
-  return useQuery({
+  const companyQuery = useQuery({
     queryKey: ['company-data', user?.id],
     queryFn: async (): Promise<CompanyData | null> => {
       if (!user) return null;
@@ -78,4 +91,57 @@ export function useCompanyData() {
     retry: 2,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  const membersQuery = useQuery({
+    queryKey: ['company-members', companyQuery.data?.id],
+    queryFn: async (): Promise<CompanyMember[]> => {
+      if (!companyQuery.data?.id) return [];
+
+      try {
+        const { data: members, error } = await supabase
+          .from('company_members')
+          .select(`
+            *,
+            user_details:user_profiles(email, name)
+          `)
+          .eq('company_id', companyQuery.data.id)
+          .eq('status', 'active');
+
+        if (error) {
+          console.error('Error fetching company members:', error);
+          return [];
+        }
+
+        return members || [];
+      } catch (error) {
+        console.error('Error fetching company members:', error);
+        return [];
+      }
+    },
+    enabled: !!companyQuery.data?.id,
+  });
+
+  // Calculate user role and ownership
+  const userRole = user && companyQuery.data ? 
+    (companyQuery.data.owner_id === user.id ? 'admin' : 
+     membersQuery.data?.find(m => m.user_id === user.id)?.role || null) : null;
+
+  const isCompanyOwner = user && companyQuery.data ? 
+    companyQuery.data.owner_id === user.id : false;
+
+  const refreshCompany = async () => {
+    await companyQuery.refetch();
+    await membersQuery.refetch();
+  };
+
+  return {
+    company: companyQuery.data || null,
+    isCompanyLoading: companyQuery.isLoading || membersQuery.isLoading,
+    companyMembers: membersQuery.data || [],
+    userRole,
+    isCompanyOwner,
+    refreshCompany,
+    isLoading: companyQuery.isLoading,
+    error: companyQuery.error || membersQuery.error,
+  };
 }
