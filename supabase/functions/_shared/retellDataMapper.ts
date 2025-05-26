@@ -38,7 +38,7 @@ export function mapRetellCallToDatabase(
     timestamp: retellCall.start_timestamp ? new Date(retellCall.start_timestamp).toISOString() : new Date().toISOString(),
     start_time: retellCall.start_timestamp ? new Date(retellCall.start_timestamp).toISOString() : null,
     duration_sec: durationSec,
-    cost_usd: costUsd,
+    cost_usd: Math.round(costUsd * 10000) / 10000, // Round to 4 decimal places
     call_status: retellCall.call_status || 'completed',
     from: retellCall.from_number || 'unknown',
     to: retellCall.to_number || 'unknown',
@@ -53,7 +53,8 @@ export function mapRetellCallToDatabase(
     disconnection_reason: retellCall.disconnection_reason,
     latency_ms: retellCall.latency_ms || 0,
     call_type: 'phone_call' as const,
-    call_summary: null
+    call_summary: null,
+    audio_url: retellCall.recording_url // Map recording_url to audio_url as well for compatibility
   };
 }
 
@@ -73,12 +74,62 @@ export function validateCallData(callData: any): string[] {
   }
   
   if (callData.duration_sec < 0) {
-    errors.push('Invalid duration_sec');
+    errors.push('Invalid duration_sec: must be non-negative');
   }
   
   if (callData.cost_usd < 0) {
-    errors.push('Invalid cost_usd');
+    errors.push('Invalid cost_usd: must be non-negative');
   }
+
+  // Validate timestamp format
+  if (callData.timestamp && isNaN(Date.parse(callData.timestamp))) {
+    errors.push('Invalid timestamp format');
+  }
+
+  // Validate sentiment score if provided
+  if (callData.sentiment_score !== null && callData.sentiment_score !== undefined) {
+    if (typeof callData.sentiment_score !== 'number' || callData.sentiment_score < -1 || callData.sentiment_score > 1) {
+      errors.push('Invalid sentiment_score: must be a number between -1 and 1');
+    }
+  }
+
+  // Validate URLs if provided
+  const urlFields = ['recording_url', 'transcript_url', 'audio_url'];
+  urlFields.forEach(field => {
+    if (callData[field]) {
+      try {
+        new URL(callData[field]);
+      } catch {
+        errors.push(`Invalid ${field}: must be a valid URL`);
+      }
+    }
+  });
   
   return errors;
+}
+
+// Helper function to sanitize call data before database insertion
+export function sanitizeCallData(callData: any) {
+  const sanitized = { ...callData };
+  
+  // Ensure numeric fields are properly typed
+  if (sanitized.duration_sec) sanitized.duration_sec = Number(sanitized.duration_sec);
+  if (sanitized.cost_usd) sanitized.cost_usd = Number(sanitized.cost_usd);
+  if (sanitized.latency_ms) sanitized.latency_ms = Number(sanitized.latency_ms);
+  if (sanitized.sentiment_score) sanitized.sentiment_score = Number(sanitized.sentiment_score);
+  
+  // Ensure boolean fields are properly typed
+  // (none currently, but this is where they would go)
+  
+  // Truncate long text fields to prevent database errors
+  const maxTextLength = 10000; // Adjust based on your database schema
+  if (sanitized.transcript && sanitized.transcript.length > maxTextLength) {
+    sanitized.transcript = sanitized.transcript.substring(0, maxTextLength) + '... [truncated]';
+  }
+  
+  if (sanitized.call_summary && sanitized.call_summary.length > maxTextLength) {
+    sanitized.call_summary = sanitized.call_summary.substring(0, maxTextLength) + '... [truncated]';
+  }
+  
+  return sanitized;
 }

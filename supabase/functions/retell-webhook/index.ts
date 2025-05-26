@@ -6,7 +6,7 @@ import { mapRetellCallToDatabase, validateCallData, type RetellCallData } from "
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const retellWebhookSecret = Deno.env.get('RETELL_WEBHOOK_SECRET'); // Add this for security
+const retellSecret = Deno.env.get('RETELL_SECRET'); // Required secret for validation
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -22,12 +22,31 @@ serve(async (req) => {
   }
 
   try {
+    // API Key Validation - Check for x-retell-token header
+    const retellToken = req.headers.get('x-retell-token');
+    
+    if (!retellSecret) {
+      console.error('[WEBHOOK ERROR] RETELL_SECRET not configured');
+      return createErrorResponse('Server configuration error', 500);
+    }
+
+    if (!retellToken) {
+      console.error('[WEBHOOK ERROR] Missing x-retell-token header');
+      return createErrorResponse('Unauthorized: Missing API token', 401);
+    }
+
+    if (retellToken !== retellSecret) {
+      console.error('[WEBHOOK ERROR] Invalid x-retell-token');
+      return createErrorResponse('Unauthorized: Invalid API token', 401);
+    }
+
+    console.log('[WEBHOOK] API token validation passed');
+
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
     
     // Enhanced webhook security validation
     const userAgent = req.headers.get('user-agent') || '';
     const contentType = req.headers.get('content-type') || '';
-    const webhookSignature = req.headers.get('x-retell-signature');
     
     console.log(`[WEBHOOK] User-Agent: ${userAgent}`);
     console.log(`[WEBHOOK] Content-Type: ${contentType}`);
@@ -36,12 +55,6 @@ serve(async (req) => {
     if (!contentType.includes('application/json')) {
       console.error('[WEBHOOK ERROR] Invalid content type');
       return createErrorResponse('Invalid content type', 400);
-    }
-
-    // Optional: Webhook signature validation (if Retell provides it)
-    if (retellWebhookSecret && webhookSignature) {
-      // Implement signature validation here when Retell provides webhook signatures
-      console.log('[WEBHOOK] Webhook signature validation enabled');
     }
     
     // Rate limiting check (basic implementation)
@@ -126,18 +139,20 @@ serve(async (req) => {
       });
       
       // Log this for monitoring but don't fail completely
-      await supabaseClient
-        .from('webhook_errors')
-        .insert({
-          error_type: 'agent_not_found',
-          retell_agent_id: retellCall.agent_id,
-          call_id: retellCall.call_id,
-          event_type: event,
-          error_details: agentError || 'Agent not found or inactive'
-        })
-        .select()
-        .single()
-        .catch(err => console.error('Failed to log webhook error:', err));
+      try {
+        await supabaseClient
+          .from('webhook_errors')
+          .insert({
+            error_type: 'agent_not_found',
+            retell_agent_id: retellCall.agent_id,
+            call_id: retellCall.call_id,
+            event_type: event,
+            error_details: agentError?.message || 'Agent not found or inactive',
+            created_at: new Date().toISOString()
+          });
+      } catch (logError) {
+        console.error('Failed to log webhook error:', logError);
+      }
         
       return createErrorResponse(`Agent not found or inactive for retell_agent_id: ${retellCall.agent_id}`, 400);
     }
@@ -163,18 +178,20 @@ serve(async (req) => {
       });
       
       // Log for monitoring
-      await supabaseClient
-        .from('webhook_errors')
-        .insert({
-          error_type: 'user_mapping_not_found',
-          agent_id: agent.id,
-          call_id: retellCall.call_id,
-          event_type: event,
-          error_details: userAgentError || 'User mapping not found'
-        })
-        .select()
-        .single()
-        .catch(err => console.error('Failed to log webhook error:', err));
+      try {
+        await supabaseClient
+          .from('webhook_errors')
+          .insert({
+            error_type: 'user_mapping_not_found',
+            agent_id: agent.id,
+            call_id: retellCall.call_id,
+            event_type: event,
+            error_details: userAgentError?.message || 'User mapping not found',
+            created_at: new Date().toISOString()
+          });
+      } catch (logError) {
+        console.error('Failed to log webhook error:', logError);
+      }
         
       return createErrorResponse(`User mapping not found for agent: ${agent.id}`, 400);
     }
@@ -237,7 +254,8 @@ serve(async (req) => {
         break;
     }
 
-    // Enhanced upsert with conflict resolution
+    // Enhanced upsert with conflict resolution - using service role should bypass RLS
+    console.log(`[WEBHOOK] Upserting call data for call_id: ${finalCallData.call_id}`);
     const { data: upsertedCall, error: upsertError } = await supabaseClient
       .from('calls')
       .upsert(finalCallData, {
@@ -249,6 +267,24 @@ serve(async (req) => {
 
     if (upsertError) {
       console.error('[WEBHOOK ERROR] Failed to upsert call data:', upsertError);
+      console.error('[WEBHOOK ERROR] Call data that failed:', JSON.stringify(finalCallData, null, 2));
+      
+      // Log the upsert error for debugging
+      try {
+        await supabaseClient
+          .from('webhook_errors')
+          .insert({
+            error_type: 'upsert_failed',
+            call_id: retellCall.call_id,
+            event_type: event,
+            error_details: upsertError.message,
+            call_data: finalCallData,
+            created_at: new Date().toISOString()
+          });
+      } catch (logError) {
+        console.error('Failed to log upsert error:', logError);
+      }
+      
       return createErrorResponse(`Failed to save call data: ${upsertError.message}`, 500);
     }
 
@@ -307,22 +343,24 @@ serve(async (req) => {
     }
 
     // Log webhook success for monitoring
-    await supabaseClient
-      .from('webhook_logs')
-      .insert({
-        event_type: event,
-        call_id: retellCall.call_id,
-        agent_id: agent.id,
-        user_id: userAgent.user_id,
-        company_id: userAgent.company_id,
-        cost_usd: finalCallData.cost_usd,
-        duration_sec: finalCallData.duration_sec,
-        status: 'success',
-        processing_time_ms: Date.now() - new Date(finalCallData.timestamp).getTime()
-      })
-      .select()
-      .single()
-      .catch(err => console.error('Failed to log webhook success:', err));
+    try {
+      await supabaseClient
+        .from('webhook_logs')
+        .insert({
+          event_type: event,
+          call_id: retellCall.call_id,
+          agent_id: agent.id,
+          user_id: userAgent.user_id,
+          company_id: userAgent.company_id,
+          cost_usd: finalCallData.cost_usd,
+          duration_sec: finalCallData.duration_sec,
+          status: 'success',
+          processing_time_ms: Date.now() - new Date(finalCallData.timestamp).getTime(),
+          created_at: new Date().toISOString()
+        });
+    } catch (logError) {
+      console.error('Failed to log webhook success:', logError);
+    }
     
     const response = {
       message: `Webhook ${event} processed successfully`,
@@ -356,7 +394,7 @@ serve(async (req) => {
           error_type: 'fatal_error',
           error_details: error.message,
           stack_trace: error.stack,
-          timestamp: new Date().toISOString()
+          created_at: new Date().toISOString()
         });
     } catch (logError) {
       console.error('[WEBHOOK] Failed to log fatal error:', logError);
