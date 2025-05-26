@@ -17,10 +17,8 @@ export interface CompanyMember {
   created_at: string;
   updated_at: string;
   user_details?: {
-    id: string;
     email: string;
-    name: string;
-    avatar_url: string;
+    name?: string;
   };
 }
 

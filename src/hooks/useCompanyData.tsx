@@ -78,7 +78,8 @@ export function useCompanyData(user?: any) {
             return null;
           }
 
-          return membership?.companies as CompanyData || null;
+          // Fix the type casting - companies is the nested object, not an array
+          return (membership?.companies as unknown as CompanyData) || null;
         }
 
         return company;
