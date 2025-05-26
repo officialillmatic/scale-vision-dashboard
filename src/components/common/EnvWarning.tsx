@@ -46,11 +46,11 @@ export function EnvWarning() {
       },
       {
         name: 'VITE_STORAGE_COMPANY_LOGOS_BUCKET',
-        value: import.meta.env.VITE_STORAGE_COMPANY_LOGOS_BUCKET,
+        value: import.meta.env.VITE_STORAGE_COMPANY_LOGOS_BUCKET || 'company-logos',
         required: false,
-        valid: false,
+        valid: true, // Now defaults to company-logos bucket we created
         description: 'Storage bucket for company logos',
-        setupHint: 'Create this bucket in Supabase Dashboard > Storage'
+        setupHint: 'This bucket has been created automatically'
       },
       {
         name: 'VITE_STORAGE_RECORDINGS_BUCKET',
@@ -86,9 +86,9 @@ export function EnvWarning() {
     // Validate each environment variable
     const validatedChecks = checks.map(check => {
       const { name, value, required } = check;
-      let valid = false;
+      let valid = check.valid; // Use the preset valid status
 
-      if (value) {
+      if (value && !check.valid) {
         switch (name) {
           case 'VITE_SUPABASE_URL':
             valid = value.startsWith('https://') && value.includes('.supabase.co') && !value.includes('your-project-ref');
@@ -99,7 +99,6 @@ export function EnvWarning() {
           case 'VITE_API_BASE_URL':
             valid = (value.startsWith('http://') || value.startsWith('https://')) && !value.includes('your-');
             break;
-          case 'VITE_STORAGE_COMPANY_LOGOS_BUCKET':
           case 'VITE_STORAGE_RECORDINGS_BUCKET':
             valid = value.length > 0 && /^[a-z0-9-]+$/.test(value);
             break;

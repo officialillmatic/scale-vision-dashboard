@@ -19,7 +19,7 @@ export const useIsAdmin = () => {
  * @returns boolean indicating if user has permission
  */
 export const useHasPermission = (feature: keyof ReturnType<typeof useRole>['can']) => {
-  const { can, isCompanyOwner, isSuperAdmin } = useRole();
+  const { can, isSuperAdmin, isCompanyOwner } = useRole();
   
   // Super admins and company owners have all permissions
   if (isSuperAdmin || isCompanyOwner) {

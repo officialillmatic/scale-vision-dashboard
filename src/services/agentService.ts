@@ -58,6 +58,10 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
       `)
       .order("created_at", { ascending: false });
 
+    if (companyId) {
+      query = query.eq("company_id", companyId);
+    }
+
     const { data, error } = await query;
 
     if (error) {
