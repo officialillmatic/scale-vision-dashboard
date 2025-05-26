@@ -11,7 +11,7 @@ import { useSuperAdminData } from "@/hooks/useSuperAdminData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 export const SuperAdminDashboard = () => {
-  const { data, isLoading, error } = useSuperAdminData();
+  const { globalMetrics, companyMetrics, isLoading, error } = useSuperAdminData();
 
   if (isLoading) {
     return (
@@ -44,7 +44,7 @@ export const SuperAdminDashboard = () => {
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.metrics?.total_companies || 0}</div>
+            <div className="text-2xl font-bold">{globalMetrics?.totalCompanies || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -53,7 +53,7 @@ export const SuperAdminDashboard = () => {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.metrics?.total_users || 0}</div>
+            <div className="text-2xl font-bold">{globalMetrics?.totalUsers || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -62,7 +62,7 @@ export const SuperAdminDashboard = () => {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.metrics?.total_calls || 0}</div>
+            <div className="text-2xl font-bold">{globalMetrics?.totalCalls || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -72,7 +72,7 @@ export const SuperAdminDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${(data?.metrics?.total_cost || 0).toFixed(2)}
+              ${(globalMetrics?.totalCost || 0).toFixed(2)}
             </div>
           </CardContent>
         </Card>

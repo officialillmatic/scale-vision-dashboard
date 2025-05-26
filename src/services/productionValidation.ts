@@ -24,13 +24,13 @@ export const validateProductionReadiness = async (): Promise<ValidationResult> =
     }
 
     // 2. Check if super admin exists
-    const { data: superAdmins, error: adminError } = await supabase
+    const { count: superAdminCount, error: adminError } = await supabase
       .from('super_admins')
       .select('count', { count: 'exact', head: true });
 
     if (adminError) {
       issues.push('Failed to verify super admin configuration');
-    } else if (superAdmins === 0) {
+    } else if (superAdminCount === 0) {
       issues.push('No super admin configured - critical security issue');
     }
 
