@@ -32,7 +32,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
       console.log("[USE_CALL_DATA] Fetching calls for company:", company.id);
       
       try {
-        // Use improved query with better error handling
+        // Use improved query with proper headers
         const { data, error } = await supabase
           .from('calls')
           .select(`
@@ -58,7 +58,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
           
           if (error.message?.includes('permission denied') || error.code === '42501') {
             console.error("[USE_CALL_DATA] Permission denied error");
-            toast.error("Access denied. Please check your permissions.");
+            toast.error("Access denied. Your session may have expired. Please refresh the page.");
             return [];
           }
           
@@ -84,7 +84,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
         
         // Show user-friendly error messages
         if (error?.message?.includes("permission denied")) {
-          toast.error("Access denied. Please check your permissions.");
+          toast.error("Access denied. Please refresh the page and try again.");
         } else if (error?.code === "PGRST301") {
           console.log("[USE_CALL_DATA] No calls found - this is normal for new accounts");
           return [];
@@ -92,6 +92,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
           toast.error("Database configuration error. Please contact support.");
         } else {
           console.error("[USE_CALL_DATA] Unexpected error:", error);
+          toast.error("Failed to load calls. Please refresh the page.");
         }
         
         return [];
@@ -110,7 +111,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
     }
   });
 
-  // Enhanced sync calls mutation with better error handling
+  // Enhanced sync calls mutation with better error handling and timeout
   const { 
     mutate: handleSync, 
     isPending: isSyncing 
@@ -119,12 +120,19 @@ export const useCallData = (initialCalls: CallData[] = []) => {
       try {
         console.log("[USE_CALL_DATA] Starting call sync...");
         
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
         const { data, error } = await supabase.functions.invoke("sync-calls", {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
-          }
+          },
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         if (error) {
           console.error("[USE_CALL_DATA] Sync error:", error);
@@ -135,6 +143,11 @@ export const useCallData = (initialCalls: CallData[] = []) => {
         return data;
       } catch (error: any) {
         console.error("[USE_CALL_DATA] Sync exception:", error);
+        
+        if (error.name === 'AbortError') {
+          throw new Error("Sync timed out. Please try again.");
+        }
+        
         throw error;
       }
     },
@@ -150,8 +163,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
       
       // Invalidate and refetch queries
       queryClient.invalidateQueries({ queryKey: ["calls"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-calls"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-data"] });
       
       // Force refetch after a short delay
       setTimeout(() => {
@@ -160,7 +172,12 @@ export const useCallData = (initialCalls: CallData[] = []) => {
     },
     onError: (error: any) => {
       console.error("[USE_CALL_DATA] Sync mutation error:", error);
-      toast.error("Failed to sync calls. Please check your Retell integration.");
+      
+      if (error.message?.includes("timeout") || error.message?.includes("timed out")) {
+        toast.error("Sync timed out. Please check your Retell integration and try again.");
+      } else {
+        toast.error("Failed to sync calls. Please check your Retell integration.");
+      }
     },
   });
 

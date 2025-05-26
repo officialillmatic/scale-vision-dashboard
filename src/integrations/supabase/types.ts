@@ -629,6 +629,10 @@ export type Database = {
           user_details: Json
         }[]
       }
+      get_cors_headers: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_current_user_id: {
         Args: Record<PropertyKey, never>
         Returns: string
