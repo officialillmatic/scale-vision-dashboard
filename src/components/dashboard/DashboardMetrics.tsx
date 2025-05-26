@@ -1,6 +1,6 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
+import { useDashboardData } from "@/hooks/useDashboardData";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyStateMessage } from "./EmptyStateMessage";
@@ -10,7 +10,7 @@ import { AlertTriangle, DollarSign, Clock, Phone, TrendingUp, Zap } from "lucide
 export function DashboardMetrics() {
   const { company } = useAuth();
   const { handleSync, isSyncing } = useCallData();
-  const { metrics, isLoading, error } = useDashboardMetrics();
+  const { metrics, isLoading, error } = useDashboardData();
 
   if (!company) {
     return (
