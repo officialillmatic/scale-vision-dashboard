@@ -26,18 +26,19 @@ export interface AuthContextType {
   user: User | null;
   company: Company | null;
   isLoading: boolean;
-  isLoadingCompany: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, options?: { metadata?: any }) => Promise<void>;
-  signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<void>;
-  updatePassword: (password: string) => Promise<void>;
-  updateUserProfile: (data: { name?: string; avatar_url?: string }) => Promise<void>;
   isCompanyLoading: boolean;
-  refreshCompany: () => Promise<void>;
-  companyMembers: CompanyMember[];
   userRole: string | null;
   isCompanyOwner: boolean;
+  isSuperAdmin: boolean;
+  companyMembers: CompanyMember[];
+  signOut: () => Promise<void>;
+  refreshCompany: () => Promise<void>;
+  updateUserProfile: (data: { name?: string; avatar_url?: string }) => Promise<void>;
+  signIn?: (email: string, password: string) => Promise<void>;
+  signUp?: (email: string, password: string, options?: { metadata?: any }) => Promise<void>;
+  resetPassword?: (email: string) => Promise<void>;
+  updatePassword?: (password: string) => Promise<void>;
+  isLoadingCompany?: boolean;
 }
 
 export interface AuthSession {
