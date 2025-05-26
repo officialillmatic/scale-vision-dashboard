@@ -631,6 +631,10 @@ export type Database = {
         Args: { p_user_id: string; p_amount: number }
         Returns: boolean
       }
+      is_company_admin: {
+        Args: { p_user_id?: string; p_company_id?: string }
+        Returns: boolean
+      }
       is_super_admin: {
         Args: { check_user_id?: string }
         Returns: boolean

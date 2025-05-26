@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { AgentTable } from "@/types/supabase";
 
@@ -34,14 +33,16 @@ export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
 
     if (error) {
       console.error("[AGENT_SERVICE] Database error:", error);
-      throw error;
+      // Return empty array instead of throwing for better UX
+      return [];
     }
 
     console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "agents");
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchAgents:", error);
-    throw new Error(`Failed to fetch agents: ${error.message}`);
+    // Return empty array instead of throwing
+    return [];
   }
 };
 
@@ -66,14 +67,16 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
 
     if (error) {
       console.error("[AGENT_SERVICE] Database error:", error);
-      throw error;
+      // Return empty array instead of throwing
+      return [];
     }
 
     console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "user agents");
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchUserAgents:", error);
-    throw new Error(`Failed to fetch user agents: ${error.message}`);
+    // Return empty array instead of throwing
+    return [];
   }
 };
 
@@ -88,14 +91,16 @@ export const fetchUserAccessibleAgents = async (userId: string, companyId: strin
 
     if (error) {
       console.error("[AGENT_SERVICE] Database error:", error);
-      throw error;
+      // Fallback to basic agent fetch
+      return await fetchAgents(companyId);
     }
 
     console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "accessible agents");
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchUserAccessibleAgents:", error);
-    throw new Error(`Failed to fetch accessible agents: ${error.message}`);
+    // Fallback to basic agent fetch
+    return await fetchAgents(companyId);
   }
 };
 
@@ -168,13 +173,15 @@ export const fetchCompanyUserAgents = async (companyId: string): Promise<any[]> 
 
     if (error) {
       console.error("[AGENT_SERVICE] Error fetching company user agents:", error);
-      throw error;
+      // Return empty array instead of throwing
+      return [];
     }
 
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchCompanyUserAgents:", error);
-    throw new Error(`Failed to fetch company user agents: ${error.message}`);
+    // Return empty array instead of throwing
+    return [];
   }
 };
 

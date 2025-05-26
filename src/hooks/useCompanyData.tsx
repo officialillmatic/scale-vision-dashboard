@@ -1,110 +1,81 @@
 
-import { useState, useEffect } from "react";
-import { User } from "@supabase/supabase-js";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Company, CompanyMember } from "@/types/auth";
-import { fetchCompany } from "@/services/companyService";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSuperAdmin } from "./useSuperAdmin";
 
-export const useCompanyData = (user: User | null) => {
+export interface CompanyData {
+  id: string;
+  name: string;
+  logo_url?: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function useCompanyData() {
+  const { user } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
-  const [company, setCompany] = useState<Company | null>(null);
-  const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
-  const [userRole, setUserRole] = useState<'admin' | 'member' | 'viewer' | null>(null);
-  const [isCompanyOwner, setIsCompanyOwner] = useState(false);
-  const [isCompanyLoading, setIsCompanyLoading] = useState(true);
 
-  const refreshCompany = async () => {
-    if (!user) {
-      setCompany(null);
-      setCompanyMembers([]);
-      setUserRole(null);
-      setIsCompanyOwner(false);
-      setIsCompanyLoading(false);
-      return;
-    }
+  return useQuery({
+    queryKey: ['company-data', user?.id],
+    queryFn: async (): Promise<CompanyData | null> => {
+      if (!user) return null;
 
-    // Super admins don't need a company to function
-    if (isSuperAdmin) {
-      setIsCompanyOwner(false);
-      setUserRole('admin'); // Super admins have admin-level permissions
-      setIsCompanyLoading(false);
-      return;
-    }
+      try {
+        // For super admins, get all companies
+        if (isSuperAdmin) {
+          const { data: companies, error } = await supabase
+            .from('companies')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-    setIsCompanyLoading(true);
-    try {
-      console.log("[COMPANY_DATA] Fetching company data for user:", user.id);
-      
-      const companyData = await fetchCompany(user.id);
-      setCompany(companyData);
+          if (error) {
+            console.error('Error fetching companies for super admin:', error);
+            return null;
+          }
 
-      if (companyData) {
-        // Check if user is the company owner
-        const isOwner = companyData.owner_id === user.id;
-        setIsCompanyOwner(isOwner);
-        
-        if (isOwner) {
-          setUserRole('admin');
-        } else {
-          // Fetch user's role in the company
-          const { data: memberData, error: memberError } = await supabase
-            .from("company_members")
-            .select("role")
-            .eq("company_id", companyData.id)
-            .eq("user_id", user.id)
-            .eq("status", "active")
+          return companies?.[0] || null;
+        }
+
+        // For regular users, get their company
+        const { data: company, error: companyError } = await supabase
+          .from('companies')
+          .select('*')
+          .eq('owner_id', user.id)
+          .single();
+
+        if (companyError && companyError.code !== 'PGRST116') {
+          console.error('Error fetching user company:', companyError);
+          
+          // Try to get company through membership
+          const { data: membership, error: membershipError } = await supabase
+            .from('company_members')
+            .select(`
+              company_id,
+              companies!inner (*)
+            `)
+            .eq('user_id', user.id)
+            .eq('status', 'active')
             .single();
 
-          if (memberError) {
-            console.error("[COMPANY_DATA] Error fetching member role:", memberError);
-            setUserRole('viewer'); // Default to most restrictive role
-          } else {
-            setUserRole(memberData.role as 'admin' | 'member' | 'viewer');
+          if (membershipError) {
+            console.error('Error fetching company membership:', membershipError);
+            return null;
           }
+
+          return membership?.companies || null;
         }
 
-        // Fetch company members
-        const { data: membersData, error: membersError } = await supabase
-          .from("company_members")
-          .select(`
-            *,
-            user_details:user_profiles(id, email, name, avatar_url)
-          `)
-          .eq("company_id", companyData.id)
-          .eq("status", "active");
-
-        if (membersError) {
-          console.error("[COMPANY_DATA] Error fetching company members:", membersError);
-        } else {
-          setCompanyMembers(membersData || []);
-        }
-      } else {
-        setIsCompanyOwner(false);
-        setUserRole(null);
-        setCompanyMembers([]);
+        return company;
+      } catch (error) {
+        console.error('Error in useCompanyData:', error);
+        return null;
       }
-    } catch (error) {
-      console.error("[COMPANY_DATA] Error in company data fetch:", error);
-      setCompany(null);
-      setCompanyMembers([]);
-      setUserRole(null);
-      setIsCompanyOwner(false);
-    } finally {
-      setIsCompanyLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    refreshCompany();
-  }, [user, isSuperAdmin]);
-
-  return {
-    company,
-    companyMembers,
-    userRole,
-    isCompanyOwner,
-    isCompanyLoading,
-    refreshCompany
-  };
-};
+    },
+    enabled: !!user,
+    retry: 2,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}

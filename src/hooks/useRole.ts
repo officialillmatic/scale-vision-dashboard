@@ -21,9 +21,6 @@ export const useRole = () => {
     // If data is still loading, don't make assumptions
     if (isCompanyLoading || isSuperAdminLoading) return false;
     
-    // Super admins don't need a company to function
-    if (isSuperAdmin) return true;
-    
     // Regular users need a company and role (except super admins)
     if (!company && !isSuperAdmin) return false;
     

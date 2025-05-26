@@ -5,14 +5,51 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyStateMessage } from "./EmptyStateMessage";
 import { useCallData } from "@/hooks/useCallData";
-import { AlertTriangle, DollarSign, Clock, Phone, TrendingUp, Zap } from "lucide-react";
+import { AlertTriangle, DollarSign, Clock, Phone, TrendingUp } from "lucide-react";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 
 export function DashboardMetrics() {
-  const { company } = useAuth();
+  const { company, user } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
   const { handleSync, isSyncing } = useCallData();
-  const { metrics, isLoading, error } = useDashboardData();
+  const { data, isLoading, error } = useDashboardData();
 
-  if (!company) {
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i} className="hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-5 w-5 rounded" />
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Skeleton className="h-8 w-20 mb-2" />
+              <Skeleton className="h-3 w-32" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="grid gap-6 md:grid-cols-1">
+        <EmptyStateMessage
+          title="Unable to Load Metrics"
+          description="There was an error loading your dashboard metrics. Please try again."
+          actionLabel="Retry"
+          onAction={() => window.location.reload()}
+        />
+      </div>
+    );
+  }
+
+  // Show warning if no company (for non-super admins)
+  if (!isSuperAdmin && !company) {
     return (
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
@@ -34,44 +71,18 @@ export function DashboardMetrics() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} className="hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-5 w-5 rounded" />
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Skeleton className="h-8 w-20 mb-2" />
-              <Skeleton className="h-3 w-32" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
+  const metrics = data?.metrics || {
+    totalCalls: 0,
+    totalCost: '$0.00',
+    totalMinutes: 0,
+    avgDuration: 0
+  };
 
-  if (error) {
-    return (
-      <div className="grid gap-6 md:grid-cols-1">
-        <EmptyStateMessage
-          title="Unable to Load Metrics"
-          description="There was an error loading your dashboard metrics. Please try again."
-          actionLabel="Retry"
-          onAction={() => window.location.reload()}
-        />
-      </div>
-    );
-  }
-
-  const hasData = metrics && (
-    metrics.totalCalls > 0 || 
+  const hasData = metrics.totalCalls > 0 || 
     Number(metrics.totalCost.replace('$', '')) > 0 || 
-    metrics.totalMinutes > 0
-  );
+    metrics.totalMinutes > 0;
 
+  // Show empty state for no data
   if (!hasData) {
     return (
       <div className="grid gap-6 md:grid-cols-1">
@@ -88,7 +99,7 @@ export function DashboardMetrics() {
 
   const totalCostNumber = Number(metrics.totalCost.replace('$', ''));
   const avgCostPerCall = metrics.totalCalls > 0 ? totalCostNumber / metrics.totalCalls : 0;
-  const avgDurationSeconds = metrics.totalMinutes > 0 ? (metrics.totalMinutes * 60) / Math.max(metrics.totalCalls, 1) : 0;
+  const avgDurationSeconds = metrics.avgDuration || 0;
 
   const metricCards = [
     {
@@ -135,7 +146,7 @@ export function DashboardMetrics() {
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-      {metricCards.map((card, index) => (
+      {metricCards.map((card) => (
         <Card key={card.title} className="relative overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-sm hover:shadow-xl">
           <div className={`absolute inset-0 bg-gradient-to-br ${card.bgGradient} opacity-60`} />
           <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-3">
