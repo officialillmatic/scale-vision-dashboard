@@ -19,21 +19,27 @@ export function useAuthState() {
         setUser(session?.user ?? null);
         setIsLoading(false);
 
-        // Handle token refresh errors
+        // Handle different auth events
         if (event === 'TOKEN_REFRESHED') {
           console.log("[AUTH_STATE] Token refreshed successfully");
         } else if (event === 'SIGNED_OUT') {
           console.log("[AUTH_STATE] User signed out");
+        } else if (event === 'SIGNED_IN') {
+          console.log("[AUTH_STATE] User signed in successfully");
         }
       }
     );
 
-    // Get initial session
+    // Get initial session with improved error handling
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
         console.error("[AUTH_STATE] Error getting session:", error);
-        // If session is invalid, sign out
-        if (error.message?.includes('refresh_token') || error.message?.includes('invalid')) {
+        
+        // Handle specific token refresh errors
+        if (error.message?.includes('refresh_token') || 
+            error.message?.includes('invalid') ||
+            error.message?.includes('expired')) {
+          console.log("[AUTH_STATE] Session expired, signing out");
           supabase.auth.signOut();
         }
       }

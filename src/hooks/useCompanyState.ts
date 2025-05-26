@@ -40,7 +40,7 @@ export const useCompanyState = (user: User | null) => {
       setCompany(companyData);
       
       if (companyData) {
-        // Get user role in the company
+        // Get user role in the company using the improved RLS policies
         const { data: memberData, error: memberError } = await supabase
           .from('company_members')
           .select('role')
@@ -49,8 +49,8 @@ export const useCompanyState = (user: User | null) => {
           .eq('status', 'active')
           .single();
         
-        if (memberError) {
-          console.log("[COMPANY_STATE] Member not found, checking if owner:", memberError);
+        if (memberError && memberError.code !== 'PGRST116') {
+          console.log("[COMPANY_STATE] Error fetching member role:", memberError);
         }
         
         if (memberData) {
@@ -59,7 +59,7 @@ export const useCompanyState = (user: User | null) => {
           setUserRole('admin');
         }
 
-        // Load company members with proper headers
+        // Load company members with improved error handling
         try {
           const { data: membersData, error: membersError } = await supabase
             .from('company_members')
@@ -77,12 +77,14 @@ export const useCompanyState = (user: User | null) => {
 
           if (membersError) {
             console.error("[COMPANY_STATE] Error loading company members:", membersError);
+            // Don't fail completely, just set empty array
             setCompanyMembers([]);
           } else {
+            console.log("[COMPANY_STATE] Successfully loaded company members:", membersData?.length || 0);
             setCompanyMembers(membersData || []);
           }
         } catch (error) {
-          console.error("[COMPANY_STATE] Error loading company members:", error);
+          console.error("[COMPANY_STATE] Exception loading company members:", error);
           setCompanyMembers([]);
         }
       }
