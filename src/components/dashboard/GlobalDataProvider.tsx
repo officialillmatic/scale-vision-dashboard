@@ -1,9 +1,8 @@
-
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContextFixed';
 
 interface GlobalDataContextType {
   isSuperAdmin: boolean;
