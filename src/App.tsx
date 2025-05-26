@@ -46,7 +46,7 @@ function App() {
   return (
     <GlobalErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+        <ThemeProvider>
           <TooltipProvider>
             <AuthProviderFixed>
               <GlobalDataProvider>
