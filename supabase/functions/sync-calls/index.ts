@@ -3,9 +3,16 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const retellApiKey = Deno.env.get('RETELL_API_KEY');
+// Use environment helper for secure env var access
+function env(key: string): string {
+  const val = Deno?.env?.get?.(key);
+  if (!val) throw new Error(`⚠️  Missing required env var: ${key}`);
+  return val;
+}
+
+const supabaseUrl = env('SUPABASE_URL');
+const supabaseServiceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+const retellApiKey = env('RETELL_API_KEY');
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -18,15 +25,8 @@ serve(async (req) => {
   if (req.method === 'GET') {
     console.log('[SYNC-CALLS] Health check requested');
     
-    if (!retellApiKey) {
-      return createErrorResponse('RETELL_API_KEY not configured', 500);
-    }
-    
-    return createSuccessResponse({
-      status: 'healthy',
-      message: 'Sync calls function is ready',
-      timestamp: new Date().toISOString(),
-      retell_configured: true
+    return new Response("ok", {
+      headers: { ...corsHeaders, "Content-Profile": "public" },
     });
   }
 
@@ -44,11 +44,6 @@ serve(async (req) => {
     const { company_id, test, force, limit } = requestBody;
 
     console.log(`[SYNC-CALLS] Request body:`, requestBody);
-
-    if (!retellApiKey) {
-      console.error('[SYNC-CALLS] RETELL_API_KEY not configured');
-      return createErrorResponse('Retell API key not configured', 500);
-    }
 
     // If this is a test request, just verify API connectivity
     if (test) {

@@ -263,6 +263,27 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          bucket: string
+          count: number | null
+          identifier: string
+          reset_at: string | null
+        }
+        Insert: {
+          bucket: string
+          count?: number | null
+          identifier: string
+          reset_at?: string | null
+        }
+        Update: {
+          bucket?: string
+          count?: number | null
+          identifier?: string
+          reset_at?: string | null
+        }
+        Relationships: []
+      }
       super_admins: {
         Row: {
           created_at: string
@@ -595,6 +616,18 @@ export type Database = {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean
       }
+      can_access_company: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
+      check_rate_limit: {
+        Args: {
+          p_identifier: string
+          p_action: string
+          p_limit_per_hour: number
+        }
+        Returns: boolean
+      }
       get_call_metrics_for_period: {
         Args: {
           company_id_param: string
@@ -705,6 +738,10 @@ export type Database = {
         }[]
       }
       get_user_companies: {
+        Args: Record<PropertyKey, never>
+        Returns: string[]
+      }
+      get_user_company_access: {
         Args: Record<PropertyKey, never>
         Returns: string[]
       }

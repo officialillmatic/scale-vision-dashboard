@@ -8,9 +8,16 @@ import { parseWebhookPayload, validatePayloadStructure, createRetellCallData } f
 import { findAgentInDatabase, findUserAgentMapping, upsertCallData } from "../_shared/retellDatabaseOps.ts";
 import { processWebhookEvent, handleTransactionAndBalance, logWebhookResult } from "../_shared/retellEventProcessor.ts";
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const retellSecret = Deno.env.get('RETELL_SECRET');
+// Use environment helper for secure env var access
+function env(key: string): string {
+  const val = Deno?.env?.get?.(key);
+  if (!val) throw new Error(`⚠️  Missing required env var: ${key}`);
+  return val;
+}
+
+const supabaseUrl = env('SUPABASE_URL');
+const supabaseServiceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+const retellSecret = env('RETELL_SECRET');
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -28,11 +35,8 @@ serve(async (req) => {
       return createErrorResponse('RETELL_SECRET not configured', 500);
     }
     
-    return createSuccessResponse({
-      status: 'healthy',
-      message: 'Retell webhook is ready to receive calls',
-      timestamp: new Date().toISOString(),
-      secret_configured: true
+    return new Response("ok", {
+      headers: { ...corsHeaders, "Content-Profile": "public" },
     });
   }
 

@@ -4,8 +4,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
 import { validateAuth, getUserCompany, checkAdminAccess } from "../_shared/authUtils.ts";
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+// Use environment helper for secure env var access
+function env(key: string): string {
+  const val = Deno?.env?.get?.(key);
+  if (!val) throw new Error(`⚠️  Missing required env var: ${key}`);
+  return val;
+}
+
+const supabaseUrl = env('SUPABASE_URL');
+const supabaseServiceKey = env('SUPABASE_SERVICE_ROLE_KEY');
 
 serve(async (req) => {
   const corsResponse = handleCors(req);

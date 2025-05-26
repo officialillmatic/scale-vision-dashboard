@@ -1,6 +1,13 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 
+// Use environment helper for secure env var access
+function env(key: string): string {
+  const val = Deno?.env?.get?.(key);
+  if (!val) throw new Error(`⚠️  Missing required env var: ${key}`);
+  return val;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -11,7 +18,9 @@ Deno.serve(async (req) => {
 
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", {
+      headers: { ...corsHeaders, "Content-Profile": "public" },
+    });
   }
 
   try {
@@ -26,16 +35,8 @@ Deno.serve(async (req) => {
     }
 
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("[FETCH_RETELL_CALLS] Missing Supabase configuration");
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const supabaseUrl = env("SUPABASE_URL");
+    const supabaseServiceKey = env("SUPABASE_SERVICE_ROLE_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -69,14 +70,7 @@ Deno.serve(async (req) => {
     console.log("[FETCH_RETELL_CALLS] User company:", userCompany);
 
     // Get Retell API key
-    const retellApiKey = Deno.env.get("RETELL_API_KEY");
-    if (!retellApiKey) {
-      console.error("[FETCH_RETELL_CALLS] Retell API key not configured");
-      return new Response(
-        JSON.stringify({ error: 'Retell API not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const retellApiKey = env("RETELL_API_KEY");
 
     // Fetch calls from Retell API
     const retellResponse = await fetch("https://api.retellai.com/list-calls", {
