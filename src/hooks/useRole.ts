@@ -6,8 +6,27 @@ import { useSuperAdmin } from './useSuperAdmin';
 export type Role = 'admin' | 'member' | 'viewer';
 
 export const useRole = () => {
-  const { company, user, companyMembers, userRole, isCompanyOwner, isCompanyLoading } = useAuth();
-  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
+  // Safely get auth context
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    console.error("[USE_ROLE] Auth context not available:", error);
+    throw error; // Re-throw to let parent components handle
+  }
+  
+  const { company, user, companyMembers, userRole, isCompanyOwner, isCompanyLoading } = authContext;
+  
+  // Safely get super admin context
+  let superAdminContext;
+  try {
+    superAdminContext = useSuperAdmin();
+  } catch (error) {
+    console.error("[USE_ROLE] SuperAdmin context not available:", error);
+    superAdminContext = { isSuperAdmin: false, isLoading: false };
+  }
+  
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = superAdminContext;
 
   const checkRole = (role: Role): boolean => {
     if (!user) return false;

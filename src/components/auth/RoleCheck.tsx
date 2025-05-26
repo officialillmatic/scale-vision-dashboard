@@ -25,9 +25,38 @@ export const RoleCheck: React.FC<RoleCheckProps> = ({
   superAdminOnly = false,
   showLoading = false
 }) => {
-  const { checkRole, can, isCompanyOwner } = useRole();
-  const { isCompanyLoading } = useAuth();
-  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
+  // Safely get auth context
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    console.error("[ROLE_CHECK] Auth context not available:", error);
+    return <>{fallback}</>;
+  }
+  
+  const { isCompanyLoading } = authContext;
+  
+  // Safely get role context
+  let roleContext;
+  try {
+    roleContext = useRole();
+  } catch (error) {
+    console.error("[ROLE_CHECK] Role context not available:", error);
+    return <>{fallback}</>;
+  }
+  
+  const { checkRole, can, isCompanyOwner } = roleContext;
+  
+  // Safely get super admin context
+  let superAdminContext;
+  try {
+    superAdminContext = useSuperAdmin();
+  } catch (error) {
+    console.error("[ROLE_CHECK] SuperAdmin context not available:", error);
+    superAdminContext = { isSuperAdmin: false, isLoading: false };
+  }
+  
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = superAdminContext;
   
   // Show loading while checking permissions
   if (isCompanyLoading || isSuperAdminLoading) {

@@ -22,12 +22,49 @@ export const ProtectedRoute = ({
   adminOnly = false,
   superAdminOnly = false
 }: ProtectedRouteProps) => {
-  const { user, isLoading, isCompanyLoading } = useAuth();
   const location = useLocation();
-  const { checkRole, can, isCompanyOwner } = useRole();
-  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
   const [permissionChecked, setPermissionChecked] = useState(false);
   const [hasAccess, setHasAccess] = useState(false);
+  
+  // Safely get auth context
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    console.error("[PROTECTED_ROUTE] Auth context not available:", error);
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  
+  const { user, isLoading, isCompanyLoading } = authContext;
+  
+  // Safely get role context
+  let roleContext;
+  try {
+    roleContext = useRole();
+  } catch (error) {
+    console.error("[PROTECTED_ROUTE] Role context not available:", error);
+    if (!isLoading) {
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+    return (
+      <div className="h-screen w-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" className="text-brand-purple" />
+      </div>
+    );
+  }
+  
+  const { checkRole, can, isCompanyOwner } = roleContext;
+  
+  // Safely get super admin context
+  let superAdminContext;
+  try {
+    superAdminContext = useSuperAdmin();
+  } catch (error) {
+    console.error("[PROTECTED_ROUTE] SuperAdmin context not available:", error);
+    superAdminContext = { isSuperAdmin: false, isLoading: false };
+  }
+  
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = superAdminContext;
   
   useEffect(() => {
     // Only perform permission check when auth data is loaded
