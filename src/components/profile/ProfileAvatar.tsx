@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { uploadAvatar } from "@/services/storageService";
-import { updateUserProfile } from "@/services/userService";
-import { Camera } from "lucide-react";
+import { Camera, Upload } from "lucide-react";
 
 export function ProfileAvatar() {
   const { user, updateUserProfile: updateProfile } = useAuth();
@@ -62,7 +61,7 @@ export function ProfileAvatar() {
   };
   
   return (
-    <div className="relative">
+    <div className="relative group">
       <Avatar className="h-24 w-24">
         <AvatarImage 
           src={user?.user_metadata?.avatar_url} 
@@ -76,7 +75,11 @@ export function ProfileAvatar() {
       <div className="absolute bottom-0 right-0">
         <label htmlFor="avatar-upload" className="cursor-pointer">
           <div className="h-8 w-8 bg-brand-green text-white rounded-full flex items-center justify-center shadow-md hover:bg-brand-green/90 transition-colors">
-            <Camera size={16} />
+            {isUploading ? (
+              <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+            ) : (
+              <Camera size={16} />
+            )}
           </div>
           <input 
             type="file" 
@@ -88,6 +91,12 @@ export function ProfileAvatar() {
           />
         </label>
       </div>
+      
+      {isUploading && (
+        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+          <Upload className="h-6 w-6 text-white animate-pulse" />
+        </div>
+      )}
     </div>
   );
 }

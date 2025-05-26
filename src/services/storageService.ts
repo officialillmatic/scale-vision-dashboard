@@ -38,6 +38,7 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
       .getPublicUrl(filePath);
 
     console.log("Avatar uploaded successfully:", data.publicUrl);
+    toast.success("Avatar uploaded successfully!");
     return data.publicUrl;
   } catch (error) {
     console.error("Error uploading avatar:", error);
@@ -58,8 +59,8 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
       return null;
     }
     
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      toast.error("File too large. Please upload an image smaller than 5MB.");
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit for company logos
+      toast.error("File too large. Please upload an image smaller than 10MB.");
       return null;
     }
     
@@ -82,6 +83,7 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
       .getPublicUrl(filePath);
 
     console.log("Company logo uploaded successfully:", data.publicUrl);
+    toast.success("Company logo uploaded successfully!");
     return data.publicUrl;
   } catch (error) {
     console.error("Error uploading company logo:", error);
@@ -96,14 +98,14 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
     console.log("Uploading recording for user:", userId, "company:", companyId, "File:", file.name);
     
     // Validate file type and size
-    const allowedTypes = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm'];
+    const allowedTypes = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm', 'audio/ogg', 'audio/mp3'];
     if (!allowedTypes.includes(file.type)) {
-      toast.error("Invalid file type. Please upload an MP3, MP4, WAV, or WebM audio file.");
+      toast.error("Invalid file type. Please upload an audio file (MP3, MP4, WAV, WebM, OGG).");
       return null;
     }
     
-    if (file.size > 50 * 1024 * 1024) { // 50MB limit
-      toast.error("File too large. Please upload an audio file smaller than 50MB.");
+    if (file.size > 100 * 1024 * 1024) { // 100MB limit for recordings
+      toast.error("File too large. Please upload an audio file smaller than 100MB.");
       return null;
     }
     
@@ -132,6 +134,7 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
     }
 
     console.log("Recording uploaded successfully with signed URL");
+    toast.success("Recording uploaded successfully!");
     return result.data?.signedUrl || null;
   } catch (error) {
     console.error("Error uploading recording:", error);
@@ -162,7 +165,7 @@ export const getRecordingUrl = async (filePath: string): Promise<string | null> 
   }
 };
 
-// Storage bucket validation (simplified)
+// Storage bucket validation
 export const validateStorageBuckets = async (): Promise<boolean> => {
   try {
     const { data: buckets, error } = await supabase.storage.listBuckets();
@@ -187,5 +190,46 @@ export const validateStorageBuckets = async (): Promise<boolean> => {
   } catch (error) {
     console.error("Error validating storage buckets:", error);
     return false;
+  }
+};
+
+// Delete file from storage
+export const deleteFile = async (bucket: string, filePath: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.storage
+      .from(bucket)
+      .remove([filePath]);
+
+    if (error) {
+      console.error("Error deleting file:", error);
+      toast.error("Failed to delete file");
+      return false;
+    }
+
+    toast.success("File deleted successfully");
+    return true;
+  } catch (error) {
+    console.error("Error deleting file:", error);
+    toast.error("Failed to delete file");
+    return false;
+  }
+};
+
+// List files in a bucket (for admin purposes)
+export const listFiles = async (bucket: string, folder?: string): Promise<any[] | null> => {
+  try {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .list(folder);
+
+    if (error) {
+      console.error("Error listing files:", error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error listing files:", error);
+    return null;
   }
 };
