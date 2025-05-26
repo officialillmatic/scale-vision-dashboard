@@ -40,23 +40,33 @@ export const useCompanyState = (user: User | null) => {
       setCompany(companyData);
       
       if (companyData) {
-        // Get user role in the company using the improved RLS policies
-        const { data: memberData, error: memberError } = await supabase
-          .from('company_members')
-          .select('role')
-          .eq('user_id', userId)
-          .eq('company_id', companyData.id)
-          .eq('status', 'active')
-          .single();
-        
-        if (memberError && memberError.code !== 'PGRST116') {
-          console.log("[COMPANY_STATE] Error fetching member role:", memberError);
-        }
-        
-        if (memberData) {
-          setUserRole(memberData.role);
-        } else if (companyData.owner_id === userId) {
+        // For super admins or company owners, set role directly
+        if (isSuperAdmin || companyData.owner_id === userId) {
           setUserRole('admin');
+        } else {
+          // Try to get user role with better error handling
+          try {
+            const { data: memberData, error: memberError } = await supabase
+              .from('company_members')
+              .select('role')
+              .eq('user_id', userId)
+              .eq('company_id', companyData.id)
+              .eq('status', 'active')
+              .maybeSingle();
+            
+            if (memberError) {
+              console.log("[COMPANY_STATE] Error fetching member role:", memberError);
+              // Set default role for fallback
+              setUserRole('viewer');
+            } else if (memberData) {
+              setUserRole(memberData.role);
+            } else {
+              setUserRole('viewer');
+            }
+          } catch (error) {
+            console.error("[COMPANY_STATE] Exception fetching member role:", error);
+            setUserRole('viewer');
+          }
         }
 
         // Load company members with improved error handling
@@ -77,7 +87,6 @@ export const useCompanyState = (user: User | null) => {
 
           if (membersError) {
             console.error("[COMPANY_STATE] Error loading company members:", membersError);
-            // Don't fail completely, just set empty array
             setCompanyMembers([]);
           } else {
             console.log("[COMPANY_STATE] Successfully loaded company members:", membersData?.length || 0);

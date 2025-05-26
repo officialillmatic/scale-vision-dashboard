@@ -71,6 +71,14 @@ export function useDashboardData() {
 
         if (error) {
           console.error('Error fetching dashboard data:', error);
+          
+          // Handle specific error types gracefully
+          if (error.code === 'PGRST301' || error.message?.includes('no rows')) {
+            console.log('No calls found for dashboard - returning empty metrics');
+          } else if (error.message?.includes('permission denied')) {
+            console.error('Permission denied for dashboard data');
+          }
+          
           // Return default values on error instead of throwing
           return {
             metrics: {
@@ -167,7 +175,13 @@ export function useDashboardData() {
       }
     },
     enabled: !!user,
-    retry: 1,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: (failureCount, error: any) => {
+      // Don't retry permission errors
+      if (error?.message?.includes("permission denied") || error?.code === '42501') {
+        return false;
+      }
+      return failureCount < 2;
+    }
   });
 }

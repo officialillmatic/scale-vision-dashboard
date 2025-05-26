@@ -31,8 +31,13 @@ export const supabase = createClient<ExtendedDatabase>(
     global: {
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
       }
+    },
+    db: {
+      schema: 'public'
     }
   }
 );

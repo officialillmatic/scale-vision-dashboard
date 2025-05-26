@@ -32,7 +32,7 @@ export const useCallData = (initialCalls: CallData[] = []) => {
       console.log("[USE_CALL_DATA] Fetching calls for company:", company.id);
       
       try {
-        // Use proper headers for Supabase requests
+        // Use improved query with better error handling
         const { data, error } = await supabase
           .from('calls')
           .select(`
@@ -45,14 +45,23 @@ export const useCallData = (initialCalls: CallData[] = []) => {
           `)
           .eq('company_id', company.id)
           .order('timestamp', { ascending: false })
-          .limit(50);
+          .limit(100);
           
         if (error) {
           console.error("[USE_CALL_DATA] Database error:", error);
-          if (error.code === 'PGRST301') {
+          
+          // Handle specific error types
+          if (error.code === 'PGRST301' || error.message?.includes('no rows')) {
             console.log("[USE_CALL_DATA] No calls found - returning empty array");
             return [];
           }
+          
+          if (error.message?.includes('permission denied') || error.code === '42501') {
+            console.error("[USE_CALL_DATA] Permission denied error");
+            toast.error("Access denied. Please check your permissions.");
+            return [];
+          }
+          
           throw error;
         }
         
@@ -79,18 +88,22 @@ export const useCallData = (initialCalls: CallData[] = []) => {
         } else if (error?.code === "PGRST301") {
           console.log("[USE_CALL_DATA] No calls found - this is normal for new accounts");
           return [];
+        } else if (error?.message?.includes("relation") && error?.message?.includes("does not exist")) {
+          toast.error("Database configuration error. Please contact support.");
         } else {
-          toast.error("Failed to load calls. Please try again.");
+          console.error("[USE_CALL_DATA] Unexpected error:", error);
         }
         
-        throw error;
+        return [];
       }
     },
     enabled: !!company?.id && !!user?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: (failureCount, error: any) => {
-      // Don't retry permission errors
-      if (error?.message?.includes("permission denied")) {
+      // Don't retry permission errors or missing table errors
+      if (error?.message?.includes("permission denied") || 
+          error?.message?.includes("relation") ||
+          error?.code === '42501') {
         return false;
       }
       return failureCount < 2;
