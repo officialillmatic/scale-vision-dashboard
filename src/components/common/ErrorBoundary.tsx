@@ -1,8 +1,8 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { Component, ReactNode } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCcw } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -12,7 +12,6 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
-  errorInfo?: ErrorInfo;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -25,13 +24,12 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    this.setState({ error, errorInfo });
   }
 
-  handleRetry = () => {
-    this.setState({ hasError: false, error: undefined, errorInfo: undefined });
+  handleReset = () => {
+    this.setState({ hasError: false, error: undefined });
   };
 
   render() {
@@ -41,36 +39,40 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <Card className="m-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="h-5 w-5" />
-              Something went wrong
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-gray-600">
-              An unexpected error occurred. Please try refreshing the page or contact support if the problem persists.
-            </p>
-            
-            {process.env.NODE_ENV === 'development' && this.state.error && (
-              <details className="mt-4">
-                <summary className="cursor-pointer text-sm font-medium text-gray-700">
-                  Error Details (Development Mode)
-                </summary>
-                <pre className="mt-2 p-3 bg-gray-100 rounded text-xs overflow-auto">
-                  {this.state.error.toString()}
-                  {this.state.errorInfo?.componentStack}
-                </pre>
-              </details>
-            )}
-            
-            <Button onClick={this.handleRetry} className="mt-4">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-center min-h-[400px] p-6">
+          <div className="max-w-md w-full">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="mt-2">
+                <div className="space-y-3">
+                  <p className="font-medium">Something went wrong</p>
+                  <p className="text-sm opacity-90">
+                    {this.state.error?.message || 'An unexpected error occurred. Please try refreshing the page.'}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={this.handleReset}
+                      className="bg-white hover:bg-gray-50"
+                    >
+                      <RefreshCcw className="h-4 w-4 mr-2" />
+                      Try Again
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.location.reload()}
+                      className="bg-white hover:bg-gray-50"
+                    >
+                      Refresh Page
+                    </Button>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          </div>
+        </div>
       );
     }
 

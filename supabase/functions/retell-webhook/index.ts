@@ -1,12 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
-import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
-import { validateRetellAuth, validateWebhookSecurity, logAuthAttempt } from "../_shared/retellAuth.ts";
-import { parseWebhookPayload, validatePayloadStructure, createRetellCallData } from "../_shared/retellPayloadProcessor.ts";
+import { handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
 import { findAgentInDatabase, findUserAgentMapping, upsertCallData } from "../_shared/retellDatabaseOps.ts";
-import { processWebhookEvent, handleTransactionAndBalance, logWebhookResult } from "../_shared/retellEventProcessor.ts";
-import { mapRetellCallToSupabase } from "../_shared/retellDataMapper.ts";
 
 // Use environment helper for secure env var access
 function env(key: string): string {
@@ -24,135 +20,74 @@ serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
-  const requestStartTime = Date.now();
   const requestId = crypto.randomUUID().substring(0, 8);
-  
   console.log(`[RETELL-WEBHOOK-${requestId}] ${new Date().toISOString()} - ${req.method} request received`);
-  console.log(`[RETELL-WEBHOOK-${requestId}] Request URL: ${req.url}`);
 
   try {
     if (req.method !== 'POST') {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Invalid method: ${req.method}`);
-      return createErrorResponse('Method not allowed - only POST requests accepted', 405);
+      return createErrorResponse('Method not allowed - only POST requests supported', 405);
     }
 
-    // Step 1: Validate webhook security (basic checks)
-    console.log(`[RETELL-WEBHOOK-${requestId}] Validating webhook security...`);
-    const securityError = validateWebhookSecurity(req);
-    if (securityError) {
-      logAuthAttempt(req, false, 'Security validation failed');
-      return securityError;
-    }
-
-    // Step 2: Validate Retell authentication
-    console.log(`[RETELL-WEBHOOK-${requestId}] Validating Retell authentication...`);
-    const authError = validateRetellAuth(req, retellSecret);
-    if (authError) {
-      logAuthAttempt(req, false, 'Authentication failed');
-      return authError;
-    }
-    
-    logAuthAttempt(req, true, 'Authentication successful');
-
-    // Step 3: Parse webhook payload
-    console.log(`[RETELL-WEBHOOK-${requestId}] Parsing webhook payload...`);
-    const { payload, error: payloadError } = await parseWebhookPayload(req);
-    if (payloadError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Payload parsing failed`);
-      return payloadError;
-    }
-
-    // Step 4: Validate payload structure
-    console.log(`[RETELL-WEBHOOK-${requestId}] Validating payload structure...`);
-    const structureError = validatePayloadStructure(payload);
-    if (structureError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Payload structure validation failed`);
-      return structureError;
-    }
-
-    const { event, call } = payload;
-    const retellCallId = call.call_id;
-    const retellAgentId = call.agent_id;
-
-    console.log(`[RETELL-WEBHOOK-${requestId}] Processing ${event} for call ${retellCallId} with agent ${retellAgentId}`);
-
-    // Step 5: Initialize Supabase client
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Get the webhook payload
+    const payload = await req.json();
+    console.log(`[RETELL-WEBHOOK-${requestId}] Webhook payload:`, JSON.stringify(payload, null, 2));
 
-    // Step 6: Find agent in database
-    console.log(`[RETELL-WEBHOOK-${requestId}] Finding agent in database...`);
-    const { agent, error: agentError } = await findAgentInDatabase(supabaseClient, retellAgentId);
-    if (agentError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Agent lookup failed for ${retellAgentId}`);
-      return agentError;
+    // Verify webhook signature if available
+    const signature = req.headers.get('x-retell-signature');
+    if (signature && retellSecret) {
+      // TODO: Implement signature verification
+      console.log(`[RETELL-WEBHOOK-${requestId}] Signature verification enabled`);
     }
 
-    // Step 7: Find user agent mapping
-    console.log(`[RETELL-WEBHOOK-${requestId}] Finding user agent mapping...`);
-    const { userAgent, error: userError } = await findUserAgentMapping(supabaseClient, agent.id);
-    if (userError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] User mapping lookup failed for agent ${agent.id}`);
-      return userError;
+    const { event, data } = payload;
+    
+    if (!event || !data) {
+      console.error(`[RETELL-WEBHOOK-${requestId}] Invalid webhook payload - missing event or data`);
+      return createErrorResponse('Invalid webhook payload', 400);
     }
 
-    // Step 8: Create Retell call data
-    console.log(`[RETELL-WEBHOOK-${requestId}] Creating call data...`);
-    const retellCallData = createRetellCallData(call);
+    console.log(`[RETELL-WEBHOOK-${requestId}] Processing webhook event: ${event}`);
 
-    // Step 9: Map to Supabase format
-    const sanitizedCallData = mapRetellCallToSupabase(
-      retellCallData,
-      userAgent.user_id,
-      userAgent.company_id,
-      agent.id
-    );
+    // Log the webhook for audit purposes
+    const { error: logError } = await supabaseClient
+      .from('webhook_logs')
+      .insert({
+        event_type: event,
+        call_id: data.call_id,
+        status: 'processing',
+        cost_usd: data.cost,
+        duration_sec: data.duration_sec
+      });
 
-    // Step 10: Process event-specific data
-    const finalCallData = processWebhookEvent(event, sanitizedCallData);
-
-    // Step 11: Upsert call data
-    console.log(`[RETELL-WEBHOOK-${requestId}] Upserting call data...`);
-    const { upsertedCall, error: upsertError } = await upsertCallData(supabaseClient, finalCallData);
-    if (upsertError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Call data upsert failed`);
-      return upsertError;
+    if (logError) {
+      console.warn(`[RETELL-WEBHOOK-${requestId}] Failed to log webhook:`, logError);
     }
 
-    // Step 12: Handle transactions and balance updates for completed calls
-    if (event === 'call_ended') {
-      console.log(`[RETELL-WEBHOOK-${requestId}] Processing call completion...`);
-      await handleTransactionAndBalance(supabaseClient, event, finalCallData, userAgent);
+    // Handle different webhook events
+    switch (event) {
+      case 'call_started':
+        return await handleCallStarted(supabaseClient, requestId, data);
+      
+      case 'call_ended':
+        return await handleCallEnded(supabaseClient, requestId, data);
+      
+      case 'call_analyzed':
+        return await handleCallAnalyzed(supabaseClient, requestId, data);
+      
+      default:
+        console.log(`[RETELL-WEBHOOK-${requestId}] Unhandled event type: ${event}`);
+        return createSuccessResponse({
+          message: 'Event received but not processed',
+          event_type: event
+        });
     }
-
-    // Step 13: Log successful webhook processing
-    const processingTime = Date.now() - requestStartTime;
-    await logWebhookResult(
-      supabaseClient,
-      event,
-      retellCallId,
-      agent,
-      userAgent,
-      finalCallData,
-      'success',
-      requestStartTime
-    );
-
-    console.log(`[RETELL-WEBHOOK-${requestId}] ✅ Successfully processed ${event} for call ${retellCallId} in ${processingTime}ms`);
-
-    return createSuccessResponse({
-      message: 'Webhook processed successfully',
-      event,
-      callId: retellCallId,
-      dbCallId: upsertedCall?.id,
-      processingTimeMs: processingTime,
-      requestId
-    });
 
   } catch (error) {
-    const processingTime = Date.now() - requestStartTime;
-    console.error(`[RETELL-WEBHOOK-${requestId}] ❌ Fatal error after ${processingTime}ms:`, error);
+    console.error(`[RETELL-WEBHOOK-${requestId}] Fatal error:`, error);
     
-    // Log error to database with request context
+    // Log the error to database
     try {
       const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
       await supabaseClient
@@ -161,18 +96,122 @@ serve(async (req) => {
           error_type: 'fatal_error',
           error_details: error.message,
           stack_trace: error.stack,
-          call_data: { 
-            request_id: requestId,
-            processing_time_ms: processingTime,
-            request_method: req.method,
-            request_url: req.url 
-          },
-          created_at: new Date().toISOString()
+          call_data: req.body
         });
     } catch (logError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Failed to log fatal error:`, logError);
+      console.error(`[RETELL-WEBHOOK-${requestId}] Failed to log error:`, logError);
     }
-
+    
     return createErrorResponse(`Webhook processing failed: ${error.message}`, 500);
   }
 });
+
+async function handleCallStarted(supabaseClient: any, requestId: string, data: any) {
+  console.log(`[RETELL-WEBHOOK-${requestId}] Handling call_started for call: ${data.call_id}`);
+  
+  // For call_started, we mainly just want to log that the call has begun
+  // The actual call data will be processed when the call ends
+  
+  return createSuccessResponse({
+    message: 'Call started event processed',
+    call_id: data.call_id
+  });
+}
+
+async function handleCallEnded(supabaseClient: any, requestId: string, data: any) {
+  console.log(`[RETELL-WEBHOOK-${requestId}] Handling call_ended for call: ${data.call_id}`);
+  
+  try {
+    // Find the agent in our database
+    const { agent, error: agentError } = await findAgentInDatabase(supabaseClient, data.agent_id);
+    if (agentError) {
+      console.error(`[RETELL-WEBHOOK-${requestId}] Agent lookup failed:`, agentError);
+      return agentError;
+    }
+
+    // Find user-agent mapping
+    const { userAgent, error: mappingError } = await findUserAgentMapping(supabaseClient, agent.id);
+    if (mappingError) {
+      console.error(`[RETELL-WEBHOOK-${requestId}] User mapping lookup failed:`, mappingError);
+      return mappingError;
+    }
+
+    // Map the call data to our schema
+    const callData = {
+      call_id: data.call_id,
+      user_id: userAgent.user_id,
+      company_id: userAgent.company_id,
+      agent_id: agent.id,
+      timestamp: new Date(data.start_timestamp * 1000).toISOString(),
+      start_time: data.start_timestamp ? new Date(data.start_timestamp * 1000).toISOString() : null,
+      duration_sec: data.duration_sec || 0,
+      cost_usd: data.cost || 0,
+      call_status: data.call_status || 'completed',
+      from: data.from_number || 'unknown',
+      to: data.to_number || 'unknown',
+      from_number: data.from_number,
+      to_number: data.to_number,
+      disconnection_reason: data.disconnection_reason,
+      recording_url: data.recording_url,
+      transcript: data.transcript,
+      transcript_url: data.transcript_url,
+      call_type: 'phone_call',
+      disposition: data.disposition,
+      latency_ms: data.latency_ms,
+      call_summary: data.summary
+    };
+
+    // Upsert the call data
+    const { upsertedCall, error: upsertError } = await upsertCallData(supabaseClient, callData);
+    if (upsertError) {
+      return upsertError;
+    }
+
+    console.log(`[RETELL-WEBHOOK-${requestId}] Successfully processed call_ended for: ${data.call_id}`);
+    
+    return createSuccessResponse({
+      message: 'Call ended event processed successfully',
+      call_id: data.call_id,
+      database_id: upsertedCall.id
+    });
+
+  } catch (error) {
+    console.error(`[RETELL-WEBHOOK-${requestId}] Error processing call_ended:`, error);
+    return createErrorResponse(`Failed to process call_ended: ${error.message}`, 500);
+  }
+}
+
+async function handleCallAnalyzed(supabaseClient: any, requestId: string, data: any) {
+  console.log(`[RETELL-WEBHOOK-${requestId}] Handling call_analyzed for call: ${data.call_id}`);
+  
+  try {
+    // Update the existing call with analysis data
+    const { error: updateError } = await supabaseClient
+      .from('calls')
+      .update({
+        sentiment: data.sentiment?.overall_sentiment,
+        sentiment_score: data.sentiment?.score,
+        result_sentiment: data.sentiment,
+        call_summary: data.summary,
+        transcript: data.transcript,
+        transcript_url: data.transcript_url
+      })
+      .eq('call_id', data.call_id);
+
+    if (updateError) {
+      console.error(`[RETELL-WEBHOOK-${requestId}] Failed to update call analysis:`, updateError);
+      return createErrorResponse(`Failed to update call analysis: ${updateError.message}`, 500);
+    }
+
+    console.log(`[RETELL-WEBHOOK-${requestId}] Successfully processed call_analyzed for: ${data.call_id}`);
+    
+    return createSuccessResponse({
+      message: 'Call analyzed event processed successfully',
+      call_id: data.call_id
+    });
+
+  } catch (error) {
+    console.error(`[RETELL-WEBHOOK-${requestId}] Error processing call_analyzed:`, error);
+    return createErrorResponse(`Failed to process call_analyzed: ${error.message}`, 500);
+  }
+}

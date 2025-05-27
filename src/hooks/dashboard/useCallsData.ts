@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { CallData } from "@/services/callService";
 import { subDays } from "date-fns";
-import { transformCallData } from "./callDataTransforms";
 
 export const useCallsData = () => {
   const { company, user } = useAuth();
@@ -22,7 +21,7 @@ export const useCallsData = () => {
       try {
         console.log("[DASHBOARD] Fetching calls for company:", companyId);
         
-        // Fixed: Use explicit foreign key alias to disambiguate the join
+        // Use the explicit foreign key alias to disambiguate the join
         const { data, error } = await supabase
           .from('calls')
           .select(`
