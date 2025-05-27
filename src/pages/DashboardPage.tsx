@@ -1,11 +1,9 @@
 
 import React from "react";
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
-import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDashboardLayout";
 import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { SuperAdminDashboard } from "@/components/dashboard/SuperAdminDashboard";
-import { ProductionBanner } from "@/components/common/ProductionBanner";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 
 export default function DashboardPage() {
@@ -13,23 +11,29 @@ export default function DashboardPage() {
 
   if (isSuperAdmin) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <ProductionBanner />
+      <ProductionDashboardLayout>
+        <div className="space-y-8">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-gray-900">System Overview</h1>
+            <p className="text-gray-600">Manage your AI calling platform and monitor system health.</p>
+          </div>
           <SuperAdminDashboard />
         </div>
-      </DashboardLayout>
+      </ProductionDashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <ProductionBanner />
-        <DashboardHeader />
+    <ProductionDashboardLayout>
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600">Monitor your AI call performance and insights.</p>
+        </div>
+        
         <DashboardMetrics />
         <DashboardCharts />
       </div>
-    </DashboardLayout>
+    </ProductionDashboardLayout>
   );
 }
