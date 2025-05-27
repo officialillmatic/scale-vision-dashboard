@@ -107,7 +107,7 @@ export const useCallSync = (refetch: () => void) => {
     },
     onSuccess: (data) => {
       console.log("[USE_CALL_SYNC] Webhook registration successful:", data);
-      toast.success("Retell webhook registered successfully! Real-time call updates are now enabled.");
+      toast.success("Webhook registered successfully! Real-time call updates are now enabled.");
     },
     onError: (error: any) => {
       console.error("[USE_CALL_SYNC] Webhook registration error:", error);
@@ -120,7 +120,7 @@ export const useCallSync = (refetch: () => void) => {
       } else if (error.message?.includes("Missing required env var")) {
         toast.error("Webhook registration failed: Missing environment variables. Please contact support.");
       } else {
-        toast.error(`Failed to register webhook: ${error.message}`);
+        toast.error(`Webhook registration failed: ${error.message}`);
       }
     },
   });
