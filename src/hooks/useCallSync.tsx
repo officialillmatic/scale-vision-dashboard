@@ -13,6 +13,11 @@ export const useCallSync = (refetch: () => void) => {
     mutationFn: async () => {
       try {
         console.log("[USE_CALL_SYNC] Starting call sync...");
+        console.log("[USE_CALL_SYNC] Using headers:", {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Content-Profile': 'public'
+        });
         
         // Create a timeout promise
         const timeoutPromise = new Promise((_, reject) => {
@@ -34,10 +39,11 @@ export const useCallSync = (refetch: () => void) => {
         
         if (error) {
           console.error("[USE_CALL_SYNC] Sync error:", error);
+          console.error("[USE_CALL_SYNC] Error details:", JSON.stringify(error, null, 2));
           
           // Enhanced error handling
-          if (error.message?.includes('CORS')) {
-            throw new Error("CORS configuration error. Please check function deployment.");
+          if (error.message?.includes('CORS') || error.message?.includes('preflight')) {
+            throw new Error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
           } else if (error.message?.includes('404')) {
             throw new Error("Sync function not found. Please ensure it's properly deployed.");
           } else if (error.message?.includes('401') || error.message?.includes('403')) {
@@ -91,8 +97,8 @@ export const useCallSync = (refetch: () => void) => {
       
       if (error.message?.includes("timeout") || error.message?.includes("timed out")) {
         toast.error("Sync operation timed out. Please check your Retell integration and try again.");
-      } else if (error.message?.includes("CORS")) {
-        toast.error("CORS configuration error. The function may need redeployment.");
+      } else if (error.message?.includes("CORS") || error.message?.includes("preflight")) {
+        toast.error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
       } else if (error.message?.includes("401") || error.message?.includes("unauthorized")) {
         toast.error("Authentication failed. Please check your Retell API credentials.");
       } else if (error.message?.includes("404")) {
@@ -109,6 +115,11 @@ export const useCallSync = (refetch: () => void) => {
   } = useMutation({
     mutationFn: async () => {
       console.log("[USE_CALL_SYNC] Registering Retell webhook...");
+      console.log("[USE_CALL_SYNC] Using headers:", {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Content-Profile': 'public'
+      });
       
       const { data, error } = await supabase.functions.invoke("register-retell-webhook", {
         body: {},
@@ -121,10 +132,11 @@ export const useCallSync = (refetch: () => void) => {
       
       if (error) {
         console.error("[USE_CALL_SYNC] Webhook registration error:", error);
+        console.error("[USE_CALL_SYNC] Error details:", JSON.stringify(error, null, 2));
         
         // Enhanced error handling
-        if (error.message?.includes('CORS')) {
-          throw new Error("CORS configuration error. Please check function deployment.");
+        if (error.message?.includes('CORS') || error.message?.includes('preflight')) {
+          throw new Error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
         }
         
         throw new Error(error.message || "Webhook registration failed");
@@ -141,8 +153,8 @@ export const useCallSync = (refetch: () => void) => {
       console.error("[USE_CALL_SYNC] Webhook registration error:", error);
       
       // Provide more helpful error messages
-      if (error.message?.includes("CORS")) {
-        toast.error("CORS configuration error. The webhook function may need redeployment.");
+      if (error.message?.includes("CORS") || error.message?.includes("preflight")) {
+        toast.error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
       } else if (error.message?.includes("404")) {
         toast.error("Webhook registration failed: Function not found. Please ensure the register-retell-webhook function is deployed.");
       } else if (error.message?.includes("401") || error.message?.includes("403")) {
@@ -161,6 +173,11 @@ export const useCallSync = (refetch: () => void) => {
   } = useMutation({
     mutationFn: async () => {
       console.log("[USE_CALL_SYNC] Testing Retell API connectivity...");
+      console.log("[USE_CALL_SYNC] Using headers:", {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Content-Profile': 'public'
+      });
       
       const { data, error } = await supabase.functions.invoke("sync-calls", {
         body: { test: true },
@@ -173,10 +190,11 @@ export const useCallSync = (refetch: () => void) => {
       
       if (error) {
         console.error("[USE_CALL_SYNC] Test error:", error);
+        console.error("[USE_CALL_SYNC] Error details:", JSON.stringify(error, null, 2));
         
         // Enhanced error handling
-        if (error.message?.includes('CORS')) {
-          throw new Error("CORS configuration error. Please check function deployment.");
+        if (error.message?.includes('CORS') || error.message?.includes('preflight')) {
+          throw new Error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
         }
         
         throw new Error(error.message || "Connectivity test failed");
@@ -192,8 +210,8 @@ export const useCallSync = (refetch: () => void) => {
       console.error("[USE_CALL_SYNC] Test error:", error);
       
       // Provide more helpful error messages for API tests
-      if (error.message?.includes("CORS")) {
-        toast.error("CORS configuration error. The sync function may need redeployment.");
+      if (error.message?.includes("CORS") || error.message?.includes("preflight")) {
+        toast.error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
       } else if (error.message?.includes("401") || error.message?.includes("403")) {
         toast.error("Retell API test failed: Invalid API key. Please check your Retell credentials.");
       } else if (error.message?.includes("404")) {

@@ -59,6 +59,12 @@ jobs:
           --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
           --env-file .env
     
+    - name: Deploy webhook-monitor function
+      run: |
+        supabase functions deploy webhook-monitor \
+          --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+          --env-file .env
+    
     - name: List deployed functions
       run: |
         echo "Listing all deployed functions:"
@@ -72,6 +78,7 @@ jobs:
         echo "- https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/register-retell-webhook"
         echo "- https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/retell-webhook"
         echo "- https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/user-agent-manager"
+        echo "- https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/webhook-monitor"
     
     - name: Clean up environment file
       if: always()

@@ -2,30 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { performDatabaseHealthCheck } from "../_shared/dbHealthCheck.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info, accept, accept-profile, content-profile',
-  'Access-Control-Max-Age': '86400'
-};
-
-function createErrorResponse(message: string, status: number = 400): Response {
-  return new Response(
-    JSON.stringify({ 
-      error: message, 
-      success: false,
-      timestamp: new Date().toISOString()
-    }), 
-    { 
-      status, 
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json' 
-      } 
-    }
-  );
-}
+import { handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
 
 // Use environment helper for secure env var access
 function env(key: string): string {
@@ -39,12 +16,8 @@ const supabaseServiceKey = env('SUPABASE_SERVICE_ROLE_KEY');
 
 serve(async (req) => {
   // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { 
-      status: 204,
-      headers: corsHeaders 
-    });
-  }
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   console.log(`[WEBHOOK-MONITOR] ${new Date().toISOString()} - Health check request`);
 

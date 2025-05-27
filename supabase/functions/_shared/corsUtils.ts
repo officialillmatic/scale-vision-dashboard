@@ -1,12 +1,15 @@
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, content-profile, accept',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, content-profile, accept, accept-profile, x-requested-with',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+  'Access-Control-Max-Age': '86400'
 };
 
 export function handleCors(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
+    console.log('[CORS] Handling OPTIONS preflight request');
+    console.log('[CORS] Headers being returned:', corsHeaders);
     return new Response('ok', { 
       headers: corsHeaders,
       status: 200 
@@ -34,6 +37,7 @@ export function createErrorResponse(message: string, status: number = 400): Resp
 }
 
 export function createSuccessResponse(data: any, status: number = 200): Response {
+  console.log('[CORS] Creating success response with headers:', corsHeaders);
   return new Response(
     JSON.stringify({ 
       ...data, 

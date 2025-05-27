@@ -1,6 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
+import { handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
 
 // Use environment helper for secure env var access
 function env(key: string): string {
