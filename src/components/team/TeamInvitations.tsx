@@ -105,6 +105,19 @@ export function TeamInvitations() {
     }
   };
 
+  const formatDate = (dateString: string | Date) => {
+    if (!dateString) return 'N/A';
+    
+    try {
+      const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      return date.toLocaleDateString('en-US');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid Date';
+    }
+  };
+
   // Filter to only show pending invitations
   const pendingInvitations = invitations?.filter(inv => inv.status === 'pending') || [];
   
@@ -156,8 +169,8 @@ export function TeamInvitations() {
                     <TableCell>
                       <Badge className={getRoleBadgeColor(invitation.role)}>{invitation.role}</Badge>
                     </TableCell>
-                    <TableCell>{invitation.created_at.toLocaleDateString()}</TableCell>
-                    <TableCell>{invitation.expires_at.toLocaleDateString()}</TableCell>
+                    <TableCell>{formatDate(invitation.created_at)}</TableCell>
+                    <TableCell>{formatDate(invitation.expires_at)}</TableCell>
                     <TableCell>
                       <Badge className={getStatusBadgeColor(invitation.status)}>{invitation.status}</Badge>
                     </TableCell>

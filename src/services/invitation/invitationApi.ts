@@ -18,7 +18,15 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
     }
 
     console.log("[INVITATION_API] Successfully fetched invitations:", data?.length || 0);
-    return data || [];
+    
+    // Convert string dates to Date objects for type consistency
+    const invitations = (data || []).map(invitation => ({
+      ...invitation,
+      created_at: new Date(invitation.created_at),
+      expires_at: new Date(invitation.expires_at)
+    }));
+
+    return invitations;
   } catch (error) {
     console.error("[INVITATION_API] Unexpected error:", error);
     throw error;

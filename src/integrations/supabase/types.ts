@@ -181,7 +181,7 @@ export type Database = {
         }
         Relationships: []
       }
-      company_invitations: {
+      company_invitations_raw: {
         Row: {
           company_id: string
           created_at: string
@@ -619,6 +619,30 @@ export type Database = {
       }
     }
     Views: {
+      company_invitations: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          email: string | null
+          expires_at: string | null
+          id: string | null
+          invited_by: string | null
+          invited_by_avatar: string | null
+          invited_by_name: string | null
+          role: string | null
+          status: string | null
+          token: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_invitations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       performance_metrics: {
         Row: {
           avg_cost: number | null

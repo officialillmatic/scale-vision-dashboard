@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitation";
 import { handleError } from "@/lib/errorHandling";
@@ -27,7 +28,10 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
 
   const fetchInvitations = async () => {
     // Super admins can operate without a specific company - fetch global invitations
-    if (!companyId && !isSuperAdmin) return;
+    if (!companyId && !isSuperAdmin) {
+      setInvitations([]);
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -41,6 +45,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
         logToConsole: true
       });
       setError("Failed to fetch invitations");
+      setInvitations([]);
     } finally {
       setIsLoading(false);
     }
@@ -48,7 +53,10 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   
   const fetchMembers = async () => {
     // Super admins can operate without a specific company - fetch all members
-    if (!companyId && !isSuperAdmin) return;
+    if (!companyId && !isSuperAdmin) {
+      setMembers([]);
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -59,6 +67,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
         fallbackMessage: "Failed to fetch team members",
         logToConsole: true
       });
+      setMembers([]);
     } finally {
       setIsLoading(false);
     }
