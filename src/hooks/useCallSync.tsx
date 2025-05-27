@@ -103,6 +103,7 @@ export const useCallSync = (refetch: () => void) => {
         throw new Error(error.message || "Webhook registration failed");
       }
       
+      console.log("[USE_CALL_SYNC] Webhook registration response:", data);
       return data;
     },
     onSuccess: (data) => {
@@ -114,7 +115,7 @@ export const useCallSync = (refetch: () => void) => {
       
       // Provide more helpful error messages
       if (error.message?.includes("404")) {
-        toast.error("Webhook registration failed: Retell API endpoint not found. Please check your Retell API configuration.");
+        toast.error("Webhook registration failed: Function not found. Please ensure the register-retell-webhook function is deployed.");
       } else if (error.message?.includes("401") || error.message?.includes("403")) {
         toast.error("Webhook registration failed: Invalid Retell API key. Please check your API credentials.");
       } else if (error.message?.includes("Missing required env var")) {
