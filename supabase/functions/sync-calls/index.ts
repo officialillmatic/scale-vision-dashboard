@@ -58,11 +58,50 @@ serve(async (req) => {
         }
       }
 
+      // Get company_id from request body if provided
+      const targetCompanyId = requestBody.company_id;
+      let whereClause = 'not(retell_agent_id, is, null)';
+      
+      if (targetCompanyId) {
+        console.log(`[SYNC-CALLS] Targeting specific company: ${targetCompanyId}`);
+        // Get agents for specific company through user_agents mapping
+        const { data: companyAgents, error: companyAgentsError } = await supabaseClient
+          .from('user_agents')
+          .select(`
+            agent_id,
+            agents!inner(id, retell_agent_id, rate_per_minute)
+          `)
+          .eq('company_id', targetCompanyId)
+          .not('agents.retell_agent_id', 'is', null);
+
+        if (companyAgentsError) {
+          console.error(`[SYNC-CALLS] Error fetching company agents:`, companyAgentsError);
+          return createErrorResponse(`Failed to fetch company agents: ${companyAgentsError.message}`, 500);
+        }
+
+        if (!companyAgents || companyAgents.length === 0) {
+          console.log(`[SYNC-CALLS] No agents with Retell integration found for company ${targetCompanyId}`);
+          return createSuccessResponse({
+            message: 'No agents with Retell integration found for this company',
+            synced_calls: 0,
+            processed_calls: 0,
+            agentsProcessed: 0,
+            company_id: targetCompanyId
+          });
+        }
+
+        console.log(`[SYNC-CALLS] Found ${companyAgents.length} agents for company ${targetCompanyId}`);
+        
+        // Use agent IDs to filter
+        const agentIds = companyAgents.map(ca => ca.agents.id);
+        whereClause = `id.in.(${agentIds.join(',')}) and not(retell_agent_id, is, null)`;
+      }
+
       // Get agents with Retell integration
       const { data: agents, error: agentsError } = await supabaseClient
         .from('agents')
         .select('id, retell_agent_id, rate_per_minute')
-        .not('retell_agent_id', 'is', null);
+        .or(whereClause);
 
       if (agentsError) {
         console.error(`[SYNC-CALLS] Error fetching agents:`, agentsError);
@@ -73,23 +112,39 @@ serve(async (req) => {
 
       let totalSynced = 0;
       let totalProcessed = 0;
+      const syncResults: any[] = [];
 
       for (const agent of agents || []) {
         try {
           console.log(`[SYNC-CALLS] Syncing calls for agent: ${agent.retell_agent_id}`);
           
           // Find user agent mapping for this agent
-          const { data: userAgent, error: userAgentError } = await supabaseClient
+          let userAgentQuery = supabaseClient
             .from('user_agents')
             .select('user_id, company_id')
-            .eq('agent_id', agent.id)
-            .single();
+            .eq('agent_id', agent.id);
+          
+          // If targeting specific company, filter by company_id
+          if (targetCompanyId) {
+            userAgentQuery = userAgentQuery.eq('company_id', targetCompanyId);
+          }
+
+          const { data: userAgent, error: userAgentError } = await userAgentQuery.single();
 
           if (userAgentError || !userAgent) {
             console.error(`[SYNC-CALLS] No user mapping found for agent ${agent.id}:`, userAgentError);
+            syncResults.push({
+              agent_id: agent.id,
+              retell_agent_id: agent.retell_agent_id,
+              status: 'error',
+              error: 'No user mapping found',
+              calls_synced: 0
+            });
             continue;
           }
 
+          let agentSynced = 0;
+          let agentProcessed = 0;
           let pageToken: string | null = null;
           let hasMore = true;
 
@@ -103,7 +158,7 @@ serve(async (req) => {
               requestBody.page_token = pageToken;
             }
 
-            console.log(`[SYNC-CALLS] Fetching calls with body:`, JSON.stringify(requestBody));
+            console.log(`[SYNC-CALLS] Fetching calls for agent ${agent.retell_agent_id}, page token: ${pageToken || 'none'}`);
 
             const response = await fetch('https://api.retellai.com/v2/list-calls', {
               method: 'POST',
@@ -117,6 +172,13 @@ serve(async (req) => {
             if (!response.ok) {
               const errorText = await response.text();
               console.error(`[SYNC-CALLS] Retell API error for agent ${agent.retell_agent_id}: ${response.status} - ${errorText}`);
+              syncResults.push({
+                agent_id: agent.id,
+                retell_agent_id: agent.retell_agent_id,
+                status: 'error',
+                error: `Retell API error: ${response.status}`,
+                calls_synced: agentSynced
+              });
               break;
             }
 
@@ -125,7 +187,7 @@ serve(async (req) => {
             hasMore = responseData.has_more || false;
             pageToken = responseData.next_page_token || null;
 
-            console.log(`[SYNC-CALLS] Retrieved ${calls.length} calls, hasMore: ${hasMore}`);
+            console.log(`[SYNC-CALLS] Retrieved ${calls.length} calls for agent ${agent.retell_agent_id}, hasMore: ${hasMore}`);
 
             // Process each call
             for (const call of calls) {
@@ -149,13 +211,13 @@ serve(async (req) => {
                 if (upsertError) {
                   console.error(`[SYNC-CALLS] Error upserting call ${call.call_id}:`, upsertError);
                 } else {
-                  totalSynced++;
+                  agentSynced++;
                 }
 
-                totalProcessed++;
+                agentProcessed++;
               } catch (callError) {
                 console.error(`[SYNC-CALLS] Error processing call ${call.call_id}:`, callError);
-                totalProcessed++;
+                agentProcessed++;
               }
             }
 
@@ -164,8 +226,27 @@ serve(async (req) => {
               await new Promise(resolve => setTimeout(resolve, 100));
             }
           }
+
+          syncResults.push({
+            agent_id: agent.id,
+            retell_agent_id: agent.retell_agent_id,
+            status: 'success',
+            calls_synced: agentSynced,
+            calls_processed: agentProcessed
+          });
+
+          totalSynced += agentSynced;
+          totalProcessed += agentProcessed;
+
         } catch (error) {
           console.error(`[SYNC-CALLS] Error syncing agent ${agent.retell_agent_id}:`, error);
+          syncResults.push({
+            agent_id: agent.id,
+            retell_agent_id: agent.retell_agent_id,
+            status: 'error',
+            error: error.message,
+            calls_synced: 0
+          });
         }
       }
 
@@ -175,7 +256,9 @@ serve(async (req) => {
         message: 'Sync completed successfully',
         synced_calls: totalSynced,
         processed_calls: totalProcessed,
-        agentsProcessed: agents?.length || 0
+        agentsProcessed: agents?.length || 0,
+        company_id: targetCompanyId || null,
+        sync_results: syncResults
       });
     }
 
