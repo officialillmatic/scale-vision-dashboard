@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface MockCallParams {
-  agentId: string;
+  agentId?: string;
   userId: string;
   companyId: string;
   count?: number;
@@ -13,7 +13,7 @@ export interface GeneratedCall {
   call_id: string;
   user_id: string;
   company_id: string;
-  agent_id: string;
+  agent_id?: string;
   timestamp: string;
   start_time: string;
   duration_sec: number;
@@ -37,9 +37,68 @@ function generatePhoneNumber(): string {
   return `+1${areaCode}${exchange}${number}`;
 }
 
+// Get or create a test agent for the user's company
+async function getOrCreateTestAgent(userId: string, companyId: string): Promise<string | null> {
+  try {
+    // First, try to find an existing agent for this company
+    const { data: existingAgents, error: fetchError } = await supabase
+      .from('agents')
+      .select('id')
+      .eq('status', 'active')
+      .limit(1);
+
+    if (fetchError) {
+      console.error('Error fetching agents:', fetchError);
+      return null;
+    }
+
+    if (existingAgents && existingAgents.length > 0) {
+      return existingAgents[0].id;
+    }
+
+    // If no agents exist, create a test agent
+    const { data: newAgent, error: createError } = await supabase
+      .from('agents')
+      .insert({
+        name: 'Test Agent',
+        description: 'Automatically created test agent for sample data',
+        status: 'active',
+        rate_per_minute: 0.02
+      })
+      .select('id')
+      .single();
+
+    if (createError) {
+      console.error('Error creating test agent:', createError);
+      return null;
+    }
+
+    // Create user-agent mapping
+    if (newAgent) {
+      const { error: mappingError } = await supabase
+        .from('user_agents')
+        .insert({
+          user_id: userId,
+          agent_id: newAgent.id,
+          company_id: companyId,
+          is_primary: true
+        });
+
+      if (mappingError) {
+        console.error('Error creating user-agent mapping:', mappingError);
+      }
+    }
+
+    return newAgent?.id || null;
+  } catch (error) {
+    console.error('Error in getOrCreateTestAgent:', error);
+    return null;
+  }
+}
+
 // Generate realistic call data
-function generateMockCall(params: MockCallParams, index: number): GeneratedCall {
-  const { agentId, userId, companyId } = params;
+function generateMockCall(params: MockCallParams, index: number, agentId?: string): GeneratedCall {
+  const { userId, companyId } = params;
   
   // Generate timestamp within last 30 days
   const now = new Date();
@@ -94,11 +153,10 @@ function generateMockCall(params: MockCallParams, index: number): GeneratedCall 
   
   const callId = `test_call_${Date.now()}_${index}`;
   
-  return {
+  const baseCall: GeneratedCall = {
     call_id: callId,
     user_id: userId,
     company_id: companyId,
-    agent_id: agentId,
     timestamp: randomTime.toISOString(),
     start_time: randomTime.toISOString(),
     duration_sec: durationSec,
@@ -113,17 +171,30 @@ function generateMockCall(params: MockCallParams, index: number): GeneratedCall 
     recording_url: callStatus === 'completed' ? `https://example.com/recordings/${callId}.mp3` : null,
     call_type: 'phone_call'
   };
+
+  // Only add agent_id if we have a valid one
+  if (agentId) {
+    baseCall.agent_id = agentId;
+  }
+
+  return baseCall;
 }
 
 export async function generateTestCalls(params: MockCallParams): Promise<boolean> {
-  const { count = 20 } = params;
+  const { count = 20, userId, companyId } = params;
   
   try {
     console.log(`Generating ${count} test calls...`);
     
+    // Get or create a test agent
+    const agentId = await getOrCreateTestAgent(userId, companyId);
+    if (!agentId) {
+      console.warn('Could not get or create test agent, proceeding without agent_id');
+    }
+    
     const calls: GeneratedCall[] = [];
     for (let i = 0; i < count; i++) {
-      calls.push(generateMockCall(params, i));
+      calls.push(generateMockCall(params, i, agentId || undefined));
     }
     
     // Insert calls in batches to avoid timeout

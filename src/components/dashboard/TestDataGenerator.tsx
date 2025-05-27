@@ -35,7 +35,6 @@ export const TestDataGenerator: React.FC = () => {
     setIsGenerating(true);
     try {
       await generateTestCalls({
-        agentId: 'test-agent-id', // You can replace with actual agent ID
         userId: user.id,
         companyId: company.id,
         count: callCount
@@ -155,7 +154,8 @@ export const TestDataGenerator: React.FC = () => {
             </div>
             
             <p className="text-sm text-gray-600">
-              Creates realistic sample call data with various outcomes, timestamps, and costs
+              Creates realistic sample call data with various outcomes, timestamps, and costs. 
+              If no agents exist, a test agent will be created automatically.
             </p>
           </div>
         </div>
@@ -241,6 +241,7 @@ export const TestDataGenerator: React.FC = () => {
                 <li>• Data includes realistic costs, durations, and outcomes</li>
                 <li>• Charts and metrics will populate with the new data</li>
                 <li>• You can generate more calls or clear them anytime</li>
+                <li>• Test agents will be created automatically if needed</li>
               </ul>
             </div>
           </div>
