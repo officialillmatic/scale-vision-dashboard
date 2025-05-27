@@ -17,7 +17,7 @@ const CallsPage: React.FC = () => {
           <p className="text-gray-600">View and analyze your AI call interactions.</p>
         </div>
         
-        <CallTable />
+        <CallTable onSelectCall={handleSelectCall} />
       </div>
     </ProductionDashboardLayout>
   );

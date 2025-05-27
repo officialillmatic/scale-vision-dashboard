@@ -224,7 +224,11 @@ export class RetellAbstraction {
       hasRecording: !!call.recording_url,
       hasTranscript: !!call.transcript_url,
       summary: call.call_summary,
-      agent: call.agents ? {
+      agent: call.agents && Array.isArray(call.agents) && call.agents.length > 0 ? {
+        id: call.agents[0].id,
+        name: call.agents[0].name,
+        ratePerMinute: call.agents[0].rate_per_minute
+      } : call.agents ? {
         id: call.agents.id,
         name: call.agents.name,
         ratePerMinute: call.agents.rate_per_minute
