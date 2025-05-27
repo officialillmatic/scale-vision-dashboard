@@ -12,6 +12,7 @@ export type Database = {
       agents: {
         Row: {
           avatar_url: string | null
+          company_id: string | null
           created_at: string
           description: string | null
           id: string
@@ -23,6 +24,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          company_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -34,6 +36,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          company_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -43,7 +46,15 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "agents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       calls: {
         Row: {
@@ -258,6 +269,50 @@ export type Database = {
             foreignKeyName: "company_members_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_pricing: {
+        Row: {
+          base_rate_per_minute: number
+          company_id: string
+          created_at: string
+          custom_rate_per_minute: number | null
+          id: string
+          pricing_type: string
+          updated_at: string
+          volume_discount_rate: number | null
+          volume_discount_threshold: number | null
+        }
+        Insert: {
+          base_rate_per_minute?: number
+          company_id: string
+          created_at?: string
+          custom_rate_per_minute?: number | null
+          id?: string
+          pricing_type?: string
+          updated_at?: string
+          volume_discount_rate?: number | null
+          volume_discount_threshold?: number | null
+        }
+        Update: {
+          base_rate_per_minute?: number
+          company_id?: string
+          created_at?: string
+          custom_rate_per_minute?: number | null
+          id?: string
+          pricing_type?: string
+          updated_at?: string
+          volume_discount_rate?: number | null
+          volume_discount_threshold?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_pricing_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
@@ -616,6 +671,62 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      white_label_configs: {
+        Row: {
+          company_id: string
+          company_name: string
+          created_at: string
+          custom_domain: string | null
+          email_from_address: string | null
+          email_from_name: string | null
+          enabled: boolean
+          id: string
+          logo_url: string | null
+          primary_color: string | null
+          secondary_color: string | null
+          support_email: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          company_name: string
+          created_at?: string
+          custom_domain?: string | null
+          email_from_address?: string | null
+          email_from_name?: string | null
+          enabled?: boolean
+          id?: string
+          logo_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          support_email?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          company_name?: string
+          created_at?: string
+          custom_domain?: string | null
+          email_from_address?: string | null
+          email_from_name?: string | null
+          enabled?: boolean
+          id?: string
+          logo_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          support_email?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "white_label_configs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

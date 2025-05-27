@@ -4,6 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { AppearanceSettings } from '@/components/settings/AppearanceSettings';
 import { CompanySettings } from '@/components/settings/CompanySettings';
+import { CompanyPricingSettings } from '@/components/settings/CompanyPricingSettings';
+import { WhiteLabelSettings } from '@/components/settings/WhiteLabelSettings';
 import { DisplaySettings } from '@/components/settings/DisplaySettings';
 import { NotificationsSettings } from '@/components/settings/NotificationsSettings';
 import { BillingSettings } from '@/components/settings/BillingSettings';
@@ -18,17 +20,17 @@ const SettingsPage = () => {
   const isAdmin = isCompanyOwner || checkRole('admin');
   const navigate = useNavigate();
   
-  // Prevent accessing the billing tab if not an admin
+  // Prevent accessing admin tabs if not an admin
   useEffect(() => {
-    if (activeTab === 'billing' && !can.accessBillingSettings) {
-      toast.error('You need administrator permissions to access billing settings');
+    if ((activeTab === 'billing' || activeTab === 'pricing' || activeTab === 'white-label') && !can.accessBillingSettings) {
+      toast.error('You need administrator permissions to access this section');
       setActiveTab('company');
     }
   }, [activeTab, can.accessBillingSettings]);
   
   const handleTabChange = (value: string) => {
-    if (value === 'billing' && !isAdmin) {
-      toast.error('You need administrator privileges to access billing settings');
+    if ((value === 'billing' || value === 'pricing' || value === 'white-label') && !isAdmin) {
+      toast.error('You need administrator privileges to access this section');
       return;
     }
     setActiveTab(value);
@@ -42,6 +44,8 @@ const SettingsPage = () => {
         <Tabs defaultValue={activeTab} value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="company">Company</TabsTrigger>
+            {isAdmin && <TabsTrigger value="pricing">Pricing</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="white-label">White Label</TabsTrigger>}
             {isAdmin && <TabsTrigger value="billing">Billing</TabsTrigger>}
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
@@ -51,6 +55,28 @@ const SettingsPage = () => {
           <TabsContent value="company">
             <div className="space-y-6">
               <CompanySettings />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="pricing">
+            <div className="space-y-6">
+              <RoleCheck 
+                adminOnly
+                fallback={<div className="text-muted-foreground">You don't have permission to access pricing settings.</div>}
+              >
+                <CompanyPricingSettings />
+              </RoleCheck>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="white-label">
+            <div className="space-y-6">
+              <RoleCheck 
+                adminOnly
+                fallback={<div className="text-muted-foreground">You don't have permission to access white label settings.</div>}
+              >
+                <WhiteLabelSettings />
+              </RoleCheck>
             </div>
           </TabsContent>
           
