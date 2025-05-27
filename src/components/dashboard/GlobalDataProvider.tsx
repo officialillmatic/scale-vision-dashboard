@@ -99,7 +99,7 @@ export const GlobalDataProvider: React.FC<GlobalDataProviderProps> = ({ children
         .from('calls')
         .select(`
           *,
-          agents!agent_id (id, name)
+          agents!calls_agent_id_fkey (id, name)
         `)
         .order('timestamp', { ascending: false })
         .limit(100);

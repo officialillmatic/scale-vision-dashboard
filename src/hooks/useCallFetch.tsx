@@ -27,12 +27,12 @@ export const useCallFetch = () => {
       console.log("[USE_CALL_FETCH] Fetching calls for company:", company.id);
       
       try {
-        // Updated query to properly reference the agent relationship
+        // Use explicit foreign key name to avoid ambiguity
         const { data, error } = await supabase
           .from('calls')
           .select(`
             *,
-            agents!agent_id (
+            agents!calls_agent_id_fkey (
               id, 
               name,
               rate_per_minute

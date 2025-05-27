@@ -1,10 +1,53 @@
 
-import { handleCors, createSuccessResponse, createErrorResponse } from '../_shared/corsUtils.ts';
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info, accept, accept-profile, content-profile',
+  'Access-Control-Max-Age': '86400'
+};
+
+function createSuccessResponse(data: any): Response {
+  return new Response(
+    JSON.stringify({ 
+      ...data, 
+      success: true,
+      timestamp: new Date().toISOString()
+    }), 
+    { 
+      status: 200, 
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json' 
+      } 
+    }
+  );
+}
+
+function createErrorResponse(message: string, status: number = 400): Response {
+  return new Response(
+    JSON.stringify({ 
+      error: message, 
+      success: false,
+      timestamp: new Date().toISOString()
+    }), 
+    { 
+      status, 
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json' 
+      } 
+    }
+  );
+}
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { 
+      status: 204,
+      headers: corsHeaders 
+    });
+  }
 
   try {
     console.log('[CHECK-EMAIL-CONFIG] Checking email configuration');

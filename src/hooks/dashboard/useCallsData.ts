@@ -26,7 +26,7 @@ export const useCallsData = () => {
           .from('calls')
           .select(`
             *,
-            agents!agent_id (
+            agents!calls_agent_id_fkey (
               id, 
               name,
               rate_per_minute
@@ -75,7 +75,7 @@ export const useCallsData = () => {
           .from('calls')
           .select(`
             *,
-            agents!agent_id (
+            agents!calls_agent_id_fkey (
               id, 
               name,
               rate_per_minute

@@ -1,86 +1,127 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders, handleCors, createSuccessResponse } from "../_shared/corsUtils.ts";
-import { validateInvitationRequest } from "./validation.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { getCurrentUserId } from "./auth.ts";
-import { 
-  getCompanyDetails, 
-  checkExistingInvitation, 
-  createInvitationRecord, 
-  updateInvitationExpiry,
-  getExistingInvitation 
-} from "./database.ts";
+import { validateInvitationRequest } from "./validation.ts";
+import { createInvitation } from "./database.ts";
 import { sendInvitationEmail } from "./email.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Use environment helper for secure env var access
-function env(key: string): string {
-  const val = Deno?.env?.get?.(key);
-  if (!val) throw new Error(`⚠️  Missing required env var: ${key}`);
-  return val;
-}
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info, accept, accept-profile, content-profile',
+  'Access-Control-Max-Age': '86400'
+};
 
-serve(async (req: Request) => {
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { 
+      status: 204,
+      headers: corsHeaders 
+    });
+  }
+
+  console.log(`[SEND-INVITATION] ${req.method} request received`);
 
   try {
-    const supabaseUrl = env("SUPABASE_URL");
-    const supabaseServiceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-    const resendApiKey = env("RESEND_API_KEY");
-    const baseUrl = env("PUBLIC_APP_URL");
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const requestData = await req.json();
-    
-    console.log("Received invitation request:", requestData);
-
-    // Validate request
-    const validation = validateInvitationRequest(requestData);
-    if (!validation.isValid) {
-      return validation.error!;
+    if (req.method !== 'POST') {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }),
+        { 
+          status: 405,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        }
+      );
     }
 
-    const { email, companyId, role, invitationId } = requestData;
+    // Get current user ID
     const currentUserId = await getCurrentUserId(req);
-
-    // Get company details
-    const company = await getCompanyDetails(supabase, companyId);
-
-    // Handle resend invitation case
-    if (invitationId) {
-      console.log("Resending invitation:", invitationId);
-      
-      const invitation = await getExistingInvitation(supabase, invitationId);
-      await updateInvitationExpiry(supabase, invitationId);
-      
-      // Send email
-      await sendInvitationEmail(email, company, invitation, baseUrl, resendApiKey);
-      
-      return createSuccessResponse({
-        message: "Invitation resent successfully",
-        invitationId: invitation.id
-      });
+    if (!currentUserId) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { 
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        }
+      );
     }
 
-    // Check for existing pending invitation
-    await checkExistingInvitation(supabase, companyId, email);
+    // Parse and validate request
+    const requestData = await req.json();
+    console.log("Received invitation request:", requestData);
+    
+    const validationResult = validateInvitationRequest(requestData);
+    if (!validationResult.isValid) {
+      return new Response(
+        JSON.stringify({ error: validationResult.error }),
+        { 
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        }
+      );
+    }
 
-    // Create new invitation
-    const invitation = await createInvitationRecord(supabase, companyId, email, role, currentUserId);
+    const { companyId, email, role } = validationResult.data;
 
-    console.log("Created invitation:", invitation.id);
+    // Create invitation in database
+    const invitation = await createInvitation(
+      supabaseClient,
+      companyId,
+      email,
+      role,
+      currentUserId
+    );
 
-    // Send email
-    await sendInvitationEmail(email, company, invitation, baseUrl, resendApiKey);
+    // Send invitation email
+    await sendInvitationEmail(invitation);
 
-    return createSuccessResponse({
-      message: "Invitation sent successfully",
-      invitationId: invitation.id
-    });
+    console.log("Invitation sent successfully:", invitation.id);
 
-  } catch (error) {
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        invitationId: invitation.id,
+        message: 'Invitation sent successfully'
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      }
+    );
+
+  } catch (error: any) {
     console.error("Send invitation error:", error);
-    return createErrorResponse(error.message || "Failed to send invitation", 500);
+    
+    return new Response(
+      JSON.stringify({ 
+        error: error.message || 'Internal server error',
+        success: false
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      }
+    );
   }
 });

@@ -30,7 +30,7 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
       .from("calls")
       .select(`
         *,
-        agents!agent_id(id, name, agent_id, rate_per_minute)
+        agents!calls_agent_id_fkey(id, name, agent_id, rate_per_minute)
       `)
       .eq("company_id", companyId)
       .order("timestamp", { ascending: false })
