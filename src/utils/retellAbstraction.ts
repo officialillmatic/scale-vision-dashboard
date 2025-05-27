@@ -210,30 +210,45 @@ export class RetellAbstraction {
     }
 
     // Sanitize the data before returning
-    return data?.map(call => ({
-      id: call.id,
-      callId: call.call_id,
-      timestamp: call.timestamp,
-      duration: call.duration_sec,
-      cost: call.cost_usd,
-      sentiment: call.sentiment,
-      sentimentScore: call.sentiment_score,
-      status: call.call_status,
-      fromNumber: this.sanitizePhoneNumber(call.from_number),
-      toNumber: this.sanitizePhoneNumber(call.to_number),
-      hasRecording: !!call.recording_url,
-      hasTranscript: !!call.transcript_url,
-      summary: call.call_summary,
-      agent: call.agents && Array.isArray(call.agents) && call.agents.length > 0 ? {
-        id: call.agents[0].id,
-        name: call.agents[0].name,
-        ratePerMinute: call.agents[0].rate_per_minute
-      } : call.agents && !Array.isArray(call.agents) ? {
-        id: call.agents.id,
-        name: call.agents.name,
-        ratePerMinute: call.agents.rate_per_minute
-      } : null
-    })) || [];
+    return data?.map(call => {
+      // Handle agent data more explicitly
+      let agentData = null;
+      
+      if (call.agents) {
+        if (Array.isArray(call.agents) && call.agents.length > 0) {
+          const firstAgent = call.agents[0];
+          agentData = {
+            id: firstAgent.id,
+            name: firstAgent.name,
+            ratePerMinute: firstAgent.rate_per_minute
+          };
+        } else if (!Array.isArray(call.agents)) {
+          // Single agent object
+          agentData = {
+            id: call.agents.id,
+            name: call.agents.name,
+            ratePerMinute: call.agents.rate_per_minute
+          };
+        }
+      }
+
+      return {
+        id: call.id,
+        callId: call.call_id,
+        timestamp: call.timestamp,
+        duration: call.duration_sec,
+        cost: call.cost_usd,
+        sentiment: call.sentiment,
+        sentimentScore: call.sentiment_score,
+        status: call.call_status,
+        fromNumber: this.sanitizePhoneNumber(call.from_number),
+        toNumber: this.sanitizePhoneNumber(call.to_number),
+        hasRecording: !!call.recording_url,
+        hasTranscript: !!call.transcript_url,
+        summary: call.call_summary,
+        agent: agentData
+      };
+    }) || [];
   }
 
   /**
