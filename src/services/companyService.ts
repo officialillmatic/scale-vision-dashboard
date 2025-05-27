@@ -1,188 +1,101 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import { Company } from "@/types/auth";
-import { handleError } from "@/lib/errorHandling";
-import { User } from "@supabase/supabase-js";
+import { Company, CompanyPricing, WhiteLabelConfig } from "@/lib/types/company";
 
-export interface CompanyMember {
-  id: string;
-  company_id: string;
-  user_id: string;
-  role: 'admin' | 'member' | 'viewer';
-  status: 'active' | 'inactive';
-  created_at: Date;
-  updated_at: Date;
-  user_details?: {
-    id: string;
-    email: string;
-    name?: string;
-    avatar_url?: string;
-  };
-}
-
-export async function loadCompany(user: User | null): Promise<Company | null> {
-  if (!user) return null;
-
-  const { data, error, status } = await supabase
-    .from('companies')
-    .select('*')
-    .eq('owner_id', user.id)
-    .single();
-
-  if (status === 403 || status === 404) {
-    return null; // break the retry loop
-  }
-
-  if (error) throw error;
-  return data;
-}
-
-export const fetchCompany = async (userId: string): Promise<Company | null> => {
-  try {
-    console.log("[COMPANY_SERVICE] Fetching company data for user:", userId);
-    
-    // First try to get a company where the user is the owner
-    const { data: ownedCompany, error: ownedError } = await supabase
-      .from("companies")
-      .select("*")
-      .eq("owner_id", userId)
-      .limit(1)
-      .maybeSingle();
-
-    if (ownedError && ownedError.code !== 'PGRST116') {
-      console.error("[COMPANY_SERVICE] Error fetching owned company:", ownedError);
-    }
-
-    if (ownedCompany) {
-      console.log("[COMPANY_SERVICE] Found owned company:", ownedCompany.id);
-      return ownedCompany;
-    }
-
-    // If no owned company, check if user is a member of a company
-    const { data: membership, error: memberError } = await supabase
-      .from("company_members")
-      .select("company_id")
-      .eq("user_id", userId)
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle();
-
-    if (memberError && memberError.code !== 'PGRST116') {
-      console.error("[COMPANY_SERVICE] Error fetching member company:", memberError);
-    }
-
-    if (membership?.company_id) {
-      // Now fetch the actual company data
-      const { data: memberCompany, error: companyError } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("id", membership.company_id)
-        .single();
-
-      if (companyError) {
-        console.error("[COMPANY_SERVICE] Error fetching member company details:", companyError);
-        return null;
-      }
-
-      console.log("[COMPANY_SERVICE] Found member company:", memberCompany.id);
-      return memberCompany;
-    }
-
-    console.log("[COMPANY_SERVICE] No company found for user, creating default company");
-    
-    // Create a default company for the user
-    const defaultCompanyName = `My Company`;
-    const newCompany = await createCompany(defaultCompanyName, userId);
-    
-    if (newCompany) {
-      console.log("[COMPANY_SERVICE] Created default company:", newCompany.id);
-      return newCompany;
-    }
-
-    console.log("[COMPANY_SERVICE] Failed to create company, returning null");
-    return null;
-  } catch (error) {
-    console.error("[COMPANY_SERVICE] Error in fetchCompany:", error);
-    return null;
-  }
-};
-
-export const createCompany = async (name: string, userId: string): Promise<Company | null> => {
-  try {
-    console.log("[COMPANY_SERVICE] Creating company:", name, "for user:", userId);
-    
+export const companyService = {
+  async getCompanyPricing(companyId: string): Promise<CompanyPricing | null> {
     const { data, error } = await supabase
-      .from("companies")
-      .insert({
-        name,
-        owner_id: userId,
+      .from('company_pricing')
+      .select('*')
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching company pricing:', error);
+      throw error;
+    }
+
+    return data;
+  },
+
+  async updateCompanyPricing(companyId: string, pricing: Partial<CompanyPricing>): Promise<CompanyPricing> {
+    const { data, error } = await supabase
+      .from('company_pricing')
+      .upsert({
+        company_id: companyId,
+        ...pricing,
+        updated_at: new Date().toISOString()
       })
       .select()
       .single();
 
     if (error) {
-      console.error("[COMPANY_SERVICE] Error creating company:", error);
+      console.error('Error updating company pricing:', error);
       throw error;
     }
 
-    console.log("[COMPANY_SERVICE] Company created successfully:", data.id);
     return data;
-  } catch (error) {
-    console.error("[COMPANY_SERVICE] Error creating company:", error);
-    handleError(error, {
-      fallbackMessage: "Failed to create company"
-    });
-    return null;
-  }
-};
+  },
 
-export const updateCompany = async (
-  companyId: string,
-  updates: Partial<Omit<Company, "id" | "owner_id">>
-): Promise<Company | null> => {
-  try {
+  async getWhiteLabelConfig(companyId: string): Promise<WhiteLabelConfig | null> {
     const { data, error } = await supabase
-      .from("companies")
-      .update(updates)
-      .eq("id", companyId)
+      .from('white_label_configs')
+      .select('*')
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching white label config:', error);
+      throw error;
+    }
+
+    return data;
+  },
+
+  async updateWhiteLabelConfig(companyId: string, config: Partial<WhiteLabelConfig>): Promise<WhiteLabelConfig> {
+    const { data, error } = await supabase
+      .from('white_label_configs')
+      .upsert({
+        company_id: companyId,
+        ...config,
+        updated_at: new Date().toISOString()
+      })
       .select()
       .single();
 
     if (error) {
+      console.error('Error updating white label config:', error);
       throw error;
     }
 
     return data;
-  } catch (error) {
-    console.error("Error updating company:", error);
-    handleError(error, {
-      fallbackMessage: "Failed to update company"
-    });
-    return null;
-  }
-};
+  },
 
-export const updateCompanyLogo = async (
-  companyId: string,
-  logoUrl: string
-): Promise<Company | null> => {
-  try {
-    const { data, error } = await supabase
-      .from("companies")
-      .update({ logo_url: logoUrl })
-      .eq("id", companyId)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
+  async calculateCallCost(companyId: string, durationSeconds: number): Promise<number> {
+    const pricing = await this.getCompanyPricing(companyId);
+    
+    if (!pricing) {
+      // Default pricing if no custom pricing is set
+      return (durationSeconds / 60) * 0.02; // $0.02 per minute default
     }
 
-    return data;
-  } catch (error) {
-    console.error("Error updating company logo:", error);
-    handleError(error, {
-      fallbackMessage: "Failed to update company logo"
-    });
-    return null;
+    const minutes = durationSeconds / 60;
+    
+    switch (pricing.pricing_type) {
+      case 'custom':
+        return minutes * (pricing.custom_rate_per_minute || pricing.base_rate_per_minute);
+      
+      case 'enterprise':
+        // Apply volume discounts for enterprise
+        if (pricing.volume_discount_threshold && minutes >= pricing.volume_discount_threshold) {
+          const discountRate = pricing.volume_discount_rate || 0;
+          const discountedRate = pricing.base_rate_per_minute * (1 - discountRate);
+          return minutes * discountedRate;
+        }
+        return minutes * pricing.base_rate_per_minute;
+      
+      default:
+        return minutes * pricing.base_rate_per_minute;
+    }
   }
 };

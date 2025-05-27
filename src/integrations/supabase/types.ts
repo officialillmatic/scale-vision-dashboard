@@ -773,6 +773,7 @@ export type Database = {
           status: string
           created_at: string
           updated_at: string
+          company_id: string
         }[]
       }
       get_user_balance: {

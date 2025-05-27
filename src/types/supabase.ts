@@ -1,3 +1,4 @@
+
 import { Database as OriginalDatabase } from "@/integrations/supabase/types";
 
 // Define the calls table structure
@@ -30,7 +31,7 @@ export interface CallsTable {
   agent_id?: string | null;
 }
 
-// Define agent table structure
+// Define agent table structure with company_id
 export interface AgentTable {
   id: string;
   name: string;
@@ -41,6 +42,7 @@ export interface AgentTable {
   updated_at: string;
   rate_per_minute?: number;
   retell_agent_id?: string;
+  company_id: string; // Now required for company-specific agents
 }
 
 // Define user agent relationship table structure
@@ -50,6 +52,36 @@ export interface UserAgentTable {
   agent_id: string;
   company_id: string;
   is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Define company pricing structure
+export interface CompanyPricingTable {
+  id: string;
+  company_id: string;
+  pricing_type: 'standard' | 'custom' | 'enterprise';
+  base_rate_per_minute: number;
+  volume_discount_threshold?: number | null;
+  volume_discount_rate?: number | null;
+  custom_rate_per_minute?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Define white label configuration structure
+export interface WhiteLabelConfigTable {
+  id: string;
+  company_id: string;
+  enabled: boolean;
+  company_name: string;
+  logo_url?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  custom_domain?: string | null;
+  email_from_name?: string | null;
+  email_from_address?: string | null;
+  support_email?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -73,9 +105,35 @@ export interface ExtendedDatabase extends OriginalDatabase {
         Insert: Partial<UserAgentTable>;
         Update: Partial<UserAgentTable>;
       };
+      company_pricing: {
+        Row: CompanyPricingTable;
+        Insert: Partial<CompanyPricingTable>;
+        Update: Partial<CompanyPricingTable>;
+      };
+      white_label_configs: {
+        Row: WhiteLabelConfigTable;
+        Insert: Partial<WhiteLabelConfigTable>;
+        Update: Partial<WhiteLabelConfigTable>;
+      };
     } & OriginalDatabase['public']['Tables'];
     Views: OriginalDatabase['public']['Views'];
-    Functions: OriginalDatabase['public']['Functions'];
+    Functions: OriginalDatabase['public']['Functions'] & {
+      get_user_accessible_agents: {
+        Args: { p_user_id: string; p_company_id: string };
+        Returns: {
+          id: string;
+          name: string;
+          description: string;
+          rate_per_minute: number;
+          retell_agent_id: string;
+          avatar_url: string;
+          status: string;
+          created_at: string;
+          updated_at: string;
+          company_id: string;
+        }[];
+      };
+    };
     Enums: OriginalDatabase['public']['Enums'];
     CompositeTypes: OriginalDatabase['public']['CompositeTypes'];
   };

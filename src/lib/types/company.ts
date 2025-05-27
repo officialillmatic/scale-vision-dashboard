@@ -71,6 +71,36 @@ export interface CompanyBilling {
   updated_at: string;
 }
 
+// New pricing structure
+export interface CompanyPricing {
+  id: string;
+  company_id: string;
+  pricing_type: 'standard' | 'custom' | 'enterprise';
+  base_rate_per_minute: number;
+  volume_discount_threshold?: number;
+  volume_discount_rate?: number;
+  custom_rate_per_minute?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// New white label configuration
+export interface WhiteLabelConfig {
+  id: string;
+  company_id: string;
+  enabled: boolean;
+  company_name: string;
+  logo_url?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  custom_domain?: string;
+  email_from_name?: string;
+  email_from_address?: string;
+  support_email?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type CompanyRole = 'admin' | 'member' | 'viewer';
 
 export interface CompanyPermissions {
@@ -81,6 +111,8 @@ export interface CompanyPermissions {
   canInviteUsers: boolean;
   canRemoveUsers: boolean;
   canAccessBilling: boolean;
+  canConfigureWhiteLabel: boolean;
+  canManagePricing: boolean;
 }
 
 export interface CompanyUsage {
