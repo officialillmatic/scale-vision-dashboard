@@ -30,9 +30,6 @@ export function WebhookMonitor() {
       setIsLoading(true);
       setError(null);
       
-      console.log("[WEBHOOK_MONITOR] Fetching webhook health data...");
-      
-      // Use the new database function instead of edge function
       const { data, error } = await supabase.rpc('get_webhook_health');
       
       if (error) {
@@ -62,7 +59,6 @@ export function WebhookMonitor() {
         });
       }
       
-      console.log("[WEBHOOK_MONITOR] Health data fetched successfully");
     } catch (err: any) {
       console.error('[WEBHOOK_MONITOR] Error fetching webhook health:', err);
       setError(err.message || 'Failed to fetch webhook health');
@@ -73,19 +69,16 @@ export function WebhookMonitor() {
 
   useEffect(() => {
     fetchWebhookHealth();
-    
-    // Refresh every 30 seconds
     const interval = setInterval(fetchWebhookHealth, 30000);
-    
     return () => clearInterval(interval);
   }, [user]);
 
-  const getStatusColor = (status: string) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-500';
-      case 'inactive': return 'bg-yellow-500';
-      case 'error': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'active': return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'inactive': return <Activity className="h-4 w-4 text-yellow-600" />;
+      case 'error': return <AlertCircle className="h-4 w-4 text-red-600" />;
+      default: return <Activity className="h-4 w-4 text-gray-600" />;
     }
   };
 
@@ -95,15 +88,6 @@ export function WebhookMonitor() {
       case 'good': return 'text-yellow-600';
       case 'poor': return 'text-red-600';
       default: return 'text-gray-600';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'active': return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'inactive': return <Activity className="h-4 w-4 text-yellow-600" />;
-      case 'error': return <AlertCircle className="h-4 w-4 text-red-600" />;
-      default: return <Activity className="h-4 w-4 text-gray-600" />;
     }
   };
 

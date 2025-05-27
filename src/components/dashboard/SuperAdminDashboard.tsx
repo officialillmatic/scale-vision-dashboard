@@ -36,7 +36,6 @@ export const SuperAdminDashboard = () => {
         <h1 className="text-3xl font-bold">Super Admin Dashboard</h1>
       </div>
 
-      {/* System Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -78,10 +77,8 @@ export const SuperAdminDashboard = () => {
         </Card>
       </div>
 
-      {/* Production Readiness Panel */}
       <ProductionReadinessPanel />
 
-      {/* Detailed Admin Sections */}
       <Tabs defaultValue="security" className="space-y-4">
         <TabsList>
           <TabsTrigger value="security">Security</TabsTrigger>

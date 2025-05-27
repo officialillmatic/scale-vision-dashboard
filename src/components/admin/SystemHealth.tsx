@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Server, Database, Wifi, AlertTriangle, CheckCircle, RefreshCw } from "lucide-react";
@@ -9,15 +8,11 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface SystemStatus {
   database: 'healthy' | 'warning' | 'error';
-  aiApi: 'healthy' | 'warning' | 'error';
   webhooks: 'healthy' | 'warning' | 'error';
-  edgeFunctions: 'healthy' | 'warning' | 'error';
   lastCheck: string;
   details: {
     totalCalls: number;
     activeAgents: number;
-    recentErrors: number;
-    apiConnectivity: boolean;
   };
 }
 
@@ -34,43 +29,26 @@ export function SystemHealth() {
       setIsLoading(true);
       setError(null);
       
-      console.log("[SYSTEM_HEALTH] Starting comprehensive health check...");
+      console.log("[SYSTEM_HEALTH] Starting health check...");
 
-      // Test database connectivity with the new rate limiting function
-      console.log("[SYSTEM_HEALTH] Testing database connectivity...");
-      
-      const { data: rateLimitTest, error: rateLimitError } = await supabase.rpc('check_rate_limit', {
-        p_user_id: user.id,
-        p_action: 'health_check',
-        p_limit_per_hour: 100
-      });
-
-      // Get call count
       const { count: callsCount, error: callsError } = await supabase
         .from('calls')
         .select('*', { count: 'exact', head: true });
         
-      // Get active agents count
       const { count: agentsCount, error: agentsError } = await supabase
         .from('agents')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active');
 
-      // Test webhook health using the new function
-      console.log("[SYSTEM_HEALTH] Testing webhook system...");
       const { data: webhookHealth, error: webhookError } = await supabase.rpc('get_webhook_health');
 
       const healthStatus: SystemStatus = {
-        database: (callsError || agentsError || rateLimitError) ? 'error' : 'healthy',
-        aiApi: 'healthy', // Assume healthy since we can't easily test external API from frontend
+        database: (callsError || agentsError) ? 'error' : 'healthy',
         webhooks: webhookError ? 'error' : 'healthy',
-        edgeFunctions: (webhookError || rateLimitError) ? 'warning' : 'healthy',
         lastCheck: new Date().toISOString(),
         details: {
           totalCalls: callsCount || 0,
-          activeAgents: agentsCount || 0,
-          recentErrors: 0,
-          apiConnectivity: !rateLimitError
+          activeAgents: agentsCount || 0
         }
       };
 
@@ -85,45 +63,11 @@ export function SystemHealth() {
     }
   };
 
-  const triggerSync = async () => {
-    try {
-      console.log("[SYSTEM_HEALTH] Triggering sync-calls...");
-      const { data, error } = await supabase.functions.invoke('sync-calls', {
-        body: { 
-          company_id: "1cd546c3-07dc-4a8e-b533-92d5edde60dc",
-          force: true
-        }
-      });
-      
-      if (error) {
-        console.error("[SYSTEM_HEALTH] Sync error:", error);
-      } else {
-        console.log("[SYSTEM_HEALTH] Sync success:", data);
-        // Refresh health check after sync
-        setTimeout(performHealthCheck, 2000);
-      }
-    } catch (err) {
-      console.error("[SYSTEM_HEALTH] Sync exception:", err);
-    }
-  };
-
   useEffect(() => {
     performHealthCheck();
-    
-    // Refresh every 30 seconds
     const interval = setInterval(performHealthCheck, 30000);
-    
     return () => clearInterval(interval);
   }, [user]);
-
-  const getStatusColor = (status: 'healthy' | 'warning' | 'error') => {
-    switch (status) {
-      case 'healthy': return 'text-green-600';
-      case 'warning': return 'text-yellow-600';
-      case 'error': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
-  };
 
   const getStatusIcon = (status: 'healthy' | 'warning' | 'error') => {
     switch (status) {
@@ -138,28 +82,18 @@ export function SystemHealth() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-lg font-medium">System Health</CardTitle>
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={triggerSync}
-            disabled={isLoading}
-          >
-            🔄 Sync Calls
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={performHealthCheck}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={performHealthCheck}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -184,17 +118,7 @@ export function SystemHealth() {
                 {getStatusIcon(status.database)}
               </div>
               <div className="flex items-center gap-2">
-                <Server className="h-4 w-4" />
-                <span className="text-sm">Edge Functions</span>
-                {getStatusIcon(status.edgeFunctions)}
-              </div>
-              <div className="flex items-center gap-2">
                 <Wifi className="h-4 w-4" />
-                <span className="text-sm">AI API</span>
-                {getStatusIcon(status.aiApi)}
-              </div>
-              <div className="flex items-center gap-2">
-                <Server className="h-4 w-4" />
                 <span className="text-sm">Webhooks</span>
                 {getStatusIcon(status.webhooks)}
               </div>

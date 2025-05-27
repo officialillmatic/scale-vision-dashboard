@@ -39,7 +39,6 @@ export const useSuperAdminData = () => {
       setError(null);
 
       try {
-        // Fetch global metrics
         const { data: globalData, error: globalError } = await supabase.rpc('get_super_admin_call_metrics');
         
         if (globalError) {
@@ -56,7 +55,6 @@ export const useSuperAdminData = () => {
           });
         }
 
-        // Fetch company metrics
         const { data: companyData, error: companyError } = await supabase.rpc('get_super_admin_company_metrics');
         
         if (companyError) {
