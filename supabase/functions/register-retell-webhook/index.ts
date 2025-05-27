@@ -27,23 +27,57 @@ serve(async (req) => {
     const webhookUrl = `${publicAppUrl}/functions/v1/retell-webhook`;
     
     console.log(`[REGISTER-WEBHOOK] Registering webhook at: ${webhookUrl}`);
+    console.log(`[REGISTER-WEBHOOK] Using Retell API Key: ${retellApiKey ? 'SET' : 'NOT SET'}`);
 
-    const response = await fetch('https://api.retellai.com/v2/webhooks', {
+    // Use the correct Retell API endpoint for webhook registration
+    const response = await fetch('https://api.retellai.com/register-phone-webhook', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${retellApiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        callback_url: webhookUrl,
+        url: webhookUrl,
+        // Include events that we want to listen for
         events: ['call_started', 'call_ended', 'call_analyzed']
       })
     });
 
+    console.log(`[REGISTER-WEBHOOK] Retell API response status: ${response.status}`);
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[REGISTER-WEBHOOK] Retell API error: ${response.status} - ${errorText}`);
-      return createErrorResponse(`Failed to register webhook: ${response.status} - ${errorText}`, response.status);
+      
+      // Try alternative endpoint if the first one fails
+      console.log(`[REGISTER-WEBHOOK] Trying alternative endpoint...`);
+      
+      const altResponse = await fetch('https://api.retellai.com/v2/webhook', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${retellApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          callback_url: webhookUrl,
+          events: ['call_started', 'call_ended', 'call_analyzed']
+        })
+      });
+
+      if (!altResponse.ok) {
+        const altErrorText = await altResponse.text();
+        console.error(`[REGISTER-WEBHOOK] Alternative endpoint also failed: ${altResponse.status} - ${altErrorText}`);
+        return createErrorResponse(`Failed to register webhook: ${response.status} - ${errorText}`, response.status);
+      }
+
+      const webhookData = await altResponse.json();
+      console.log(`[REGISTER-WEBHOOK] Successfully registered webhook via alternative endpoint:`, webhookData);
+
+      return createSuccessResponse({
+        message: 'Webhook registered successfully (alternative endpoint)',
+        webhook: webhookData,
+        callback_url: webhookUrl
+      });
     }
 
     const webhookData = await response.json();

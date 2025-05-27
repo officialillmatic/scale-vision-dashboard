@@ -52,9 +52,12 @@ export const useCallSync = (refetch: () => void) => {
       console.log("[USE_CALL_SYNC] Sync successful:", data);
       const syncedCount = data?.synced_calls || 0;
       const processedCount = data?.processed_calls || 0;
+      const skippedAgents = data?.skippedAgents || 0;
       
       if (syncedCount > 0) {
         toast.success(`Successfully synced ${syncedCount} new calls (${processedCount} total processed)`);
+      } else if (skippedAgents > 0) {
+        toast.warning(`Sync completed - no new calls found. ${skippedAgents} agents skipped (no user mappings)`);
       } else {
         toast.info(`Sync completed - no new calls found (${processedCount} calls processed)`);
       }
@@ -104,11 +107,21 @@ export const useCallSync = (refetch: () => void) => {
     },
     onSuccess: (data) => {
       console.log("[USE_CALL_SYNC] Webhook registration successful:", data);
-      toast.success("Retell webhook registered successfully!");
+      toast.success("Retell webhook registered successfully! Real-time call updates are now enabled.");
     },
     onError: (error: any) => {
       console.error("[USE_CALL_SYNC] Webhook registration error:", error);
-      toast.error(`Failed to register webhook: ${error.message}`);
+      
+      // Provide more helpful error messages
+      if (error.message?.includes("404")) {
+        toast.error("Webhook registration failed: Retell API endpoint not found. Please check your Retell API configuration.");
+      } else if (error.message?.includes("401") || error.message?.includes("403")) {
+        toast.error("Webhook registration failed: Invalid Retell API key. Please check your API credentials.");
+      } else if (error.message?.includes("Missing required env var")) {
+        toast.error("Webhook registration failed: Missing environment variables. Please contact support.");
+      } else {
+        toast.error(`Failed to register webhook: ${error.message}`);
+      }
     },
   });
 
@@ -140,7 +153,15 @@ export const useCallSync = (refetch: () => void) => {
     },
     onError: (error: any) => {
       console.error("[USE_CALL_SYNC] Test error:", error);
-      toast.error(`Retell API test failed: ${error.message}`);
+      
+      // Provide more helpful error messages for API tests
+      if (error.message?.includes("401") || error.message?.includes("403")) {
+        toast.error("Retell API test failed: Invalid API key. Please check your Retell credentials.");
+      } else if (error.message?.includes("404")) {
+        toast.error("Retell API test failed: API endpoint not found. Please check your Retell integration.");
+      } else {
+        toast.error(`Retell API test failed: ${error.message}`);
+      }
     },
   });
 

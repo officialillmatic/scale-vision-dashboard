@@ -73,22 +73,31 @@ serve(async (req) => {
 
       let totalSynced = 0;
       let totalProcessed = 0;
+      let skippedAgents = 0;
 
       for (const agent of agents || []) {
         try {
           console.log(`[SYNC-CALLS] Syncing calls for agent: ${agent.retell_agent_id}`);
           
           // Find user agent mapping for this agent
-          const { data: userAgent, error: userAgentError } = await supabaseClient
+          const { data: userAgents, error: userAgentError } = await supabaseClient
             .from('user_agents')
             .select('user_id, company_id')
-            .eq('agent_id', agent.id)
-            .single();
+            .eq('agent_id', agent.id);
 
-          if (userAgentError || !userAgent) {
-            console.error(`[SYNC-CALLS] No user mapping found for agent ${agent.id}:`, userAgentError);
+          if (userAgentError) {
+            console.error(`[SYNC-CALLS] Error fetching user agents for agent ${agent.id}:`, userAgentError);
             continue;
           }
+
+          if (!userAgents || userAgents.length === 0) {
+            console.warn(`[SYNC-CALLS] No user mapping found for agent ${agent.id}, skipping...`);
+            skippedAgents++;
+            continue;
+          }
+
+          // Use the first user agent mapping
+          const userAgent = userAgents[0];
 
           let pageToken: string | null = null;
           let hasMore = true;
@@ -169,13 +178,14 @@ serve(async (req) => {
         }
       }
 
-      console.log(`[SYNC-CALLS] Sync completed. Total synced: ${totalSynced}, Total processed: ${totalProcessed}`);
+      console.log(`[SYNC-CALLS] Sync completed. Total synced: ${totalSynced}, Total processed: ${totalProcessed}, Skipped agents: ${skippedAgents}`);
       
       return createSuccessResponse({
         message: 'Sync completed successfully',
         synced_calls: totalSynced,
         processed_calls: totalProcessed,
-        agentsProcessed: agents?.length || 0
+        agentsProcessed: agents?.length || 0,
+        skippedAgents: skippedAgents
       });
     }
 
