@@ -1,7 +1,7 @@
 
-import { Search } from "lucide-react";
-import { CallTableActions } from "./CallTableActions";
-import { CallDebugPanel } from "./CallDebugPanel";
+import { Button } from "@/components/ui/button";
+import { RefreshCw, Webhook, TestTube } from "lucide-react";
+import { useCallSync } from "@/hooks/useCallSync";
 
 interface CallTableHeaderProps {
   canUploadCalls: boolean;
@@ -22,38 +22,68 @@ export function CallTableHeader({
   showDebug,
   setShowDebug
 }: CallTableHeaderProps) {
-  if (!canUploadCalls) return null;
+  const { 
+    handleRegisterWebhook, 
+    isRegisteringWebhook,
+    handleTestSync,
+    isTesting
+  } = useCallSync(() => {});
 
   return (
-    <>
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div className="flex items-center gap-3">
-          <CallTableActions 
-            isSyncing={isSyncing}
-            onSync={handleSync}
-            disabled={!company}
-          />
+    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Call Analytics</h2>
+        <p className="text-gray-600 mt-1">
+          {company?.name ? `${company.name} call data` : 'Your call analytics dashboard'}
+        </p>
+      </div>
+      
+      {canUploadCalls && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={handleTestSync}
+            disabled={isTesting}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <TestTube className="h-4 w-4" />
+            {isTesting ? "Testing..." : "Test API"}
+          </Button>
+
+          <Button
+            onClick={handleRegisterWebhook}
+            disabled={isRegisteringWebhook}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Webhook className="h-4 w-4" />
+            {isRegisteringWebhook ? "Registering..." : "Register Webhook"}
+          </Button>
+
+          <Button
+            onClick={handleSync}
+            disabled={isSyncing}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? "Syncing..." : "Sync Calls"}
+          </Button>
+
           {shouldShowDebug && (
-            <button
+            <Button
               onClick={() => setShowDebug(!showDebug)}
-              className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-md border border-gray-200 hover:border-gray-300 transition-all duration-200 font-medium"
+              variant="outline"
+              size="sm"
             >
-              {showDebug ? 'Hide' : 'Show'} Debug
-            </button>
+              {showDebug ? "Hide Debug" : "Show Debug"}
+            </Button>
           )}
         </div>
-        
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Search className="h-4 w-4" />
-          <span className="font-medium">Find & Filter</span>
-        </div>
-      </div>
-
-      {showDebug && shouldShowDebug && (
-        <div className="bg-yellow-50 rounded-lg border border-yellow-200">
-          <CallDebugPanel />
-        </div>
       )}
-    </>
+    </div>
   );
 }

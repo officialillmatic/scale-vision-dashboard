@@ -1,47 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info, accept, accept-profile, content-profile',
-  'Access-Control-Max-Age': '86400'
-};
-
-function createErrorResponse(message: string, status: number = 400): Response {
-  return new Response(
-    JSON.stringify({ 
-      error: message, 
-      success: false,
-      timestamp: new Date().toISOString()
-    }), 
-    { 
-      status, 
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json' 
-      } 
-    }
-  );
-}
-
-function createSuccessResponse(data: any): Response {
-  return new Response(
-    JSON.stringify({ 
-      ...data, 
-      success: true,
-      timestamp: new Date().toISOString()
-    }), 
-    { 
-      status: 200, 
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json' 
-      } 
-    }
-  );
-}
+import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
+import { mapRetellCallToSupabase } from "../_shared/retellDataMapper.ts";
 
 // Use environment helper for secure env var access
 function env(key: string): string {
@@ -56,14 +17,10 @@ const retellApiKey = env('RETELL_API_KEY');
 
 serve(async (req) => {
   // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { 
-      status: 204,
-      headers: corsHeaders 
-    });
-  }
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
-  console.log(`[SYNC-CALLS] Received ${req.method} request`);
+  console.log(`[SYNC-CALLS] ${new Date().toISOString()} - ${req.method} request received`);
 
   try {
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
@@ -76,22 +33,24 @@ serve(async (req) => {
       if (requestBody.test) {
         console.log(`[SYNC-CALLS] Test mode - checking Retell API connectivity`);
         try {
-          const response = await fetch('https://api.retellai.com/v2/call', {
-            method: 'GET',
+          const testResponse = await fetch('https://api.retellai.com/v2/list-calls', {
+            method: 'POST',
             headers: {
               'Authorization': `Bearer ${retellApiKey}`,
               'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({ limit: 1 })
           });
 
-          if (!response.ok) {
-            throw new Error(`Retell API responded with ${response.status}`);
+          if (!testResponse.ok) {
+            throw new Error(`Retell API responded with ${testResponse.status}: ${await testResponse.text()}`);
           }
 
-          const data = await response.json();
+          const testData = await testResponse.json();
           return createSuccessResponse({
             message: 'Retell API connectivity test passed',
-            callsFound: data?.length || 0
+            callsFound: testData?.calls?.length || 0,
+            hasMore: testData?.has_more || false
           });
         } catch (error) {
           console.error(`[SYNC-CALLS] Test failed:`, error);
@@ -102,7 +61,7 @@ serve(async (req) => {
       // Get agents with Retell integration
       const { data: agents, error: agentsError } = await supabaseClient
         .from('agents')
-        .select('*')
+        .select('id, retell_agent_id, rate_per_minute')
         .not('retell_agent_id', 'is', null);
 
       if (agentsError) {
@@ -113,36 +72,109 @@ serve(async (req) => {
       console.log(`[SYNC-CALLS] Found ${agents?.length || 0} agents with Retell integration`);
 
       let totalSynced = 0;
+      let totalProcessed = 0;
 
       for (const agent of agents || []) {
         try {
           console.log(`[SYNC-CALLS] Syncing calls for agent: ${agent.retell_agent_id}`);
           
-          const response = await fetch(`https://api.retellai.com/v2/call?agent_id=${agent.retell_agent_id}`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${retellApiKey}`,
-              'Content-Type': 'application/json'
-            }
-          });
+          // Find user agent mapping for this agent
+          const { data: userAgent, error: userAgentError } = await supabaseClient
+            .from('user_agents')
+            .select('user_id, company_id')
+            .eq('agent_id', agent.id)
+            .single();
 
-          if (!response.ok) {
-            console.error(`[SYNC-CALLS] Retell API error for agent ${agent.retell_agent_id}: ${response.status}`);
+          if (userAgentError || !userAgent) {
+            console.error(`[SYNC-CALLS] No user mapping found for agent ${agent.id}:`, userAgentError);
             continue;
           }
 
-          const calls = await response.json();
-          totalSynced += calls?.length || 0;
+          let pageToken: string | null = null;
+          let hasMore = true;
+
+          while (hasMore) {
+            const requestBody: any = {
+              agent_id: agent.retell_agent_id,
+              limit: 100
+            };
+
+            if (pageToken) {
+              requestBody.page_token = pageToken;
+            }
+
+            console.log(`[SYNC-CALLS] Fetching calls with body:`, JSON.stringify(requestBody));
+
+            const response = await fetch('https://api.retellai.com/v2/list-calls', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${retellApiKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(`[SYNC-CALLS] Retell API error for agent ${agent.retell_agent_id}: ${response.status} - ${errorText}`);
+              break;
+            }
+
+            const responseData = await response.json();
+            const calls = responseData.calls || [];
+            hasMore = responseData.has_more || false;
+            pageToken = responseData.next_page_token || null;
+
+            console.log(`[SYNC-CALLS] Retrieved ${calls.length} calls, hasMore: ${hasMore}`);
+
+            // Process each call
+            for (const call of calls) {
+              try {
+                // Map Retell call data to Supabase format
+                const mappedCall = mapRetellCallToSupabase(
+                  call,
+                  userAgent.user_id,
+                  userAgent.company_id,
+                  agent.id
+                );
+
+                // Upsert the call
+                const { error: upsertError } = await supabaseClient
+                  .from('calls')
+                  .upsert(mappedCall, {
+                    onConflict: 'call_id',
+                    ignoreDuplicates: false
+                  });
+
+                if (upsertError) {
+                  console.error(`[SYNC-CALLS] Error upserting call ${call.call_id}:`, upsertError);
+                } else {
+                  totalSynced++;
+                }
+
+                totalProcessed++;
+              } catch (callError) {
+                console.error(`[SYNC-CALLS] Error processing call ${call.call_id}:`, callError);
+                totalProcessed++;
+              }
+            }
+
+            // Add a small delay between pages to avoid rate limiting
+            if (hasMore) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
         } catch (error) {
           console.error(`[SYNC-CALLS] Error syncing agent ${agent.retell_agent_id}:`, error);
         }
       }
 
-      console.log(`[SYNC-CALLS] Sync completed. Total calls synced: ${totalSynced}`);
+      console.log(`[SYNC-CALLS] Sync completed. Total synced: ${totalSynced}, Total processed: ${totalProcessed}`);
       
       return createSuccessResponse({
         message: 'Sync completed successfully',
-        totalSynced,
+        synced_calls: totalSynced,
+        processed_calls: totalProcessed,
         agentsProcessed: agents?.length || 0
       });
     }
@@ -150,7 +182,7 @@ serve(async (req) => {
     return createErrorResponse('Method not allowed', 405);
 
   } catch (error) {
-    console.error('[SYNC-CALLS] Error:', error);
+    console.error('[SYNC-CALLS] Fatal error:', error);
     return createErrorResponse(`Sync failed: ${error.message}`, 500);
   }
 });

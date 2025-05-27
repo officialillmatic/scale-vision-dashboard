@@ -1,0 +1,62 @@
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { corsHeaders, handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
+
+// Use environment helper for secure env var access
+function env(key: string): string {
+  const val = Deno?.env?.get?.(key);
+  if (!val) throw new Error(`⚠️  Missing required env var: ${key}`);
+  return val;
+}
+
+const retellApiKey = env('RETELL_API_KEY');
+const publicAppUrl = env('PUBLIC_APP_URL');
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
+  console.log(`[REGISTER-WEBHOOK] ${new Date().toISOString()} - ${req.method} request received`);
+
+  try {
+    if (req.method !== 'POST') {
+      return createErrorResponse('Method not allowed', 405);
+    }
+
+    const webhookUrl = `${publicAppUrl}/functions/v1/retell-webhook`;
+    
+    console.log(`[REGISTER-WEBHOOK] Registering webhook at: ${webhookUrl}`);
+
+    const response = await fetch('https://api.retellai.com/v2/webhooks', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${retellApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        callback_url: webhookUrl,
+        events: ['call_started', 'call_ended', 'call_analyzed']
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[REGISTER-WEBHOOK] Retell API error: ${response.status} - ${errorText}`);
+      return createErrorResponse(`Failed to register webhook: ${response.status} - ${errorText}`, response.status);
+    }
+
+    const webhookData = await response.json();
+    console.log(`[REGISTER-WEBHOOK] Successfully registered webhook:`, webhookData);
+
+    return createSuccessResponse({
+      message: 'Webhook registered successfully',
+      webhook: webhookData,
+      callback_url: webhookUrl
+    });
+
+  } catch (error) {
+    console.error('[REGISTER-WEBHOOK] Fatal error:', error);
+    return createErrorResponse(`Webhook registration failed: ${error.message}`, 500);
+  }
+});
