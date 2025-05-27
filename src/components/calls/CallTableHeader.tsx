@@ -41,7 +41,7 @@ export function CallTableHeader({
       {canUploadCalls && (
         <div className="flex flex-wrap gap-2">
           <Button
-            onClick={handleTestSync}
+            onClick={() => handleTestSync()}
             disabled={isTesting}
             variant="outline"
             size="sm"
@@ -52,7 +52,7 @@ export function CallTableHeader({
           </Button>
 
           <Button
-            onClick={handleRegisterWebhook}
+            onClick={() => handleRegisterWebhook()}
             disabled={isRegisteringWebhook}
             variant="outline"
             size="sm"
