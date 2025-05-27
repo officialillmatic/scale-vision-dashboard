@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Webhook, TestTube } from "lucide-react";
 import { useCallSync } from "@/hooks/useCallSync";
@@ -22,8 +21,8 @@ export function CallTableHeader({
   showDebug,
   setShowDebug
 }: CallTableHeaderProps) {
-  const { 
-    handleRegisterWebhook, 
+  const {
+    handleRegisterWebhook,
     isRegisteringWebhook,
     handleTestSync,
     isTesting
@@ -37,7 +36,7 @@ export function CallTableHeader({
           {company?.name ? `${company.name} call data` : 'Your call analytics dashboard'}
         </p>
       </div>
-      
+
       {canUploadCalls && (
         <div className="flex flex-wrap gap-2">
           <Button
@@ -69,7 +68,7 @@ export function CallTableHeader({
             size="sm"
             className="flex items-center gap-2"
           >
-            <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
             {isSyncing ? "Syncing..." : "Sync Calls"}
           </Button>
 
