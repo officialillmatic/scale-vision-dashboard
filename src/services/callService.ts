@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { CallsTable } from "@/types/supabase";
 
@@ -29,7 +30,7 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
       .from("calls")
       .select(`
         *,
-        agent:agents(id, name, agent_id)
+        agents!agent_id(id, name, agent_id, rate_per_minute)
       `)
       .eq("company_id", companyId)
       .order("timestamp", { ascending: false })
@@ -45,11 +46,18 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
       return [];
     }
 
-    // Transform the data to ensure proper date objects
+    // Transform the data to ensure proper date objects and agent mapping
     const transformedCalls: CallData[] = data.map((call) => ({
       ...call,
       timestamp: new Date(call.timestamp),
       start_time: call.start_time ? new Date(call.start_time) : undefined,
+      // Map the agents relationship to agent for compatibility
+      agent: call.agents ? {
+        id: call.agents.id,
+        name: call.agents.name,
+        agent_id: call.agents.agent_id,
+        rate_per_minute: call.agents.rate_per_minute
+      } : undefined
     }));
 
     console.log("[CALL_SERVICE] Successfully fetched and transformed", transformedCalls.length, "calls");

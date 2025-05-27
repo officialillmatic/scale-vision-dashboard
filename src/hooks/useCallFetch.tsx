@@ -27,12 +27,12 @@ export const useCallFetch = () => {
       console.log("[USE_CALL_FETCH] Fetching calls for company:", company.id);
       
       try {
-        // Use improved query with proper headers
+        // Updated query to properly reference the agent relationship
         const { data, error } = await supabase
           .from('calls')
           .select(`
             *,
-            agent:agent_id (
+            agents!agent_id (
               id, 
               name,
               rate_per_minute
@@ -65,11 +65,17 @@ export const useCallFetch = () => {
           return [];
         }
         
-        // Transform the data to ensure proper date objects
+        // Transform the data to ensure proper date objects and agent structure
         const transformedCalls: CallData[] = data.map((call) => ({
           ...call,
           timestamp: new Date(call.timestamp),
           start_time: call.start_time ? new Date(call.start_time) : undefined,
+          // Map the agents relationship to agent for compatibility
+          agent: call.agents ? {
+            id: call.agents.id,
+            name: call.agents.name,
+            rate_per_minute: call.agents.rate_per_minute
+          } : undefined
         }));
         
         console.log(`[USE_CALL_FETCH] Successfully fetched ${transformedCalls.length} calls`);

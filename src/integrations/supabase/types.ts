@@ -664,6 +664,7 @@ export type Database = {
       }
       check_rate_limit: {
         Args:
+          | Record<PropertyKey, never>
           | { _uid: string; _limit?: number; _window?: unknown }
           | { p_identifier: string; p_action: string; p_limit_per_hour: number }
         Returns: boolean
@@ -829,6 +830,10 @@ export type Database = {
         Args: { p_user_id: string; p_company_id: string }
         Returns: boolean
       }
+      sync_calls: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       update_user_balance: {
         Args: { p_user_id: string; p_company_id: string; p_amount: number }
         Returns: undefined
@@ -844,6 +849,10 @@ export type Database = {
       user_is_company_member: {
         Args: { p_user_id: string; p_company_id: string }
         Returns: boolean
+      }
+      webhook_monitor: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
     }
     Enums: {
