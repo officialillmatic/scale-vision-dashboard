@@ -8,11 +8,30 @@ export const useApiTest = () => {
   return useMutation({
     mutationFn: async (): Promise<TestResponse> => {
       console.log("[USE_CALL_SYNC] Testing Retell API connectivity...");
-      console.log("[USE_CALL_SYNC] Using headers:", {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Content-Profile': 'public'
-      });
+      
+      // First test the database rate limiting function
+      try {
+        const { data: rateLimitTest, error: rateLimitError } = await supabase.rpc('check_rate_limit', {
+          p_user_id: (await supabase.auth.getUser()).data.user?.id,
+          p_action: 'api_test',
+          p_limit_per_hour: 100
+        });
+
+        if (rateLimitError) {
+          console.error("[USE_CALL_SYNC] Rate limit check failed:", rateLimitError);
+          throw new Error(`Rate limiting system error: ${rateLimitError.message}`);
+        }
+
+        if (!rateLimitTest) {
+          throw new Error("Rate limit exceeded. Please try again later.");
+        }
+      } catch (error: any) {
+        console.error("[USE_CALL_SYNC] Rate limit test error:", error);
+        throw new Error(`Rate limiting test failed: ${error.message}`);
+      }
+
+      // Now test the sync-calls edge function
+      console.log("[USE_CALL_SYNC] Testing sync-calls edge function...");
       
       const { data, error } = await supabase.functions.invoke("sync-calls", {
         body: { test: true },
@@ -53,6 +72,8 @@ export const useApiTest = () => {
         toast.error("Retell API test failed: API endpoint not found. Please check your Retell integration.");
       } else if (error.message?.includes("timeout")) {
         toast.error("Retell API test failed: Request timed out. Please check your internet connection.");
+      } else if (error.message?.includes("Rate limit")) {
+        toast.error("Rate limit exceeded. Please wait a moment before testing again.");
       } else {
         toast.error(`Retell API test failed: ${error.message}`);
       }

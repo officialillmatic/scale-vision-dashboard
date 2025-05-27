@@ -667,8 +667,16 @@ export type Database = {
           | Record<PropertyKey, never>
           | { _uid: string; _limit?: number; _window?: unknown }
           | { p_identifier: string; p_action: string; p_limit_per_hour: number }
+          | { p_user_id?: string; p_action?: string; p_limit_per_hour?: number }
         Returns: {
           remaining: number
+        }[]
+      }
+      check_storage_buckets: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          bucket_name: string
+          bucket_exists: boolean
         }[]
       }
       get_call_metrics_for_period: {
@@ -807,6 +815,18 @@ export type Database = {
       get_user_email: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_webhook_health: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          status: string
+          last_hour_calls: number
+          recent_calls: number
+          health_score: string
+          agents_active: number
+          last_webhook_time: string
+          check_timestamp: string
+        }[]
       }
       has_sufficient_balance: {
         Args: { p_user_id: string; p_amount: number }

@@ -14,7 +14,7 @@ interface WebhookHealth {
   health_score: 'excellent' | 'good' | 'poor';
   agents_active: number;
   last_webhook_time?: string;
-  timestamp: string;
+  check_timestamp: string;
 }
 
 export function WebhookMonitor() {
@@ -30,15 +30,41 @@ export function WebhookMonitor() {
       setIsLoading(true);
       setError(null);
       
-      const { data, error } = await supabase.functions.invoke('webhook-monitor');
+      console.log("[WEBHOOK_MONITOR] Fetching webhook health data...");
+      
+      // Use the new database function instead of edge function
+      const { data, error } = await supabase.rpc('get_webhook_health');
       
       if (error) {
+        console.error("[WEBHOOK_MONITOR] Database error:", error);
         throw error;
       }
       
-      setHealth(data);
+      if (data && data.length > 0) {
+        const healthData = data[0];
+        setHealth({
+          status: healthData.status as 'active' | 'inactive' | 'error',
+          last_hour_calls: Number(healthData.last_hour_calls),
+          recent_calls: Number(healthData.recent_calls),
+          health_score: healthData.health_score as 'excellent' | 'good' | 'poor',
+          agents_active: Number(healthData.agents_active),
+          last_webhook_time: healthData.last_webhook_time,
+          check_timestamp: healthData.check_timestamp
+        });
+      } else {
+        setHealth({
+          status: 'inactive',
+          last_hour_calls: 0,
+          recent_calls: 0,
+          health_score: 'poor',
+          agents_active: 0,
+          check_timestamp: new Date().toISOString()
+        });
+      }
+      
+      console.log("[WEBHOOK_MONITOR] Health data fetched successfully");
     } catch (err: any) {
-      console.error('Error fetching webhook health:', err);
+      console.error('[WEBHOOK_MONITOR] Error fetching webhook health:', err);
       setError(err.message || 'Failed to fetch webhook health');
     } finally {
       setIsLoading(false);
@@ -151,7 +177,7 @@ export function WebhookMonitor() {
             </div>
 
             <div className="text-xs text-muted-foreground">
-              Last updated: {new Date(health.timestamp).toLocaleTimeString()}
+              Last updated: {new Date(health.check_timestamp).toLocaleTimeString()}
             </div>
           </>
         ) : (
