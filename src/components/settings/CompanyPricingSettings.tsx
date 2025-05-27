@@ -15,19 +15,19 @@ export function CompanyPricingSettings() {
   const [pricing, setPricing] = useState<CompanyPricing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const { user } = useAuth();
+  const { company } = useAuth();
 
   useEffect(() => {
     fetchPricing();
   }, []);
 
   const fetchPricing = async () => {
-    if (!user?.company_id) return;
+    if (!company?.id) return;
     
     try {
-      const data = await companyService.getCompanyPricing(user.company_id);
+      const data = await companyService.getCompanyPricing(company.id);
       setPricing(data || {
-        company_id: user.company_id,
+        company_id: company.id,
         pricing_type: 'standard',
         base_rate_per_minute: 0.02,
       } as CompanyPricing);
@@ -40,11 +40,11 @@ export function CompanyPricingSettings() {
   };
 
   const handleSave = async () => {
-    if (!pricing || !user?.company_id) return;
+    if (!pricing || !company?.id) return;
     
     setIsSaving(true);
     try {
-      await companyService.updateCompanyPricing(user.company_id, pricing);
+      await companyService.updateCompanyPricing(company.id, pricing);
       toast.success('Pricing settings updated successfully');
     } catch (error) {
       console.error('Error saving pricing:', error);

@@ -99,3 +99,53 @@ export const companyService = {
     }
   }
 };
+
+// Export individual functions for easier importing
+export async function fetchCompany(userId: string): Promise<Company | null> {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('owner_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching company:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function createCompany(name: string, ownerId: string): Promise<Company | null> {
+  const { data, error } = await supabase
+    .from('companies')
+    .insert({
+      name,
+      owner_id: ownerId
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating company:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function updateCompanyLogo(companyId: string, logoUrl: string): Promise<Company | null> {
+  const { data, error } = await supabase
+    .from('companies')
+    .update({ logo_url: logoUrl })
+    .eq('id', companyId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating company logo:', error);
+    throw error;
+  }
+
+  return data;
+}

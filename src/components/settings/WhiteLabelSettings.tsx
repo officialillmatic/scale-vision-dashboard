@@ -14,19 +14,19 @@ export function WhiteLabelSettings() {
   const [config, setConfig] = useState<WhiteLabelConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const { user } = useAuth();
+  const { company } = useAuth();
 
   useEffect(() => {
     fetchConfig();
   }, []);
 
   const fetchConfig = async () => {
-    if (!user?.company_id) return;
+    if (!company?.id) return;
     
     try {
-      const data = await companyService.getWhiteLabelConfig(user.company_id);
+      const data = await companyService.getWhiteLabelConfig(company.id);
       setConfig(data || {
-        company_id: user.company_id,
+        company_id: company.id,
         enabled: false,
         company_name: '',
       } as WhiteLabelConfig);
@@ -39,11 +39,11 @@ export function WhiteLabelSettings() {
   };
 
   const handleSave = async () => {
-    if (!config || !user?.company_id) return;
+    if (!config || !company?.id) return;
     
     setIsSaving(true);
     try {
-      await companyService.updateWhiteLabelConfig(user.company_id, config);
+      await companyService.updateWhiteLabelConfig(company.id, config);
       toast.success('White label settings updated successfully');
     } catch (error) {
       console.error('Error saving white label config:', error);
