@@ -211,23 +211,28 @@ export class RetellAbstraction {
 
     // Sanitize the data before returning
     return data?.map(call => {
-      // Handle agent data more explicitly
+      // Handle agent data more explicitly with proper typing
       let agentData = null;
       
       if (call.agents) {
-        if (Array.isArray(call.agents) && call.agents.length > 0) {
-          const firstAgent = call.agents[0];
-          agentData = {
-            id: firstAgent.id,
-            name: firstAgent.name,
-            ratePerMinute: firstAgent.rate_per_minute
-          };
-        } else if (!Array.isArray(call.agents)) {
+        // Type-safe agent handling
+        const agents = call.agents as any; // Use any to bypass strict typing for complex joins
+        
+        if (Array.isArray(agents) && agents.length > 0) {
+          const firstAgent = agents[0];
+          if (firstAgent && typeof firstAgent === 'object' && firstAgent.id) {
+            agentData = {
+              id: firstAgent.id,
+              name: firstAgent.name,
+              ratePerMinute: firstAgent.rate_per_minute
+            };
+          }
+        } else if (typeof agents === 'object' && agents.id) {
           // Single agent object
           agentData = {
-            id: call.agents.id,
-            name: call.agents.name,
-            ratePerMinute: call.agents.rate_per_minute
+            id: agents.id,
+            name: agents.name,
+            ratePerMinute: agents.rate_per_minute
           };
         }
       }
