@@ -667,7 +667,9 @@ export type Database = {
           | Record<PropertyKey, never>
           | { _uid: string; _limit?: number; _window?: unknown }
           | { p_identifier: string; p_action: string; p_limit_per_hour: number }
-        Returns: boolean
+        Returns: {
+          remaining: number
+        }[]
       }
       get_call_metrics_for_period: {
         Args: {

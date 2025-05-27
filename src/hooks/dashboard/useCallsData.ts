@@ -22,11 +22,12 @@ export const useCallsData = () => {
       try {
         console.log("[DASHBOARD] Fetching calls for company:", companyId);
         
+        // Fixed: Use explicit foreign key alias to disambiguate the join
         const { data, error } = await supabase
           .from('calls')
           .select(`
             *,
-            agents!calls_agent_id_fkey (
+            call_agent:agents!calls_agent_id_fkey (
               id, 
               name,
               rate_per_minute
@@ -47,7 +48,19 @@ export const useCallsData = () => {
         }
         
         console.log(`[DASHBOARD] Successfully fetched ${data.length} calls`);
-        return (data || []).map(transformCallData);
+        
+        // Transform the data to match our CallData interface
+        return data.map(call => ({
+          ...call,
+          timestamp: new Date(call.timestamp),
+          start_time: call.start_time ? new Date(call.start_time) : undefined,
+          // Map call_agent to agent for compatibility
+          agent: call.call_agent ? {
+            id: call.call_agent.id,
+            name: call.call_agent.name,
+            rate_per_minute: call.call_agent.rate_per_minute
+          } : undefined
+        }));
       } catch (error) {
         console.error("[DASHBOARD] Error in dashboard calls query:", error);
         return [];
@@ -75,7 +88,7 @@ export const useCallsData = () => {
           .from('calls')
           .select(`
             *,
-            agents!calls_agent_id_fkey (
+            call_agent:agents!calls_agent_id_fkey (
               id, 
               name,
               rate_per_minute
@@ -93,7 +106,17 @@ export const useCallsData = () => {
         }
         
         console.log(`[DASHBOARD] Successfully fetched ${data?.length || 0} previous calls`);
-        return (data || []).map(transformCallData);
+        
+        return (data || []).map(call => ({
+          ...call,
+          timestamp: new Date(call.timestamp),
+          start_time: call.start_time ? new Date(call.start_time) : undefined,
+          agent: call.call_agent ? {
+            id: call.call_agent.id,
+            name: call.call_agent.name,
+            rate_per_minute: call.call_agent.rate_per_minute
+          } : undefined
+        }));
       } catch (error) {
         console.error("[DASHBOARD] Error in previous dashboard calls query:", error);
         return [];
