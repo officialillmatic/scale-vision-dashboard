@@ -46,7 +46,7 @@ export function CallTable({ onSelectCall }: CallTableProps) {
   };
 
   // Show debug panel for admin users or when there are issues
-  const shouldShowDebug = can.uploadCalls || error;
+  const shouldShowDebug = can.uploadCalls || error || calls.length === 0;
   
   return (
     <div className="space-y-6 w-full">
@@ -93,6 +93,8 @@ export function CallTable({ onSelectCall }: CallTableProps) {
         searchTerm={searchTerm}
         date={date}
         onSelectCall={handleSelectCall}
+        showDiagnostics={showDebug}
+        onCloseDiagnostics={() => setShowDebug(false)}
       />
 
       <CallDetailsModal 
