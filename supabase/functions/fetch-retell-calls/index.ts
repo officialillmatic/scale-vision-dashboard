@@ -69,16 +69,18 @@ Deno.serve(async (req) => {
 
     console.log("[FETCH_RETELL_CALLS] User company:", userCompany);
 
-    // Get Retell API key
+    // Get Retell API configuration
     const retellApiKey = env("RETELL_API_KEY");
+    const retellApiBaseUrl = Deno.env.get('RETELL_API_BASE_URL') || 'https://api.retellai.com/v2';
 
     // Fetch calls from Retell API
-    const retellResponse = await fetch("https://api.retellai.com/list-calls", {
-      method: "GET",
+    const retellResponse = await fetch(`${retellApiBaseUrl}/list-calls`, {
+      method: "POST",
       headers: {
         "Authorization": `Bearer ${retellApiKey}`,
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({ limit: 100 })
     });
 
     if (!retellResponse.ok) {

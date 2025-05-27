@@ -14,6 +14,7 @@ function env(key: string): string {
 const supabaseUrl = env('SUPABASE_URL');
 const supabaseServiceKey = env('SUPABASE_SERVICE_ROLE_KEY');
 const retellApiKey = env('RETELL_API_KEY');
+const retellApiBaseUrl = Deno.env.get('RETELL_API_BASE_URL') || 'https://api.retellai.com/v2';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -33,7 +34,7 @@ serve(async (req) => {
       if (requestBody.test) {
         console.log(`[SYNC-CALLS] Test mode - checking Retell API connectivity`);
         try {
-          const testResponse = await fetch('https://api.retellai.com/v2/list-calls', {
+          const testResponse = await fetch(`${retellApiBaseUrl}/list-calls`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${retellApiKey}`,
@@ -114,7 +115,7 @@ serve(async (req) => {
 
             console.log(`[SYNC-CALLS] Fetching calls with body:`, JSON.stringify(requestBody));
 
-            const response = await fetch('https://api.retellai.com/v2/list-calls', {
+            const response = await fetch(`${retellApiBaseUrl}/list-calls`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${retellApiKey}`,

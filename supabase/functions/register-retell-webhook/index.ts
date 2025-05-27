@@ -11,6 +11,7 @@ function env(key: string): string {
 
 const retellApiKey = env('RETELL_API_KEY');
 const publicAppUrl = env('PUBLIC_APP_URL');
+const retellApiBaseUrl = Deno.env.get('RETELL_API_BASE_URL') || 'https://api.retellai.com/v2';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -28,9 +29,10 @@ serve(async (req) => {
     
     console.log(`[REGISTER-WEBHOOK] Registering webhook at: ${webhookUrl}`);
     console.log(`[REGISTER-WEBHOOK] Using Retell API Key: ${retellApiKey ? 'SET' : 'NOT SET'}`);
+    console.log(`[REGISTER-WEBHOOK] Using Retell API Base URL: ${retellApiBaseUrl}`);
 
     // Use the correct Retell API endpoint for webhook registration
-    const response = await fetch('https://api.retellai.com/register-phone-webhook', {
+    const response = await fetch(`${retellApiBaseUrl}/register-phone-webhook`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${retellApiKey}`,
@@ -52,7 +54,7 @@ serve(async (req) => {
       // Try alternative endpoint if the first one fails
       console.log(`[REGISTER-WEBHOOK] Trying alternative endpoint...`);
       
-      const altResponse = await fetch('https://api.retellai.com/v2/webhook', {
+      const altResponse = await fetch(`${retellApiBaseUrl}/webhook`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${retellApiKey}`,

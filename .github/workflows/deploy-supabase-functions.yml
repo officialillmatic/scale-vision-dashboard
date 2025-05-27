@@ -30,6 +30,7 @@ jobs:
         echo "RETELL_API_KEY=${{ secrets.RETELL_API_KEY }}" >> .env
         echo "PUBLIC_APP_URL=${{ secrets.PUBLIC_APP_URL }}" >> .env
         echo "RETELL_SECRET=${{ secrets.RETELL_SECRET }}" >> .env
+        echo "RETELL_API_BASE_URL=https://api.retellai.com/v2" >> .env
     
     - name: Login to Supabase
       run: supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
