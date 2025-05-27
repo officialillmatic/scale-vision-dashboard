@@ -1,6 +1,9 @@
+
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Webhook, TestTube } from "lucide-react";
+import { RefreshCw, Webhook, TestTube, Users, AlertTriangle } from "lucide-react";
 import { useCallSync } from "@/hooks/useCallSync";
+import { useUserAgentManager } from "@/hooks/useUserAgentManager";
+import { Badge } from "@/components/ui/badge";
 
 interface CallTableHeaderProps {
   canUploadCalls: boolean;
@@ -28,6 +31,13 @@ export function CallTableHeader({
     isTesting
   } = useCallSync(() => {});
 
+  const {
+    autoMapOrphanedCalls,
+    isAutoMapping,
+    auditMappings,
+    isAuditing
+  } = useUserAgentManager();
+
   return (
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div>
@@ -39,6 +49,7 @@ export function CallTableHeader({
 
       {canUploadCalls && (
         <div className="flex flex-wrap gap-2">
+          {/* Core sync operations */}
           <Button
             onClick={() => handleTestSync()}
             disabled={isTesting}
@@ -71,6 +82,35 @@ export function CallTableHeader({
             <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
             {isSyncing ? "Syncing..." : "Sync Calls"}
           </Button>
+
+          {/* Agent mapping operations */}
+          <div className="flex gap-1 items-center">
+            <Badge variant="outline" className="text-xs">
+              Agent Mapping
+            </Badge>
+            
+            <Button
+              onClick={() => auditMappings()}
+              disabled={isAuditing}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              {isAuditing ? "Auditing..." : "Audit"}
+            </Button>
+
+            <Button
+              onClick={() => autoMapOrphanedCalls()}
+              disabled={isAutoMapping}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              {isAutoMapping ? "Auto-mapping..." : "Auto-map"}
+            </Button>
+          </div>
 
           {shouldShowDebug && (
             <Button

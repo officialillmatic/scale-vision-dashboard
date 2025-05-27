@@ -1,7 +1,7 @@
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, content-profile, accept',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
 };
 
@@ -16,10 +16,12 @@ export function handleCors(req: Request): Response | null {
 }
 
 export function createErrorResponse(message: string, status: number = 400): Response {
+  console.error(`[ERROR] ${status}: ${message}`);
   return new Response(
     JSON.stringify({ 
       error: message, 
-      timestamp: new Date().toISOString() 
+      timestamp: new Date().toISOString(),
+      status 
     }),
     { 
       status, 
@@ -35,7 +37,8 @@ export function createSuccessResponse(data: any, status: number = 200): Response
   return new Response(
     JSON.stringify({ 
       ...data, 
-      timestamp: new Date().toISOString() 
+      timestamp: new Date().toISOString(),
+      status: 'success'
     }),
     { 
       status, 

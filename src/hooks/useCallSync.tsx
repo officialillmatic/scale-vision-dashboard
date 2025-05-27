@@ -19,12 +19,13 @@ export const useCallSync = (refetch: () => void) => {
           setTimeout(() => reject(new Error("Sync operation timed out after 60 seconds")), 60000);
         });
         
-        // Create the sync promise
+        // Create the sync promise with improved headers
         const syncPromise = supabase.functions.invoke("sync-calls", {
           body: {},
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Content-Profile': 'public'
           }
         });
         
@@ -33,6 +34,16 @@ export const useCallSync = (refetch: () => void) => {
         
         if (error) {
           console.error("[USE_CALL_SYNC] Sync error:", error);
+          
+          // Enhanced error handling
+          if (error.message?.includes('CORS')) {
+            throw new Error("CORS configuration error. Please check function deployment.");
+          } else if (error.message?.includes('404')) {
+            throw new Error("Sync function not found. Please ensure it's properly deployed.");
+          } else if (error.message?.includes('401') || error.message?.includes('403')) {
+            throw new Error("Authentication failed. Please check your Retell API credentials.");
+          }
+          
           throw new Error(error.message || "Sync operation failed");
         }
         
@@ -80,6 +91,8 @@ export const useCallSync = (refetch: () => void) => {
       
       if (error.message?.includes("timeout") || error.message?.includes("timed out")) {
         toast.error("Sync operation timed out. Please check your Retell integration and try again.");
+      } else if (error.message?.includes("CORS")) {
+        toast.error("CORS configuration error. The function may need redeployment.");
       } else if (error.message?.includes("401") || error.message?.includes("unauthorized")) {
         toast.error("Authentication failed. Please check your Retell API credentials.");
       } else if (error.message?.includes("404")) {
@@ -101,12 +114,19 @@ export const useCallSync = (refetch: () => void) => {
         body: {},
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Content-Profile': 'public'
         }
       });
       
       if (error) {
         console.error("[USE_CALL_SYNC] Webhook registration error:", error);
+        
+        // Enhanced error handling
+        if (error.message?.includes('CORS')) {
+          throw new Error("CORS configuration error. Please check function deployment.");
+        }
+        
         throw new Error(error.message || "Webhook registration failed");
       }
       
@@ -121,7 +141,9 @@ export const useCallSync = (refetch: () => void) => {
       console.error("[USE_CALL_SYNC] Webhook registration error:", error);
       
       // Provide more helpful error messages
-      if (error.message?.includes("404")) {
+      if (error.message?.includes("CORS")) {
+        toast.error("CORS configuration error. The webhook function may need redeployment.");
+      } else if (error.message?.includes("404")) {
         toast.error("Webhook registration failed: Function not found. Please ensure the register-retell-webhook function is deployed.");
       } else if (error.message?.includes("401") || error.message?.includes("403")) {
         toast.error("Webhook registration failed: Invalid Retell API key. Please check your API credentials.");
@@ -144,12 +166,19 @@ export const useCallSync = (refetch: () => void) => {
         body: { test: true },
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Content-Profile': 'public'
         }
       });
       
       if (error) {
         console.error("[USE_CALL_SYNC] Test error:", error);
+        
+        // Enhanced error handling
+        if (error.message?.includes('CORS')) {
+          throw new Error("CORS configuration error. Please check function deployment.");
+        }
+        
         throw new Error(error.message || "Connectivity test failed");
       }
       
@@ -163,7 +192,9 @@ export const useCallSync = (refetch: () => void) => {
       console.error("[USE_CALL_SYNC] Test error:", error);
       
       // Provide more helpful error messages for API tests
-      if (error.message?.includes("401") || error.message?.includes("403")) {
+      if (error.message?.includes("CORS")) {
+        toast.error("CORS configuration error. The sync function may need redeployment.");
+      } else if (error.message?.includes("401") || error.message?.includes("403")) {
         toast.error("Retell API test failed: Invalid API key. Please check your Retell credentials.");
       } else if (error.message?.includes("404")) {
         toast.error("Retell API test failed: API endpoint not found. Please check your Retell integration.");

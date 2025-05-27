@@ -2,130 +2,112 @@
 import { createErrorResponse } from './corsUtils.ts';
 
 export async function findAgentInDatabase(supabaseClient: any, retellAgentId: string) {
-  console.log(`[WEBHOOK] Looking up agent with retell_agent_id: ${retellAgentId}`);
+  console.log(`[DB-OPS] Looking up agent with retell_agent_id: ${retellAgentId}`);
+  
+  try {
+    const { data: agent, error } = await supabaseClient
+      .from('agents')
+      .select('id, name, rate_per_minute')
+      .eq('retell_agent_id', retellAgentId)
+      .single();
 
-  const { data: agent, error: agentError } = await supabaseClient
-    .from('agents')
-    .select('id, name, rate_per_minute, status')
-    .eq('retell_agent_id', retellAgentId)
-    .eq('status', 'active')
-    .single();
-
-  if (agentError || !agent) {
-    console.error('[WEBHOOK ERROR] Agent not found or inactive:', { 
-      retell_agent_id: retellAgentId, 
-      error: agentError 
-    });
-    
-    // Log this for monitoring but don't fail completely
-    try {
-      await supabaseClient
-        .from('webhook_errors')
-        .insert({
-          error_type: 'agent_not_found',
-          retell_agent_id: retellAgentId,
-          error_details: agentError?.message || 'Agent not found or inactive',
-          created_at: new Date().toISOString()
-        });
-    } catch (logError) {
-      console.error('Failed to log webhook error:', logError);
+    if (error) {
+      console.error(`[DB-OPS] Agent lookup error:`, error);
+      return { 
+        agent: null, 
+        error: createErrorResponse(`Agent not found for retell_agent_id: ${retellAgentId}`, 404) 
+      };
     }
-      
+
+    if (!agent) {
+      console.error(`[DB-OPS] No agent found for retell_agent_id: ${retellAgentId}`);
+      return { 
+        agent: null, 
+        error: createErrorResponse(`Agent not found for retell_agent_id: ${retellAgentId}`, 404) 
+      };
+    }
+
+    console.log(`[DB-OPS] Found agent: ${agent.name} (ID: ${agent.id})`);
+    return { agent, error: null };
+
+  } catch (error: any) {
+    console.error(`[DB-OPS] Database error during agent lookup:`, error);
     return { 
       agent: null, 
-      error: createErrorResponse(`Agent not found or inactive for retell_agent_id: ${retellAgentId}`, 400) 
+      error: createErrorResponse(`Database error: ${error.message}`, 500) 
     };
   }
-
-  console.log(`[WEBHOOK] Found agent:`, { id: agent.id, name: agent.name, status: agent.status });
-  return { agent, error: null };
 }
 
 export async function findUserAgentMapping(supabaseClient: any, agentId: string) {
-  const { data: userAgent, error: userAgentError } = await supabaseClient
-    .from('user_agents')
-    .select(`
-      user_id, 
-      company_id,
-      is_primary,
-      companies!inner(id, name, owner_id)
-    `)
-    .eq('agent_id', agentId)
-    .single();
+  console.log(`[DB-OPS] Looking up user agent mapping for agent_id: ${agentId}`);
+  
+  try {
+    const { data: userAgents, error } = await supabaseClient
+      .from('user_agents')
+      .select('user_id, company_id')
+      .eq('agent_id', agentId);
 
-  if (userAgentError || !userAgent) {
-    console.error('[WEBHOOK ERROR] User agent mapping not found:', { 
-      agent_id: agentId, 
-      error: userAgentError 
-    });
-    
-    // Log for monitoring
-    try {
-      await supabaseClient
-        .from('webhook_errors')
-        .insert({
-          error_type: 'user_mapping_not_found',
-          agent_id: agentId,
-          event_type: 'unknown',
-          error_details: userAgentError?.message || 'User mapping not found',
-          created_at: new Date().toISOString()
-        });
-    } catch (logError) {
-      console.error('Failed to log webhook error:', logError);
+    if (error) {
+      console.error(`[DB-OPS] User agent mapping error:`, error);
+      return { 
+        userAgent: null, 
+        error: createErrorResponse(`Failed to find user mapping for agent: ${error.message}`, 500) 
+      };
     }
-      
+
+    if (!userAgents || userAgents.length === 0) {
+      console.error(`[DB-OPS] No user mapping found for agent_id: ${agentId}`);
+      return { 
+        userAgent: null, 
+        error: createErrorResponse(`No user mapping found for agent_id: ${agentId}. Please ensure the agent is properly assigned to a user.`, 404) 
+      };
+    }
+
+    // Use the first mapping if multiple exist
+    const userAgent = userAgents[0];
+    console.log(`[DB-OPS] Found user mapping: user_id=${userAgent.user_id}, company_id=${userAgent.company_id}`);
+    
+    return { userAgent, error: null };
+
+  } catch (error: any) {
+    console.error(`[DB-OPS] Database error during user agent mapping lookup:`, error);
     return { 
       userAgent: null, 
-      error: createErrorResponse(`User mapping not found for agent: ${agentId}`, 400) 
+      error: createErrorResponse(`Database error: ${error.message}`, 500) 
     };
   }
-
-  console.log(`[WEBHOOK] Found user mapping:`, { 
-    user_id: userAgent.user_id, 
-    company_id: userAgent.company_id,
-    company_name: userAgent.companies?.name
-  });
-
-  return { userAgent, error: null };
 }
 
-export async function upsertCallData(supabaseClient: any, finalCallData: any) {
-  console.log(`[WEBHOOK] Upserting call data for call_id: ${finalCallData.call_id}`);
+export async function upsertCallData(supabaseClient: any, callData: any) {
+  console.log(`[DB-OPS] Upserting call data for call_id: ${callData.call_id}`);
   
-  const { data: upsertedCall, error: upsertError } = await supabaseClient
-    .from('calls')
-    .upsert(finalCallData, {
-      onConflict: 'call_id',
-      ignoreDuplicates: false
-    })
-    .select('id, call_id, cost_usd')
-    .single();
+  try {
+    const { data: upsertedCall, error } = await supabaseClient
+      .from('calls')
+      .upsert(callData, {
+        onConflict: 'call_id',
+        ignoreDuplicates: false
+      })
+      .select()
+      .single();
 
-  if (upsertError) {
-    console.error('[WEBHOOK ERROR] Failed to upsert call data:', upsertError);
-    console.error('[WEBHOOK ERROR] Call data that failed:', JSON.stringify(finalCallData, null, 2));
-    
-    // Log the upsert error for debugging
-    try {
-      await supabaseClient
-        .from('webhook_errors')
-        .insert({
-          error_type: 'upsert_failed',
-          call_id: finalCallData.call_id,
-          error_details: upsertError.message,
-          call_data: finalCallData,
-          created_at: new Date().toISOString()
-        });
-    } catch (logError) {
-      console.error('Failed to log upsert error:', logError);
+    if (error) {
+      console.error(`[DB-OPS] Call upsert error:`, error);
+      return { 
+        upsertedCall: null, 
+        error: createErrorResponse(`Failed to save call data: ${error.message}`, 500) 
+      };
     }
-    
+
+    console.log(`[DB-OPS] Successfully upserted call: ${callData.call_id} (DB ID: ${upsertedCall?.id})`);
+    return { upsertedCall, error: null };
+
+  } catch (error: any) {
+    console.error(`[DB-OPS] Database error during call upsert:`, error);
     return { 
       upsertedCall: null, 
-      error: createErrorResponse(`Failed to save call data: ${upsertError.message}`, 500) 
+      error: createErrorResponse(`Database error: ${error.message}`, 500) 
     };
   }
-
-  console.log(`[WEBHOOK] Successfully upserted call with ID: ${upsertedCall?.id}`);
-  return { upsertedCall, error: null };
 }

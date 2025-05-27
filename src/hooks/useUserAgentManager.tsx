@@ -15,12 +15,19 @@ export const useUserAgentManager = () => {
         body: { action: 'auto_map_orphaned_calls' },
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Content-Profile': 'public'
         }
       });
       
       if (error) {
         console.error("[USER_AGENT_MANAGER] Auto-mapping error:", error);
+        
+        // Enhanced error handling
+        if (error.message?.includes('CORS')) {
+          throw new Error("CORS configuration error. Please check function deployment.");
+        }
+        
         throw new Error(error.message || "Auto-mapping failed");
       }
       
@@ -41,7 +48,12 @@ export const useUserAgentManager = () => {
     },
     onError: (error: any) => {
       console.error("[USER_AGENT_MANAGER] Auto-mapping error:", error);
-      toast.error(`Auto-mapping failed: ${error.message}`);
+      
+      if (error.message?.includes("CORS")) {
+        toast.error("CORS configuration error. The user-agent-manager function may need redeployment.");
+      } else {
+        toast.error(`Auto-mapping failed: ${error.message}`);
+      }
     },
   });
 
@@ -56,12 +68,19 @@ export const useUserAgentManager = () => {
         body: { action: 'audit_mappings' },
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Content-Profile': 'public'
         }
       });
       
       if (error) {
         console.error("[USER_AGENT_MANAGER] Audit error:", error);
+        
+        // Enhanced error handling
+        if (error.message?.includes('CORS')) {
+          throw new Error("CORS configuration error. Please check function deployment.");
+        }
+        
         throw new Error(error.message || "Audit failed");
       }
       
@@ -79,7 +98,12 @@ export const useUserAgentManager = () => {
     },
     onError: (error: any) => {
       console.error("[USER_AGENT_MANAGER] Audit error:", error);
-      toast.error(`Audit failed: ${error.message}`);
+      
+      if (error.message?.includes("CORS")) {
+        toast.error("CORS configuration error. The user-agent-manager function may need redeployment.");
+      } else {
+        toast.error(`Audit failed: ${error.message}`);
+      }
     },
   });
 
@@ -103,12 +127,19 @@ export const useUserAgentManager = () => {
         },
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Content-Profile': 'public'
         }
       });
       
       if (error) {
         console.error("[USER_AGENT_MANAGER] Mapping creation error:", error);
+        
+        // Enhanced error handling
+        if (error.message?.includes('CORS')) {
+          throw new Error("CORS configuration error. Please check function deployment.");
+        }
+        
         throw new Error(error.message || "Mapping creation failed");
       }
       
@@ -120,7 +151,12 @@ export const useUserAgentManager = () => {
     },
     onError: (error: any) => {
       console.error("[USER_AGENT_MANAGER] Mapping creation error:", error);
-      toast.error(`Mapping creation failed: ${error.message}`);
+      
+      if (error.message?.includes("CORS")) {
+        toast.error("CORS configuration error. The user-agent-manager function may need redeployment.");
+      } else {
+        toast.error(`Mapping creation failed: ${error.message}`);
+      }
     },
   });
 

@@ -1,128 +1,118 @@
 
-export function processWebhookEvent(event: string, sanitizedCallData: any) {
-  let finalCallData = { ...sanitizedCallData };
+import { createErrorResponse } from './corsUtils.ts';
+
+export function processWebhookEvent(event: string, callData: any) {
+  console.log(`[EVENT-PROCESSOR] Processing event: ${event}`);
+  
+  // Add event-specific processing
+  const processedData = { ...callData };
   
   switch (event) {
     case 'call_started':
-      finalCallData = {
-        ...finalCallData,
-        duration_sec: 0,
-        cost_usd: 0,
-        call_status: 'in_progress',
-        sentiment: null,
-        sentiment_score: null,
-        disconnection_reason: null,
-        recording_url: null,
-        transcript: null,
-        transcript_url: null,
-        disposition: null
-      };
-      console.log(`[WEBHOOK] Processing call_started event for call: ${sanitizedCallData.call_id}`);
+      processedData.call_status = 'in_progress';
+      console.log(`[EVENT-PROCESSOR] Call started: ${callData.call_id}`);
       break;
-
+      
     case 'call_ended':
-    case 'call_analyzed':
     case 'call_disconnected':
-      finalCallData.call_status = 'completed';
-      console.log(`[WEBHOOK] Processing ${event} event for call: ${sanitizedCallData.call_id}`);
+      processedData.call_status = 'completed';
+      console.log(`[EVENT-PROCESSOR] Call ended: ${callData.call_id}`);
       break;
-
+      
+    case 'call_analyzed':
+      console.log(`[EVENT-PROCESSOR] Call analyzed: ${callData.call_id}`);
+      break;
+      
     default:
-      console.log(`[WEBHOOK] Processing unknown event type: ${event}, storing as completed`);
-      finalCallData.call_status = 'completed';
-      break;
+      console.log(`[EVENT-PROCESSOR] Unknown event type: ${event}, processing as generic call update`);
   }
-
-  return finalCallData;
+  
+  return processedData;
 }
 
 export async function handleTransactionAndBalance(
-  supabaseClient: any,
-  event: string,
-  finalCallData: any,
+  supabaseClient: any, 
+  event: string, 
+  callData: any, 
   userAgent: any
 ) {
-  // Create transaction record and update balance for completed calls only
-  if ((event === 'call_ended' || event === 'call_analyzed' || event === 'call_disconnected') && finalCallData.cost_usd > 0) {
-    console.log(`[WEBHOOK] Creating transaction record for cost: ${finalCallData.cost_usd}`);
+  if (event !== 'call_ended') {
+    console.log(`[TRANSACTION] Skipping transaction processing for event: ${event}`);
+    return;
+  }
+
+  console.log(`[TRANSACTION] Processing transaction for completed call: ${callData.call_id}`);
+  
+  try {
+    const callCost = callData.cost_usd || 0;
     
-    // Check current balance before deducting
-    const { data: currentBalance } = await supabaseClient
-      .from('user_balances')
-      .select('balance')
-      .eq('user_id', userAgent.user_id)
-      .eq('company_id', userAgent.company_id)
-      .single();
+    if (callCost > 0) {
+      // Record the transaction
+      const { error: transactionError } = await supabaseClient
+        .from('transactions')
+        .insert({
+          user_id: userAgent.user_id,
+          company_id: userAgent.company_id,
+          amount: -callCost, // Negative for debit
+          transaction_type: 'call_charge',
+          description: `Call charge for ${callData.call_id}`,
+          call_id: callData.call_id
+        });
 
-    const balanceBefore = currentBalance?.balance || 0;
-    console.log(`[WEBHOOK] Balance before deduction: ${balanceBefore}`);
-    
-    // Create transaction record
-    const { error: transactionError } = await supabaseClient
-      .from('transactions')
-      .insert({
-        user_id: userAgent.user_id,
-        company_id: userAgent.company_id,
-        amount: -finalCallData.cost_usd,
-        transaction_type: 'call_cost',
-        description: `Call cost for ${finalCallData.call_id} (${finalCallData.duration_sec}s)`,
-        call_id: finalCallData.call_id
-      });
+      if (transactionError) {
+        console.error(`[TRANSACTION] Failed to record transaction:`, transactionError);
+      } else {
+        console.log(`[TRANSACTION] Recorded call charge: $${callCost}`);
+        
+        // Update user balance
+        const { error: balanceError } = await supabaseClient
+          .rpc('update_user_balance', {
+            p_user_id: userAgent.user_id,
+            p_company_id: userAgent.company_id,
+            p_amount: -callCost
+          });
 
-    if (transactionError) {
-      console.error('[WEBHOOK ERROR] Failed to create transaction:', transactionError);
-    } else {
-      console.log(`[WEBHOOK] Successfully created transaction record`);
+        if (balanceError) {
+          console.error(`[TRANSACTION] Failed to update balance:`, balanceError);
+        } else {
+          console.log(`[TRANSACTION] Updated user balance: -$${callCost}`);
+        }
+      }
     }
-
-    // Update user balance using the RPC function
-    const { error: balanceError } = await supabaseClient.rpc('update_user_balance', {
-      p_user_id: userAgent.user_id,
-      p_company_id: userAgent.company_id,
-      p_amount: -finalCallData.cost_usd
-    });
-
-    if (balanceError) {
-      console.error('[WEBHOOK ERROR] Failed to update user balance:', balanceError);
-    } else {
-      console.log(`[WEBHOOK] Successfully updated user balance`);
-    }
-
-    // Check for low balance warning
-    if (balanceBefore - finalCallData.cost_usd < 10) {
-      console.warn(`[WEBHOOK WARNING] Low balance for user ${userAgent.user_id}: ${balanceBefore - finalCallData.cost_usd}`);
-    }
+  } catch (error) {
+    console.error(`[TRANSACTION] Error processing transaction:`, error);
   }
 }
 
 export async function logWebhookResult(
   supabaseClient: any,
   event: string,
-  retellCallId: string,
+  callId: string,
   agent: any,
   userAgent: any,
-  finalCallData: any,
-  status: 'success' | 'error',
-  processingStartTime: number
+  callData: any,
+  status: string,
+  startTime: number
 ) {
+  const processingTime = Date.now() - startTime;
+  
   try {
-    if (status === 'success') {
-      await supabaseClient
-        .from('webhook_logs')
-        .insert({
-          event_type: event,
-          call_id: retellCallId,
-          agent_id: agent.id,
-          user_id: userAgent.user_id,
-          company_id: userAgent.company_id,
-          cost_usd: finalCallData.cost_usd,
-          duration_sec: finalCallData.duration_sec,
-          status: 'success',
-          processing_time_ms: Date.now() - processingStartTime,
-          created_at: new Date().toISOString()
-        });
-    }
-  } catch (logError) {
-    console.error('Failed to log webhook result:', logError);
+    await supabaseClient
+      .from('webhook_logs')
+      .insert({
+        event_type: event,
+        call_id: callId,
+        agent_id: agent.id,
+        user_id: userAgent.user_id,
+        company_id: userAgent.company_id,
+        status,
+        processing_time_ms: processingTime,
+        call_data: callData,
+        created_at: new Date().toISOString()
+      });
+      
+    console.log(`[WEBHOOK-LOG] Logged ${status} result for ${event} in ${processingTime}ms`);
+  } catch (error) {
+    console.error(`[WEBHOOK-LOG] Failed to log webhook result:`, error);
   }
 }
