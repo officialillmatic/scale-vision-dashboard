@@ -88,7 +88,11 @@ export function useDebugOperations() {
           status: !relError ? 'success' : 'error'
         };
       } catch (error: any) {
-        debugResults.agentTest = { status: 'error', error: error.message };
+        debugResults.agentTest = { 
+          count: 0, 
+          status: 'error', 
+          error: error.message 
+        };
       }
 
       // Test 3: Webhook connectivity
