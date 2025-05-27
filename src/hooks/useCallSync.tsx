@@ -16,7 +16,7 @@ export const useCallSync = (refetch: () => void) => {
         
         // Create a timeout promise
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("Sync timed out")), 60000); // 60 second timeout
+          setTimeout(() => reject(new Error("Sync operation timed out after 60 seconds")), 60000);
         });
         
         // Create the sync promise
@@ -33,7 +33,7 @@ export const useCallSync = (refetch: () => void) => {
         
         if (error) {
           console.error("[USE_CALL_SYNC] Sync error:", error);
-          throw new Error(error.message || "Sync failed");
+          throw new Error(error.message || "Sync operation failed");
         }
         
         console.log("[USE_CALL_SYNC] Sync response:", data);
@@ -42,7 +42,7 @@ export const useCallSync = (refetch: () => void) => {
         console.error("[USE_CALL_SYNC] Sync exception:", error);
         
         if (error.message?.includes("timed out")) {
-          throw new Error("Sync timed out. Please try again.");
+          throw new Error("Sync operation timed out. Please try again in a few moments.");
         }
         
         throw error;
@@ -52,14 +52,17 @@ export const useCallSync = (refetch: () => void) => {
       console.log("[USE_CALL_SYNC] Sync successful:", data);
       const syncedCount = data?.synced_calls || 0;
       const processedCount = data?.processed_calls || 0;
-      const skippedAgents = data?.skippedAgents || 0;
+      const skippedAgents = data?.skipped_agents || 0;
+      const agentsFound = data?.agents_found || 0;
       
       if (syncedCount > 0) {
-        toast.success(`Successfully synced ${syncedCount} new calls (${processedCount} total processed)`);
+        toast.success(`Successfully synced ${syncedCount} new calls from ${agentsFound} agents`);
       } else if (skippedAgents > 0) {
-        toast.warning(`Sync completed - no new calls found. ${skippedAgents} agents skipped (no user mappings)`);
+        toast.warning(`Sync completed - no new calls found. ${skippedAgents} agents skipped (missing user mappings)`);
+      } else if (processedCount > 0) {
+        toast.info(`Sync completed - ${processedCount} calls checked, all up to date`);
       } else {
-        toast.info(`Sync completed - no new calls found (${processedCount} calls processed)`);
+        toast.info("Sync completed - no calls found to process");
       }
       
       // Invalidate and refetch queries
@@ -76,9 +79,13 @@ export const useCallSync = (refetch: () => void) => {
       console.error("[USE_CALL_SYNC] Sync mutation error:", error);
       
       if (error.message?.includes("timeout") || error.message?.includes("timed out")) {
-        toast.error("Sync timed out. Please check your Retell integration and try again.");
+        toast.error("Sync operation timed out. Please check your Retell integration and try again.");
+      } else if (error.message?.includes("401") || error.message?.includes("unauthorized")) {
+        toast.error("Authentication failed. Please check your Retell API credentials.");
+      } else if (error.message?.includes("404")) {
+        toast.error("Sync service not found. Please check your deployment.");
       } else {
-        toast.error(`Failed to sync calls: ${error.message}`);
+        toast.error(`Sync failed: ${error.message}`);
       }
     },
   });
@@ -143,14 +150,14 @@ export const useCallSync = (refetch: () => void) => {
       
       if (error) {
         console.error("[USE_CALL_SYNC] Test error:", error);
-        throw new Error(error.message || "Test failed");
+        throw new Error(error.message || "Connectivity test failed");
       }
       
       return data;
     },
     onSuccess: (data) => {
       console.log("[USE_CALL_SYNC] Test successful:", data);
-      toast.success(`Retell API test passed! Found ${data?.callsFound || 0} calls available.`);
+      toast.success(`Retell API test passed! Found ${data?.callsFound || 0} calls available for sync.`);
     },
     onError: (error: any) => {
       console.error("[USE_CALL_SYNC] Test error:", error);
@@ -160,6 +167,8 @@ export const useCallSync = (refetch: () => void) => {
         toast.error("Retell API test failed: Invalid API key. Please check your Retell credentials.");
       } else if (error.message?.includes("404")) {
         toast.error("Retell API test failed: API endpoint not found. Please check your Retell integration.");
+      } else if (error.message?.includes("timeout")) {
+        toast.error("Retell API test failed: Request timed out. Please check your internet connection.");
       } else {
         toast.error(`Retell API test failed: ${error.message}`);
       }
