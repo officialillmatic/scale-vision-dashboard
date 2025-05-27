@@ -89,8 +89,66 @@ export const useCallSync = (refetch: () => void) => {
     },
   });
 
+  const testSyncMutation = useMutation({
+    mutationFn: async () => {
+      console.log("[USE_CALL_SYNC] Starting test sync...");
+      
+      const { data, error } = await supabase.functions.invoke("sync-calls", {
+        body: { test: true },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Content-Profile': 'public'
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message || "Test sync failed");
+      }
+      
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("API test successful - connection verified");
+    },
+    onError: (error: any) => {
+      toast.error(`API test failed: ${error.message}`);
+    },
+  });
+
+  const webhookMutation = useMutation({
+    mutationFn: async () => {
+      console.log("[USE_CALL_SYNC] Registering webhook...");
+      
+      const { data, error } = await supabase.functions.invoke("register-retell-webhook", {
+        body: {},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Content-Profile': 'public'
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message || "Webhook registration failed");
+      }
+      
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Webhook registered successfully");
+    },
+    onError: (error: any) => {
+      toast.error(`Webhook registration failed: ${error.message}`);
+    },
+  });
+
   return {
     handleSync: () => syncMutation.mutate(),
-    isSyncing: syncMutation.isPending
+    isSyncing: syncMutation.isPending,
+    handleTestSync: () => testSyncMutation.mutate(),
+    isTesting: testSyncMutation.isPending,
+    handleRegisterWebhook: () => webhookMutation.mutate(),
+    isRegisteringWebhook: webhookMutation.isPending
   };
 };
