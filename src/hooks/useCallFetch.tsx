@@ -27,12 +27,12 @@ export const useCallFetch = () => {
       console.log("[USE_CALL_FETCH] Fetching calls for company:", company.id);
       
       try {
-        // Fixed: Use explicit foreign key alias to disambiguate the join
+        // Use the proper foreign key constraint established in migration
         const { data, error } = await supabase
           .from('calls')
           .select(`
             *,
-            call_agent:agents!calls_agent_id_fkey (
+            agents!calls_agent_id_fkey (
               id, 
               name,
               rate_per_minute
@@ -70,11 +70,11 @@ export const useCallFetch = () => {
           ...call,
           timestamp: new Date(call.timestamp),
           start_time: call.start_time ? new Date(call.start_time) : undefined,
-          // Map call_agent to agent for compatibility
-          agent: call.call_agent ? {
-            id: call.call_agent.id,
-            name: call.call_agent.name,
-            rate_per_minute: call.call_agent.rate_per_minute
+          // Map agents to agent for compatibility
+          agent: call.agents ? {
+            id: call.agents.id,
+            name: call.agents.name,
+            rate_per_minute: call.agents.rate_per_minute
           } : undefined
         }));
         

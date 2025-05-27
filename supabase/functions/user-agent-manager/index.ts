@@ -25,8 +25,11 @@ serve(async (req) => {
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
     
     if (req.method === 'POST') {
-      const { action, ...requestData } = await req.json().catch(() => ({ action: 'unknown' }));
-      console.log(`[USER-AGENT-MANAGER-${requestId}] Action: ${action}`);
+      const requestBody = await req.json().catch(() => ({}));
+      const { action, ...requestData } = requestBody;
+      
+      console.log(`[USER-AGENT-MANAGER-${requestId}] Action: ${action || 'not provided'}`);
+      console.log(`[USER-AGENT-MANAGER-${requestId}] Request data:`, requestData);
 
       switch (action) {
         case 'auto_map_orphaned_calls':
@@ -39,7 +42,8 @@ serve(async (req) => {
           return await createDefaultMapping(supabaseClient, requestId, requestData);
           
         default:
-          return createErrorResponse(`Unknown action: ${action}. Supported actions: auto_map_orphaned_calls, audit_mappings, create_default_mapping`, 400);
+          console.log(`[USER-AGENT-MANAGER-${requestId}] No action provided, defaulting to auto_map_orphaned_calls`);
+          return await autoMapOrphanedCalls(supabaseClient, requestId);
       }
     }
 
@@ -54,72 +58,64 @@ serve(async (req) => {
 async function autoMapOrphanedCalls(supabaseClient: any, requestId: string) {
   console.log(`[USER-AGENT-MANAGER-${requestId}] Starting auto-mapping process...`);
   
-  // Find agents that have calls but no user mappings
-  const { data: orphanedAgents, error: orphanError } = await supabaseClient
-    .from('agents')
-    .select(`
-      id, 
-      name, 
-      retell_agent_id,
-      calls!inner(id, user_id, company_id)
-    `)
-    .not('retell_agent_id', 'is', null);
+  // Find agents that exist in calls but don't have user mappings
+  const { data: callsWithAgents, error: callsError } = await supabaseClient
+    .from('calls')
+    .select('agent_id, user_id, company_id')
+    .not('agent_id', 'is', null);
 
-  if (orphanError) {
-    console.error(`[USER-AGENT-MANAGER-${requestId}] Error finding orphaned agents:`, orphanError);
-    return createErrorResponse(`Failed to find orphaned agents: ${orphanError.message}`, 500);
+  if (callsError) {
+    console.error(`[USER-AGENT-MANAGER-${requestId}] Error finding calls with agents:`, callsError);
+    return createErrorResponse(`Failed to find calls with agents: ${callsError.message}`, 500);
   }
 
   let mappingsCreated = 0;
   let agentsProcessed = 0;
-  let callsFound = 0;
+  let callsFound = callsWithAgents?.length || 0;
 
-  for (const agent of orphanedAgents || []) {
+  // Group calls by agent_id to process unique agents
+  const agentGroups = new Map();
+  callsWithAgents?.forEach(call => {
+    if (call.agent_id && !agentGroups.has(call.agent_id)) {
+      agentGroups.set(call.agent_id, call);
+    }
+  });
+
+  for (const [agentId, sampleCall] of agentGroups) {
     try {
       // Check if mapping already exists
       const { data: existingMapping } = await supabaseClient
         .from('user_agents')
         .select('id')
-        .eq('agent_id', agent.id)
+        .eq('agent_id', agentId)
         .single();
 
       if (existingMapping) {
-        console.log(`[USER-AGENT-MANAGER-${requestId}] Agent ${agent.name} already has mapping, skipping`);
+        console.log(`[USER-AGENT-MANAGER-${requestId}] Agent ${agentId} already has mapping, skipping`);
         continue;
       }
 
-      // Get a representative call to determine user/company
-      const { data: sampleCall } = await supabaseClient
-        .from('calls')
-        .select('user_id, company_id')
-        .eq('agent_id', agent.id)
-        .limit(1)
-        .single();
+      // Create user-agent mapping
+      const { error: mappingError } = await supabaseClient
+        .from('user_agents')
+        .insert({
+          user_id: sampleCall.user_id,
+          company_id: sampleCall.company_id,
+          agent_id: agentId,
+          is_primary: false
+        });
 
-      if (sampleCall) {
-        // Create user-agent mapping
-        const { error: mappingError } = await supabaseClient
-          .from('user_agents')
-          .insert({
-            user_id: sampleCall.user_id,
-            company_id: sampleCall.company_id,
-            agent_id: agent.id,
-            is_primary: false
-          });
-
-        if (mappingError) {
-          console.error(`[USER-AGENT-MANAGER-${requestId}] Failed to create mapping for agent ${agent.name}:`, mappingError);
-        } else {
-          mappingsCreated++;
-          console.log(`[USER-AGENT-MANAGER-${requestId}] Created mapping for agent ${agent.name}`);
-        }
+      if (mappingError) {
+        console.error(`[USER-AGENT-MANAGER-${requestId}] Failed to create mapping for agent ${agentId}:`, mappingError);
+      } else {
+        mappingsCreated++;
+        console.log(`[USER-AGENT-MANAGER-${requestId}] Created mapping for agent ${agentId}`);
       }
 
       agentsProcessed++;
-      callsFound += agent.calls?.length || 0;
 
     } catch (error) {
-      console.error(`[USER-AGENT-MANAGER-${requestId}] Error processing agent ${agent.name}:`, error);
+      console.error(`[USER-AGENT-MANAGER-${requestId}] Error processing agent ${agentId}:`, error);
     }
   }
 

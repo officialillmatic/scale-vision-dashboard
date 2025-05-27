@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { CallsTable } from "@/types/supabase";
 
@@ -26,12 +25,12 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
   console.log("[CALL_SERVICE] Fetching calls for company:", companyId);
   
   try {
-    // Fixed: Use explicit foreign key alias to disambiguate the join
+    // Use the proper foreign key constraint established in migration
     const { data, error } = await supabase
       .from("calls")
       .select(`
         *,
-        call_agent:agents!calls_agent_id_fkey(id, name, agent_id, rate_per_minute)
+        agents!calls_agent_id_fkey(id, name, rate_per_minute)
       `)
       .eq("company_id", companyId)
       .order("timestamp", { ascending: false })
@@ -52,12 +51,11 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
       ...call,
       timestamp: new Date(call.timestamp),
       start_time: call.start_time ? new Date(call.start_time) : undefined,
-      // Map call_agent to agent for compatibility
-      agent: call.call_agent ? {
-        id: call.call_agent.id,
-        name: call.call_agent.name,
-        agent_id: call.call_agent.agent_id,
-        rate_per_minute: call.call_agent.rate_per_minute
+      // Map agents to agent for compatibility
+      agent: call.agents ? {
+        id: call.agents.id,
+        name: call.agents.name,
+        rate_per_minute: call.agents.rate_per_minute
       } : undefined
     }));
 

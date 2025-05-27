@@ -10,11 +10,6 @@ export const useUserAgentManager = () => {
   } = useMutation({
     mutationFn: async () => {
       console.log("[USER_AGENT_MANAGER] Starting auto-mapping...");
-      console.log("[USER_AGENT_MANAGER] Using headers:", {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Content-Profile': 'public'
-      });
       
       const { data, error } = await supabase.functions.invoke("user-agent-manager", {
         body: { action: 'auto_map_orphaned_calls' },
@@ -27,13 +22,6 @@ export const useUserAgentManager = () => {
       
       if (error) {
         console.error("[USER_AGENT_MANAGER] Auto-mapping error:", error);
-        console.error("[USER_AGENT_MANAGER] Error details:", JSON.stringify(error, null, 2));
-        
-        // Enhanced error handling
-        if (error.message?.includes('CORS') || error.message?.includes('preflight')) {
-          throw new Error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
-        }
-        
         throw new Error(error.message || "Auto-mapping failed");
       }
       
@@ -54,12 +42,7 @@ export const useUserAgentManager = () => {
     },
     onError: (error: any) => {
       console.error("[USER_AGENT_MANAGER] Auto-mapping error:", error);
-      
-      if (error.message?.includes("CORS") || error.message?.includes("preflight")) {
-        toast.error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
-      } else {
-        toast.error(`Auto-mapping failed: ${error.message}`);
-      }
+      toast.error(`Auto-mapping failed: ${error.message}`);
     },
   });
 
@@ -69,11 +52,6 @@ export const useUserAgentManager = () => {
   } = useMutation({
     mutationFn: async () => {
       console.log("[USER_AGENT_MANAGER] Starting audit...");
-      console.log("[USER_AGENT_MANAGER] Using headers:", {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Content-Profile': 'public'
-      });
       
       const { data, error } = await supabase.functions.invoke("user-agent-manager", {
         body: { action: 'audit_mappings' },
@@ -86,13 +64,6 @@ export const useUserAgentManager = () => {
       
       if (error) {
         console.error("[USER_AGENT_MANAGER] Audit error:", error);
-        console.error("[USER_AGENT_MANAGER] Error details:", JSON.stringify(error, null, 2));
-        
-        // Enhanced error handling
-        if (error.message?.includes('CORS') || error.message?.includes('preflight')) {
-          throw new Error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
-        }
-        
         throw new Error(error.message || "Audit failed");
       }
       
@@ -110,12 +81,7 @@ export const useUserAgentManager = () => {
     },
     onError: (error: any) => {
       console.error("[USER_AGENT_MANAGER] Audit error:", error);
-      
-      if (error.message?.includes("CORS") || error.message?.includes("preflight")) {
-        toast.error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
-      } else {
-        toast.error(`Audit failed: ${error.message}`);
-      }
+      toast.error(`Audit failed: ${error.message}`);
     },
   });
 
@@ -129,11 +95,6 @@ export const useUserAgentManager = () => {
       companyId: string; 
     }) => {
       console.log("[USER_AGENT_MANAGER] Creating default mapping...");
-      console.log("[USER_AGENT_MANAGER] Using headers:", {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Content-Profile': 'public'
-      });
       
       const { data, error } = await supabase.functions.invoke("user-agent-manager", {
         body: { 
@@ -151,13 +112,6 @@ export const useUserAgentManager = () => {
       
       if (error) {
         console.error("[USER_AGENT_MANAGER] Mapping creation error:", error);
-        console.error("[USER_AGENT_MANAGER] Error details:", JSON.stringify(error, null, 2));
-        
-        // Enhanced error handling
-        if (error.message?.includes('CORS') || error.message?.includes('preflight')) {
-          throw new Error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
-        }
-        
         throw new Error(error.message || "Mapping creation failed");
       }
       
@@ -169,12 +123,7 @@ export const useUserAgentManager = () => {
     },
     onError: (error: any) => {
       console.error("[USER_AGENT_MANAGER] Mapping creation error:", error);
-      
-      if (error.message?.includes("CORS") || error.message?.includes("preflight")) {
-        toast.error("CORS configuration error. The edge functions may need redeployment with updated CORS headers.");
-      } else {
-        toast.error(`Mapping creation failed: ${error.message}`);
-      }
+      toast.error(`Mapping creation failed: ${error.message}`);
     },
   });
 
