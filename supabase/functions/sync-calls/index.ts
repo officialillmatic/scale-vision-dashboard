@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
-import { handleCors, createErrorResponse, createSuccessResponse } from "./corsUtils.ts";
+import { handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
 import { mapRetellCallToSupabase } from "./retellDataMapper.ts";
 
 // Use environment helper for secure env var access
