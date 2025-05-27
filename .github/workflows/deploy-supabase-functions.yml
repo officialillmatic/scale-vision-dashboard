@@ -1,0 +1,70 @@
+
+name: Deploy Supabase Edge Functions
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-functions:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install Supabase CLI
+      run: npm install -g supabase@latest
+    
+    - name: Create environment file
+      run: |
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> .env
+        echo "RETELL_API_KEY=${{ secrets.RETELL_API_KEY }}" >> .env
+        echo "PUBLIC_APP_URL=${{ secrets.PUBLIC_APP_URL }}" >> .env
+        echo "RETELL_SECRET=${{ secrets.RETELL_SECRET }}" >> .env
+    
+    - name: Login to Supabase
+      run: supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    
+    - name: Deploy sync-calls function
+      run: |
+        supabase functions deploy sync-calls \
+          --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+          --env-file .env
+    
+    - name: Deploy register-retell-webhook function
+      run: |
+        supabase functions deploy register-retell-webhook \
+          --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+          --env-file .env
+    
+    - name: Deploy retell-webhook function
+      run: |
+        supabase functions deploy retell-webhook \
+          --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+          --env-file .env
+    
+    - name: List deployed functions
+      run: |
+        echo "Listing all deployed functions:"
+        supabase functions list --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+    
+    - name: Verify function deployment
+      run: |
+        echo "Deployment completed successfully!"
+        echo "Functions should now be live at:"
+        echo "- https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/sync-calls"
+        echo "- https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/register-retell-webhook"
+        echo "- https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/retell-webhook"
+    
+    - name: Clean up environment file
+      if: always()
+      run: rm -f .env
