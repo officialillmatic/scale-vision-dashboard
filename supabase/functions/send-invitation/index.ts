@@ -1,9 +1,8 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { getCurrentUserId } from "./auth.ts";
 import { validateInvitationRequest } from "./validation.ts";
-import { createInvitation } from "./database.ts";
+import { createInvitationRecord } from "./database.ts";
 import { sendInvitationEmail } from "./email.ts";
 
 const corsHeaders = {
@@ -79,7 +78,7 @@ serve(async (req) => {
     const { companyId, email, role } = validationResult.data;
 
     // Create invitation in database
-    const invitation = await createInvitation(
+    const invitation = await createInvitationRecord(
       supabaseClient,
       companyId,
       email,
