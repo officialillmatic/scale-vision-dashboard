@@ -10,7 +10,7 @@ export async function getCurrentUserId(req: Request): Promise<string | null> {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const anonKey = Deno.env.get("ANON_KEY");
     
     if (!supabaseUrl || !anonKey) {
       console.error("Missing Supabase configuration for auth");
