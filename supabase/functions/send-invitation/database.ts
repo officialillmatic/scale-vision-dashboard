@@ -19,7 +19,7 @@ export async function getCompanyDetails(supabase: any, companyId: string) {
 
 export async function checkExistingInvitation(supabase: any, companyId: string, email: string) {
   const { data: existingInvites, error: checkError } = await supabase
-    .from("company_invitations_raw")
+    .from("company_invitations")
     .select("id")
     .eq("company_id", companyId)
     .eq("email", email)
@@ -42,7 +42,7 @@ export async function createInvitationRecord(
   expiresAt.setDate(expiresAt.getDate() + 7);
 
   const { data: newInvitation, error: createError } = await supabase
-    .from("company_invitations")
+    .from("company_invitations_raw")
     .insert({
       company_id: companyId,
       email,
