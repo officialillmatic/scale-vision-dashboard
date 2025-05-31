@@ -1,39 +1,17 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 export async function sendInvitationEmail(invitation: any) {
-  console.log("Sending invitation email using Supabase Auth...");
+  console.log("Sending invitation email - temporary simulation...");
   
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    console.log("=== EMAIL SIMULATION ===");
+    console.log("To:", invitation.email);
+    console.log("Company ID:", invitation.company_id);
+    console.log("Role:", invitation.role);
+    console.log("Token:", invitation.token);
+    console.log("Invitation URL would be: https://drscaleai.com/accept-invitation?token=" + invitation.token);
+    console.log("=== EMAIL SENT (SIMULATED) ===");
     
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error("Missing Supabase configuration");
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Crear un usuario temporal con la invitación
-    const { data, error } = await supabase.auth.admin.inviteUserByEmail(
-      invitation.email,
-      {
-        data: {
-          company_id: invitation.company_id,
-          role: invitation.role,
-          invitation_token: invitation.token,
-          invited_by: invitation.invited_by
-        },
-        redirectTo: `${Deno.env.get("SITE_URL") || "https://drscaleai.com"}/accept-invitation?token=${invitation.token}`
-      }
-    );
-
-    if (error) {
-      console.error("Error sending invitation email:", error);
-      throw new Error(`Failed to send invitation email: ${error.message}`);
-    }
-
-    console.log("Invitation email sent successfully:", data);
-    return data;
+    // Simular éxito
+    return { success: true, message: "Email sent successfully (simulated)" };
 
   } catch (error) {
     console.error("Error in sendInvitationEmail:", error);
