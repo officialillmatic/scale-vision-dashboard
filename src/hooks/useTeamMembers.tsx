@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from "react";
-import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation } from "@/services/invitation";
+import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation, createInvitation } from "@/services/invitation";
 import { handleError } from "@/lib/errorHandling";
-import { fetchCompanyMembers, CompanyMember, inviteTeamMember } from "@/services/memberService";
+import { fetchCompanyMembers, CompanyMember } from "@/services/memberService";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 
 interface UseTeamMembersResult {
@@ -117,22 +116,27 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     }
   };
 
-  // Direct implementation of handle invite using imported function
+  // Direct implementation of handle invite using createInvitation
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
     // Super admins can invite to any company or create global invitations
     if (!companyId && !isSuperAdmin) return false;
     
     setIsInviting(true);
-    console.log("useTeamMembers: Inviting", email, "with role", role, "for company", companyId);
+    console.log("🎯 [HOOK] useTeamMembers: Inviting", email, "with role", role, "for company", companyId);
+    
     try {
-      // Use the inviteTeamMember service function directly from memberService
-      const success = await inviteTeamMember(companyId, email, role);
+      // Use createInvitation from invitationActions (which calls Edge Function)
+      const success = await createInvitation(companyId, email, role);
+      
+      console.log("🎯 [HOOK] createInvitation result:", success);
+      
       if (success) {
         // Refresh invitations list on success
         await fetchInvitations();
       }
       return success;
     } catch (error) {
+      console.error("🎯 [HOOK] Error in handleInvite:", error);
       handleError(error, {
         fallbackMessage: "Failed to send invitation",
         logToConsole: true
