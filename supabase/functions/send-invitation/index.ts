@@ -75,11 +75,10 @@ serve(async (req) => {
       currentUserId
     );
 
-    // Send invitation email - TEMPORARILY DISABLED FOR TESTING
-// await sendInvitationEmail(invitation);
-console.log("Email sending disabled for testing - invitation created successfully");
-
-console.log("Invitation sent successfully:", invitation.id);
+    // Send invitation email
+    await sendInvitationEmail(invitation);
+    
+    console.log("Invitation sent successfully:", invitation.id);
 
     return new Response(
       JSON.stringify({ 
