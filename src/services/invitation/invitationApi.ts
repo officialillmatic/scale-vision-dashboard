@@ -63,7 +63,7 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
         )
       `)
       .eq('token', token)
-      .in('status', ['pending', 'accepted']) // Allow both pending and accepted
+      .eq('status', 'pending') // Solo buscar pending para checkInvitation
       .maybeSingle();
 
     if (error) {
@@ -119,17 +119,17 @@ export const acceptInvitation = async (token: string, userId: string): Promise<b
   console.log("[INVITATION_API] Accepting invitation for user:", userId, "with token:", token);
   
   try {
-    // Step 1: Get invitation details
+    // Step 1: Get invitation details (buscar pending, no accepted)
     const { data: invitation, error: fetchError } = await supabase
       .from('company_invitations_raw')
       .select('*')
       .eq('token', token)
-      .eq('status', 'accepted') // Ya debería estar marcada como accepted desde AcceptInvitationPage
+      .eq('status', 'pending') // Buscar pending, no accepted
       .single();
 
     if (fetchError || !invitation) {
       console.error("[INVITATION_API] Invitation not found:", fetchError);
-      throw new Error("Invitation not found or not yet accepted");
+      throw new Error("Invitation not found or expired");
     }
 
     console.log("[INVITATION_API] Found invitation:", invitation);
