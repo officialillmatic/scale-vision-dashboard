@@ -63,7 +63,7 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
         )
       `)
       .eq('token', token)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'accepted']) // Allow both pending and accepted
       .maybeSingle();
 
     if (error) {
@@ -116,23 +116,64 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
 };
 
 export const acceptInvitation = async (token: string, userId: string): Promise<boolean> => {
-  console.log("[INVITATION_API] Accepting invitation for user:", userId);
+  console.log("[INVITATION_API] Accepting invitation for user:", userId, "with token:", token);
   
   try {
-    const { data, error } = await supabase.rpc('accept_invitation', {
-      p_token: token,
-      p_user_id: userId
-    });
+    // Step 1: Get invitation details
+    const { data: invitation, error: fetchError } = await supabase
+      .from('company_invitations_raw')
+      .select('*')
+      .eq('token', token)
+      .eq('status', 'accepted') // Ya debería estar marcada como accepted desde AcceptInvitationPage
+      .single();
 
-    if (error) {
-      console.error("[INVITATION_API] Error accepting invitation:", error);
-      throw new Error(`Failed to accept invitation: ${error.message}`);
+    if (fetchError || !invitation) {
+      console.error("[INVITATION_API] Invitation not found:", fetchError);
+      throw new Error("Invitation not found or not yet accepted");
     }
 
-    console.log("[INVITATION_API] Invitation accepted successfully:", data);
-    return data === true;
+    console.log("[INVITATION_API] Found invitation:", invitation);
+
+    // Step 2: Create company member record
+    const { data: memberData, error: memberError } = await supabase
+      .from('company_members')
+      .insert({
+        user_id: userId,
+        company_id: invitation.company_id,
+        role: invitation.role,
+        status: 'active',
+        joined_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (memberError) {
+      console.error("[INVITATION_API] Error creating company member:", memberError);
+      throw new Error(`Failed to create company member: ${memberError.message}`);
+    }
+
+    console.log("[INVITATION_API] Company member created successfully:", memberData);
+
+    // Step 3: Update invitation status to completed
+    const { error: updateError } = await supabase
+      .from('company_invitations_raw')
+      .update({ 
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        accepted_by_user_id: userId
+      })
+      .eq('token', token);
+
+    if (updateError) {
+      console.error("[INVITATION_API] Error updating invitation status:", updateError);
+      // Don't throw here, member was created successfully
+    }
+
+    console.log("[INVITATION_API] Invitation process completed successfully");
+    return true;
+
   } catch (error) {
-    console.error("[INVITATION_API] Unexpected error:", error);
+    console.error("[INVITATION_API] Error in acceptInvitation:", error);
     throw error;
   }
 };
