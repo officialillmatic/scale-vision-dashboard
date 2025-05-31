@@ -18,7 +18,7 @@ export async function getCompanyDetails(supabase: any, companyId: string) {
 
 export async function checkExistingInvitation(supabase: any, companyId: string, email: string) {
   const { data: existingInvites, error: checkError } = await supabase
-    .from("company_invitations_raw")  // ← CAMBIADO a _raw
+    .from("company_invitations_raw")
     .select("id")
     .eq("company_id", companyId)
     .eq("email", email)
@@ -44,27 +44,26 @@ export async function createInvitationRecord(
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 
-  console.log("Creating invitation with data:", {
+  // Preparar datos de invitación - invited_by es opcional
+  const invitationData: any = {
     company_id: companyId,
     email,
     role,
     token,
     expires_at: expiresAt.toISOString(),
-    status: "pending",
-    invited_by: currentUserId
-  });
+    status: "pending"
+  };
+
+  // Solo agregar invited_by si tenemos un currentUserId válido y no es el bypass
+  if (currentUserId && currentUserId !== "super-admin-bypass" && currentUserId !== "default-company-id") {
+    invitationData.invited_by = currentUserId;
+  }
+
+  console.log("Creating invitation with data:", invitationData);
 
   const { data: newInvitation, error: createError } = await supabase
     .from("company_invitations_raw")
-    .insert({
-      company_id: companyId,
-      email,
-      role,
-      token,
-      expires_at: expiresAt.toISOString(),
-      status: "pending",
-      invited_by: currentUserId
-    })
+    .insert(invitationData)
     .select()
     .single();
 
@@ -87,7 +86,7 @@ export async function updateInvitationExpiry(supabase: any, invitationId: string
   expiresAt.setDate(expiresAt.getDate() + 7);
   
   const { error: updateError } = await supabase
-    .from("company_invitations_raw")  // ← CAMBIADO a _raw
+    .from("company_invitations_raw")
     .update({
       expires_at: expiresAt.toISOString(),
       status: "pending"
@@ -102,7 +101,7 @@ export async function updateInvitationExpiry(supabase: any, invitationId: string
 
 export async function getExistingInvitation(supabase: any, invitationId: string) {
   const { data: existingInvitation, error: invitationError } = await supabase
-    .from("company_invitations_raw")  // ← CAMBIADO a _raw
+    .from("company_invitations_raw")
     .select("*")
     .eq("id", invitationId)
     .single();
