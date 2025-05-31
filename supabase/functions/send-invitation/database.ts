@@ -19,7 +19,7 @@ export async function getCompanyDetails(supabase: any, companyId: string) {
 
 export async function checkExistingInvitation(supabase: any, companyId: string, email: string) {
   const { data: existingInvites, error: checkError } = await supabase
-    .from("company_invitations")
+    .from("company_invitations_raw")
     .select("id")
     .eq("company_id", companyId)
     .eq("email", email)
