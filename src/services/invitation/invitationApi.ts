@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { CompanyInvitation, InvitationCheckResult } from "./types";
 
@@ -7,9 +6,10 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
   
   try {
     const { data, error } = await supabase
-      .from('company_invitations')
+      .from('company_invitations_raw')  // ✅ Tabla correcta
       .select('*')
       .eq('company_id', companyId)
+      .eq('status', 'pending')  // ✅ Solo mostrar pending
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -23,7 +23,7 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
     const invitations = (data || []).map(invitation => ({
       ...invitation,
       created_at: new Date(invitation.created_at),
-      expires_at: new Date(invitation.expires_at)
+      expires_at: invitation.expires_at ? new Date(invitation.expires_at) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now if no expires_at
     }));
 
     return invitations;
@@ -38,7 +38,7 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
   
   try {
     const { data, error } = await supabase
-      .from('company_invitations')
+      .from('company_invitations_raw')  // ✅ Tabla correcta
       .select(`
         *,
         companies:company_id (
@@ -48,7 +48,6 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
       `)
       .eq('token', token)
       .eq('status', 'pending')
-      .gt('expires_at', new Date().toISOString())
       .maybeSingle();
 
     if (error) {
@@ -64,6 +63,15 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
       return {
         valid: false,
         error: "Invitation not found or has expired"
+      };
+    }
+
+    // Check if invitation is expired (if expires_at exists)
+    if (data.expires_at && new Date(data.expires_at) < new Date()) {
+      console.log("[INVITATION_API] Invitation has expired");
+      return {
+        valid: false,
+        error: "Invitation has expired"
       };
     }
 
