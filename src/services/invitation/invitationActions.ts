@@ -8,11 +8,14 @@ export const createInvitation = async (
   role: InvitationRole
 ): Promise<boolean> => {
   try {
-    console.log("Creating invitation...");
+    console.log("🚀 [CREATE_INVITATION] Starting...", { companyId, email, role });
     
     // Step 1: Create invitation in database
+    console.log("📝 [DATABASE] Creating token...");
     const token = crypto.randomUUID();
+    console.log("📝 [DATABASE] Token created:", token);
     
+    console.log("📝 [DATABASE] Inserting into company_invitations_raw...");
     const { data: invitation, error: dbError } = await supabase
       .from("company_invitations_raw")
       .insert({
@@ -25,14 +28,24 @@ export const createInvitation = async (
       .select()
       .single();
 
+    console.log("📝 [DATABASE] Insert result:", { invitation, dbError });
+
     if (dbError) {
-      console.error("Database error:", dbError);
+      console.error("❌ [DATABASE] Error:", dbError);
       throw dbError;
     }
 
-    console.log("Invitation created in database:", invitation);
+    console.log("✅ [DATABASE] Invitation created successfully:", invitation);
 
     // Step 2: Send email via Edge Function
+    console.log("📧 [EMAIL] About to call Edge Function...");
+    console.log("📧 [EMAIL] Payload:", {
+      email: email,
+      role: role,
+      token: token,
+      company_id: companyId
+    });
+    
     const { data: emailData, error: emailError } = await supabase.functions.invoke('send-invitation-email', {
       body: {
         email: email,
@@ -42,17 +55,19 @@ export const createInvitation = async (
       }
     });
 
+    console.log("📧 [EMAIL] Edge Function response:", { emailData, emailError });
+
     if (emailError) {
-      console.error("Email error:", emailError);
-      // Don't fail the whole process if email fails, just log it
-      console.warn("Invitation created but email failed to send");
+      console.error("❌ [EMAIL] Error:", emailError);
+      console.warn("⚠️ [EMAIL] Invitation created but email failed to send");
     } else {
-      console.log("Email sent successfully:", emailData);
+      console.log("✅ [EMAIL] Email sent successfully:", emailData);
     }
 
+    console.log("🎉 [CREATE_INVITATION] Process completed successfully");
     return true;
   } catch (error) {
-    console.error("Error creating invitation:", error);
+    console.error("💥 [CREATE_INVITATION] Unexpected error:", error);
     handleError(error, {
       fallbackMessage: "Failed to send invitation"
     });
