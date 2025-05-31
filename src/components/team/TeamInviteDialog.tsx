@@ -34,6 +34,7 @@ export const TeamInviteDialog: React.FC<TeamInviteDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log("DIALOG SUBMITTED");
     e.preventDefault();
     setError(null);
 
