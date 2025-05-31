@@ -5,25 +5,41 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
   console.log("[INVITATION_API] Fetching invitations for company:", companyId);
   
   try {
-    const { data, error } = await supabase
-      .from('company_invitations_raw')  // ✅ Tabla correcta
-      .select('*')
-      .eq('company_id', companyId)
-      .eq('status', 'pending')  // ✅ Solo mostrar pending
-      .order('created_at', { ascending: false });
+    // Debug: Check if we can access the table at all
+    console.log("[DEBUG] Attempting to fetch from company_invitations_raw...");
+    
+    const { data, error, count } = await supabase
+      .from('company_invitations_raw')
+      .select('*', { count: 'exact' })
+      .eq('company_id', companyId);
+
+    console.log("[DEBUG] Raw query result:", { data, error, count });
 
     if (error) {
       console.error("[INVITATION_API] Error fetching invitations:", error);
+      
+      // Try alternative approach - check if table exists
+      const { data: allData, error: allError } = await supabase
+        .from('company_invitations_raw')
+        .select('id, email, status')
+        .limit(1);
+        
+      console.log("[DEBUG] Alternative query:", { allData, allError });
+      
       throw new Error(`Failed to fetch invitations: ${error.message}`);
     }
 
     console.log("[INVITATION_API] Successfully fetched invitations:", data?.length || 0);
     
+    // Filter only pending invitations
+    const pendingInvitations = (data || []).filter(inv => inv.status === 'pending');
+    console.log("[DEBUG] Pending invitations:", pendingInvitations.length);
+    
     // Convert string dates to Date objects for type consistency
-    const invitations = (data || []).map(invitation => ({
+    const invitations = pendingInvitations.map(invitation => ({
       ...invitation,
       created_at: new Date(invitation.created_at),
-      expires_at: invitation.expires_at ? new Date(invitation.expires_at) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now if no expires_at
+      expires_at: invitation.expires_at ? new Date(invitation.expires_at) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     }));
 
     return invitations;
@@ -38,7 +54,7 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
   
   try {
     const { data, error } = await supabase
-      .from('company_invitations_raw')  // ✅ Tabla correcta
+      .from('company_invitations_raw')
       .select(`
         *,
         companies:company_id (
