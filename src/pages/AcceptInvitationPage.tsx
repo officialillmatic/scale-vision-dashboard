@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
-import { checkInvitation, acceptInvitation } from '@/services/invitation';
+import { checkInvitation } from '@/services/invitation';
+import { supabase } from '@/integrations/supabase/client';
 
 const AcceptInvitationPage = () => {
   const [searchParams] = useSearchParams();
@@ -36,6 +36,7 @@ const AcceptInvitationPage = () => {
           setError(result.error || 'Invitación no válida o expirada');
         }
       } catch (err) {
+        console.error('Error verifying invitation:', err);
         setError('Error al verificar la invitación');
       } finally {
         setLoading(false);
@@ -50,19 +51,43 @@ const AcceptInvitationPage = () => {
 
     setAccepting(true);
     try {
-      // Aquí necesitarías implementar la lógica de aceptación
-      // Por ahora, simularemos que funciona
-      const success = await acceptInvitation(token, 'user-id-placeholder');
-      if (success) {
-        setSuccess(true);
-        setTimeout(() => {
-          navigate('/login'); // Redirigir al login
-        }, 3000);
-      } else {
-        setError('Error al aceptar la invitación');
+      console.log('Accepting invitation with token:', token);
+      
+      // Marcar invitación como aceptada directamente en la base de datos
+      const { data, error } = await supabase
+        .from("company_invitations_raw")
+        .update({ 
+          status: 'accepted',
+          accepted_at: new Date().toISOString()
+        })
+        .eq("token", token)
+        .eq("status", "pending")
+        .select();
+
+      console.log('Update result:', { data, error });
+
+      if (error) {
+        console.error("Error updating invitation:", error);
+        setError('Error al aceptar la invitación: ' + error.message);
+        return;
       }
+
+      if (!data || data.length === 0) {
+        setError('Invitación no encontrada o ya procesada');
+        return;
+      }
+
+      console.log("Invitation accepted successfully:", data);
+      setSuccess(true);
+      
+      // Redirigir al registro o login después de 3 segundos
+      setTimeout(() => {
+        navigate('/register?email=' + encodeURIComponent(invitation?.email || ''));
+      }, 3000);
+
     } catch (err) {
-      setError('Error al procesar la invitación');
+      console.error("Error accepting invitation:", err);
+      setError('Error al procesar la invitación: ' + (err.message || 'Error desconocido'));
     } finally {
       setAccepting(false);
     }
@@ -88,7 +113,7 @@ const AcceptInvitationPage = () => {
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <CardTitle className="text-2xl text-green-700">¡Invitación Aceptada!</CardTitle>
             <CardDescription>
-              Te has unido exitosamente al equipo. Serás redirigido al login en unos segundos.
+              Has aceptado exitosamente la invitación. Serás redirigido al registro en unos segundos para completar tu cuenta.
             </CardDescription>
           </CardHeader>
         </Card>
