@@ -6,7 +6,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { checkInvitation } from '@/services/invitation';
-import { supabase } from '@/integrations/supabase/client';
 
 const AcceptInvitationPage = () => {
   const [searchParams] = useSearchParams();
@@ -51,39 +50,15 @@ const AcceptInvitationPage = () => {
 
     setAccepting(true);
     try {
-      console.log('Accepting invitation with token:', token);
+      console.log('Redirecting to registration with token:', token);
       
-      // Marcar invitación como aceptada directamente en la base de datos
-      const { data, error } = await supabase
-        .from("company_invitations_raw")
-        .update({ 
-          status: 'accepted',
-          accepted_at: new Date().toISOString()
-        })
-        .eq("token", token)
-        .eq("status", "pending")
-        .select();
-
-      console.log('Update result:', { data, error });
-
-      if (error) {
-        console.error("Error updating invitation:", error);
-        setError('Error al aceptar la invitación: ' + error.message);
-        return;
-      }
-
-      if (!data || data.length === 0) {
-        setError('Invitación no encontrada o ya procesada');
-        return;
-      }
-
-      console.log("Invitation accepted successfully:", data);
+      // No marcar como accepted aquí, dejar que RegisterForm maneje todo
       setSuccess(true);
       
-      // Redirigir al registro o login después de 3 segundos
+      // Redirigir al registro con token y email
       setTimeout(() => {
-        navigate('/register?email=' + encodeURIComponent(invitation?.email || ''));
-      }, 3000);
+        navigate('/register?token=' + token + '&email=' + encodeURIComponent(invitation?.email || ''));
+      }, 2000);
 
     } catch (err) {
       console.error("Error accepting invitation:", err);
@@ -111,9 +86,9 @@ const AcceptInvitationPage = () => {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <CardTitle className="text-2xl text-green-700">¡Invitación Aceptada!</CardTitle>
+            <CardTitle className="text-2xl text-green-700">¡Perfecto!</CardTitle>
             <CardDescription>
-              Has aceptado exitosamente la invitación. Serás redirigido al registro en unos segundos para completar tu cuenta.
+              Serás redirigido al registro para completar tu cuenta en unos segundos.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -193,7 +168,7 @@ const AcceptInvitationPage = () => {
               {accepting ? (
                 <>
                   <LoadingSpinner size="sm" className="mr-2" />
-                  Aceptando...
+                  Redirigiendo...
                 </>
               ) : (
                 'Aceptar Invitación'
