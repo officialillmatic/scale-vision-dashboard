@@ -197,7 +197,7 @@ export type Database = {
           company_id: string
           created_at: string
           email: string
-          expires_at: string
+          expires_at: string | null
           id: string
           invited_by: string | null
           role: string
@@ -208,7 +208,7 @@ export type Database = {
           company_id: string
           created_at?: string
           email: string
-          expires_at: string
+          expires_at?: string | null
           id?: string
           invited_by?: string | null
           role: string
@@ -219,7 +219,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           email?: string
-          expires_at?: string
+          expires_at?: string | null
           id?: string
           invited_by?: string | null
           role?: string

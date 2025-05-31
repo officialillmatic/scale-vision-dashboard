@@ -24,6 +24,7 @@ import ProfilePage from "./pages/ProfilePage";
 import SupportPage from "./pages/SupportPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import AcceptInvitationPage from "./pages/AcceptInvitationPage";
 import NotFound from "./pages/NotFound";
 
 import "./App.css";
@@ -62,6 +63,7 @@ function App() {
                     <Route path="/reset-password" element={<ResetPasswordPage />} />
                     <Route path="/terms" element={<TermsOfServicePage />} />
                     <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                    <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
                     
                     {/* Protected routes */}
                     <Route
