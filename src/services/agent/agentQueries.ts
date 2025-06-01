@@ -30,6 +30,7 @@ export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
 
 export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> => {
   console.log("[AGENT_SERVICE] Fetching user agents for company:", companyId);
+  console.log("[AGENT_SERVICE] Supabase client:", supabase);
   
   try {
     let query = supabase
@@ -40,24 +41,32 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
         user_details:user_profiles(email, name)
       `)
       .order("created_at", { ascending: false });
-
+    
+    console.log("[AGENT_SERVICE] Base query created");
+    
     if (companyId) {
       query = query.eq("company_id", companyId);
+      console.log("[AGENT_SERVICE] Added company filter:", companyId);
     }
-
+    
+    console.log("[AGENT_SERVICE] About to execute query...");
     const { data, error } = await query;
-
+    
+    console.log("[AGENT_SERVICE] Raw response:", { data, error });
+    console.log("[AGENT_SERVICE] Data type:", typeof data);
+    console.log("[AGENT_SERVICE] Data length:", data?.length);
+    
     if (error) {
       console.error("[AGENT_SERVICE] Database error:", error);
-      // Return empty array instead of throwing
       return [];
     }
-
+    
     console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "user agents");
+    console.log("[AGENT_SERVICE] First item:", data?.[0]);
+    
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchUserAgents:", error);
-    // Return empty array instead of throwing
     return [];
   }
 };
