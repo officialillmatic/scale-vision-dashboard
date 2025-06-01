@@ -32,7 +32,7 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
   console.log("[AGENT_SERVICE] Fetching user agents for company:", companyId);
   
   try {
-    // Consulta simplificada sin embed para evitar errores de relación
+    // 1. Obtener user_agents básicos
     let query = supabase
       .from("user_agents")
       .select("*")
@@ -42,21 +42,41 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
       query = query.eq("company_id", companyId);
     }
     
-    console.log("[AGENT_SERVICE] About to execute simplified query...");
-    const { data, error } = await query;
-    
-    console.log("[AGENT_SERVICE] Raw response:", { data, error });
+    const { data: userAgents, error } = await query;
     
     if (error) {
       console.error("[AGENT_SERVICE] Database error:", error);
       return [];
     }
     
-    console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "user agents");
+    if (!userAgents || userAgents.length === 0) {
+      return [];
+    }
     
-    // Si necesitas los datos relacionados, hazlo en consultas separadas
-    // Por ahora, devolvemos solo los datos básicos
-    return data || [];
+    // 2. Obtener datos de agentes
+    const agentIds = [...new Set(userAgents.map(ua => ua.agent_id))];
+    const { data: agents } = await supabase
+      .from("agents")
+      .select("*")
+      .in("id", agentIds);
+    
+    // 3. Obtener datos de usuarios
+    const userIds = [...new Set(userAgents.map(ua => ua.user_id))];
+    const { data: users } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .in("id", userIds);
+    
+    // 4. Combinar los datos
+    const enrichedUserAgents = userAgents.map(ua => ({
+      ...ua,
+      agent: agents?.find(a => a.id === ua.agent_id),
+      user_details: users?.find(u => u.id === ua.user_id)
+    }));
+    
+    console.log("[AGENT_SERVICE] Successfully fetched", enrichedUserAgents.length, "enriched user agents");
+    return enrichedUserAgents;
+    
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchUserAgents:", error);
     return [];
