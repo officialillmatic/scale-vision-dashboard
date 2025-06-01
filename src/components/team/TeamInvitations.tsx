@@ -65,20 +65,20 @@ export function TeamInvitations() {
   };
 
   const handleCancel = async (invitationId: string) => {
-    if (!company) return;
-    
-    setIsProcessing(invitationId);
-    try {
-      await cancelInvitation(invitationId);
-      refetch();
-      toast.success("Invitation cancelled successfully");
-    } catch (error) {
-      console.error("Error cancelling invitation:", error);
-      toast.error("Failed to cancel invitation");
-    } finally {
-      setIsProcessing(null);
-    }
-  };
+  if (!company) return;
+  
+  setIsProcessing(invitationId);
+  try {
+    await cancelInvitation(invitationId);
+    await refetch(); // Cambia refetch() por await refetch()
+    toast.success("Invitation cancelled successfully");
+  } catch (error) {
+    console.error("Error cancelling invitation:", error);
+    toast.error("Failed to cancel invitation");
+  } finally {
+    setIsProcessing(null);
+  }
+};
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
