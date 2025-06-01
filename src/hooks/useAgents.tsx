@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,9 +44,19 @@ export function useAgents() {
     error: userAgentsError
   } = useQuery({
     queryKey: ['user-agents', company?.id, isSuperAdmin],
-    queryFn: () => fetchUserAgents(isSuperAdmin ? undefined : company?.id), // Super admins fetch all assignments
+    queryFn: () => {
+      // LOGS DE DEBUG AGREGADOS
+      console.log('🔍 [useAgents] Calling fetchUserAgents with company?.id:', company?.id);
+      console.log('🔍 [useAgents] isSuperAdmin:', isSuperAdmin);
+      return fetchUserAgents(isSuperAdmin ? undefined : company?.id);
+    },
     enabled: !!company?.id || isSuperAdmin // Always allow super admins to query
   });
+
+  // LOGS DE DEBUG AGREGADOS
+  console.log('🔍 [useAgents] userAgents result:', userAgents);
+  console.log('🔍 [useAgents] userAgentsError:', userAgentsError);
+  console.log('🔍 [useAgents] company object:', company);
   
   // Filter agents based on user role - super admins see all
   const agents = allAgents ? (isSuperAdmin || isAdmin 
