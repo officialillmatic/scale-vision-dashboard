@@ -30,31 +30,22 @@ export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
 
 export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> => {
   console.log("[AGENT_SERVICE] Fetching user agents for company:", companyId);
-  console.log("[AGENT_SERVICE] Supabase client:", supabase);
   
   try {
+    // Consulta simplificada sin embed para evitar errores de relación
     let query = supabase
       .from("user_agents")
-      .select(`
-        *,
-        agent:agents(*),
-        user_details:user_profiles(email, name)
-      `)
+      .select("*")
       .order("created_at", { ascending: false });
-    
-    console.log("[AGENT_SERVICE] Base query created");
     
     if (companyId) {
       query = query.eq("company_id", companyId);
-      console.log("[AGENT_SERVICE] Added company filter:", companyId);
     }
     
-    console.log("[AGENT_SERVICE] About to execute query...");
+    console.log("[AGENT_SERVICE] About to execute simplified query...");
     const { data, error } = await query;
     
     console.log("[AGENT_SERVICE] Raw response:", { data, error });
-    console.log("[AGENT_SERVICE] Data type:", typeof data);
-    console.log("[AGENT_SERVICE] Data length:", data?.length);
     
     if (error) {
       console.error("[AGENT_SERVICE] Database error:", error);
@@ -62,8 +53,9 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
     }
     
     console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "user agents");
-    console.log("[AGENT_SERVICE] First item:", data?.[0]);
     
+    // Si necesitas los datos relacionados, hazlo en consultas separadas
+    // Por ahora, devolvemos solo los datos básicos
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchUserAgents:", error);
