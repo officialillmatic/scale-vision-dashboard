@@ -123,7 +123,7 @@ export const cancelInvitation = async (invitationId: string): Promise<boolean> =
     // Update status to 'cancelled' instead of deleting
     const { error } = await supabase
       .from("company_invitations_raw")
-      .update({ status: 'cancelled' })
+      .update({ status: 'expired' })
       .eq("id", invitationId);
 
     if (error) {
