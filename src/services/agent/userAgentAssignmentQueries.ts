@@ -26,7 +26,24 @@ export interface UserAgentAssignment {
 
 export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]> => {
   try {
-    console.log('🔍 [fetchUserAgentAssignments] Fetching assignments from user_agent_assignments table');
+    console.log('🔍 [fetchUserAgentAssignments] Starting fetch from user_agent_assignments table');
+    
+    // First, let's check if we have any data in the table at all
+    const { data: tableCheck, error: tableError } = await supabase
+      .from("user_agent_assignments")
+      .select("*")
+      .limit(5);
+
+    console.log('🔍 [fetchUserAgentAssignments] Table check - Raw data:', tableCheck);
+    console.log('🔍 [fetchUserAgentAssignments] Table check - Error:', tableError);
+
+    if (tableError) {
+      console.error('❌ [fetchUserAgentAssignments] Table access error:', tableError);
+      throw tableError;
+    }
+
+    // Now let's try the full query with joins
+    console.log('🔍 [fetchUserAgentAssignments] Attempting full query with joins...');
     
     const { data, error } = await supabase
       .from("user_agent_assignments")
@@ -37,8 +54,78 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
       `)
       .order("assigned_at", { ascending: false });
 
+    console.log('🔍 [fetchUserAgentAssignments] Full query result - Data:', data);
+    console.log('🔍 [fetchUserAgentAssignments] Full query result - Error:', error);
+
     if (error) {
-      console.error("[USER_AGENT_ASSIGNMENT_SERVICE] Error fetching assignments:", error);
+      console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error fetching assignments:", error);
+      
+      // Try a simpler query without joins to see if it's a join issue
+      console.log('🔍 [fetchUserAgentAssignments] Trying fallback query without joins...');
+      
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("user_agent_assignments")
+        .select("*")
+        .order("assigned_at", { ascending: false });
+
+      console.log('🔍 [fetchUserAgentAssignments] Fallback query - Data:', fallbackData);
+      console.log('🔍 [fetchUserAgentAssignments] Fallback query - Error:', fallbackError);
+
+      if (fallbackError) {
+        throw fallbackError;
+      }
+
+      // If fallback works, manually fetch related data
+      if (fallbackData && fallbackData.length > 0) {
+        console.log('🔍 [fetchUserAgentAssignments] Manually fetching related data...');
+        
+        const assignments: UserAgentAssignment[] = [];
+        
+        for (const assignment of fallbackData) {
+          // Fetch user details
+          const { data: userData, error: userError } = await supabase
+            .from("users")
+            .select("id, email, full_name")
+            .eq("id", assignment.user_id)
+            .single();
+
+          // Fetch agent details
+          const { data: agentData, error: agentError } = await supabase
+            .from("retell_agents")
+            .select("id, retell_agent_id, name, description, status")
+            .eq("id", assignment.agent_id)
+            .single();
+
+          console.log('🔍 [fetchUserAgentAssignments] User data for', assignment.user_id, ':', userData, userError);
+          console.log('🔍 [fetchUserAgentAssignments] Agent data for', assignment.agent_id, ':', agentData, agentError);
+
+          assignments.push({
+            id: assignment.id,
+            user_id: assignment.user_id,
+            agent_id: assignment.agent_id,
+            is_primary: assignment.is_primary,
+            assigned_at: assignment.assigned_at,
+            assigned_by: assignment.assigned_by,
+            user_details: userData ? {
+              id: userData.id,
+              email: userData.email,
+              name: userData.full_name,
+              avatar_url: undefined
+            } : undefined,
+            agent_details: agentData ? {
+              id: agentData.id,
+              retell_agent_id: agentData.retell_agent_id,
+              name: agentData.name,
+              description: agentData.description,
+              status: agentData.status
+            } : undefined
+          });
+        }
+
+        console.log('🔍 [fetchUserAgentAssignments] Final assignments with manual joins:', assignments);
+        return assignments;
+      }
+
       throw error;
     }
 
@@ -68,9 +155,16 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
       } : undefined
     }));
 
+    console.log('🔍 [fetchUserAgentAssignments] Transformed assignments:', assignments);
     return assignments;
   } catch (error: any) {
-    console.error("[USER_AGENT_ASSIGNMENT_SERVICE] Error in fetchUserAgentAssignments:", error);
+    console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error in fetchUserAgentAssignments:", error);
+    console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error details:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
     throw new Error(`Failed to fetch user agent assignments: ${error.message}`);
   }
 };
