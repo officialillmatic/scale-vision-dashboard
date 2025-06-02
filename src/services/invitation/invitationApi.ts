@@ -57,7 +57,7 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
       .from('company_invitations_raw')
       .select(`
         *,
-        companies:company_id (
+        company:company_id (
           id,
           name
         )
