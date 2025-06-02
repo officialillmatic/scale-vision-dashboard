@@ -1,6 +1,5 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useUser } from '@supabase/auth-helpers-react';
 import { supabase } from '@/integrations/supabase/client';
 import { retellAgentSyncService, SyncStats } from '@/services/retell/retellAgentSync';
 import { toast } from 'sonner';
@@ -21,7 +20,6 @@ interface AdminAgentState {
 
 // Hook for agent synchronization with real-time updates
 export function useAgentSync() {
-  const user = useUser();
   const [state, setState] = useState<AgentSyncState>({
     syncStats: [],
     unassignedAgents: [],
@@ -34,8 +32,6 @@ export function useAgentSync() {
 
   // Fetch sync statistics
   const fetchSyncStats = useCallback(async () => {
-    if (!user) return;
-    
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       const stats = await retellAgentSyncService.getSyncStats(10);
@@ -48,12 +44,10 @@ export function useAgentSync() {
         isLoading: false 
       }));
     }
-  }, [user]);
+  }, []);
 
   // Fetch unassigned agents
   const fetchUnassignedAgents = useCallback(async () => {
-    if (!user) return;
-    
     try {
       const agents = await retellAgentSyncService.getUnassignedAgents();
       setState(prev => ({ ...prev, unassignedAgents: agents }));
@@ -61,15 +55,10 @@ export function useAgentSync() {
       console.error('[AGENT_SYNC] Error fetching unassigned agents:', error);
       setState(prev => ({ ...prev, error: error.message }));
     }
-  }, [user]);
+  }, []);
 
   // Trigger manual sync
   const syncNow = useCallback(async () => {
-    if (!user) {
-      toast.error('Authentication required');
-      return;
-    }
-
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       await retellAgentSyncService.forceSync();
@@ -87,7 +76,7 @@ export function useAgentSync() {
       }));
       toast.error(`Sync failed: ${error.message}`);
     }
-  }, [user, fetchSyncStats, fetchUnassignedAgents]);
+  }, [fetchSyncStats, fetchUnassignedAgents]);
 
   // Refresh all stats
   const refreshStats = useCallback(async () => {
@@ -96,8 +85,6 @@ export function useAgentSync() {
 
   // Set up real-time subscriptions
   useEffect(() => {
-    if (!user) return;
-
     // Create channel for real-time updates
     channelRef.current = supabase
       .channel('agent-sync-updates')
@@ -145,12 +132,10 @@ export function useAgentSync() {
         channelRef.current = null;
       }
     };
-  }, [user, fetchSyncStats, fetchUnassignedAgents]);
+  }, [fetchSyncStats, fetchUnassignedAgents]);
 
   // Set up auto-refresh every 5 minutes
   useEffect(() => {
-    if (!user) return;
-
     // Initial fetch
     refreshStats();
 
@@ -166,7 +151,7 @@ export function useAgentSync() {
         refreshIntervalRef.current = null;
       }
     };
-  }, [user, refreshStats]);
+  }, [refreshStats]);
 
   return {
     syncStats: state.syncStats,
@@ -180,7 +165,6 @@ export function useAgentSync() {
 
 // Hook for admin agent management operations
 export function useAdminAgentManagement() {
-  const user = useUser();
   const [state, setState] = useState<AdminAgentState>({
     allAgents: [],
     isLoadingAgents: false,
@@ -191,8 +175,6 @@ export function useAdminAgentManagement() {
 
   // Load all agents (admin view)
   const loadAllAgents = useCallback(async () => {
-    if (!user) return;
-    
     try {
       setState(prev => ({ ...prev, isLoadingAgents: true, agentError: null }));
       
@@ -216,15 +198,10 @@ export function useAdminAgentManagement() {
         isLoadingAgents: false 
       }));
     }
-  }, [user]);
+  }, []);
 
   // Assign agent to user
   const assignAgent = useCallback(async (agentId: string, userId: string, companyId: string, isPrimary: boolean = false) => {
-    if (!user) {
-      toast.error('Authentication required');
-      return false;
-    }
-
     try {
       const { error } = await supabase
         .from('user_agents')
@@ -245,15 +222,10 @@ export function useAdminAgentManagement() {
       toast.error(`Failed to assign agent: ${error.message}`);
       return false;
     }
-  }, [user, loadAllAgents]);
+  }, [loadAllAgents]);
 
   // Unassign agent from user
   const unassignAgent = useCallback(async (userAgentId: string) => {
-    if (!user) {
-      toast.error('Authentication required');
-      return false;
-    }
-
     try {
       const { error } = await supabase
         .from('user_agents')
@@ -270,12 +242,10 @@ export function useAdminAgentManagement() {
       toast.error(`Failed to unassign agent: ${error.message}`);
       return false;
     }
-  }, [user, loadAllAgents]);
+  }, [loadAllAgents]);
 
   // Set up real-time subscriptions for admin operations
   useEffect(() => {
-    if (!user) return;
-
     adminChannelRef.current = supabase
       .channel('admin-agent-updates')
       .on(
@@ -310,14 +280,12 @@ export function useAdminAgentManagement() {
         adminChannelRef.current = null;
       }
     };
-  }, [user, loadAllAgents]);
+  }, [loadAllAgents]);
 
-  // Initial load when user is available
+  // Initial load
   useEffect(() => {
-    if (user) {
-      loadAllAgents();
-    }
-  }, [user, loadAllAgents]);
+    loadAllAgents();
+  }, [loadAllAgents]);
 
   return {
     allAgents: state.allAgents,
