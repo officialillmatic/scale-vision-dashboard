@@ -2,56 +2,60 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CallData } from '@/pages/AnalyticsPage';
+import { useRevenueData } from '@/hooks/useRevenueData';
 import { formatCurrency } from '@/lib/formatters';
 import { DollarSign, TrendingUp, PieChart, BarChart3 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format, startOfMonth, eachMonthOfInterval, parseISO } from 'date-fns';
+import { format, startOfMonth, eachMonthOfInterval } from 'date-fns';
 
 interface RevenueAnalyticsProps {
   data: CallData[];
 }
 
 export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
-  // Monthly revenue data
-  const monthlyRevenue = React.useMemo(() => {
-    if (!data.length) return [];
-    
-    const sortedData = [...data].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    const firstDate = startOfMonth(new Date(sortedData[0].timestamp));
-    const lastDate = startOfMonth(new Date(sortedData[sortedData.length - 1].timestamp));
-    
-    const monthRange = eachMonthOfInterval({ start: firstDate, end: lastDate });
-    
-    return monthRange.map(month => {
-      const monthData = data.filter(call => {
-        const callMonth = startOfMonth(new Date(call.timestamp));
-        return callMonth.getTime() === month.getTime();
-      });
-      
-      return {
-        month: format(month, 'MMM yyyy'),
-        revenue: monthData.reduce((sum, call) => sum + (call.cost_usd || 0), 0),
-        calls: monthData.length,
-        avgRevenuePerCall: monthData.length > 0 ? 
-          monthData.reduce((sum, call) => sum + (call.cost_usd || 0), 0) / monthData.length : 0
-      };
-    });
-  }, [data]);
+  const { revenueMetrics, revenueTransactions, isLoading } = useRevenueData();
 
-  // Agent revenue contribution
-  const agentRevenue = React.useMemo(() => {
-    const agentStats = data.reduce((acc, call) => {
-      const agentName = call.agent?.name || 'Unknown';
-      if (!acc[agentName]) {
-        acc[agentName] = { name: agentName, revenue: 0, calls: 0, utilization: 0 };
+  // Monthly revenue data from real revenue transactions
+  const monthlyRevenue = React.useMemo(() => {
+    if (!revenueTransactions?.length) return [];
+    
+    const monthlyData = revenueTransactions.reduce((acc, transaction) => {
+      const month = format(startOfMonth(new Date(transaction.transaction_date)), 'MMM yyyy');
+      if (!acc[month]) {
+        acc[month] = { month, revenue: 0, calls: 0, avgRevenuePerCall: 0 };
       }
-      acc[agentName].revenue += call.cost_usd || 0;
-      acc[agentName].calls++;
+      acc[month].revenue += transaction.revenue_amount;
+      acc[month].calls += 1;
+      return acc;
+    }, {} as Record<string, any>);
+
+    return Object.values(monthlyData).map((item: any) => ({
+      ...item,
+      avgRevenuePerCall: item.calls > 0 ? item.revenue / item.calls : 0
+    }));
+  }, [revenueTransactions]);
+
+  // Agent revenue contribution from real data
+  const agentRevenue = React.useMemo(() => {
+    if (!revenueTransactions?.length) return [];
+    
+    const agentStats = revenueTransactions.reduce((acc, transaction) => {
+      const agentId = transaction.agent_id || 'unknown';
+      if (!acc[agentId]) {
+        acc[agentId] = { 
+          name: `Agent ${agentId.slice(0, 8)}`, 
+          revenue: 0, 
+          calls: 0, 
+          utilization: 0 
+        };
+      }
+      acc[agentId].revenue += transaction.revenue_amount;
+      acc[agentId].calls++;
       return acc;
     }, {} as Record<string, any>);
 
     const totalRevenue = Object.values(agentStats).reduce((sum: number, agent: any) => sum + agent.revenue, 0);
-    const totalCalls = data.length;
+    const totalCalls = revenueTransactions.length;
 
     return Object.values(agentStats)
       .map((agent: any) => ({
@@ -61,10 +65,12 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
         avgRevenuePerCall: agent.calls > 0 ? agent.revenue / agent.calls : 0
       }))
       .sort((a, b) => b.revenue - a.revenue);
-  }, [data]);
+  }, [revenueTransactions]);
 
-  // Cost breakdown by time periods
+  // Cost breakdown by time periods using real data
   const costBreakdown = React.useMemo(() => {
+    if (!revenueTransactions?.length) return [];
+    
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const thisWeek = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
@@ -77,29 +83,47 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
       total: { label: 'All Time', start: new Date(0), cost: 0, calls: 0 }
     };
 
-    data.forEach(call => {
-      const callDate = new Date(call.timestamp);
-      const cost = call.cost_usd || 0;
+    revenueTransactions.forEach(transaction => {
+      const transactionDate = new Date(transaction.transaction_date);
+      const revenue = transaction.revenue_amount || 0;
 
       Object.values(periods).forEach(period => {
-        if (callDate >= period.start) {
-          period.cost += cost;
+        if (transactionDate >= period.start) {
+          period.cost += revenue;
           period.calls++;
         }
       });
     });
 
     return Object.values(periods);
-  }, [data]);
+  }, [revenueTransactions]);
 
-  // Calculate key metrics
-  const totalRevenue = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-  const avgRevenuePerCall = data.length > 0 ? totalRevenue / data.length : 0;
-  const topPerformingAgent = agentRevenue[0];
+  // Calculate key metrics from real data
+  const totalRevenue = revenueMetrics?.total_revenue || 0;
+  const avgRevenuePerCall = revenueMetrics?.avg_revenue_per_call || 0;
+  const topPerformingAgent = revenueMetrics?.top_performing_agent || 'N/A';
   const revenueGrowth = monthlyRevenue.length > 1 ? 
     ((monthlyRevenue[monthlyRevenue.length - 1]?.revenue || 0) - (monthlyRevenue[monthlyRevenue.length - 2]?.revenue || 0)) / Math.max(1, monthlyRevenue[monthlyRevenue.length - 2]?.revenue || 1) * 100 : 0;
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-4">
+          {Array(4).fill(0).map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded mb-1"></div>
+                <div className="h-3 bg-gray-200 rounded"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -154,8 +178,8 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(topPerformingAgent?.revenue || 0)}</div>
-            <p className="text-sm text-gray-600">{topPerformingAgent?.name || 'No data'}</p>
+            <div className="text-2xl font-bold">{formatCurrency(agentRevenue[0]?.revenue || 0)}</div>
+            <p className="text-sm text-gray-600">{topPerformingAgent}</p>
           </CardContent>
         </Card>
       </div>

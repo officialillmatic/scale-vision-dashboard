@@ -4,17 +4,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useCalls } from '@/hooks/useCalls';
 import { useCurrentUserAgents } from '@/hooks/useCurrentUserAgents';
-import { Phone, Bot, User, Clock } from 'lucide-react';
+import { useRevenueData } from '@/hooks/useRevenueData';
+import { Phone, Bot, User, Clock, DollarSign } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { formatCurrency } from '@/lib/formatters';
 
 export function RecentActivityFeed() {
   const { calls } = useCalls();
   const { data: userAgents } = useCurrentUserAgents();
+  const { revenueTransactions } = useRevenueData();
 
   // Get recent calls (last 10)
   const recentCalls = calls
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     .slice(0, 5);
+
+  // Get recent revenue transactions (last 5)
+  const recentRevenue = revenueTransactions
+    ?.sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime())
+    .slice(0, 3) || [];
 
   // Create activity items
   const activities = [
@@ -27,7 +35,16 @@ export function RecentActivityFeed() {
       icon: Phone,
       status: call.call_status === 'completed' ? 'success' : 'warning'
     })),
-    ...(userAgents || []).slice(0, 3).map(assignment => ({
+    ...recentRevenue.map(transaction => ({
+      id: transaction.id,
+      type: 'revenue',
+      title: `Revenue: ${formatCurrency(transaction.revenue_amount)}`,
+      description: `${Math.round(transaction.billing_duration_sec / 60)}m call`,
+      timestamp: new Date(transaction.transaction_date),
+      icon: DollarSign,
+      status: 'success'
+    })),
+    ...(userAgents || []).slice(0, 2).map(assignment => ({
       id: assignment.id,
       type: 'assignment',
       title: `Agent assigned: ${assignment.agent_details?.name || 'Unknown Agent'}`,

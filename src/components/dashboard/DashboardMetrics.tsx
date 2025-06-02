@@ -1,21 +1,24 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { useRevenueData } from "@/hooks/useRevenueData";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyStateMessage } from "./EmptyStateMessage";
 import { useCallData } from "@/hooks/useCallData";
 import { AlertTriangle, DollarSign, Clock, Phone, TrendingUp } from "lucide-react";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { formatCurrency } from "@/lib/formatters";
 
 export function DashboardMetrics() {
   const { company, user, isCompanyLoading } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { handleSync, isSyncing } = useCallData();
   const { data, isLoading, error } = useDashboardData();
+  const { revenueMetrics, isLoading: isLoadingRevenue } = useRevenueData();
 
   // Show loading state
-  if (isLoading || isCompanyLoading) {
+  if (isLoading || isCompanyLoading || isLoadingRevenue) {
     return (
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -69,9 +72,15 @@ export function DashboardMetrics() {
     avgDuration: 0
   };
 
-  const hasData = metrics.totalCalls > 0 || 
-    Number(metrics.totalCost.replace('$', '')) > 0 || 
-    metrics.totalMinutes > 0;
+  const revenue = revenueMetrics || {
+    total_revenue: 0,
+    total_calls: 0,
+    avg_revenue_per_call: 0,
+    top_performing_agent: 'N/A',
+    revenue_by_day: []
+  };
+
+  const hasData = metrics.totalCalls > 0 || revenue.total_revenue > 0;
 
   // Show empty state for no data
   if (!hasData) {
@@ -104,9 +113,9 @@ export function DashboardMetrics() {
       iconColor: "text-blue-600"
     },
     {
-      title: "Total Cost",
-      value: metrics.totalCost,
-      description: `$${avgCostPerCall.toFixed(3)} per call`,
+      title: "Total Revenue",
+      value: formatCurrency(revenue.total_revenue),
+      description: `${formatCurrency(revenue.avg_revenue_per_call)} per call`,
       icon: DollarSign,
       gradient: "from-emerald-500 to-emerald-600",
       bgGradient: "from-emerald-50 to-emerald-100/50",

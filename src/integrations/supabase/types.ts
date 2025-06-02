@@ -60,6 +60,8 @@ export type Database = {
         Row: {
           agent_id: string | null
           audio_url: string | null
+          billable_rate_per_minute: number | null
+          billing_duration_sec: number | null
           call_id: string
           call_status: string
           call_summary: string | null
@@ -75,6 +77,7 @@ export type Database = {
           latency_ms: number | null
           recording_url: string | null
           result_sentiment: Json | null
+          revenue_amount: number | null
           sentiment: string | null
           sentiment_score: number | null
           start_time: string | null
@@ -88,6 +91,8 @@ export type Database = {
         Insert: {
           agent_id?: string | null
           audio_url?: string | null
+          billable_rate_per_minute?: number | null
+          billing_duration_sec?: number | null
           call_id: string
           call_status?: string
           call_summary?: string | null
@@ -103,6 +108,7 @@ export type Database = {
           latency_ms?: number | null
           recording_url?: string | null
           result_sentiment?: Json | null
+          revenue_amount?: number | null
           sentiment?: string | null
           sentiment_score?: number | null
           start_time?: string | null
@@ -116,6 +122,8 @@ export type Database = {
         Update: {
           agent_id?: string | null
           audio_url?: string | null
+          billable_rate_per_minute?: number | null
+          billing_duration_sec?: number | null
           call_id?: string
           call_status?: string
           call_summary?: string | null
@@ -131,6 +139,7 @@ export type Database = {
           latency_ms?: number | null
           recording_url?: string | null
           result_sentiment?: Json | null
+          revenue_amount?: number | null
           sentiment?: string | null
           sentiment_score?: number | null
           start_time?: string | null
@@ -360,6 +369,57 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          billing_period_end: string
+          billing_period_start: string
+          company_id: string
+          created_at: string
+          generated_at: string | null
+          id: string
+          invoice_number: string
+          paid_at: string | null
+          sent_at: string | null
+          status: string
+          total_calls: number
+          total_duration_minutes: number
+          total_revenue: number
+          updated_at: string
+        }
+        Insert: {
+          billing_period_end: string
+          billing_period_start: string
+          company_id: string
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          invoice_number: string
+          paid_at?: string | null
+          sent_at?: string | null
+          status?: string
+          total_calls?: number
+          total_duration_minutes?: number
+          total_revenue?: number
+          updated_at?: string
+        }
+        Update: {
+          billing_period_end?: string
+          billing_period_start?: string
+          company_id?: string
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          invoice_number?: string
+          paid_at?: string | null
+          sent_at?: string | null
+          status?: string
+          total_calls?: number
+          total_duration_minutes?: number
+          total_revenue?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -521,6 +581,65 @@ export type Database = {
           total_agents_fetched?: number
         }
         Relationships: []
+      }
+      revenue_transactions: {
+        Row: {
+          agent_id: string | null
+          billing_duration_sec: number
+          call_id: string | null
+          company_id: string
+          created_at: string
+          id: string
+          invoice_id: string | null
+          rate_per_minute: number
+          revenue_amount: number
+          status: string
+          transaction_date: string
+          transaction_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          billing_duration_sec?: number
+          call_id?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          rate_per_minute?: number
+          revenue_amount?: number
+          status?: string
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          billing_duration_sec?: number
+          call_id?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          rate_per_minute?: number
+          revenue_amount?: number
+          status?: string
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_transactions_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["call_id"]
+          },
+        ]
       }
       super_admins: {
         Row: {
@@ -1080,6 +1199,20 @@ export type Database = {
           date: string
           call_count: number
           total_duration_min: number
+        }[]
+      }
+      get_revenue_metrics: {
+        Args: {
+          p_company_id: string
+          p_start_date?: string
+          p_end_date?: string
+        }
+        Returns: {
+          total_revenue: number
+          total_calls: number
+          avg_revenue_per_call: number
+          top_performing_agent: string
+          revenue_by_day: Json
         }[]
       }
       get_super_admin_call_metrics: {
