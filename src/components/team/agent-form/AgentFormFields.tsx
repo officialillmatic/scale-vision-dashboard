@@ -19,12 +19,18 @@ import {
 } from '@/components/ui/select';
 import { UseFormReturn } from 'react-hook-form';
 import { AgentFormValues } from '../schemas/agentFormSchema';
+import { useRetellAgents } from '@/hooks/useRetellAgents';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 interface AgentFormFieldsProps {
   form: UseFormReturn<AgentFormValues>;
 }
 
 export const AgentFormFields = ({ form }: AgentFormFieldsProps) => {
+  const { agents, isLoading, error } = useRetellAgents();
+
   return (
     <>
       <FormField
@@ -118,16 +124,49 @@ export const AgentFormFields = ({ form }: AgentFormFieldsProps) => {
         name="retell_agent_id"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Agent ID</FormLabel>
+            <FormLabel>Retell Agent</FormLabel>
             <FormControl>
-              <Input 
-                placeholder="agent_123456789" 
-                {...field} 
-                value={field.value || ''}
-              />
+              <Select onValueChange={field.onChange} value={field.value || ''}>
+                <SelectTrigger className="w-full">
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <LoadingSpinner />
+                      <span>Loading agents...</span>
+                    </div>
+                  ) : (
+                    <SelectValue placeholder="Select a Retell agent" />
+                  )}
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {error ? (
+                    <div className="p-2">
+                      <Alert variant="destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription className="text-sm">
+                          {error}
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  ) : agents.length === 0 && !isLoading ? (
+                    <div className="p-2 text-sm text-gray-500">
+                      No agents available
+                    </div>
+                  ) : (
+                    agents.map((agent) => (
+                      <SelectItem 
+                        key={agent.retell_agent_id} 
+                        value={agent.retell_agent_id}
+                        className="cursor-pointer"
+                      >
+                        {agent.display_text}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </FormControl>
             <FormDescription>
-              The internal reference ID for this agent.
+              Select a Retell AI agent to associate with this agent profile.
             </FormDescription>
             <FormMessage />
           </FormItem>
