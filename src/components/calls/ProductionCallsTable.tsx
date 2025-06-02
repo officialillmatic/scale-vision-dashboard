@@ -9,8 +9,13 @@ import { RefreshCw, Phone, Clock, DollarSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export const ProductionCallsTable = () => {
-  console.log("[COMPONENT] ProductionCallsTable renderizando");
+  console.log("🔥 COMPONENT RENDERIZADO - ProductionCallsTable");
+  
   const { calls, isLoading, error, syncCallsSecurely } = useSecureCallData();
+  
+  console.log("🔥 DATOS DEL HOOK:", { calls: calls?.length, isLoading, error });
+  
+  console.log("[COMPONENT] ProductionCallsTable renderizando");
   console.log("[COMPONENT] Hook result:", { calls: calls.length, isLoading, error });
   
   const [isSyncing, setIsSyncing] = useState(false);
