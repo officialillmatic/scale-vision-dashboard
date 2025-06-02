@@ -15,12 +15,23 @@ serve(async (req) => {
   console.log(`[SYNC-CALLS-${requestId}] ${new Date().toISOString()} - ${req.method} request received`);
 
   try {
-    // Load configuration
-    const config = loadSyncConfig();
+    // Load configuration with better error messages
+    let config;
+    try {
+      config = loadSyncConfig();
+      console.log(`[SYNC-CALLS-${requestId}] Configuration loaded successfully`);
+    } catch (configError) {
+      console.error(`[SYNC-CALLS-${requestId}] Configuration error:`, configError);
+      
+      if (configError.message.includes('RETELL_API_KEY')) {
+        return createErrorResponse('Retell API key not configured. Please set RETELL_API_KEY in your edge function secrets.', 500);
+      }
+      
+      return createErrorResponse(`Configuration error: ${configError.message}`, 500);
+    }
+
     const supabaseClient = createClient(config.supabaseUrl, config.supabaseServiceKey);
     const retellClient = new RetellApiClient(config.retellApiKey, config.retellApiBaseUrl);
-    
-    console.log(`[SYNC-CALLS-${requestId}] Configuration loaded successfully`);
     
     if (req.method === 'POST') {
       const requestBody = await req.json().catch(() => ({}));
@@ -36,6 +47,11 @@ serve(async (req) => {
           return createSuccessResponse(testResult);
         } catch (error) {
           console.error(`[SYNC-CALLS-${requestId}] Test failed:`, error);
+          
+          if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
+            return createErrorResponse('Retell API authentication failed. Please check your API key.', 401);
+          }
+          
           return createErrorResponse(`Test failed: ${error.message}`, 500);
         }
       }
@@ -48,6 +64,15 @@ serve(async (req) => {
         return createSuccessResponse(summary);
       } catch (error) {
         console.error(`[SYNC-CALLS-${requestId}] Sync failed:`, error);
+        
+        if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
+          return createErrorResponse('Retell API authentication failed. Please check your API key.', 401);
+        }
+        
+        if (error.message?.includes('network') || error.message?.includes('fetch')) {
+          return createErrorResponse('Network error connecting to Retell API. Please try again.', 503);
+        }
+        
         return createErrorResponse(`Sync failed: ${error.message}`, 500);
       }
     }
