@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface UserAgentAssignment {
@@ -108,6 +109,28 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
   try {
     console.log('🔍 [fetchCurrentUserAgentAssignments] Starting fetch for current user');
     
+    // Get current user first and log it
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Current user from auth:', user?.id);
+    console.log('🔍 [fetchCurrentUserAgentAssignments] User error:', userError);
+    
+    if (!user?.id) {
+      console.log('🔍 [fetchCurrentUserAgentAssignments] No authenticated user found');
+      return [];
+    }
+
+    // First try a simple query to check if we can find any assignments for this user
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Testing simple query first...');
+    const { data: simpleTest, error: simpleError } = await supabase
+      .from("user_agent_assignments")
+      .select("*")
+      .eq('user_id', user.id);
+
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Simple query result:', simpleTest);
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Simple query error:', simpleError);
+
+    // Now try the complex JOIN query
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Attempting JOIN query...');
     const { data: assignments, error } = await supabase
       .from("user_agent_assignments")
       .select(`
@@ -130,8 +153,11 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
           status
         )
       `)
-      .eq('user_id', supabase.auth.getUser().then(({ data }) => data.user?.id))
+      .eq('user_id', user.id)
       .order("assigned_at", { ascending: false });
+
+    console.log('🔍 [fetchCurrentUserAgentAssignments] JOIN query result:', assignments);
+    console.log('🔍 [fetchCurrentUserAgentAssignments] JOIN query error:', error);
 
     if (error) {
       console.error('❌ [fetchCurrentUserAgentAssignments] Error:', error);
@@ -166,6 +192,7 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
       } : undefined
     }));
 
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Final enriched assignments:', enrichedAssignments);
     return enrichedAssignments;
   } catch (error: any) {
     console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error in fetchCurrentUserAgentAssignments:", error);
