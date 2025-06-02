@@ -192,8 +192,45 @@ export type Database = {
         }
         Relationships: []
       }
+      company: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          industry: string | null
+          logo_url: string | null
+          name: string
+          size: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          logo_url?: string | null
+          name: string
+          size?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          logo_url?: string | null
+          name?: string
+          size?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       company_invitations_raw: {
         Row: {
+          accepted_at: string | null
           company_id: string
           created_at: string
           email: string
@@ -205,6 +242,7 @@ export type Database = {
           token: string
         }
         Insert: {
+          accepted_at?: string | null
           company_id: string
           created_at?: string
           email: string
@@ -216,6 +254,7 @@ export type Database = {
           token: string
         }
         Update: {
+          accepted_at?: string | null
           company_id?: string
           created_at?: string
           email?: string
@@ -241,6 +280,7 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          joined_at: string | null
           role: string
           status: string
           updated_at: string
@@ -250,6 +290,7 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
+          joined_at?: string | null
           role: string
           status: string
           updated_at?: string
@@ -259,6 +300,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          joined_at?: string | null
           role?: string
           status?: string
           updated_at?: string
@@ -354,6 +396,135 @@ export type Database = {
           created_at?: string
           id?: number
           uid?: string
+        }
+        Relationships: []
+      }
+      retell_agents: {
+        Row: {
+          ambient_sound: string | null
+          ambient_sound_volume: number | null
+          backchannel_frequency: number | null
+          backchannel_words: string[] | null
+          boosted_keywords: string[] | null
+          created_at: string
+          enable_transcription_formatting: boolean | null
+          id: string
+          interruption_sensitivity: number | null
+          is_active: boolean
+          language: string | null
+          last_synced_at: string | null
+          llm_websocket_url: string | null
+          name: string
+          normalize_for_speech: boolean | null
+          opt_out_sensitive_data_storage: boolean | null
+          prompt: string | null
+          pronunciation_dictionary: Json | null
+          reminder_max_count: number | null
+          reminder_trigger_ms: number | null
+          response_engine: string | null
+          responsiveness: number | null
+          retell_agent_id: string
+          status: string
+          updated_at: string
+          voice_id: string | null
+          voice_model: string | null
+        }
+        Insert: {
+          ambient_sound?: string | null
+          ambient_sound_volume?: number | null
+          backchannel_frequency?: number | null
+          backchannel_words?: string[] | null
+          boosted_keywords?: string[] | null
+          created_at?: string
+          enable_transcription_formatting?: boolean | null
+          id?: string
+          interruption_sensitivity?: number | null
+          is_active?: boolean
+          language?: string | null
+          last_synced_at?: string | null
+          llm_websocket_url?: string | null
+          name: string
+          normalize_for_speech?: boolean | null
+          opt_out_sensitive_data_storage?: boolean | null
+          prompt?: string | null
+          pronunciation_dictionary?: Json | null
+          reminder_max_count?: number | null
+          reminder_trigger_ms?: number | null
+          response_engine?: string | null
+          responsiveness?: number | null
+          retell_agent_id: string
+          status?: string
+          updated_at?: string
+          voice_id?: string | null
+          voice_model?: string | null
+        }
+        Update: {
+          ambient_sound?: string | null
+          ambient_sound_volume?: number | null
+          backchannel_frequency?: number | null
+          backchannel_words?: string[] | null
+          boosted_keywords?: string[] | null
+          created_at?: string
+          enable_transcription_formatting?: boolean | null
+          id?: string
+          interruption_sensitivity?: number | null
+          is_active?: boolean
+          language?: string | null
+          last_synced_at?: string | null
+          llm_websocket_url?: string | null
+          name?: string
+          normalize_for_speech?: boolean | null
+          opt_out_sensitive_data_storage?: boolean | null
+          prompt?: string | null
+          pronunciation_dictionary?: Json | null
+          reminder_max_count?: number | null
+          reminder_trigger_ms?: number | null
+          response_engine?: string | null
+          responsiveness?: number | null
+          retell_agent_id?: string
+          status?: string
+          updated_at?: string
+          voice_id?: string | null
+          voice_model?: string | null
+        }
+        Relationships: []
+      }
+      retell_sync_stats: {
+        Row: {
+          agents_created: number | null
+          agents_deactivated: number | null
+          agents_updated: number | null
+          created_at: string
+          error_message: string | null
+          id: string
+          sync_completed_at: string | null
+          sync_started_at: string
+          sync_status: string
+          total_agents_fetched: number | null
+        }
+        Insert: {
+          agents_created?: number | null
+          agents_deactivated?: number | null
+          agents_updated?: number | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          sync_completed_at?: string | null
+          sync_started_at?: string
+          sync_status?: string
+          total_agents_fetched?: number | null
+        }
+        Update: {
+          agents_created?: number | null
+          agents_deactivated?: number | null
+          agents_updated?: number | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          sync_completed_at?: string | null
+          sync_started_at?: string
+          sync_status?: string
+          total_agents_fetched?: number | null
         }
         Relationships: []
       }
@@ -470,13 +641,6 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_agents_agent_id_fkey"
-            columns: ["agent_id"]
-            isOneToOne: false
-            referencedRelation: "agents"
             referencedColumns: ["id"]
           },
         ]

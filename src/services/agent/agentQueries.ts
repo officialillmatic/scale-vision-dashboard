@@ -28,6 +28,29 @@ export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
   }
 };
 
+export const fetchRetellAgents = async (): Promise<any[]> => {
+  console.log("[AGENT_SERVICE] Fetching Retell agents...");
+  
+  try {
+    const { data, error } = await supabase
+      .from("retell_agents")
+      .select("*")
+      .eq("is_active", true)
+      .order("name");
+
+    if (error) {
+      console.error("[AGENT_SERVICE] Database error:", error);
+      return [];
+    }
+
+    console.log("[AGENT_SERVICE] Successfully fetched", data?.length || 0, "Retell agents");
+    return data || [];
+  } catch (error: any) {
+    console.error("[AGENT_SERVICE] Error in fetchRetellAgents:", error);
+    return [];
+  }
+};
+
 export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> => {
   console.log("[AGENT_SERVICE] Fetching user agents for company:", companyId);
   
