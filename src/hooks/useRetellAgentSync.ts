@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { retellAgentSyncService, SyncStats } from '@/services/retell/retellAgentSync';
+import { retellAgentSyncService, SyncStats, AgentSyncResult } from '@/services/retell/retellAgentSync';
 import { toast } from 'sonner';
 
 export function useRetellAgentSync() {
@@ -36,7 +36,7 @@ export function useRetellAgentSync() {
     onMutate: () => {
       setIsSyncing(true);
     },
-    onSuccess: (data: SyncStats) => {
+    onSuccess: (data: AgentSyncResult) => {
       queryClient.invalidateQueries({ queryKey: ['retell-sync-stats'] });
       queryClient.invalidateQueries({ queryKey: ['retell-unassigned-agents'] });
       queryClient.invalidateQueries({ queryKey: ['agents'] });

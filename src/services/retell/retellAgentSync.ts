@@ -11,6 +11,19 @@ export interface AgentSyncResult {
   sync_completed_at: string;
 }
 
+export interface SyncStats {
+  id: string;
+  sync_started_at: string;
+  sync_completed_at: string | null;
+  sync_status: string;
+  total_agents_fetched: number;
+  agents_created: number;
+  agents_updated: number;
+  agents_deactivated: number;
+  error_message: string | null;
+  created_at: string;
+}
+
 class RetellAgentSyncService {
   private readonly baseUrl = 'https://api.retellai.com/v2';
   private readonly apiKey: string;
@@ -51,13 +64,13 @@ class RetellAgentSyncService {
   /**
    * Get the latest sync statistics
    */
-  async getSyncStats(): Promise<any[]> {
+  async getSyncStats(limit: number = 10): Promise<SyncStats[]> {
     try {
       const { data, error } = await supabase
         .from('retell_sync_stats')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(limit);
 
       if (error) {
         console.error('[RETELL_AGENT_SYNC] Error fetching sync stats:', error);
