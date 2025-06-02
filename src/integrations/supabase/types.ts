@@ -638,7 +638,7 @@ export type Database = {
             foreignKeyName: "user_agent_assignments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

@@ -11,10 +11,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Loader, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Trash2, Loader, RefreshCw } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { UserAgentAssignment } from '@/services/agent/userAgentAssignmentQueries';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface UserAgentAssignmentsTableProps {
   assignments: UserAgentAssignment[];
@@ -56,11 +55,6 @@ export function UserAgentAssignmentsTable({
     }
   };
 
-  // Check if assignments have missing data
-  const hasIncompleteData = assignments.some(assignment => 
-    !assignment.user_details || !assignment.agent_details
-  );
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -75,16 +69,6 @@ export function UserAgentAssignmentsTable({
           Refresh
         </Button>
       </div>
-
-      {/* Data Quality Warning */}
-      {hasIncompleteData && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Some assignments have missing user or agent data. This may indicate database synchronization issues.
-          </AlertDescription>
-        </Alert>
-      )}
       
       <div className="rounded-md border">
         <Table>
@@ -108,77 +92,77 @@ export function UserAgentAssignmentsTable({
                 </TableCell>
               </TableRow>
             ) : assignments && Array.isArray(assignments) && assignments.length > 0 ? (
-              assignments.map((assignment) => (
-                <TableRow key={assignment.id} className="hover:bg-muted/50">
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">
-                        {assignment.user_details?.full_name || assignment.user_details?.email || `User ID: ${assignment.user_id}`}
-                      </p>
-                      {assignment.user_details?.full_name && assignment.user_details?.email && (
-                        <p className="text-sm text-muted-foreground">{assignment.user_details.email}</p>
-                      )}
-                      {!assignment.user_details && (
-                        <p className="text-sm text-orange-600">⚠️ User data missing</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">
-                        {assignment.agent_details?.name || `Agent ID: ${assignment.agent_id}`}
-                      </p>
-                      {assignment.agent_details?.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {assignment.agent_details.description}
-                        </p>
-                      )}
-                      {!assignment.agent_details && (
-                        <p className="text-sm text-orange-600">⚠️ Agent data missing</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        checked={assignment.is_primary}
-                        onCheckedChange={(checked) => onUpdatePrimary(assignment.id, checked, assignment.user_id)}
-                        disabled={isUpdating}
-                      />
-                      {assignment.is_primary && (
-                        <Badge className="bg-green-100 text-green-800 border-green-200">
-                          Primary
-                        </Badge>
-                      )}
-                      {isUpdating && (
-                        <Loader className="h-4 w-4 animate-spin" />
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {assignment.assigned_at ? (
-                      new Date(assignment.assigned_at).toLocaleDateString()
-                    ) : (
-                      <span className="text-muted-foreground">Unknown</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleRemove(assignment.id)}
-                      disabled={removingId === assignment.id || isRemoving}
-                      className="hover:bg-red-50 hover:text-red-600"
-                    >
-                      {removingId === assignment.id ? (
-                        <Loader className="h-4 w-4 animate-spin" />
+              assignments.map((assignment) => {
+                // Format user display name using the joined data
+                const userDisplayName = assignment.user_details?.full_name 
+                  ? `${assignment.user_details.full_name} (${assignment.user_details.email})`
+                  : assignment.user_details?.email || `User ID: ${assignment.user_id}`;
+                
+                // Format agent display name using the joined data
+                const agentDisplayName = assignment.agent_details?.name || `Agent ID: ${assignment.agent_id}`;
+                
+                return (
+                  <TableRow key={assignment.id} className="hover:bg-muted/50">
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{userDisplayName}</p>
+                        {assignment.user_details?.full_name && assignment.user_details?.email && (
+                          <p className="text-sm text-muted-foreground">{assignment.user_details.email}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{agentDisplayName}</p>
+                        {assignment.agent_details?.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {assignment.agent_details.description}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={assignment.is_primary}
+                          onCheckedChange={(checked) => onUpdatePrimary(assignment.id, checked, assignment.user_id)}
+                          disabled={isUpdating}
+                        />
+                        {assignment.is_primary && (
+                          <Badge className="bg-green-100 text-green-800 border-green-200">
+                            Primary
+                          </Badge>
+                        )}
+                        {isUpdating && (
+                          <Loader className="h-4 w-4 animate-spin" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {assignment.assigned_at ? (
+                        new Date(assignment.assigned_at).toLocaleDateString()
                       ) : (
-                        <Trash2 className="h-4 w-4" />
+                        <span className="text-muted-foreground">Unknown</span>
                       )}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleRemove(assignment.id)}
+                        disabled={removingId === assignment.id || isRemoving}
+                        className="hover:bg-red-50 hover:text-red-600"
+                      >
+                        {removingId === assignment.id ? (
+                          <Loader className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center">

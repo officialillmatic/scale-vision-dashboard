@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface UserAgentAssignment {
@@ -25,17 +24,36 @@ export interface UserAgentAssignment {
 
 export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]> => {
   try {
-    console.log('🔍 [fetchUserAgentAssignments] Starting fetch from user_agent_assignments table');
+    console.log('🔍 [fetchUserAgentAssignments] Starting fetch with proper JOIN query');
     
-    // First get all assignments
-    const { data: assignments, error: assignmentsError } = await supabase
+    // Use a single JOIN query to fetch all data at once
+    const { data: assignments, error } = await supabase
       .from("user_agent_assignments")
-      .select("*")
+      .select(`
+        id,
+        user_id,
+        agent_id,
+        is_primary,
+        assigned_at,
+        assigned_by,
+        profiles!user_agent_assignments_user_id_fkey (
+          id,
+          email,
+          full_name
+        ),
+        retell_agents!user_agent_assignments_agent_id_fkey (
+          id,
+          retell_agent_id,
+          name,
+          description,
+          status
+        )
+      `)
       .order("assigned_at", { ascending: false });
 
-    if (assignmentsError) {
-      console.error('❌ [fetchUserAgentAssignments] Error accessing user_agent_assignments:', assignmentsError);
-      throw new Error(`Cannot access user_agent_assignments table: ${assignmentsError.message}`);
+    if (error) {
+      console.error('❌ [fetchUserAgentAssignments] Error with JOIN query:', error);
+      throw new Error(`Cannot access user_agent_assignments with JOIN: ${error.message}`);
     }
 
     if (!assignments || assignments.length === 0) {
@@ -43,59 +61,41 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
       return [];
     }
 
-    console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments');
+    console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments with JOIN data');
 
-    // Manually fetch user and agent details for each assignment
-    const enrichedAssignments: UserAgentAssignment[] = [];
+    // Transform the data to match the UserAgentAssignment interface
+    const enrichedAssignments: UserAgentAssignment[] = assignments.map(assignment => {
+      console.log('🔍 [fetchUserAgentAssignments] Processing assignment:', {
+        id: assignment.id,
+        user_data: assignment.profiles,
+        agent_data: assignment.retell_agents
+      });
 
-    for (const assignment of assignments) {
-      console.log('🔍 [fetchUserAgentAssignments] Processing assignment:', assignment.id);
-
-      // Fetch user details from users table
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("id, email, full_name")
-        .eq("id", assignment.user_id)
-        .single();
-
-      if (userError) {
-        console.warn('⚠️ [fetchUserAgentAssignments] User data error for', assignment.user_id, ':', userError);
-      }
-
-      // Fetch agent details from retell_agents table
-      const { data: agentData, error: agentError } = await supabase
-        .from("retell_agents")
-        .select("id, retell_agent_id, name, description, status")
-        .eq("id", assignment.agent_id)
-        .single();
-
-      if (agentError) {
-        console.warn('⚠️ [fetchUserAgentAssignments] Agent data error for', assignment.agent_id, ':', agentError);
-      }
-
-      enrichedAssignments.push({
+      return {
         id: assignment.id,
         user_id: assignment.user_id,
         agent_id: assignment.agent_id,
         is_primary: assignment.is_primary || false,
         assigned_at: assignment.assigned_at,
         assigned_by: assignment.assigned_by,
-        user_details: userData ? {
-          id: userData.id,
-          email: userData.email,
-          full_name: userData.full_name
+        user_details: assignment.profiles ? {
+          id: assignment.profiles.id,
+          email: assignment.profiles.email,
+          full_name: assignment.profiles.full_name
         } : undefined,
-        agent_details: agentData ? {
-          id: agentData.id,
-          retell_agent_id: agentData.retell_agent_id,
-          name: agentData.name,
-          description: agentData.description,
-          status: agentData.status
+        agent_details: assignment.retell_agents ? {
+          id: assignment.retell_agents.id,
+          retell_agent_id: assignment.retell_agents.retell_agent_id,
+          name: assignment.retell_agents.name,
+          description: assignment.retell_agents.description,
+          status: assignment.retell_agents.status
         } : undefined
-      });
-    }
+      };
+    });
 
     console.log('🔍 [fetchUserAgentAssignments] Final enriched assignments:', enrichedAssignments.length);
+    console.log('🔍 [fetchUserAgentAssignments] Sample assignment data:', enrichedAssignments[0]);
+    
     return enrichedAssignments;
   } catch (error: any) {
     console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error in fetchUserAgentAssignments:", error);
