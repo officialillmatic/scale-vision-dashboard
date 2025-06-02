@@ -75,12 +75,16 @@ export const fetchUserAccessibleAgents = async (userId: string, companyId?: stri
       throw error;
     }
 
-    // Extract agents from the nested structure and ensure proper typing
+    // Extract agents from the nested structure with proper type checking
     const agents: Agent[] = [];
     if (data && Array.isArray(data)) {
       data.forEach(item => {
-        if (item && item.agent && typeof item.agent === 'object') {
-          agents.push(item.agent as Agent);
+        if (item && item.agent && typeof item.agent === 'object' && !Array.isArray(item.agent)) {
+          // Ensure the agent object has all required Agent properties
+          const agent = item.agent as any;
+          if (agent.id && agent.name && agent.status && agent.created_at && agent.updated_at) {
+            agents.push(agent as Agent);
+          }
         }
       });
     }
