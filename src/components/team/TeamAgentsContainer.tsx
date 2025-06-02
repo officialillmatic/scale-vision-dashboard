@@ -51,7 +51,9 @@ export function TeamAgentsContainer() {
     isLoadingUsers,
     isLoadingAgents: isLoadingAvailableAgents,
     handleCreateAssignment,
-    isCreating: isCreatingAssignment
+    isCreating: isCreatingAssignment,
+    usersError,
+    handleRefreshUsers
   } = useUserAgentAssignments();
 
   const handleOpenAgentDialog = (agent?: Agent) => {
@@ -156,6 +158,8 @@ export function TeamAgentsContainer() {
         selectedAgent={selectedAgent}
         isLoading={isLoadingUsers || isLoadingAvailableAgents}
         isSubmitting={isCreatingAssignment}
+        usersError={usersError}
+        onRefreshUsers={handleRefreshUsers}
       />
     </div>
   );

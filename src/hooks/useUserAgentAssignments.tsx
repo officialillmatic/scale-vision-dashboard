@@ -44,14 +44,32 @@ export function useUserAgentAssignments() {
     }
   });
 
-  // Query for available users
+  // Query for available users with improved error handling
   const { 
     data: availableUsers, 
-    isLoading: isLoadingUsers 
+    isLoading: isLoadingUsers,
+    error: usersError,
+    refetch: refetchUsers
   } = useQuery({
     queryKey: ['assignment-users'],
-    queryFn: fetchAvailableUsers,
-    staleTime: 60000
+    queryFn: async () => {
+      console.log('🔍 [useUserAgentAssignments] Fetching users for assignments');
+      try {
+        const users = await fetchAvailableUsers();
+        console.log('🔍 [useUserAgentAssignments] Users fetched successfully:', users.length);
+        return users;
+      } catch (error) {
+        console.error('🔍 [useUserAgentAssignments] Error fetching users:', error);
+        toast.error('Failed to load users for assignment');
+        throw error;
+      }
+    },
+    staleTime: 60000,
+    retry: (failureCount, error) => {
+      console.log('🔍 [useUserAgentAssignments] Users query retry:', failureCount, error);
+      return failureCount < 3; // Retry up to 3 times for user loading
+    },
+    refetchOnWindowFocus: true
   });
 
   // Query for available agents
@@ -84,8 +102,15 @@ export function useUserAgentAssignments() {
     isError,
     assignmentsError: assignmentsError?.message,
     availableUsersCount: availableUsers?.length || 0,
-    availableAgentsCount: availableAgents?.length || 0
+    availableAgentsCount: availableAgents?.length || 0,
+    isLoadingUsers,
+    usersError: usersError?.message
   });
+
+  // Show user-friendly error if users failed to load
+  if (usersError) {
+    console.error('🔍 [useUserAgentAssignments] Users loading failed:', usersError);
+  }
 
   const handleRemoveAssignment = async (assignmentId: string) => {
     console.log('🔍 [useUserAgentAssignments] Removing assignment:', assignmentId);
@@ -132,6 +157,11 @@ export function useUserAgentAssignments() {
     createMutation.mutate({ userId, agentId, isPrimary });
   };
 
+  const handleRefreshUsers = () => {
+    console.log('🔍 [useUserAgentAssignments] Manual refresh of users triggered');
+    refetchUsers();
+  };
+
   return {
     assignments: assignments || [],
     isLoadingAssignments,
@@ -149,6 +179,10 @@ export function useUserAgentAssignments() {
     availableAgents: availableAgents || [],
     isLoadingUsers,
     isLoadingAgents,
-    isCreating: createMutation.isPending
+    isCreating: createMutation.isPending,
+    
+    // Error handling and refresh
+    usersError,
+    handleRefreshUsers
   };
 }

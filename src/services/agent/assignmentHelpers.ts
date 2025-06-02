@@ -17,20 +17,55 @@ export interface AssignmentAgent {
 
 export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
   try {
-    console.log('🔍 [fetchAvailableUsers] Fetching ALL users from users table');
+    console.log('🔍 [fetchAvailableUsers] Starting fetch - checking auth status');
     
+    // Check if we have a session
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session) {
+      console.warn('🔍 [fetchAvailableUsers] No active session found');
+      throw new Error('No active session - please log in');
+    }
+    
+    console.log('🔍 [fetchAvailableUsers] Session found, fetching ALL users from users table');
+    
+    // Fetch ALL users without any filters
     const { data, error } = await supabase
       .from("users")
       .select("id, email, full_name")
       .order("email");
 
     if (error) {
-      console.error("[ASSIGNMENT_HELPERS] Error fetching users:", error);
-      throw error;
+      console.error("[ASSIGNMENT_HELPERS] Supabase error fetching users:", error);
+      console.error("[ASSIGNMENT_HELPERS] Error details:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      throw new Error(`Database error: ${error.message}`);
     }
 
-    console.log('🔍 [fetchAvailableUsers] Raw users data:', data);
+    console.log('🔍 [fetchAvailableUsers] Raw query response:', data);
     console.log('🔍 [fetchAvailableUsers] Total users fetched:', data?.length || 0);
+    
+    if (!data || data.length === 0) {
+      console.warn('🔍 [fetchAvailableUsers] No users found in database!');
+      console.warn('🔍 [fetchAvailableUsers] This might indicate:');
+      console.warn('  - The users table is empty');
+      console.warn('  - RLS policies are blocking access');
+      console.warn('  - Wrong table name or connection issues');
+      
+      // Let's also try to check if the table exists and has any data at all
+      const { count, error: countError } = await supabase
+        .from("users")
+        .select("*", { count: 'exact', head: true });
+        
+      if (countError) {
+        console.error('🔍 [fetchAvailableUsers] Error checking user count:', countError);
+      } else {
+        console.log('🔍 [fetchAvailableUsers] Total rows in users table:', count);
+      }
+    }
     
     // Log each user for debugging
     data?.forEach((user, index) => {
@@ -44,6 +79,7 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
     return data || [];
   } catch (error: any) {
     console.error("[ASSIGNMENT_HELPERS] Error in fetchAvailableUsers:", error);
+    console.error("[ASSIGNMENT_HELPERS] Error stack:", error.stack);
     throw new Error(`Failed to fetch users: ${error.message}`);
   }
 };

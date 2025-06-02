@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { AssignmentUser, AssignmentAgent } from '@/services/agent/assignmentHelpers';
 
 interface NewAssignmentDialogProps {
@@ -29,6 +31,8 @@ interface NewAssignmentDialogProps {
   selectedAgent?: any; // Agent from the agents table
   isLoading: boolean;
   isSubmitting: boolean;
+  usersError?: Error | null;
+  onRefreshUsers?: () => void;
 }
 
 export function NewAssignmentDialog({
@@ -39,7 +43,9 @@ export function NewAssignmentDialog({
   availableAgents,
   selectedAgent,
   isLoading,
-  isSubmitting
+  isSubmitting,
+  usersError,
+  onRefreshUsers
 }: NewAssignmentDialogProps) {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
@@ -72,9 +78,11 @@ export function NewAssignmentDialog({
         id: user.id,
         email: user.email,
         full_name: user.full_name
-      }))
+      })),
+      hasError: !!usersError,
+      errorMessage: usersError?.message
     });
-  }, [availableUsers]);
+  }, [availableUsers, usersError]);
 
   const handleSubmit = () => {
     if (!selectedUserId || !selectedAgentId) {
@@ -103,7 +111,16 @@ export function NewAssignmentDialog({
     onClose();
   };
 
+  const handleRefreshUsers = () => {
+    if (onRefreshUsers) {
+      console.log('🔍 [NewAssignmentDialog] Triggering manual user refresh');
+      onRefreshUsers();
+    }
+  };
+
   const canSubmit = selectedUserId && selectedAgentId && !isSubmitting;
+  const hasUsersError = !!usersError;
+  const hasUsers = availableUsers.length > 0;
 
   console.log('🔍 [NewAssignmentDialog] Render state:', {
     isOpen,
@@ -113,7 +130,9 @@ export function NewAssignmentDialog({
     selectedUserId,
     selectedAgentId,
     selectedAgent: selectedAgent?.name,
-    canSubmit
+    canSubmit,
+    hasUsersError,
+    usersErrorMsg: usersError?.message
   });
 
   return (
@@ -134,25 +153,58 @@ export function NewAssignmentDialog({
           </div>
         ) : (
           <div className="space-y-4 py-4">
+            {/* User Loading Error Alert */}
+            {hasUsersError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="flex items-center justify-between">
+                  <span>Failed to load users: {usersError.message}</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleRefreshUsers}
+                    className="ml-2"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="user-select">
-                Select User ({availableUsers.length} available)
-                {availableUsers.length === 0 && (
-                  <span className="text-red-500 ml-2">- No users found!</span>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="user-select">
+                  Select User ({availableUsers.length} available)
+                  {!hasUsers && !hasUsersError && (
+                    <span className="text-red-500 ml-2">- No users found!</span>
+                  )}
+                </Label>
+                {onRefreshUsers && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleRefreshUsers}
+                    disabled={isLoading}
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
                 )}
-              </Label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              </div>
+              
+              <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={!hasUsers}>
                 <SelectTrigger id="user-select">
                   <SelectValue placeholder={
-                    availableUsers.length === 0 
-                      ? "No users available" 
-                      : "Choose a user..."
+                    hasUsersError ? "Error loading users" :
+                    !hasUsers ? "No users available" : 
+                    "Choose a user..."
                   } />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableUsers.length === 0 ? (
+                  {!hasUsers ? (
                     <SelectItem value="no-users" disabled>
-                      No users found in database
+                      {hasUsersError ? "Failed to load users" : "No users found in database"}
                     </SelectItem>
                   ) : (
                     availableUsers.map((user) => (
@@ -168,9 +220,14 @@ export function NewAssignmentDialog({
               {process.env.NODE_ENV === 'development' && (
                 <div className="text-xs text-gray-500 mt-1">
                   Debug: Found {availableUsers.length} users in database
-                  {availableUsers.length > 0 && (
+                  {hasUsers && (
                     <div className="mt-1">
                       Users: {availableUsers.map(u => u.email).join(', ')}
+                    </div>
+                  )}
+                  {hasUsersError && (
+                    <div className="mt-1 text-red-600">
+                      Error: {usersError.message}
                     </div>
                   )}
                 </div>
@@ -223,7 +280,7 @@ export function NewAssignmentDialog({
           </Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={!canSubmit || availableUsers.length === 0}
+            disabled={!canSubmit || !hasUsers}
           >
             {isSubmitting ? (
               <>
