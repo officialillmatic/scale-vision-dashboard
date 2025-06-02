@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,10 @@ import { RefreshCw, Phone, Clock, DollarSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export const ProductionCallsTable = () => {
+  console.log("[COMPONENT] ProductionCallsTable renderizando");
   const { calls, isLoading, error, syncCallsSecurely } = useSecureCallData();
+  console.log("[COMPONENT] Hook result:", { calls: calls.length, isLoading, error });
+  
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleRefresh = async () => {
