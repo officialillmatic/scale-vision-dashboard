@@ -489,6 +489,45 @@ export type Database = {
         }
         Relationships: []
       }
+      retell_sync_stats: {
+        Row: {
+          agents_created: number
+          agents_deactivated: number
+          agents_updated: number
+          created_at: string
+          error_message: string | null
+          id: string
+          sync_completed_at: string | null
+          sync_started_at: string
+          sync_status: string
+          total_agents_fetched: number
+        }
+        Insert: {
+          agents_created?: number
+          agents_deactivated?: number
+          agents_updated?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          sync_completed_at?: string | null
+          sync_started_at?: string
+          sync_status?: string
+          total_agents_fetched?: number
+        }
+        Update: {
+          agents_created?: number
+          agents_deactivated?: number
+          agents_updated?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          sync_completed_at?: string | null
+          sync_started_at?: string
+          sync_status?: string
+          total_agents_fetched?: number
+        }
+        Relationships: []
+      }
       super_admins: {
         Row: {
           created_at: string

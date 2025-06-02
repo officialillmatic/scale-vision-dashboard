@@ -25,6 +25,30 @@ export interface SyncStats {
   created_at: string;
 }
 
+export interface RetellAgent {
+  agent_id: string;
+  agent_name: string;
+  voice_id?: string;
+  voice_model?: string;
+  language?: string;
+  response_engine?: string;
+  llm_websocket_url?: string;
+  prompt?: string;
+  boosted_keywords?: string[];
+  ambient_sound?: string;
+  ambient_sound_volume?: number;
+  backchannel_frequency?: number;
+  backchannel_words?: string[];
+  reminder_trigger_ms?: number;
+  reminder_max_count?: number;
+  interruption_sensitivity?: number;
+  enable_transcription_formatting?: boolean;
+  opt_out_sensitive_data_storage?: boolean;
+  pronunciation_dictionary?: any;
+  normalize_for_speech?: boolean;
+  responsiveness?: number;
+}
+
 class RetellAgentSyncService {
   private readonly baseUrl = 'https://api.retellai.com/v2';
   private readonly apiKey: string;
@@ -46,6 +70,62 @@ class RetellAgentSyncService {
   }
 
   /**
+   * Fetch agents from Retell AI API
+   */
+  private async fetchRetellAgents(): Promise<RetellAgent[]> {
+    console.log('[RETELL_AGENT_SYNC] Fetching agents from Retell API...');
+    
+    const response = await fetch(`${this.baseUrl}/list-agents`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ limit: 100 })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Retell API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.agents || [];
+  }
+
+  /**
+   * Map Retell agent to database format
+   */
+  private mapAgentToDbFormat(retellAgent: RetellAgent) {
+    return {
+      retell_agent_id: retellAgent.agent_id,
+      name: retellAgent.agent_name,
+      voice_id: retellAgent.voice_id,
+      voice_model: retellAgent.voice_model,
+      language: retellAgent.language || 'en-US',
+      response_engine: retellAgent.response_engine,
+      llm_websocket_url: retellAgent.llm_websocket_url,
+      prompt: retellAgent.prompt,
+      boosted_keywords: retellAgent.boosted_keywords,
+      ambient_sound: retellAgent.ambient_sound,
+      ambient_sound_volume: retellAgent.ambient_sound_volume,
+      backchannel_frequency: retellAgent.backchannel_frequency,
+      backchannel_words: retellAgent.backchannel_words,
+      reminder_trigger_ms: retellAgent.reminder_trigger_ms,
+      reminder_max_count: retellAgent.reminder_max_count,
+      interruption_sensitivity: retellAgent.interruption_sensitivity,
+      enable_transcription_formatting: retellAgent.enable_transcription_formatting,
+      opt_out_sensitive_data_storage: retellAgent.opt_out_sensitive_data_storage,
+      pronunciation_dictionary: retellAgent.pronunciation_dictionary,
+      normalize_for_speech: retellAgent.normalize_for_speech,
+      responsiveness: retellAgent.responsiveness,
+      is_active: true,
+      last_synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  }
+
+  /**
    * Force a sync of agents from Retell AI
    */
   async forceSync(): Promise<AgentSyncResult> {
@@ -60,25 +140,153 @@ class RetellAgentSyncService {
 
     console.log('[RETELL_AGENT_SYNC] ✅ API connection test passed, proceeding with sync...');
 
-    try {
-      // Call the Supabase edge function for agent sync
-      console.log('[RETELL_AGENT_SYNC] Calling Supabase edge function...');
-      
-      const { data, error } = await supabase.functions.invoke('retell-agent-sync', {
-        method: 'POST',
-        body: { force: true }
-      });
+    // Create sync stats record
+    const { data: syncRecord, error: syncError } = await supabase
+      .from('retell_sync_stats')
+      .insert({
+        sync_status: 'running'
+      })
+      .select('id')
+      .single();
 
-      if (error) {
-        console.error('[RETELL_AGENT_SYNC] Supabase edge function error:', error);
-        throw new Error(`Sync failed: ${error.message}`);
+    if (syncError) {
+      console.error('[RETELL_AGENT_SYNC] Error creating sync record:', syncError);
+      throw new Error(`Failed to create sync record: ${syncError.message}`);
+    }
+
+    const syncId = syncRecord.id;
+    let stats = {
+      total_agents_fetched: 0,
+      agents_created: 0,
+      agents_updated: 0,
+      agents_deactivated: 0
+    };
+
+    try {
+      // Fetch agents from Retell API
+      const retellAgents = await this.fetchRetellAgents();
+      stats.total_agents_fetched = retellAgents.length;
+
+      console.log('[RETELL_AGENT_SYNC] Fetched', retellAgents.length, 'agents from Retell API');
+
+      // Update sync stats with fetched count
+      await supabase
+        .from('retell_sync_stats')
+        .update({ total_agents_fetched: stats.total_agents_fetched })
+        .eq('id', syncId);
+
+      // Get existing agents from database
+      const { data: existingAgents, error: fetchError } = await supabase
+        .from('retell_agents')
+        .select('*');
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch existing agents: ${fetchError.message}`);
       }
 
-      console.log('[RETELL_AGENT_SYNC] Sync completed successfully:', data);
-      return data;
+      const existingAgentIds = new Set(
+        existingAgents?.map(agent => agent.retell_agent_id) || []
+      );
+      const fetchedAgentIds = new Set(
+        retellAgents.map(agent => agent.agent_id)
+      );
+
+      // Sync each agent
+      for (const retellAgent of retellAgents) {
+        try {
+          const existingAgent = existingAgents?.find(
+            agent => agent.retell_agent_id === retellAgent.agent_id
+          );
+
+          const agentData = this.mapAgentToDbFormat(retellAgent);
+
+          if (existingAgent) {
+            // Update existing agent
+            const { error: updateError } = await supabase
+              .from('retell_agents')
+              .update(agentData)
+              .eq('id', existingAgent.id);
+
+            if (updateError) {
+              console.error('[RETELL_AGENT_SYNC] Error updating agent', retellAgent.agent_id, ':', updateError);
+            } else {
+              stats.agents_updated++;
+              console.log('[RETELL_AGENT_SYNC] Updated agent:', retellAgent.agent_name);
+            }
+          } else {
+            // Create new agent
+            const { error: insertError } = await supabase
+              .from('retell_agents')
+              .insert(agentData);
+
+            if (insertError) {
+              console.error('[RETELL_AGENT_SYNC] Error creating agent', retellAgent.agent_id, ':', insertError);
+            } else {
+              stats.agents_created++;
+              console.log('[RETELL_AGENT_SYNC] Created agent:', retellAgent.agent_name);
+            }
+          }
+        } catch (agentError) {
+          console.error('[RETELL_AGENT_SYNC] Error processing agent', retellAgent.agent_id, ':', agentError);
+        }
+      }
+
+      // Deactivate agents that are no longer in Retell
+      const agentsToDeactivate = existingAgents?.filter(
+        agent => agent.is_active && !fetchedAgentIds.has(agent.retell_agent_id)
+      ) || [];
+
+      for (const agent of agentsToDeactivate) {
+        const { error: deactivateError } = await supabase
+          .from('retell_agents')
+          .update({ 
+            is_active: false, 
+            updated_at: new Date().toISOString() 
+          })
+          .eq('id', agent.id);
+
+        if (deactivateError) {
+          console.error('[RETELL_AGENT_SYNC] Error deactivating agent', agent.retell_agent_id, ':', deactivateError);
+        } else {
+          stats.agents_deactivated++;
+          console.log('[RETELL_AGENT_SYNC] Deactivated agent:', agent.name);
+        }
+      }
+
+      // Update final sync stats
+      const completedAt = new Date().toISOString();
+      await supabase
+        .from('retell_sync_stats')
+        .update({
+          ...stats,
+          sync_status: 'completed',
+          sync_completed_at: completedAt
+        })
+        .eq('id', syncId);
+
+      console.log('[RETELL_AGENT_SYNC] Synchronization completed successfully:', stats);
+
+      return {
+        ...stats,
+        sync_status: 'completed',
+        sync_started_at: syncRecord.sync_started_at || new Date().toISOString(),
+        sync_completed_at: completedAt
+      };
+
     } catch (error: any) {
-      console.error('[RETELL_AGENT_SYNC] Error during sync:', error);
-      throw new Error(`Agent sync failed: ${error?.message || 'Unknown error'}`);
+      console.error('[RETELL_AGENT_SYNC] Synchronization failed:', error);
+      
+      // Update sync stats with error
+      await supabase
+        .from('retell_sync_stats')
+        .update({
+          sync_status: 'failed',
+          error_message: error.message,
+          sync_completed_at: new Date().toISOString()
+        })
+        .eq('id', syncId);
+
+      throw new Error(`Agent sync failed: ${error.message}`);
     }
   }
 
