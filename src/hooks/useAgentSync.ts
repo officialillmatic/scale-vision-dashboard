@@ -35,8 +35,14 @@ export function useAgentSync(): AgentSyncState {
       console.log('[AGENT_SYNC] Fetching sync data...');
 
       const [syncStats, unassignedAgents] = await Promise.all([
-        retellAgentSyncService.getSyncStats(),
-        retellAgentSyncService.getUnassignedAgents(),
+        retellAgentSyncService.getSyncStats(10).catch(error => {
+          console.warn('[AGENT_SYNC] Failed to fetch sync stats:', error);
+          return [];
+        }),
+        retellAgentSyncService.getUnassignedAgents().catch(error => {
+          console.warn('[AGENT_SYNC] Failed to fetch unassigned agents:', error);
+          return [];
+        }),
       ]);
 
       setState(prev => ({
@@ -54,7 +60,7 @@ export function useAgentSync(): AgentSyncState {
     } catch (error: any) {
       console.error('[AGENT_SYNC] Error fetching data:', error);
       
-      const errorMessage = error.message || 'Failed to load sync data';
+      const errorMessage = error?.message || 'Failed to load sync data';
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -78,13 +84,13 @@ export function useAgentSync(): AgentSyncState {
       const result: AgentSyncResult = await retellAgentSyncService.forceSync();
       
       console.log('[AGENT_SYNC] Sync completed:', result);
-      toast.success(`Sync completed! ${result.agents_created + result.agents_updated} agents processed.`);
+      toast.success(`Sync completed! ${(result.agents_created || 0) + (result.agents_updated || 0)} agents processed.`);
       
       // Refresh data after sync
       await fetchData(false);
     } catch (error: any) {
       console.error('[AGENT_SYNC] Sync failed:', error);
-      const errorMessage = error.message || 'Sync failed';
+      const errorMessage = error?.message || 'Sync failed';
       
       setState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
       toast.error(`Sync failed: ${errorMessage}`);

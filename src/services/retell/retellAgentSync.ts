@@ -29,9 +29,10 @@ class RetellAgentSyncService {
   private readonly apiKey: string;
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_RETELL_API_KEY || '';
+    // Check for API key in environment
+    this.apiKey = import.meta.env?.VITE_RETELL_API_KEY || '';
     if (!this.apiKey) {
-      console.warn('[RETELL_AGENT_SYNC] No API key provided');
+      console.warn('[RETELL_AGENT_SYNC] No API key provided - sync functionality will be limited');
     }
   }
 
@@ -57,7 +58,7 @@ class RetellAgentSyncService {
       return data;
     } catch (error: any) {
       console.error('[RETELL_AGENT_SYNC] Error during sync:', error);
-      throw new Error(`Agent sync failed: ${error.message}`);
+      throw new Error(`Agent sync failed: ${error?.message || 'Unknown error'}`);
     }
   }
 
@@ -89,19 +90,39 @@ class RetellAgentSyncService {
    */
   async getUnassignedAgents(): Promise<any[]> {
     try {
+      // First try to get unassigned agents using a subquery approach
       const { data, error } = await supabase
         .from('retell_agents')
-        .select('*')
+        .select(`
+          *,
+          user_agent_assignments!left(id)
+        `)
         .eq('is_active', true)
-        .not('retell_agent_id', 'in', 
-          supabase
-            .from('user_agent_assignments')
-            .select('agent_id')
-        );
+        .is('user_agent_assignments.id', null);
 
       if (error) {
-        console.error('[RETELL_AGENT_SYNC] Error fetching unassigned agents:', error);
-        throw new Error(`Failed to fetch unassigned agents: ${error.message}`);
+        console.warn('[RETELL_AGENT_SYNC] Subquery approach failed, trying alternative:', error);
+        
+        // Fallback: Get all active agents and filter client-side
+        const { data: allAgents, error: allAgentsError } = await supabase
+          .from('retell_agents')
+          .select('*')
+          .eq('is_active', true);
+
+        if (allAgentsError) {
+          console.error('[RETELL_AGENT_SYNC] Error fetching agents:', allAgentsError);
+          throw new Error(`Failed to fetch unassigned agents: ${allAgentsError.message}`);
+        }
+
+        const { data: assignments } = await supabase
+          .from('user_agent_assignments')
+          .select('agent_id');
+
+        const assignedAgentIds = new Set((assignments || []).map(a => a.agent_id));
+        
+        return (allAgents || []).filter(agent => 
+          !assignedAgentIds.has(agent.retell_agent_id)
+        );
       }
 
       return data || [];

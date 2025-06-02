@@ -26,7 +26,9 @@ export function useAdminAgentManagement(): AdminAgentState {
   } = useQuery({
     queryKey: ['admin-sync-stats'],
     queryFn: () => retellAgentSyncService.getSyncStats(10),
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    retry: 1,
+    staleTime: 30000
   });
 
   // Query for unassigned agents
@@ -37,7 +39,9 @@ export function useAdminAgentManagement(): AdminAgentState {
   } = useQuery({
     queryKey: ['admin-unassigned-agents'],
     queryFn: () => retellAgentSyncService.getUnassignedAgents(),
-    refetchInterval: 60000
+    refetchInterval: 60000,
+    retry: 1,
+    staleTime: 60000
   });
 
   // Mutation for manual sync
@@ -53,7 +57,7 @@ export function useAdminAgentManagement(): AdminAgentState {
       toast.success('Agent sync completed successfully');
     },
     onError: (error: any) => {
-      const errorMessage = error.message || 'Sync failed';
+      const errorMessage = error?.message || 'Sync failed';
       setError(errorMessage);
       toast.error(`Sync failed: ${errorMessage}`);
     },
@@ -68,7 +72,11 @@ export function useAdminAgentManagement(): AdminAgentState {
       return;
     }
     
-    syncMutation.mutate();
+    try {
+      syncMutation.mutate();
+    } catch (error) {
+      console.error('[ADMIN_AGENT_MANAGEMENT] Error triggering sync:', error);
+    }
   };
 
   const refreshData = async () => {
@@ -80,7 +88,7 @@ export function useAdminAgentManagement(): AdminAgentState {
       ]);
       setError(null);
     } catch (error: any) {
-      const errorMessage = error.message || 'Failed to refresh data';
+      const errorMessage = error?.message || 'Failed to refresh data';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
