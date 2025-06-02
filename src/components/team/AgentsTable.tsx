@@ -56,13 +56,13 @@ export function AgentsTable({
             <TableHead>Description</TableHead>
             <TableHead>Status</TableHead>
             {showRates && <TableHead>Rate</TableHead>}
-            {isAdmin && <TableHead>Actions</TableHead>}
+            <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell colSpan={isAdmin ? (showRates ? 5 : 4) : (showRates ? 4 : 3)} className="h-24 text-center">
+              <TableCell colSpan={showRates ? 5 : 4} className="h-24 text-center">
                 <LoadingSpinner size="md" className="mx-auto" />
               </TableCell>
             </TableRow>
@@ -96,48 +96,49 @@ export function AgentsTable({
                     {formatCurrency(agent.rate_per_minute || 0.02)}/min
                   </TableCell>
                 )}
-                {isAdmin && (
-                  <TableCell>
-                    <div className="flex space-x-2">
-                      {onEdit && (
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          onClick={() => onEdit(agent)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {onAssign && (
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          onClick={() => onAssign(agent)}
-                        >
-                          <UserPlus className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {onDelete && (
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          onClick={() => onDelete(agent)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                )}
+                <TableCell>
+                  <div className="flex space-x-2">
+                    {/* Always show assign button for admins */}
+                    {onAssign && isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => onAssign(agent)}
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                      >
+                        <UserPlus className="h-4 w-4 mr-1" />
+                        Assign
+                      </Button>
+                    )}
+                    {onEdit && isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => onEdit(agent)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {onDelete && isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => onDelete(agent)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={isAdmin ? (showRates ? 5 : 4) : (showRates ? 4 : 3)} className="h-24 text-center">
+              <TableCell colSpan={showRates ? 5 : 4} className="h-24 text-center">
                 {isAdmin ? (
                   "No agents found. Create one to get started."
                 ) : (
-                  "No agents assigned yet. Please contact your admin."
+                  "No agents available."
                 )}
               </TableCell>
             </TableRow>

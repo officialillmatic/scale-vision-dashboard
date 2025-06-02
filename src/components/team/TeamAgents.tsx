@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { UserManagementDashboard } from './UserManagementDashboard';
+import { AgentAssignmentManager } from './AgentAssignmentManager';
 
 export function TeamAgents() {
-  return <UserManagementDashboard />;
+  return <AgentAssignmentManager />;
 }
