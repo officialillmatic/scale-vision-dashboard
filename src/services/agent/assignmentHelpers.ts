@@ -26,13 +26,13 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
       throw new Error('No active session - please log in');
     }
     
-    console.log('🔍 [fetchAvailableUsers] Session found, fetching ALL users from users table');
+    console.log('🔍 [fetchAvailableUsers] Session found, fetching ALL users from profiles table');
     
-    // Fetch ALL users without any filters
+    // Fetch ALL users from profiles table without any role filters
     const { data, error } = await supabase
-      .from("users")
-      .select("id, email, full_name")
-      .order("email");
+      .from("profiles")
+      .select("id, full_name, email, role")
+      .order("full_name");
 
     if (error) {
       console.error("[ASSIGNMENT_HELPERS] Supabase error fetching users:", error);
@@ -49,21 +49,21 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
     console.log('🔍 [fetchAvailableUsers] Total users fetched:', data?.length || 0);
     
     if (!data || data.length === 0) {
-      console.warn('🔍 [fetchAvailableUsers] No users found in database!');
+      console.warn('🔍 [fetchAvailableUsers] No users found in profiles table!');
       console.warn('🔍 [fetchAvailableUsers] This might indicate:');
-      console.warn('  - The users table is empty');
+      console.warn('  - The profiles table is empty');
       console.warn('  - RLS policies are blocking access');
       console.warn('  - Wrong table name or connection issues');
       
       // Let's also try to check if the table exists and has any data at all
       const { count, error: countError } = await supabase
-        .from("users")
+        .from("profiles")
         .select("*", { count: 'exact', head: true });
         
       if (countError) {
         console.error('🔍 [fetchAvailableUsers] Error checking user count:', countError);
       } else {
-        console.log('🔍 [fetchAvailableUsers] Total rows in users table:', count);
+        console.log('🔍 [fetchAvailableUsers] Total rows in profiles table:', count);
       }
     }
     
@@ -72,11 +72,20 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
       console.log(`🔍 [fetchAvailableUsers] User ${index + 1}:`, {
         id: user.id,
         email: user.email,
-        full_name: user.full_name
+        full_name: user.full_name,
+        role: user.role
       });
     });
 
-    return data || [];
+    // Transform the data to match the AssignmentUser interface
+    const transformedUsers = data?.map(user => ({
+      id: user.id,
+      email: user.email,
+      full_name: user.full_name
+    })) || [];
+
+    console.log('🔍 [fetchAvailableUsers] Transformed users:', transformedUsers);
+    return transformedUsers;
   } catch (error: any) {
     console.error("[ASSIGNMENT_HELPERS] Error in fetchAvailableUsers:", error);
     console.error("[ASSIGNMENT_HELPERS] Error stack:", error.stack);

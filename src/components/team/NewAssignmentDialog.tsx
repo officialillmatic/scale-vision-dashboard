@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -219,10 +218,10 @@ export function NewAssignmentDialog({
               {/* Debug info for development */}
               {process.env.NODE_ENV === 'development' && (
                 <div className="text-xs text-gray-500 mt-1">
-                  Debug: Found {availableUsers.length} users in database
+                  Debug: Found {availableUsers.length} users in profiles table
                   {hasUsers && (
                     <div className="mt-1">
-                      Users: {availableUsers.map(u => u.email).join(', ')}
+                      Users: {availableUsers.map(u => u.full_name ? `${u.full_name} (${u.email})` : u.email).join(', ')}
                     </div>
                   )}
                   {hasUsersError && (
