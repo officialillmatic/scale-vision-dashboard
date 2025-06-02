@@ -1,33 +1,32 @@
-
 import React, { useState } from "react";
 import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Phone, BarChart3, Settings, Activity, Bug } from "lucide-react";
-import { CallDataTable } from "@/components/calls/CallDataTable";
+import { RetellCallDataTable } from "@/components/calls/RetellCallDataTable";
 import { CallTableSyncButton } from "@/components/calls/CallTableSyncButton";
 import { CallTableErrorAlert } from "@/components/calls/CallTableErrorAlert";
 import { SyncDebugPanel } from "@/components/calls/SyncDebugPanel";
 import { SyncTestPanel } from "@/components/calls/SyncTestPanel";
 import { CallSyncDebugPanel } from "@/components/calls/CallSyncDebugPanel";
-import { useCallData } from "@/hooks/useCallData";
+import { useRetellCalls } from "@/hooks/useRetellCalls";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 export default function CallsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
-  const { calls, isLoading, error, refetch } = useCallData();
+  const { retellCalls, isLoading, error, refetch } = useRetellCalls();
 
   const handleSyncComplete = () => {
     console.log('[CALLS_PAGE] Sync completed, refreshing call data...');
     refetch();
   };
 
-  const totalCalls = calls.length;
-  const activeCalls = calls.filter(call => call.call_status === 'completed').length;
-  const totalDuration = calls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
-  const totalCost = calls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+  const totalCalls = retellCalls.length;
+  const activeCalls = retellCalls.filter(call => call.call_status === 'completed').length;
+  const totalDuration = retellCalls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
+  const totalCost = retellCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -165,8 +164,8 @@ export default function CallsPage() {
                     <LoadingSpinner size="lg" />
                   </div>
                 ) : (
-                  <CallDataTable
-                    calls={calls}
+                  <RetellCallDataTable
+                    calls={retellCalls}
                     isLoading={isLoading}
                     searchTerm={searchTerm}
                     date={selectedDate}

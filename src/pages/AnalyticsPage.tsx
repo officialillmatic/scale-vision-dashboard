@@ -1,10 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { ProductionDashboardLayout } from '@/components/dashboard/ProductionDashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { useRetellCalls } from '@/hooks/useRetellCalls';
 import { CallFilterBar } from '@/components/analytics/CallFilterBar';
 import { EmptyStateMessage } from '@/components/dashboard/EmptyStateMessage';
-import { useCallData } from '@/hooks/useCallData';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MetricsDashboard } from '@/components/analytics/MetricsDashboard';
@@ -18,7 +18,7 @@ import { BarChart3, Users, Bot, DollarSign, Download, TrendingUp, Zap } from 'lu
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-// Updated CallData interface to include all fields
+// Updated CallData interface to match retell_calls structure
 export interface CallData {
   id: string;
   call_id: string;
@@ -53,157 +53,64 @@ export interface CallData {
 
 const AnalyticsPage = () => {
   const { company } = useAuth();
-  const { handleSync, isSyncing } = useCallData();
-  const [isLoading, setIsLoading] = useState(true);
-  const [callData, setCallData] = useState<CallData[]>([]);
-  const [previousCallData, setPreviousCallData] = useState<CallData[]>([]);
+  const { retellCalls, isLoading, refetch } = useRetellCalls();
   const [filteredData, setFilteredData] = useState<CallData[]>([]);
+  const [previousCallData, setPreviousCallData] = useState<CallData[]>([]);
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
     new Date(new Date().setDate(new Date().getDate() - 30)), // Last 30 days
     new Date()
   ]);
   const [showDemo, setShowDemo] = useState(false);
 
+  // Transform retell calls to CallData format
   useEffect(() => {
-    if (!company?.id) {
-      setIsLoading(false);
-      return;
+    if (retellCalls && retellCalls.length > 0) {
+      const transformedData: CallData[] = retellCalls.map(call => ({
+        id: call.id,
+        call_id: call.call_id,
+        timestamp: new Date(call.start_timestamp),
+        duration_sec: call.duration_sec,
+        cost_usd: call.cost_usd,
+        sentiment: call.sentiment,
+        sentiment_score: null, // Not available in retell_calls
+        disconnection_reason: null, // Not available in retell_calls
+        call_status: call.call_status,
+        from: call.from_number || 'Unknown',
+        to: call.to_number || 'Unknown',
+        from_number: call.from_number,
+        to_number: call.to_number,
+        audio_url: call.recording_url,
+        recording_url: call.recording_url,
+        transcript: call.transcript,
+        transcript_url: null, // Not available in retell_calls
+        user_id: call.user_id || '',
+        company_id: call.company_id || '',
+        call_type: 'phone_call',
+        latency_ms: call.latency_ms,
+        call_summary: call.call_summary,
+        disposition: call.disposition,
+        agent: call.agent
+      }));
+
+      setFilteredData(transformedData);
+    } else {
+      setFilteredData([]);
     }
-
-    const fetchCalls = async () => {
-      setIsLoading(true);
-      try {
-        // Fetch current period data
-        const { data, error } = await supabase
-          .from('calls')
-          .select(`
-            *,
-            agent:agent_id (
-              id,
-              name,
-              rate_per_minute,
-              retell_agent_id
-            )
-          `)
-          .eq('company_id', company.id)
-          .order('timestamp', { ascending: false });
-          
-        if (error) {
-          console.error('Error fetching call data:', error);
-          setCallData([]);
-          setFilteredData([]);
-          return;
-        }
-        
-        // Map the data to the CallData interface with proper date conversion
-        const mappedData: CallData[] = (data || []).map((call) => ({
-          id: call.id,
-          call_id: call.call_id,
-          timestamp: new Date(call.timestamp),
-          duration_sec: call.duration_sec,
-          cost_usd: call.cost_usd,
-          sentiment: call.sentiment,
-          sentiment_score: call.sentiment_score,
-          disconnection_reason: call.disconnection_reason,
-          call_status: call.call_status,
-          from: call.from,
-          to: call.to,
-          from_number: call.from_number,
-          to_number: call.to_number,
-          audio_url: call.audio_url,
-          recording_url: call.recording_url,
-          transcript: call.transcript,
-          transcript_url: call.transcript_url,
-          user_id: call.user_id,
-          company_id: call.company_id,
-          call_type: call.call_type || 'phone_call',
-          latency_ms: call.latency_ms || 0,
-          call_summary: call.call_summary,
-          disposition: call.disposition,
-          agent: call.agent
-        }));
-        
-        setCallData(mappedData);
-        setFilteredData(mappedData);
-
-        // Fetch previous period data for comparison (previous 30 days)
-        const previousPeriodStart = new Date();
-        previousPeriodStart.setDate(previousPeriodStart.getDate() - 60);
-        const previousPeriodEnd = new Date();
-        previousPeriodEnd.setDate(previousPeriodEnd.getDate() - 30);
-
-        const { data: previousData } = await supabase
-          .from('calls')
-          .select(`
-            *,
-            agent:agent_id (
-              id,
-              name,
-              rate_per_minute,
-              retell_agent_id
-            )
-          `)
-          .eq('company_id', company.id)
-          .gte('timestamp', previousPeriodStart.toISOString())
-          .lte('timestamp', previousPeriodEnd.toISOString())
-          .order('timestamp', { ascending: false });
-
-        if (previousData) {
-          const mappedPreviousData: CallData[] = previousData.map((call) => ({
-            id: call.id,
-            call_id: call.call_id,
-            timestamp: new Date(call.timestamp),
-            duration_sec: call.duration_sec,
-            cost_usd: call.cost_usd,
-            sentiment: call.sentiment,
-            sentiment_score: call.sentiment_score,
-            disconnection_reason: call.disconnection_reason,
-            call_status: call.call_status,
-            from: call.from,
-            to: call.to,
-            from_number: call.from_number,
-            to_number: call.to_number,
-            audio_url: call.audio_url,
-            recording_url: call.recording_url,
-            transcript: call.transcript,
-            transcript_url: call.transcript_url,
-            user_id: call.user_id,
-            company_id: call.company_id,
-            call_type: call.call_type || 'phone_call',
-            latency_ms: call.latency_ms || 0,
-            call_summary: call.call_summary,
-            disposition: call.disposition,
-            agent: call.agent
-          }));
-          setPreviousCallData(mappedPreviousData);
-        }
-        
-      } catch (error) {
-        console.error("Error in analytics calls query:", error);
-        setCallData([]);
-        setFilteredData([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchCalls();
-  }, [company]);
+  }, [retellCalls]);
 
   // Filter the data based on the date range
   useEffect(() => {
-    if (!callData.length) return;
+    if (!retellCalls || retellCalls.length === 0) return;
     
     const [start, end] = dateRange;
     
-    // If no date range is selected, show all data
+    // If no date range is selected, use all data
     if (!start && !end) {
-      setFilteredData(callData);
       return;
     }
     
     // Filter based on date range
-    const filtered = callData.filter(call => {
+    const filtered = filteredData.filter(call => {
       const callDate = call.timestamp;
       if (start && end) {
         return callDate >= start && callDate <= end;
@@ -218,7 +125,7 @@ const AnalyticsPage = () => {
     });
     
     setFilteredData(filtered);
-  }, [dateRange, callData]);
+  }, [dateRange, retellCalls]);
 
   const hasRealData = !isLoading && filteredData.length > 0;
 
@@ -275,9 +182,9 @@ const AnalyticsPage = () => {
                 <EmptyStateMessage
                   title="No analytics data available yet"
                   description="Analytics will appear here once you have call data. Start by syncing your calls or making your first call."
-                  actionLabel={isSyncing ? "Syncing..." : "Sync Calls"}
-                  onAction={handleSync}
-                  isLoading={isSyncing}
+                  actionLabel="Refresh Data"
+                  onAction={refetch}
+                  isLoading={isLoading}
                 />
               </div>
             )}

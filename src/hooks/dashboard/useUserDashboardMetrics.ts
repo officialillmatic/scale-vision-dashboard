@@ -10,6 +10,7 @@ interface UserDashboardMetrics {
   avgDuration: number;
   recentCallsCount: number;
   completedCallsCount: number;
+  totalRevenue: number;
 }
 
 export const useUserDashboardMetrics = () => {
@@ -28,12 +29,14 @@ export const useUserDashboardMetrics = () => {
           totalDuration: 0,
           avgDuration: 0,
           recentCallsCount: 0,
-          completedCallsCount: 0
+          completedCallsCount: 0,
+          totalRevenue: 0
         };
       }
 
       const totalCalls = userCalls.length;
       const totalCost = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+      const totalRevenue = userCalls.reduce((sum, call) => sum + (call.revenue_amount || 0), 0);
       const totalDuration = userCalls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
       const avgDuration = totalCalls > 0 ? totalDuration / totalCalls : 0;
       
@@ -53,7 +56,8 @@ export const useUserDashboardMetrics = () => {
         totalDuration,
         avgDuration,
         recentCallsCount,
-        completedCallsCount
+        completedCallsCount,
+        totalRevenue
       };
 
       console.log('🔍 [useUserDashboardMetrics] Computed metrics:', metrics);
@@ -70,7 +74,8 @@ export const useUserDashboardMetrics = () => {
       totalDuration: 0,
       avgDuration: 0,
       recentCallsCount: 0,
-      completedCallsCount: 0
+      completedCallsCount: 0,
+      totalRevenue: 0
     },
     isLoading: isLoading || isLoadingCalls
   };

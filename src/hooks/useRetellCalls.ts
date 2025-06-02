@@ -3,12 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-export interface UserCall {
+export interface RetellCall {
   id: string;
   call_id: string;
-  user_id: string;
-  agent_id: string;
-  company_id: string;
+  user_id?: string;
+  agent_id?: string;
+  company_id?: string;
   start_timestamp: string;
   end_timestamp?: string;
   duration_sec: number;
@@ -17,52 +17,34 @@ export interface UserCall {
   call_status: string;
   from_number?: string;
   to_number?: string;
-  agent_details?: {
+  transcript?: string;
+  recording_url?: string;
+  call_summary?: string;
+  sentiment?: string;
+  disposition?: string;
+  latency_ms?: number;
+  agent?: {
     id: string;
     name: string;
     description?: string;
     retell_agent_id?: string;
   };
-  transcript?: string;
-  recording_url?: string;
-  call_summary?: string;
-  sentiment?: string;
 }
 
-export const useCurrentUserCalls = () => {
-  const { user, company } = useAuth();
+export const useRetellCalls = () => {
+  const { company } = useAuth();
 
-  const { data: userCalls = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['current-user-calls', user?.id, company?.id],
-    queryFn: async (): Promise<UserCall[]> => {
-      if (!user?.id) {
-        console.log('🔍 [useCurrentUserCalls] No user ID available');
+  const { data: retellCalls = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['retell-calls', company?.id],
+    queryFn: async (): Promise<RetellCall[]> => {
+      if (!company?.id) {
+        console.log('🔍 [useRetellCalls] No company ID available');
         return [];
       }
 
       try {
-        console.log('🔍 [useCurrentUserCalls] Fetching calls for user:', user.id);
-        
-        // Get user's assigned agents first
-        const { data: userAgents, error: agentsError } = await supabase
-          .from('user_agent_assignments')
-          .select('agent_id')
-          .eq('user_id', user.id);
+        console.log('🔍 [useRetellCalls] Fetching retell calls for company:', company.id);
 
-        if (agentsError) {
-          console.error('❌ [useCurrentUserCalls] Error fetching user agents:', agentsError);
-          throw agentsError;
-        }
-
-        if (!userAgents || userAgents.length === 0) {
-          console.log('🔍 [useCurrentUserCalls] No agents assigned to user');
-          return [];
-        }
-
-        const agentIds = userAgents.map(ua => ua.agent_id);
-        console.log('🔍 [useCurrentUserCalls] User assigned agent IDs:', agentIds);
-
-        // Get calls from retell_calls table where the agent_id matches assigned agents
         const { data: calls, error: callsError } = await supabase
           .from('retell_calls')
           .select(`
@@ -83,6 +65,8 @@ export const useCurrentUserCalls = () => {
             recording_url,
             call_summary,
             sentiment,
+            disposition,
+            latency_ms,
             agents!retell_calls_agent_id_fkey (
               id,
               name,
@@ -90,24 +74,24 @@ export const useCurrentUserCalls = () => {
               retell_agent_id
             )
           `)
-          .in('agent_id', agentIds)
+          .eq('company_id', company.id)
           .order('start_timestamp', { ascending: false })
-          .limit(50);
+          .limit(100);
 
         if (callsError) {
-          console.error('❌ [useCurrentUserCalls] Error fetching calls:', callsError);
+          console.error('❌ [useRetellCalls] Error fetching calls:', callsError);
           throw callsError;
         }
 
-        console.log(`🔍 [useCurrentUserCalls] Found ${calls?.length || 0} calls for user's agents`);
+        console.log(`🔍 [useRetellCalls] Found ${calls?.length || 0} retell calls`);
 
-        // Transform the data to match our interface
-        const transformedCalls: UserCall[] = (calls || []).map(call => ({
+        // Transform the data
+        const transformedCalls: RetellCall[] = (calls || []).map(call => ({
           id: call.id,
           call_id: call.call_id,
-          user_id: call.user_id || user.id,
-          agent_id: call.agent_id || '',
-          company_id: call.company_id || company?.id || '',
+          user_id: call.user_id,
+          agent_id: call.agent_id,
+          company_id: call.company_id,
           start_timestamp: call.start_timestamp,
           end_timestamp: call.end_timestamp,
           duration_sec: call.duration_sec || 0,
@@ -120,7 +104,9 @@ export const useCurrentUserCalls = () => {
           recording_url: call.recording_url,
           call_summary: call.call_summary,
           sentiment: call.sentiment,
-          agent_details: Array.isArray(call.agents) && call.agents.length > 0 ? {
+          disposition: call.disposition,
+          latency_ms: call.latency_ms,
+          agent: Array.isArray(call.agents) && call.agents.length > 0 ? {
             id: call.agents[0].id,
             name: call.agents[0].name,
             description: call.agents[0].description,
@@ -133,22 +119,19 @@ export const useCurrentUserCalls = () => {
           } : undefined
         }));
 
-        console.log('🔍 [useCurrentUserCalls] Transformed calls:', transformedCalls.length);
-        console.log('🔍 [useCurrentUserCalls] Sample call:', transformedCalls[0]);
-
         return transformedCalls;
       } catch (error: any) {
-        console.error('❌ [useCurrentUserCalls] Error in query:', error);
-        throw new Error(`Failed to fetch user calls: ${error.message}`);
+        console.error('❌ [useRetellCalls] Error in query:', error);
+        throw new Error(`Failed to fetch retell calls: ${error.message}`);
       }
     },
-    enabled: !!user?.id,
+    enabled: !!company?.id,
     staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 2
   });
 
   return {
-    userCalls,
+    retellCalls,
     isLoading,
     error,
     refetch

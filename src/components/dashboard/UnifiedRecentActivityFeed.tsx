@@ -135,12 +135,6 @@ export function UnifiedRecentActivityFeed() {
             </div>
           ))}
         </div>
-        
-        {call.call_summary && (
-          <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-            <p className="text-sm text-gray-700 line-clamp-2">{call.call_summary}</p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
