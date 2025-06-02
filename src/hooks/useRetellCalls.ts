@@ -142,6 +142,11 @@ export const useRetellCalls = () => {
 
 // Helper function to transform call data
 function transformCall(call: any): RetellCall {
+  // Handle the agent data properly - it could be an array or single object
+  const agentData = Array.isArray(call.retell_agents) 
+    ? call.retell_agents[0] 
+    : call.retell_agents;
+
   return {
     id: call.id,
     call_id: call.call_id,
@@ -162,11 +167,11 @@ function transformCall(call: any): RetellCall {
     sentiment: call.sentiment,
     disposition: call.disposition,
     latency_ms: call.latency_ms,
-    agent: call.retell_agents ? {
-      id: call.retell_agents.id,
-      name: call.retell_agents.name,
-      description: call.retell_agents.description,
-      retell_agent_id: call.retell_agents.retell_agent_id
+    agent: agentData ? {
+      id: agentData.id,
+      name: agentData.name,
+      description: agentData.description,
+      retell_agent_id: agentData.retell_agent_id
     } : undefined
   };
 }

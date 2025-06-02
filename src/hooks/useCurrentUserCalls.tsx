@@ -109,31 +109,38 @@ export const useCurrentUserCalls = () => {
         console.log(`🔍 [useCurrentUserCalls] Found ${calls?.length || 0} calls for user's agents`);
 
         // Transform the data to match our interface
-        const transformedCalls: UserCall[] = (calls || []).map(call => ({
-          id: call.id,
-          call_id: call.call_id,
-          user_id: call.user_id || user.id,
-          agent_id: call.agent_id || '',
-          company_id: call.company_id || '',
-          start_timestamp: call.start_timestamp,
-          end_timestamp: call.end_timestamp,
-          duration_sec: call.duration_sec || 0,
-          cost_usd: call.cost_usd || 0,
-          revenue_amount: call.revenue_amount || 0,
-          call_status: call.call_status || 'unknown',
-          from_number: call.from_number,
-          to_number: call.to_number,
-          transcript: call.transcript,
-          recording_url: call.recording_url,
-          call_summary: call.call_summary,
-          sentiment: call.sentiment,
-          agent_details: call.retell_agents ? {
-            id: call.retell_agents.id,
-            name: call.retell_agents.name,
-            description: call.retell_agents.description,
-            retell_agent_id: call.retell_agents.retell_agent_id
-          } : undefined
-        }));
+        const transformedCalls: UserCall[] = (calls || []).map(call => {
+          // Handle the agent data properly - it could be an array or single object
+          const agentData = Array.isArray(call.retell_agents) 
+            ? call.retell_agents[0] 
+            : call.retell_agents;
+
+          return {
+            id: call.id,
+            call_id: call.call_id,
+            user_id: call.user_id || user.id,
+            agent_id: call.agent_id || '',
+            company_id: call.company_id || '',
+            start_timestamp: call.start_timestamp,
+            end_timestamp: call.end_timestamp,
+            duration_sec: call.duration_sec || 0,
+            cost_usd: call.cost_usd || 0,
+            revenue_amount: call.revenue_amount || 0,
+            call_status: call.call_status || 'unknown',
+            from_number: call.from_number,
+            to_number: call.to_number,
+            transcript: call.transcript,
+            recording_url: call.recording_url,
+            call_summary: call.call_summary,
+            sentiment: call.sentiment,
+            agent_details: agentData ? {
+              id: agentData.id,
+              name: agentData.name,
+              description: agentData.description,
+              retell_agent_id: agentData.retell_agent_id
+            } : undefined
+          };
+        });
 
         console.log('🔍 [useCurrentUserCalls] Transformed calls:', transformedCalls.length);
         return transformedCalls;
