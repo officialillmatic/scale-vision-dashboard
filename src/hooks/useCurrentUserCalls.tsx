@@ -69,7 +69,7 @@ export const useCurrentUserCalls = () => {
         const agentIds = userAgents.map(ua => ua.agent_id);
         console.log('🔍 [useCurrentUserCalls] User assigned agent IDs:', agentIds);
 
-        // Get calls from retell_calls table with proper agent joining
+        // Get calls from retell_calls table with proper agent joining using the corrected foreign key
         const { data: calls, error: callsError } = await supabase
           .from('retell_calls')
           .select(`
@@ -127,16 +127,11 @@ export const useCurrentUserCalls = () => {
           recording_url: call.recording_url,
           call_summary: call.call_summary,
           sentiment: call.sentiment,
-          agent_details: Array.isArray(call.retell_agents) && call.retell_agents.length > 0 ? {
-            id: call.retell_agents[0].id,
-            name: call.retell_agents[0].name,
-            description: call.retell_agents[0].description,
-            retell_agent_id: call.retell_agents[0].retell_agent_id
-          } : call.retell_agents ? {
-            id: (call.retell_agents as any).id,
-            name: (call.retell_agents as any).name,
-            description: (call.retell_agents as any).description,
-            retell_agent_id: (call.retell_agents as any).retell_agent_id
+          agent_details: call.retell_agents ? {
+            id: call.retell_agents.id,
+            name: call.retell_agents.name,
+            description: call.retell_agents.description,
+            retell_agent_id: call.retell_agents.retell_agent_id
           } : undefined
         }));
 
