@@ -74,7 +74,6 @@ export const useCallSyncDebug = () => {
       });
 
       console.log("[DEBUG] Direct API Response Status:", response.status);
-      console.log("[DEBUG] Direct API Response Headers:", Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -93,19 +92,13 @@ export const useCallSyncDebug = () => {
 
       const data = await response.json();
       console.log("[DEBUG] Direct API Raw Response:", JSON.stringify(data, null, 2));
-      console.log("[DEBUG] Direct API Calls Count:", data.calls?.length || 0);
       
-      if (data.calls && data.calls.length > 0) {
-        console.log("[DEBUG] First Call Sample:", JSON.stringify(data.calls[0], null, 2));
-      }
-
       const result = {
         success: true,
         data: {
           callsFound: data.calls?.length || 0,
           hasMore: data.has_more,
-          firstCall: data.calls?.[0] || null,
-          rawResponse: data
+          firstCall: data.calls?.[0] || null
         },
         timestamp: new Date().toISOString()
       };
@@ -165,7 +158,6 @@ export const useCallSyncDebug = () => {
       };
 
       console.log("[DEBUG] Test call data:", JSON.stringify(testCall, null, 2));
-      console.log("[DEBUG] Attempting insertion into retell_calls table...");
 
       const { data, error } = await supabase
         .from('retell_calls')
@@ -230,6 +222,8 @@ export const useCallSyncDebug = () => {
     setLoading('edgeFunction', true);
     
     try {
+      console.log("[DEBUG] Calling supabase.functions.invoke('sync-calls')...");
+      
       const { data, error } = await supabase.functions.invoke('sync-calls', {
         body: { 
           bypass_validation: true,
@@ -240,12 +234,15 @@ export const useCallSyncDebug = () => {
         }
       });
 
+      console.log("[DEBUG] Edge function response:", { data, error });
+
       if (error) {
         console.error("[DEBUG] Edge function error:", error);
         
         const result = {
           success: false,
           error: `Edge Function Error: ${error.message}`,
+          data: { errorDetails: error },
           timestamp: new Date().toISOString()
         };
         
@@ -254,7 +251,7 @@ export const useCallSyncDebug = () => {
         return;
       }
 
-      console.log("[DEBUG] Edge function response:", JSON.stringify(data, null, 2));
+      console.log("[DEBUG] Edge function success:", data);
       
       const result = {
         success: true,
@@ -263,7 +260,7 @@ export const useCallSyncDebug = () => {
       };
       
       logResult('edgeFunctionTest', result);
-      toast.success("Edge function test completed!");
+      toast.success("Edge function test completed successfully!");
 
     } catch (error) {
       console.error("[DEBUG] Edge function test error:", error);
@@ -281,7 +278,7 @@ export const useCallSyncDebug = () => {
     }
   };
 
-  // Test 4: API connectivity test
+  // Test 4: API connectivity test through edge function
   const testAPIConnectivity = async (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
@@ -297,6 +294,8 @@ export const useCallSyncDebug = () => {
     setLoading('apiConnectivity', true);
     
     try {
+      console.log("[DEBUG] Calling edge function with test=true...");
+      
       const { data, error } = await supabase.functions.invoke('sync-calls', {
         body: { test: true },
         headers: {
@@ -304,12 +303,15 @@ export const useCallSyncDebug = () => {
         }
       });
 
+      console.log("[DEBUG] API connectivity response:", { data, error });
+
       if (error) {
         console.error("[DEBUG] API connectivity error:", error);
         
         const result = {
           success: false,
           error: `API Test Error: ${error.message}`,
+          data: { errorDetails: error },
           timestamp: new Date().toISOString()
         };
         
@@ -318,7 +320,7 @@ export const useCallSyncDebug = () => {
         return;
       }
 
-      console.log("[DEBUG] API connectivity response:", JSON.stringify(data, null, 2));
+      console.log("[DEBUG] API connectivity success:", data);
       
       const result = {
         success: true,
