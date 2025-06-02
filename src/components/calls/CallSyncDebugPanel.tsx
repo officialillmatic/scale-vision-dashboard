@@ -14,9 +14,12 @@ import {
   XCircle, 
   Loader2,
   Trash2,
-  AlertTriangle 
+  AlertTriangle,
+  Zap
 } from "lucide-react";
 import { useCallSyncDebug } from "@/hooks/useCallSyncDebug";
+import { DirectSyncStatus } from "./DirectSyncStatus";
+import { DirectSyncButton } from "./DirectSyncButton";
 
 export function CallSyncDebugPanel() {
   const {
@@ -63,19 +66,38 @@ export function CallSyncDebugPanel() {
                 Call Sync Debug Panel
               </CardTitle>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={clearResults}
-              className="text-gray-600"
-              disabled={isAnyTestRunning}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Clear Results
-            </Button>
+            <div className="flex items-center gap-2">
+              <DirectSyncButton />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={clearResults}
+                className="text-gray-600"
+                disabled={isAnyTestRunning}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Clear Results
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-6">
+          {/* New Direct Sync Status */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Zap className="h-5 w-5 text-emerald-600" />
+              Production Sync Method
+            </h3>
+            <DirectSyncStatus />
+          </div>
+
+          <Separator className="my-6" />
+
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Bug className="h-5 w-5 text-purple-600" />
+            Component Tests
+          </h3>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             {/* Test 1: Direct API Call */}
             <Card className="border border-blue-200">
@@ -88,7 +110,7 @@ export function CallSyncDebugPanel() {
                   {getResultIcon(debugResults.directApiTest)}
                 </div>
                 <p className="text-sm text-gray-600 mb-3">
-                  Call Retell API directly from frontend to check raw response
+                  Call Retell API directly from frontend ✅ Working
                 </p>
                 <div className="flex items-center justify-between">
                   <Button 
@@ -116,7 +138,7 @@ export function CallSyncDebugPanel() {
                   {getResultIcon(debugResults.dbTest)}
                 </div>
                 <p className="text-sm text-gray-600 mb-3">
-                  Insert a test call record to verify database works
+                  Insert test call record to database ✅ Working
                 </p>
                 <div className="flex items-center justify-between">
                   <Button 
@@ -134,27 +156,28 @@ export function CallSyncDebugPanel() {
             </Card>
 
             {/* Test 3: Edge Function */}
-            <Card className="border border-purple-200">
+            <Card className="border border-red-200">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Server className="h-4 w-4 text-purple-600" />
+                    <Server className="h-4 w-4 text-red-600" />
                     <h3 className="font-medium text-gray-900">Edge Function Test</h3>
                   </div>
                   {getResultIcon(debugResults.edgeFunctionTest)}
                 </div>
                 <p className="text-sm text-gray-600 mb-3">
-                  Test full sync with bypass validation enabled
+                  Test edge function sync ❌ Broken - bypassed
                 </p>
                 <div className="flex items-center justify-between">
                   <Button 
                     onClick={handleButtonClick(testEdgeFunction)} 
                     disabled={isAnyTestRunning}
                     size="sm"
-                    className="bg-purple-600 hover:bg-purple-700"
+                    variant="outline"
+                    className="border-red-300 text-red-600"
                   >
                     {loadingStates.edgeFunction ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                    Test Sync
+                    Test (Broken)
                   </Button>
                   {getResultBadge(debugResults.edgeFunctionTest)}
                 </div>
@@ -162,27 +185,28 @@ export function CallSyncDebugPanel() {
             </Card>
 
             {/* Test 4: API Connectivity */}
-            <Card className="border border-orange-200">
+            <Card className="border border-red-200">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-orange-600" />
-                    <h3 className="font-medium text-gray-900">API Connectivity</h3>
+                    <CheckCircle className="h-4 w-4 text-red-600" />
+                    <h3 className="font-medium text-gray-900">Edge API Test</h3>
                   </div>
                   {getResultIcon(debugResults.apiTest)}
                 </div>
                 <p className="text-sm text-gray-600 mb-3">
-                  Test API connection through edge function
+                  Test API through edge function ❌ Broken - bypassed
                 </p>
                 <div className="flex items-center justify-between">
                   <Button 
                     onClick={handleButtonClick(testAPIConnectivity)} 
                     disabled={isAnyTestRunning}
                     size="sm"
-                    className="bg-orange-600 hover:bg-orange-700"
+                    variant="outline"
+                    className="border-red-300 text-red-600"
                   >
                     {loadingStates.apiConnectivity ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                    Test API
+                    Test (Broken)
                   </Button>
                   {getResultBadge(debugResults.apiTest)}
                 </div>
