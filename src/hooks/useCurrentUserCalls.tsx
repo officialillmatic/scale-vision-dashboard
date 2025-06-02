@@ -35,8 +35,10 @@ export const useCurrentUserCalls = () => {
   const { data: userCalls = [], isLoading, error, refetch } = useQuery({
     queryKey: ['current-user-calls', user?.id],
     queryFn: async (): Promise<UserCall[]> => {
-      console.log('🔍 [useCurrentUserCalls] Starting query with params:', {
+      console.log('🔍 [useCurrentUserCalls] === STARTING USER CALLS DEBUG ===');
+      console.log('🔍 [useCurrentUserCalls] User context:', {
         userId: user?.id,
+        userEmail: user?.email,
         hasUser: !!user
       });
 
@@ -46,20 +48,23 @@ export const useCurrentUserCalls = () => {
       }
 
       try {
-        console.log('🔍 [useCurrentUserCalls] Fetching user agent assignments...');
-        
-        // Get user's assigned agents first
+        // STEP 1: Get user's assigned agents
+        console.log('🔍 [useCurrentUserCalls] === STEP 1: USER AGENTS ===');
         const { data: userAgents, error: agentsError } = await supabase
           .from('user_agent_assignments')
-          .select('agent_id')
+          .select('agent_id, is_primary')
           .eq('user_id', user.id);
+
+        console.log('🔍 [useCurrentUserCalls] User agent assignments:', {
+          data: userAgents,
+          error: agentsError,
+          count: userAgents?.length || 0
+        });
 
         if (agentsError) {
           console.error('❌ [useCurrentUserCalls] Error fetching user agents:', agentsError);
           throw agentsError;
         }
-
-        console.log('🔍 [useCurrentUserCalls] User agent assignments:', userAgents);
 
         if (!userAgents || userAgents.length === 0) {
           console.log('⚠️ [useCurrentUserCalls] No agents assigned to user');
@@ -67,9 +72,10 @@ export const useCurrentUserCalls = () => {
         }
 
         const agentIds = userAgents.map(ua => ua.agent_id);
-        console.log('🔍 [useCurrentUserCalls] User assigned agent IDs:', agentIds);
+        console.log('🔍 [useCurrentUserCalls] Agent IDs to query:', agentIds);
 
-        // Get calls from retell_calls table with proper agent joining using the corrected foreign key
+        // STEP 2: Get calls directly by agent IDs
+        console.log('🔍 [useCurrentUserCalls] === STEP 2: DIRECT CALL QUERY ===');
         const { data: calls, error: callsError } = await supabase
           .from('retell_calls')
           .select(`
@@ -89,32 +95,40 @@ export const useCurrentUserCalls = () => {
             transcript,
             recording_url,
             call_summary,
-            sentiment,
-            retell_agents!retell_calls_agent_id_fkey (
-              id,
-              name,
-              description,
-              retell_agent_id
-            )
+            sentiment
           `)
           .in('agent_id', agentIds)
           .order('start_timestamp', { ascending: false })
           .limit(50);
+
+        console.log('🔍 [useCurrentUserCalls] Calls query result:', {
+          data: calls,
+          error: callsError,
+          count: calls?.length || 0
+        });
 
         if (callsError) {
           console.error('❌ [useCurrentUserCalls] Error fetching calls:', callsError);
           throw callsError;
         }
 
-        console.log(`🔍 [useCurrentUserCalls] Found ${calls?.length || 0} calls for user's agents`);
+        // STEP 3: Get agent details
+        console.log('🔍 [useCurrentUserCalls] === STEP 3: AGENT DETAILS ===');
+        const { data: agentDetails, error: agentDetailsError } = await supabase
+          .from('retell_agents')
+          .select('id, name, description, retell_agent_id')
+          .in('id', agentIds);
 
-        // Transform the data to match our interface
+        console.log('🔍 [useCurrentUserCalls] Agent details:', {
+          data: agentDetails,
+          error: agentDetailsError,
+          count: agentDetails?.length || 0
+        });
+
+        // STEP 4: Transform data
         const transformedCalls: UserCall[] = (calls || []).map(call => {
-          // Handle the agent data properly - it could be an array or single object
-          const agentData = Array.isArray(call.retell_agents) 
-            ? call.retell_agents[0] 
-            : call.retell_agents;
-
+          const agentDetail = agentDetails?.find(a => a.id === call.agent_id);
+          
           return {
             id: call.id,
             call_id: call.call_id,
@@ -133,28 +147,32 @@ export const useCurrentUserCalls = () => {
             recording_url: call.recording_url,
             call_summary: call.call_summary,
             sentiment: call.sentiment,
-            agent_details: agentData ? {
-              id: agentData.id,
-              name: agentData.name,
-              description: agentData.description,
-              retell_agent_id: agentData.retell_agent_id
+            agent_details: agentDetail ? {
+              id: agentDetail.id,
+              name: agentDetail.name,
+              description: agentDetail.description,
+              retell_agent_id: agentDetail.retell_agent_id
             } : undefined
           };
         });
 
+        console.log('🔍 [useCurrentUserCalls] === FINAL RESULT ===');
         console.log('🔍 [useCurrentUserCalls] Transformed calls:', transformedCalls.length);
+        console.log('🔍 [useCurrentUserCalls] Sample call:', transformedCalls[0]);
+        
         return transformedCalls;
       } catch (error: any) {
-        console.error('❌ [useCurrentUserCalls] Error in query:', error);
+        console.error('❌ [useCurrentUserCalls] CRITICAL ERROR:', error);
         throw new Error(`Failed to fetch user calls: ${error.message}`);
       }
     },
     enabled: !!user?.id,
-    staleTime: 1000 * 30, // 30 seconds for debugging
-    retry: 2
+    staleTime: 1000 * 30,
+    retry: 1,
+    refetchOnWindowFocus: true
   });
 
-  console.log('🔍 [useCurrentUserCalls] Hook state:', {
+  console.log('🔍 [useCurrentUserCalls] === HOOK FINAL STATE ===', {
     userCallsLength: userCalls?.length || 0,
     isLoading,
     hasError: !!error,

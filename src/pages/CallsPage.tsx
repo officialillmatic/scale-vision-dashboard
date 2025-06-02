@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { CallTableErrorAlert } from "@/components/calls/CallTableErrorAlert";
 import { SyncDebugPanel } from "@/components/calls/SyncDebugPanel";
 import { SyncTestPanel } from "@/components/calls/SyncTestPanel";
 import { CallSyncDebugPanel } from "@/components/calls/CallSyncDebugPanel";
+import { CallDataDebugPanel } from "@/components/debug/CallDataDebugPanel";
 import { useRetellCalls } from "@/hooks/useRetellCalls";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
@@ -124,7 +126,7 @@ export default function CallsPage() {
 
         {/* Main Content */}
         <Tabs defaultValue="calls" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="calls">Call History</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="debug">Debug</TabsTrigger>
@@ -132,6 +134,10 @@ export default function CallsPage() {
             <TabsTrigger value="sync-debug" className="text-red-600">
               <Bug className="w-3 h-3 mr-1" />
               Sync Debug
+            </TabsTrigger>
+            <TabsTrigger value="data-debug" className="text-orange-600">
+              <Bug className="w-3 h-3 mr-1" />
+              Data Debug
             </TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
@@ -198,6 +204,10 @@ export default function CallsPage() {
 
           <TabsContent value="sync-debug">
             <CallSyncDebugPanel />
+          </TabsContent>
+
+          <TabsContent value="data-debug">
+            <CallDataDebugPanel />
           </TabsContent>
 
           <TabsContent value="settings">
