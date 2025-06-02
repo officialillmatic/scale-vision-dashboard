@@ -35,15 +35,34 @@ export function useRetellAgentSync() {
     mutationFn: () => retellAgentSyncService.forceSync(),
     onMutate: () => {
       setIsSyncing(true);
+      toast.info('Starting agent synchronization...');
     },
     onSuccess: (data: AgentSyncResult) => {
       queryClient.invalidateQueries({ queryKey: ['retell-sync-stats'] });
       queryClient.invalidateQueries({ queryKey: ['retell-unassigned-agents'] });
       queryClient.invalidateQueries({ queryKey: ['agents'] });
-      toast.success(`Sync completed successfully`);
+      
+      const totalProcessed = data.agents_created + data.agents_updated;
+      toast.success(
+        `Sync completed successfully! ${totalProcessed} agents processed (${data.agents_created} created, ${data.agents_updated} updated, ${data.agents_deactivated} deactivated)`
+      );
     },
     onError: (error: any) => {
-      toast.error(`Sync failed: ${error.message}`);
+      console.error('[USE_RETELL_AGENT_SYNC] Sync error:', error);
+      
+      // Provide specific error messages based on error type
+      let errorMessage = 'Sync failed';
+      if (error.message.includes('Authentication required')) {
+        errorMessage = 'Please log in to sync agents';
+      } else if (error.message.includes('API connection failed')) {
+        errorMessage = 'Failed to connect to Retell AI. Check your API key configuration.';
+      } else if (error.message.includes('fetch')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else {
+        errorMessage = `Sync failed: ${error.message}`;
+      }
+      
+      toast.error(errorMessage);
     },
     onSettled: () => {
       setIsSyncing(false);

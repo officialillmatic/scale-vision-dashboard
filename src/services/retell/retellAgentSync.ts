@@ -1,4 +1,3 @@
-
 import { supabase } from '@/lib/supabase';
 import { retellApiDebugger } from './retellApiDebugger';
 
@@ -70,6 +69,56 @@ class RetellAgentSyncService {
   }
 
   /**
+   * Ensure user profile exists for the current user
+   */
+  private async ensureUserProfile(): Promise<{ user: any; error: any }> {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        console.error('[RETELL_AGENT_SYNC] User not authenticated:', authError);
+        return { user: null, error: authError || new Error('User not authenticated') };
+      }
+
+      // Check if user profile exists
+      const { data: existingProfile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError && profileError.code === 'PGRST116') {
+        // Profile doesn't exist, create it
+        console.log('[RETELL_AGENT_SYNC] Creating user profile for:', user.email);
+        
+        const { error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: user.id,
+            email: user.email,
+            name: user.user_metadata?.full_name || user.user_metadata?.name || user.email,
+            avatar_url: user.user_metadata?.avatar_url
+          });
+
+        if (insertError) {
+          console.error('[RETELL_AGENT_SYNC] Error creating user profile:', insertError);
+          return { user: null, error: insertError };
+        }
+
+        console.log('[RETELL_AGENT_SYNC] User profile created successfully');
+      } else if (profileError) {
+        console.error('[RETELL_AGENT_SYNC] Error checking user profile:', profileError);
+        return { user: null, error: profileError };
+      }
+
+      return { user, error: null };
+    } catch (error: any) {
+      console.error('[RETELL_AGENT_SYNC] Error in ensureUserProfile:', error);
+      return { user: null, error };
+    }
+  }
+
+  /**
    * Fetch agents from Retell AI API
    */
   private async fetchRetellAgents(): Promise<RetellAgent[]> {
@@ -131,6 +180,14 @@ class RetellAgentSyncService {
   async forceSync(): Promise<AgentSyncResult> {
     console.log('[RETELL_AGENT_SYNC] Starting force sync...');
 
+    // Ensure user profile exists
+    const { user, error: userError } = await this.ensureUserProfile();
+    if (userError || !user) {
+      throw new Error(`Authentication required: ${userError?.message || 'User not found'}`);
+    }
+
+    console.log('[RETELL_AGENT_SYNC] ✅ User authenticated:', user.email);
+
     // First test the API connection
     const connectionTest = await retellApiDebugger.testApiConnection();
     if (!connectionTest.success) {
@@ -140,13 +197,16 @@ class RetellAgentSyncService {
 
     console.log('[RETELL_AGENT_SYNC] ✅ API connection test passed, proceeding with sync...');
 
+    const syncStartTime = new Date().toISOString();
+
     // Create sync stats record
     const { data: syncRecord, error: syncError } = await supabase
       .from('retell_sync_stats')
       .insert({
-        sync_status: 'running'
+        sync_status: 'running',
+        sync_started_at: syncStartTime
       })
-      .select('id')
+      .select('id, sync_started_at')
       .single();
 
     if (syncError) {
@@ -269,7 +329,7 @@ class RetellAgentSyncService {
       return {
         ...stats,
         sync_status: 'completed',
-        sync_started_at: syncRecord.sync_started_at || new Date().toISOString(),
+        sync_started_at: syncRecord.sync_started_at || syncStartTime,
         sync_completed_at: completedAt
       };
 
@@ -290,9 +350,6 @@ class RetellAgentSyncService {
     }
   }
 
-  /**
-   * Get the latest sync statistics
-   */
   async getSyncStats(limit: number = 10): Promise<SyncStats[]> {
     try {
       console.log('[RETELL_AGENT_SYNC] Fetching sync stats...');
@@ -316,9 +373,6 @@ class RetellAgentSyncService {
     }
   }
 
-  /**
-   * Get unassigned agents
-   */
   async getUnassignedAgents(): Promise<any[]> {
     try {
       console.log('[RETELL_AGENT_SYNC] Fetching unassigned agents...');
@@ -367,6 +421,54 @@ class RetellAgentSyncService {
       console.error('[RETELL_AGENT_SYNC] Error in getUnassignedAgents:', error);
       throw error;
     }
+  }
+}
+
+// Helper function to ensure user profile exists (exported for use in other parts of the app)
+export async function ensureUserProfile(): Promise<{ user: any; error: any }> {
+  try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('[RETELL_AGENT_SYNC] User not authenticated:', authError);
+      return { user: null, error: authError || new Error('User not authenticated') };
+    }
+
+    // Check if user profile exists
+    const { data: existingProfile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError && profileError.code === 'PGRST116') {
+      // Profile doesn't exist, create it
+      console.log('[RETELL_AGENT_SYNC] Creating user profile for:', user.email);
+      
+      const { error: insertError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.full_name || user.user_metadata?.name || user.email,
+          avatar_url: user.user_metadata?.avatar_url
+        });
+
+      if (insertError) {
+        console.error('[RETELL_AGENT_SYNC] Error creating user profile:', insertError);
+        return { user: null, error: insertError };
+      }
+
+      console.log('[RETELL_AGENT_SYNC] User profile created successfully');
+    } else if (profileError) {
+      console.error('[RETELL_AGENT_SYNC] Error checking user profile:', profileError);
+      return { user: null, error: profileError };
+    }
+
+    return { user, error: null };
+  } catch (error: any) {
+    console.error('[RETELL_AGENT_SYNC] Error in ensureUserProfile:', error);
+    return { user: null, error };
   }
 }
 
