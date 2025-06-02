@@ -37,11 +37,7 @@ export function UserAgentAssignmentsTable({
 }: UserAgentAssignmentsTableProps) {
   const [removingId, setRemovingId] = React.useState<string | null>(null);
 
-  console.log('🔍 [UserAgentAssignmentsTable] Received props:', {
-    assignmentsCount: assignments?.length || 0,
-    isLoading,
-    sampleAssignment: assignments?.[0]
-  });
+  console.log('🔍 [UserAgentAssignmentsTable] Rendering with', assignments?.length || 0, 'assignments');
 
   const handleRemove = async (assignmentId: string) => {
     console.log('🔍 [UserAgentAssignmentsTable] Removing assignment:', assignmentId);
@@ -112,85 +108,77 @@ export function UserAgentAssignmentsTable({
                 </TableCell>
               </TableRow>
             ) : assignments && Array.isArray(assignments) && assignments.length > 0 ? (
-              assignments.map((assignment) => {
-                console.log('🔍 [UserAgentAssignmentsTable] Rendering assignment:', assignment.id);
-                return (
-                  <TableRow key={assignment.id} className="hover:bg-muted/50">
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">
-                          {assignment.user_details?.name || assignment.user_details?.email || `User ID: ${assignment.user_id}`}
-                        </p>
-                        {assignment.user_details?.name && assignment.user_details?.email && (
-                          <p className="text-sm text-muted-foreground">{assignment.user_details.email}</p>
-                        )}
-                        {!assignment.user_details && (
-                          <p className="text-sm text-orange-600">⚠️ User data missing</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">
-                          {assignment.agent_details?.name || `Agent ID: ${assignment.agent_id}`}
-                        </p>
-                        {assignment.agent_details?.description && (
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {assignment.agent_details.description}
-                          </p>
-                        )}
-                        {assignment.agent_details?.retell_agent_id && (
-                          <p className="text-xs text-muted-foreground">
-                            Retell ID: {assignment.agent_details.retell_agent_id}
-                          </p>
-                        )}
-                        {!assignment.agent_details && (
-                          <p className="text-sm text-orange-600">⚠️ Agent data missing</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          checked={assignment.is_primary}
-                          onCheckedChange={(checked) => onUpdatePrimary(assignment.id, checked, assignment.user_id)}
-                          disabled={isUpdating}
-                        />
-                        {assignment.is_primary && (
-                          <Badge className="bg-green-100 text-green-800 border-green-200">
-                            Primary
-                          </Badge>
-                        )}
-                        {isUpdating && (
-                          <Loader className="h-4 w-4 animate-spin" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {assignment.assigned_at ? (
-                        new Date(assignment.assigned_at).toLocaleDateString()
-                      ) : (
-                        <span className="text-muted-foreground">Unknown</span>
+              assignments.map((assignment) => (
+                <TableRow key={assignment.id} className="hover:bg-muted/50">
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">
+                        {assignment.user_details?.name || assignment.user_details?.email || `User ID: ${assignment.user_id}`}
+                      </p>
+                      {assignment.user_details?.name && assignment.user_details?.email && (
+                        <p className="text-sm text-muted-foreground">{assignment.user_details.email}</p>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleRemove(assignment.id)}
-                        disabled={removingId === assignment.id || isRemoving}
-                        className="hover:bg-red-50 hover:text-red-600"
-                      >
-                        {removingId === assignment.id ? (
-                          <Loader className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+                      {!assignment.user_details && (
+                        <p className="text-sm text-orange-600">⚠️ User data missing</p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">
+                        {assignment.agent_details?.name || `Agent ID: ${assignment.agent_id}`}
+                      </p>
+                      {assignment.agent_details?.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {assignment.agent_details.description}
+                        </p>
+                      )}
+                      {!assignment.agent_details && (
+                        <p className="text-sm text-orange-600">⚠️ Agent data missing</p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        checked={assignment.is_primary}
+                        onCheckedChange={(checked) => onUpdatePrimary(assignment.id, checked, assignment.user_id)}
+                        disabled={isUpdating}
+                      />
+                      {assignment.is_primary && (
+                        <Badge className="bg-green-100 text-green-800 border-green-200">
+                          Primary
+                        </Badge>
+                      )}
+                      {isUpdating && (
+                        <Loader className="h-4 w-4 animate-spin" />
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {assignment.assigned_at ? (
+                      new Date(assignment.assigned_at).toLocaleDateString()
+                    ) : (
+                      <span className="text-muted-foreground">Unknown</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleRemove(assignment.id)}
+                      disabled={removingId === assignment.id || isRemoving}
+                      className="hover:bg-red-50 hover:text-red-600"
+                    >
+                      {removingId === assignment.id ? (
+                        <Loader className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center">
@@ -206,17 +194,6 @@ export function UserAgentAssignmentsTable({
           </TableBody>
         </Table>
       </div>
-
-      {/* Debug info in development */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-50 rounded">
-          <strong>Debug Info:</strong><br />
-          - Assignments loaded: {assignments?.length || 0}<br />
-          - Is loading: {isLoading.toString()}<br />
-          - Has incomplete data: {hasIncompleteData.toString()}<br />
-          - Sample assignment: {assignments?.[0] ? JSON.stringify(assignments[0], null, 2) : 'None'}
-        </div>
-      )}
     </div>
   );
 }

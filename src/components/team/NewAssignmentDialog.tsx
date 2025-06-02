@@ -48,6 +48,12 @@ export function NewAssignmentDialog({
       return;
     }
     
+    console.log('🔍 [NewAssignmentDialog] Submitting assignment:', {
+      userId: selectedUserId,
+      agentId: selectedAgentId,
+      isPrimary
+    });
+    
     onSubmit(selectedUserId, selectedAgentId, isPrimary);
     
     // Reset form
@@ -56,10 +62,28 @@ export function NewAssignmentDialog({
     setIsPrimary(false);
   };
 
+  const handleClose = () => {
+    // Reset form when closing
+    setSelectedUserId('');
+    setSelectedAgentId('');
+    setIsPrimary(false);
+    onClose();
+  };
+
   const canSubmit = selectedUserId && selectedAgentId && !isSubmitting;
 
+  console.log('🔍 [NewAssignmentDialog] Render state:', {
+    isOpen,
+    isLoading,
+    availableUsersCount: availableUsers.length,
+    availableAgentsCount: availableAgents.length,
+    selectedUserId,
+    selectedAgentId,
+    canSubmit
+  });
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create New Assignment</DialogTitle>
@@ -72,7 +96,7 @@ export function NewAssignmentDialog({
         ) : (
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="user-select">Select User</Label>
+              <Label htmlFor="user-select">Select User ({availableUsers.length} available)</Label>
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
                 <SelectTrigger id="user-select">
                   <SelectValue placeholder="Choose a user..." />
@@ -80,7 +104,7 @@ export function NewAssignmentDialog({
                 <SelectContent>
                   {availableUsers.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
-                      {user.name || user.email}
+                      {user.name ? `${user.name} (${user.email})` : user.email}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -88,7 +112,7 @@ export function NewAssignmentDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="agent-select">Select Agent</Label>
+              <Label htmlFor="agent-select">Select Agent ({availableAgents.length} available)</Label>
               <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
                 <SelectTrigger id="agent-select">
                   <SelectValue placeholder="Choose an agent..." />
@@ -119,7 +143,7 @@ export function NewAssignmentDialog({
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
           <Button 
