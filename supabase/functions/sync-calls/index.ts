@@ -94,7 +94,8 @@ serve(async (req) => {
             callsFound: data.calls?.length || 0,
             hasMore: data.has_more || false,
             requestId,
-            apiConnected: true
+            apiConnected: true,
+            success: true
           }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -105,7 +106,8 @@ serve(async (req) => {
           return new Response(JSON.stringify({
             error: `API connectivity test failed: ${error.message}`,
             requestId,
-            apiConnected: false
+            apiConnected: false,
+            success: false
           }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -142,30 +144,64 @@ serve(async (req) => {
           let processedCalls = 0;
           const errors = [];
 
+          // DEBUG: Check both tables structure
+          console.log(`[SYNC-CALLS-${requestId}] Checking table structures...`);
+          
+          // Check retell_calls table
+          const { data: retellTableCheck, error: retellTableError } = await supabaseClient
+            .from('retell_calls')
+            .select('*')
+            .limit(1);
+            
+          console.log(`[SYNC-CALLS-${requestId}] retell_calls table check:`, {
+            error: retellTableError,
+            hasData: retellTableCheck && retellTableCheck.length > 0
+          });
+
+          // Check calls table
+          const { data: callsTableCheck, error: callsTableError } = await supabaseClient
+            .from('calls')
+            .select('*')
+            .limit(1);
+            
+          console.log(`[SYNC-CALLS-${requestId}] calls table check:`, {
+            error: callsTableError,
+            hasData: callsTableCheck && callsTableCheck.length > 0
+          });
+
           for (const call of calls) {
             try {
               processedCalls++;
               
-              // Check if call already exists
-              const { data: existingCall, error: checkError } = await supabaseClient
+              console.log(`[SYNC-CALLS-${requestId}] Processing call ${call.call_id}:`, {
+                agent_id: call.agent_id,
+                from_number: call.from_number,
+                to_number: call.to_number,
+                duration_sec: call.duration_sec,
+                call_status: call.call_status,
+                start_timestamp: call.start_timestamp
+              });
+
+              // Check if call already exists in retell_calls table
+              const { data: existingRetellCall, error: checkRetellError } = await supabaseClient
                 .from('retell_calls')
                 .select('id')
                 .eq('call_id', call.call_id)
                 .maybeSingle();
 
-              if (checkError) {
-                console.error(`[SYNC-CALLS-${requestId}] Error checking existing call:`, checkError);
-                errors.push(`Check error for ${call.call_id}: ${checkError.message}`);
+              if (checkRetellError) {
+                console.error(`[SYNC-CALLS-${requestId}] Error checking existing retell_call:`, checkRetellError);
+                errors.push(`Check retell_calls error for ${call.call_id}: ${checkRetellError.message}`);
                 continue;
               }
 
-              if (existingCall) {
-                console.log(`[SYNC-CALLS-${requestId}] Call ${call.call_id} already exists, skipping`);
+              if (existingRetellCall) {
+                console.log(`[SYNC-CALLS-${requestId}] Call ${call.call_id} already exists in retell_calls, skipping`);
                 continue;
               }
 
-              // Map call data with minimal required fields
-              const mappedCall = {
+              // Map call data for retell_calls table
+              const retellCallData = {
                 call_id: call.call_id,
                 user_id: null, // Allow null when bypassing validation
                 company_id: null, // Allow null when bypassing validation
@@ -202,20 +238,103 @@ serve(async (req) => {
                 updated_at: new Date().toISOString(),
               };
 
-              console.log(`[SYNC-CALLS-${requestId}] Inserting call ${call.call_id}`);
+              console.log(`[SYNC-CALLS-${requestId}] Attempting to insert into retell_calls:`, retellCallData);
 
-              const { data: insertData, error: insertError } = await supabaseClient
+              // Insert into retell_calls table
+              const { data: retellInsertData, error: retellInsertError } = await supabaseClient
                 .from('retell_calls')
-                .insert(mappedCall)
+                .insert(retellCallData)
                 .select();
 
-              if (insertError) {
-                console.error(`[SYNC-CALLS-${requestId}] Insert error for ${call.call_id}:`, insertError);
-                errors.push(`Insert error for ${call.call_id}: ${insertError.message}`);
+              if (retellInsertError) {
+                console.error(`[SYNC-CALLS-${requestId}] retell_calls insert error for ${call.call_id}:`, retellInsertError);
+                errors.push(`retell_calls insert error for ${call.call_id}: ${retellInsertError.message}`);
                 continue;
               }
 
-              console.log(`[SYNC-CALLS-${requestId}] Successfully synced call ${call.call_id}`);
+              console.log(`[SYNC-CALLS-${requestId}] Successfully inserted into retell_calls:`, retellInsertData);
+
+              // Now check if call exists in calls table
+              const { data: existingCall, error: checkError } = await supabaseClient
+                .from('calls')
+                .select('id')
+                .eq('call_id', call.call_id)
+                .maybeSingle();
+
+              if (checkError) {
+                console.error(`[SYNC-CALLS-${requestId}] Error checking existing call in calls table:`, checkError);
+                errors.push(`Check calls table error for ${call.call_id}: ${checkError.message}`);
+                continue;
+              }
+
+              if (existingCall) {
+                console.log(`[SYNC-CALLS-${requestId}] Call ${call.call_id} already exists in calls table, skipping`);
+                syncedCalls++; // Count it as synced since retell_calls was inserted
+                continue;
+              }
+
+              // Map call data for calls table (legacy format)
+              const callData = {
+                call_id: call.call_id,
+                user_id: 'unknown', // Required by calls table
+                company_id: 'unknown', // Required by calls table but will be updated by admin
+                agent_id: null,
+                timestamp: call.start_timestamp 
+                  ? new Date(call.start_timestamp * 1000).toISOString()
+                  : new Date().toISOString(),
+                start_time: call.start_timestamp 
+                  ? new Date(call.start_timestamp * 1000).toISOString()
+                  : new Date().toISOString(),
+                duration_sec: call.duration_sec || 0,
+                cost_usd: call.call_cost?.combined_cost || 0,
+                revenue_amount: 0,
+                billing_duration_sec: call.duration_sec || 0,
+                billable_rate_per_minute: 0.17,
+                call_status: call.call_status || 'unknown',
+                from: call.from_number || 'unknown',
+                to: call.to_number || 'unknown',
+                from_number: call.from_number || null,
+                to_number: call.to_number || null,
+                disconnection_reason: call.disconnection_reason || null,
+                audio_url: call.recording_url || null,
+                recording_url: call.recording_url || null,
+                transcript: call.transcript || null,
+                transcript_url: call.transcript_url || null,
+                sentiment: call.call_analysis?.user_sentiment || null,
+                sentiment_score: null,
+                result_sentiment: call.call_analysis ? JSON.stringify(call.call_analysis) : null,
+                disposition: call.disposition || null,
+                latency_ms: call.latency?.llm?.p50 || null,
+                call_summary: call.call_analysis?.call_summary || null,
+                call_type: 'phone_call'
+              };
+
+              console.log(`[SYNC-CALLS-${requestId}] Attempting to insert into calls table:`, callData);
+
+              // Insert into calls table
+              const { data: callInsertData, error: callInsertError } = await supabaseClient
+                .from('calls')
+                .insert(callData)
+                .select();
+
+              console.log(`[SYNC-CALLS-${requestId}] calls table insert result:`, {
+                data: callInsertData,
+                error: callInsertError
+              });
+
+              if (callInsertError) {
+                console.error(`[SYNC-CALLS-${requestId}] calls table insert error for ${call.call_id}:`, callInsertError);
+                console.error(`[SYNC-CALLS-${requestId}] Error details:`, {
+                  message: callInsertError.message,
+                  details: callInsertError.details,
+                  hint: callInsertError.hint,
+                  code: callInsertError.code
+                });
+                errors.push(`calls table insert error for ${call.call_id}: ${callInsertError.message} - ${callInsertError.details || ''}`);
+                continue;
+              }
+
+              console.log(`[SYNC-CALLS-${requestId}] Successfully synced call ${call.call_id} to both tables`);
               syncedCalls++;
 
             } catch (callError) {
@@ -233,7 +352,7 @@ serve(async (req) => {
             debug_mode: debugMode,
             requestId,
             timestamp: new Date().toISOString(),
-            errors: errors.length > 0 ? errors.slice(0, 5) : undefined // Limit error list
+            errors: errors.length > 0 ? errors : undefined
           };
 
           console.log(`[SYNC-CALLS-${requestId}] Sync summary:`, summary);
