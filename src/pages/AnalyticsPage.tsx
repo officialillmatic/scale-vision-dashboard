@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ProductionDashboardLayout } from '@/components/dashboard/ProductionDashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,7 +13,10 @@ import { AgentAnalytics } from '@/components/analytics/AgentAnalytics';
 import { UserAnalytics } from '@/components/analytics/UserAnalytics';
 import { RevenueAnalytics } from '@/components/analytics/RevenueAnalytics';
 import { ExportControls } from '@/components/analytics/ExportControls';
-import { BarChart3, Users, Bot, DollarSign, Download, TrendingUp } from 'lucide-react';
+import { DemoAnalyticsSection } from '@/components/analytics/DemoAnalyticsSection';
+import { BarChart3, Users, Bot, DollarSign, Download, TrendingUp, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 // Updated CallData interface to include all fields
 export interface CallData {
@@ -60,6 +62,7 @@ const AnalyticsPage = () => {
     new Date(new Date().setDate(new Date().getDate() - 30)), // Last 30 days
     new Date()
   ]);
+  const [showDemo, setShowDemo] = useState(false);
 
   useEffect(() => {
     if (!company?.id) {
@@ -217,173 +220,201 @@ const AnalyticsPage = () => {
     setFilteredData(filtered);
   }, [dateRange, callData]);
 
+  const hasRealData = !isLoading && filteredData.length > 0;
+
   return (
     <ProductionDashboardLayout>
       <div className="space-y-8 w-full max-w-none">
         {/* Header Section */}
         <div className="space-y-3">
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-            Business Intelligence Platform 📊
-          </h1>
-          <p className="text-lg text-gray-600 font-medium">
-            Comprehensive analytics and insights for your communication platform
-          </p>
-        </div>
-        
-        {/* Filter Bar */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 p-6">
-          <CallFilterBar 
-            dateRange={dateRange} 
-            setDateRange={setDateRange} 
-            totalCalls={filteredData.length}
-            isLoading={isLoading}
-          />
-        </div>
-        
-        {/* Show empty state when no data */}
-        {!isLoading && filteredData.length === 0 && (
-          <div className="mt-8">
-            <EmptyStateMessage
-              title="No analytics data available yet"
-              description="Analytics will appear here once you have call data. Start by syncing your calls or making your first call."
-              actionLabel={isSyncing ? "Syncing..." : "Sync Calls"}
-              onAction={handleSync}
-              isLoading={isSyncing}
-            />
-          </div>
-        )}
-
-        {/* Show content when we have data */}
-        {(filteredData.length > 0 || isLoading) && (
-          <>
-            {/* Key Metrics Dashboard */}
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-                  <TrendingUp className="h-6 w-6" />
-                  <span>Key Performance Indicators</span>
-                </h2>
-                <p className="text-gray-600">Overview of your platform's core metrics and performance</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                Business Intelligence Platform 📊
+              </h1>
+              <p className="text-lg text-gray-600 font-medium">
+                Comprehensive analytics and insights for your communication platform
+              </p>
+            </div>
+            {!hasRealData && (
+              <div className="flex items-center space-x-3">
+                <Button
+                  onClick={() => setShowDemo(!showDemo)}
+                  variant={showDemo ? "default" : "outline"}
+                  className="flex items-center space-x-2"
+                >
+                  <Zap className="h-4 w-4" />
+                  <span>{showDemo ? "Hide Demo" : "View Demo"}</span>
+                </Button>
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  Preview Mode
+                </Badge>
               </div>
-              {isLoading ? (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                  {Array(4).fill(0).map((_, i) => (
-                    <Skeleton key={i} className="h-32 rounded-xl" />
-                  ))}
-                </div>
-              ) : (
-                <MetricsDashboard data={filteredData} previousData={previousCallData} />
-              )}
+            )}
+          </div>
+        </div>
+        
+        {/* Show demo mode or real data */}
+        {showDemo && !hasRealData ? (
+          <DemoAnalyticsSection />
+        ) : (
+          <>
+            {/* Filter Bar */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 p-6">
+              <CallFilterBar 
+                dateRange={dateRange} 
+                setDateRange={setDateRange} 
+                totalCalls={filteredData.length}
+                isLoading={isLoading}
+              />
             </div>
             
-            {/* Analytics Tabs */}
-            <Tabs defaultValue="overview" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="overview" className="flex items-center space-x-2">
-                  <BarChart3 className="h-4 w-4" />
-                  <span>Overview</span>
-                </TabsTrigger>
-                <TabsTrigger value="agents" className="flex items-center space-x-2">
-                  <Bot className="h-4 w-4" />
-                  <span>Agents</span>
-                </TabsTrigger>
-                <TabsTrigger value="users" className="flex items-center space-x-2">
-                  <Users className="h-4 w-4" />
-                  <span>Users</span>
-                </TabsTrigger>
-                <TabsTrigger value="revenue" className="flex items-center space-x-2">
-                  <DollarSign className="h-4 w-4" />
-                  <span>Revenue</span>
-                </TabsTrigger>
-                <TabsTrigger value="export" className="flex items-center space-x-2">
-                  <Download className="h-4 w-4" />
-                  <span>Export</span>
-                </TabsTrigger>
-              </TabsList>
+            {/* Show empty state when no data */}
+            {!isLoading && filteredData.length === 0 && (
+              <div className="mt-8">
+                <EmptyStateMessage
+                  title="No analytics data available yet"
+                  description="Analytics will appear here once you have call data. Start by syncing your calls or making your first call."
+                  actionLabel={isSyncing ? "Syncing..." : "Sync Calls"}
+                  onAction={handleSync}
+                  isLoading={isSyncing}
+                />
+              </div>
+            )}
 
-              <TabsContent value="overview" className="space-y-6">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-gray-900">Analytics Overview</h2>
-                  <p className="text-gray-600">Visual insights into call patterns, performance trends, and usage analytics</p>
-                </div>
-                {isLoading ? (
-                  <div className="space-y-6">
-                    <Skeleton className="h-[400px] rounded-lg" />
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <Skeleton className="h-[300px] rounded-lg" />
-                      <Skeleton className="h-[300px] rounded-lg" />
-                    </div>
+            {/* Show content when we have data */}
+            {(filteredData.length > 0 || isLoading) && (
+              <>
+                {/* Key Metrics Dashboard */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
+                      <TrendingUp className="h-6 w-6" />
+                      <span>Key Performance Indicators</span>
+                    </h2>
+                    <p className="text-gray-600">Overview of your platform's core metrics and performance</p>
                   </div>
-                ) : (
-                  <AnalyticsCharts data={filteredData} />
-                )}
-              </TabsContent>
-
-              <TabsContent value="agents" className="space-y-6">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-gray-900">Agent Performance Analytics</h2>
-                  <p className="text-gray-600">Detailed performance metrics and utilization statistics for all agents</p>
-                </div>
-                {isLoading ? (
-                  <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-3">
-                      {Array(3).fill(0).map((_, i) => (
+                  {isLoading ? (
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                      {Array(4).fill(0).map((_, i) => (
                         <Skeleton key={i} className="h-32 rounded-xl" />
                       ))}
                     </div>
-                    <Skeleton className="h-[400px] rounded-lg" />
-                  </div>
-                ) : (
-                  <AgentAnalytics data={filteredData} />
-                )}
-              </TabsContent>
-
-              <TabsContent value="users" className="space-y-6">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-gray-900">User Engagement Analytics</h2>
-                  <p className="text-gray-600">Insights into user behavior, engagement patterns, and activity metrics</p>
+                  ) : (
+                    <MetricsDashboard data={filteredData} previousData={previousCallData} />
+                  )}
                 </div>
-                {isLoading ? (
-                  <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      {Array(4).fill(0).map((_, i) => (
-                        <Skeleton key={i} className="h-24 rounded-xl" />
-                      ))}
+                
+                {/* Analytics Tabs */}
+                <Tabs defaultValue="overview" className="space-y-6">
+                  <TabsList className="grid w-full grid-cols-5">
+                    <TabsTrigger value="overview" className="flex items-center space-x-2">
+                      <BarChart3 className="h-4 w-4" />
+                      <span>Overview</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="agents" className="flex items-center space-x-2">
+                      <Bot className="h-4 w-4" />
+                      <span>Agents</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="users" className="flex items-center space-x-2">
+                      <Users className="h-4 w-4" />
+                      <span>Users</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="revenue" className="flex items-center space-x-2">
+                      <DollarSign className="h-4 w-4" />
+                      <span>Revenue</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="export" className="flex items-center space-x-2">
+                      <Download className="h-4 w-4" />
+                      <span>Export</span>
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="overview" className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-bold text-gray-900">Analytics Overview</h2>
+                      <p className="text-gray-600">Visual insights into call patterns, performance trends, and usage analytics</p>
                     </div>
-                    <Skeleton className="h-[400px] rounded-lg" />
-                  </div>
-                ) : (
-                  <UserAnalytics data={filteredData} />
-                )}
-              </TabsContent>
+                    {isLoading ? (
+                      <div className="space-y-6">
+                        <Skeleton className="h-[400px] rounded-lg" />
+                        <div className="grid gap-6 md:grid-cols-2">
+                          <Skeleton className="h-[300px] rounded-lg" />
+                          <Skeleton className="h-[300px] rounded-lg" />
+                        </div>
+                      </div>
+                    ) : (
+                      <AnalyticsCharts data={filteredData} />
+                    )}
+                  </TabsContent>
 
-              <TabsContent value="revenue" className="space-y-6">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-gray-900">Revenue & Cost Analytics</h2>
-                  <p className="text-gray-600">Financial performance tracking, cost analysis, and revenue optimization insights</p>
-                </div>
-                {isLoading ? (
-                  <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      {Array(4).fill(0).map((_, i) => (
-                        <Skeleton key={i} className="h-24 rounded-xl" />
-                      ))}
+                  <TabsContent value="agents" className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-bold text-gray-900">Agent Performance Analytics</h2>
+                      <p className="text-gray-600">Detailed performance metrics and utilization statistics for all agents</p>
                     </div>
-                    <Skeleton className="h-[400px] rounded-lg" />
-                  </div>
-                ) : (
-                  <RevenueAnalytics data={filteredData} />
-                )}
-              </TabsContent>
+                    {isLoading ? (
+                      <div className="space-y-6">
+                        <div className="grid gap-4 md:grid-cols-3">
+                          {Array(3).fill(0).map((_, i) => (
+                            <Skeleton key={i} className="h-32 rounded-xl" />
+                          ))}
+                        </div>
+                        <Skeleton className="h-[400px] rounded-lg" />
+                      </div>
+                    ) : (
+                      <AgentAnalytics data={filteredData} />
+                    )}
+                  </TabsContent>
 
-              <TabsContent value="export" className="space-y-6">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-gray-900">Data Export & Reporting</h2>
-                  <p className="text-gray-600">Export your analytics data in various formats for external analysis and reporting</p>
-                </div>
-                <ExportControls data={filteredData} dateRange={dateRange} />
-              </TabsContent>
-            </Tabs>
+                  <TabsContent value="users" className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-bold text-gray-900">User Engagement Analytics</h2>
+                      <p className="text-gray-600">Insights into user behavior, engagement patterns, and activity metrics</p>
+                    </div>
+                    {isLoading ? (
+                      <div className="space-y-6">
+                        <div className="grid gap-4 md:grid-cols-4">
+                          {Array(4).fill(0).map((_, i) => (
+                            <Skeleton key={i} className="h-24 rounded-xl" />
+                          ))}
+                        </div>
+                        <Skeleton className="h-[400px] rounded-lg" />
+                      </div>
+                    ) : (
+                      <UserAnalytics data={filteredData} />
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="revenue" className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-bold text-gray-900">Revenue & Cost Analytics</h2>
+                      <p className="text-gray-600">Financial performance tracking, cost analysis, and revenue optimization insights</p>
+                    </div>
+                    {isLoading ? (
+                      <div className="space-y-6">
+                        <div className="grid gap-4 md:grid-cols-4">
+                          {Array(4).fill(0).map((_, i) => (
+                            <Skeleton key={i} className="h-24 rounded-xl" />
+                          ))}
+                        </div>
+                        <Skeleton className="h-[400px] rounded-lg" />
+                      </div>
+                    ) : (
+                      <RevenueAnalytics data={filteredData} />
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="export" className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-bold text-gray-900">Data Export & Reporting</h2>
+                      <p className="text-gray-600">Export your analytics data in various formats for external analysis and reporting</p>
+                    </div>
+                    <ExportControls data={filteredData} dateRange={dateRange} />
+                  </TabsContent>
+                </Tabs>
+              </>
+            )}
           </>
         )}
       </div>

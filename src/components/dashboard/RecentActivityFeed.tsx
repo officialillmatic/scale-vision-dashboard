@@ -32,7 +32,7 @@ export function RecentActivityFeed() {
       type: 'assignment',
       title: `Agent assigned: ${assignment.agent_details?.name || 'Unknown Agent'}`,
       description: assignment.is_primary ? 'Primary agent' : 'Secondary agent',
-      timestamp: new Date(assignment.assigned_at || assignment.created_at || new Date()),
+      timestamp: new Date(assignment.assigned_at || new Date()),
       icon: Bot,
       status: 'info'
     }))
