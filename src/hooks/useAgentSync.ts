@@ -1,118 +1,83 @@
 
-import { useState, useEffect, useCallback } from 'react';
-import { retellAgentSyncService, AgentSyncResult } from '@/services/retell/retellAgentSync';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { retellAgentSyncService } from '@/services/retell/retellAgentSync';
 import { toast } from 'sonner';
 
-export interface AgentSyncState {
-  syncStats: any[] | null;
-  unassignedAgents: any[] | null;
-  isLoading: boolean;
-  error: string | null;
-  syncNow: () => Promise<void>;
-  refreshStats: () => Promise<void>;
-}
+export function useAgentSync() {
+  const queryClient = useQueryClient();
 
-export function useAgentSync(): AgentSyncState {
-  const [state, setState] = useState<{
-    syncStats: any[] | null;
-    unassignedAgents: any[] | null;
-    isLoading: boolean;
-    error: string | null;
-  }>({
-    syncStats: null,
-    unassignedAgents: null,
-    isLoading: false,
-    error: null,
+  // Query for sync statistics
+  const {
+    data: syncStats,
+    isLoading: isLoadingSyncStats,
+    error: syncStatsError,
+    refetch: refetchSyncStats
+  } = useQuery({
+    queryKey: ['agent-sync-stats'],
+    queryFn: () => retellAgentSyncService.getSyncStats(10),
+    retry: 2,
+    staleTime: 30000
   });
 
-  // Fetch sync statistics and unassigned agents
-  const fetchData = useCallback(async (showLoading = true) => {
-    try {
-      if (showLoading) {
-        setState(prev => ({ ...prev, isLoading: true, error: null }));
-      }
+  // Query for unassigned agents
+  const {
+    data: unassignedAgents,
+    isLoading: isLoadingUnassigned,
+    refetch: refetchUnassigned
+  } = useQuery({
+    queryKey: ['unassigned-agents'],
+    queryFn: () => retellAgentSyncService.getUnassignedAgents(),
+    retry: 1,
+    staleTime: 60000
+  });
 
-      console.log('[AGENT_SYNC] Fetching sync data...');
-
-      const [syncStats, unassignedAgents] = await Promise.all([
-        retellAgentSyncService.getSyncStats(10).catch(error => {
-          console.warn('[AGENT_SYNC] Failed to fetch sync stats:', error);
-          return [];
-        }),
-        retellAgentSyncService.getUnassignedAgents().catch(error => {
-          console.warn('[AGENT_SYNC] Failed to fetch unassigned agents:', error);
-          return [];
-        }),
-      ]);
-
-      setState(prev => ({
-        ...prev,
-        syncStats,
-        unassignedAgents,
-        isLoading: false,
-        error: null,
-      }));
-
-      console.log('[AGENT_SYNC] Successfully loaded data:', {
-        syncStatsCount: syncStats.length,
-        unassignedCount: unassignedAgents.length,
-      });
-    } catch (error: any) {
-      console.error('[AGENT_SYNC] Error fetching data:', error);
+  // Mutation for sync
+  const syncMutation = useMutation({
+    mutationFn: () => retellAgentSyncService.forceSync(),
+    onSuccess: (data) => {
+      // Invalidate all related queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['agent-sync-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['unassigned-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['retell-agents'] });
       
-      const errorMessage = error?.message || 'Failed to load sync data';
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-      }));
-      
-      if (showLoading) {
-        toast.error(`Data fetch failed: ${errorMessage}`);
-      }
+      const totalProcessed = data.agents_created + data.agents_updated;
+      toast.success(
+        `Sync completed! ${totalProcessed} agents processed (${data.agents_created} created, ${data.agents_updated} updated)`
+      );
+    },
+    onError: (error: any) => {
+      console.error('[USE_AGENT_SYNC] Sync error:', error);
+      toast.error(`Sync failed: ${error.message}`);
     }
-  }, []);
+  });
 
-  // Trigger a new sync
-  const syncNow = useCallback(async () => {
-    try {
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
-      console.log('[AGENT_SYNC] Starting manual sync...');
-      toast.info('Starting agent synchronization...');
-      
-      const result: AgentSyncResult = await retellAgentSyncService.forceSync();
-      
-      console.log('[AGENT_SYNC] Sync completed:', result);
-      toast.success(`Sync completed! ${(result.agents_created || 0) + (result.agents_updated || 0)} agents processed.`);
-      
-      // Refresh data after sync
-      await fetchData(false);
-    } catch (error: any) {
-      console.error('[AGENT_SYNC] Sync failed:', error);
-      const errorMessage = error?.message || 'Sync failed';
-      
-      setState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
-      toast.error(`Sync failed: ${errorMessage}`);
-    }
-  }, [fetchData]);
+  const refreshStats = () => {
+    refetchSyncStats();
+    refetchUnassigned();
+  };
 
-  // Refresh stats function
-  const refreshStats = useCallback(async () => {
-    await fetchData(true);
-  }, [fetchData]);
-
-  // Initial data fetch
-  useEffect(() => {
-    fetchData(true);
-  }, [fetchData]);
+  const syncNow = () => {
+    syncMutation.mutate();
+  };
 
   return {
-    syncStats: state.syncStats,
-    unassignedAgents: state.unassignedAgents,
-    isLoading: state.isLoading,
-    error: state.error,
+    // Data
+    syncStats,
+    unassignedAgents,
+    
+    // Loading states
+    isLoading: isLoadingSyncStats || isLoadingUnassigned || syncMutation.isPending,
+    isLoadingSyncStats,
+    isLoadingUnassigned,
+    isSyncing: syncMutation.isPending,
+    
+    // Error states
+    error: syncStatsError?.message || syncMutation.error?.message,
+    
+    // Actions
     syncNow,
     refreshStats,
+    refetchSyncStats,
+    refetchUnassigned
   };
 }

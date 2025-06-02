@@ -1,3 +1,4 @@
+
 import { supabase } from '@/lib/supabase';
 import { retellApiDebugger } from './retellApiDebugger';
 
@@ -52,7 +53,6 @@ class RetellAgentSyncService {
   private readonly apiKey: string;
 
   constructor() {
-    // Check for API key in environment
     this.apiKey = import.meta.env?.VITE_RETELL_API_KEY || '';
     if (!this.apiKey) {
       console.warn('[RETELL_AGENT_SYNC] No API key provided - sync functionality will be limited');
@@ -123,7 +123,7 @@ class RetellAgentSyncService {
   private async fetchRetellAgents(): Promise<RetellAgent[]> {
     console.log('[RETELL_AGENT_SYNC] Fetching agents using endpoint discovery...');
     
-    // Use the same endpoint discovery logic as useRetellAgents
+    // Use the API debugger to find working endpoint and fetch agents
     const apiResult = await retellApiDebugger.testAllEndpoints();
     
     if (!apiResult.success) {
@@ -132,7 +132,7 @@ class RetellAgentSyncService {
 
     console.log('[RETELL_AGENT_SYNC] Using working endpoint:', apiResult.endpoint);
     
-    // Extract agents from the response using the same logic as useRetellAgents
+    // Extract agents from the response
     let agentsArray = [];
     const responseData = apiResult.response;
     
@@ -180,22 +180,21 @@ class RetellAgentSyncService {
   }
 
   /**
-   * Map Retell agent to database format - ensuring all required columns are included
+   * Map Retell agent to database format
    */
   private mapAgentToDbFormat(retellAgent: RetellAgent) {
     const now = new Date().toISOString();
     
     return {
-      // Required columns for retell_agents table
-      agent_id: retellAgent.agent_id, // This maps to agent_id column (required)
-      retell_agent_id: retellAgent.agent_id, // This is the nullable column for external reference
+      agent_id: retellAgent.agent_id,
+      retell_agent_id: retellAgent.agent_id,
       name: retellAgent.agent_name,
       description: retellAgent.prompt ? retellAgent.prompt.substring(0, 500) : null,
       voice_model: retellAgent.voice_model,
-      avatar_url: null, // Not provided by Retell API
+      avatar_url: null,
       language: retellAgent.language || 'en',
       status: 'active',
-      rate_per_minute: 0.17, // Default rate
+      rate_per_minute: 0.17,
       is_active: true,
       created_at: now,
       updated_at: now,
@@ -217,14 +216,14 @@ class RetellAgentSyncService {
 
     console.log('[RETELL_AGENT_SYNC] ✅ User authenticated:', user.email);
 
-    // First test the API connection using endpoint discovery
+    // Test API connection first
     const connectionTest = await retellApiDebugger.testApiConnection();
     if (!connectionTest.success) {
       console.error('[RETELL_AGENT_SYNC] API connection test failed:', connectionTest);
-      throw new Error(`API connection failed: ${connectionTest.error} (Status: ${connectionTest.status})`);
+      throw new Error(`API connection failed: ${connectionTest.error}`);
     }
 
-    console.log('[RETELL_AGENT_SYNC] ✅ API connection test passed, proceeding with sync...');
+    console.log('[RETELL_AGENT_SYNC] ✅ API connection test passed');
 
     const syncStartTime = new Date().toISOString();
 
@@ -252,7 +251,7 @@ class RetellAgentSyncService {
     };
 
     try {
-      // Fetch agents from Retell API using endpoint discovery
+      // Fetch agents from Retell API
       const retellAgents = await this.fetchRetellAgents();
       stats.total_agents_fetched = retellAgents.length;
 
@@ -406,46 +405,28 @@ class RetellAgentSyncService {
     try {
       console.log('[RETELL_AGENT_SYNC] Fetching unassigned agents...');
       
-      // First try to get unassigned agents using a subquery approach
-      const { data, error } = await supabase
+      const { data: allAgents, error: allAgentsError } = await supabase
         .from('retell_agents')
-        .select(`
-          *,
-          user_agent_assignments!left(id)
-        `)
-        .eq('is_active', true)
-        .is('user_agent_assignments.id', null);
+        .select('*')
+        .eq('is_active', true);
 
-      if (error) {
-        console.warn('[RETELL_AGENT_SYNC] Subquery approach failed, trying alternative:', error);
-        
-        // Fallback: Get all active agents and filter client-side
-        const { data: allAgents, error: allAgentsError } = await supabase
-          .from('retell_agents')
-          .select('*')
-          .eq('is_active', true);
-
-        if (allAgentsError) {
-          console.error('[RETELL_AGENT_SYNC] Error fetching agents:', allAgentsError);
-          throw new Error(`Failed to fetch unassigned agents: ${allAgentsError.message}`);
-        }
-
-        const { data: assignments } = await supabase
-          .from('user_agent_assignments')
-          .select('agent_id');
-
-        const assignedAgentIds = new Set((assignments || []).map(a => a.agent_id));
-        
-        const unassigned = (allAgents || []).filter(agent => 
-          !assignedAgentIds.has(agent.retell_agent_id)
-        );
-        
-        console.log('[RETELL_AGENT_SYNC] Found', unassigned.length, 'unassigned agents (fallback method)');
-        return unassigned;
+      if (allAgentsError) {
+        console.error('[RETELL_AGENT_SYNC] Error fetching agents:', allAgentsError);
+        throw new Error(`Failed to fetch unassigned agents: ${allAgentsError.message}`);
       }
 
-      console.log('[RETELL_AGENT_SYNC] Found', data?.length || 0, 'unassigned agents');
-      return data || [];
+      const { data: assignments } = await supabase
+        .from('user_agent_assignments')
+        .select('agent_id');
+
+      const assignedAgentIds = new Set((assignments || []).map(a => a.agent_id));
+      
+      const unassigned = (allAgents || []).filter(agent => 
+        !assignedAgentIds.has(agent.retell_agent_id)
+      );
+      
+      console.log('[RETELL_AGENT_SYNC] Found', unassigned.length, 'unassigned agents');
+      return unassigned;
     } catch (error: any) {
       console.error('[RETELL_AGENT_SYNC] Error in getUnassignedAgents:', error);
       throw error;
@@ -453,7 +434,7 @@ class RetellAgentSyncService {
   }
 }
 
-// Helper function to ensure user profile exists (exported for use in other parts of the app)
+// Helper function to ensure user profile exists
 export async function ensureUserProfile(): Promise<{ user: any; error: any }> {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();

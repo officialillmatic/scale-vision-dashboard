@@ -2,11 +2,13 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Database } from 'lucide-react';
+import { RefreshCw, Database, Sync } from 'lucide-react';
 import { RetellAgentsTable } from './RetellAgentsTable';
 import { useRetellAgentsData } from '@/hooks/useRetellAgentsData';
+import { useRetellAgentSync } from '@/hooks/useRetellAgentSync';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 
 export function RetellAgentsSection() {
   const {
@@ -16,9 +18,20 @@ export function RetellAgentsSection() {
     refetchRetellAgents
   } = useRetellAgentsData();
 
+  const {
+    triggerSync,
+    isSyncing,
+    latestSync
+  } = useRetellAgentSync();
+
   const handleRefresh = () => {
     console.log('🔍 [RetellAgentsSection] Manual refresh triggered');
     refetchRetellAgents();
+  };
+
+  const handleSync = () => {
+    console.log('🔍 [RetellAgentsSection] Sync triggered');
+    triggerSync();
   };
 
   return (
@@ -31,15 +44,34 @@ export function RetellAgentsSection() {
             From Retell AI
           </Badge>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={handleRefresh}
-          disabled={isLoadingRetellAgents}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoadingRetellAgents ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={isLoadingRetellAgents}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoadingRetellAgents ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button 
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+          >
+            {isSyncing ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Syncing...
+              </>
+            ) : (
+              <>
+                <Sync className="h-4 w-4" />
+                Sync Agents
+              </>
+            )}
+          </Button>
+        </div>
       </div>
       
       {retellAgentsError && (
@@ -55,9 +87,19 @@ export function RetellAgentsSection() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Retell AI Agents ({retellAgents.length})</span>
-            {isLoadingRetellAgents && (
-              <Badge variant="secondary">Loading...</Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {isLoadingRetellAgents && (
+                <Badge variant="secondary">Loading...</Badge>
+              )}
+              {latestSync && (
+                <Badge 
+                  variant={latestSync.sync_status === 'completed' ? 'default' : 
+                          latestSync.sync_status === 'failed' ? 'destructive' : 'secondary'}
+                >
+                  Last sync: {latestSync.sync_status}
+                </Badge>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">

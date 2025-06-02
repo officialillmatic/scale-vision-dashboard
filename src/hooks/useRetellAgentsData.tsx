@@ -15,7 +15,8 @@ export function useRetellAgentsData() {
     queryKey: ['retell-agents'],
     queryFn: fetchRetellAgents,
     staleTime: 30000, // 30 seconds
-    refetchOnWindowFocus: true
+    refetchOnWindowFocus: true,
+    retry: 2
   });
 
   console.log('🔍 [useRetellAgentsData] retellAgents result:', retellAgents);
