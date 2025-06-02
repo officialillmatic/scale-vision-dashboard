@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface Call {
   id: string;
@@ -32,10 +33,35 @@ export function useCalls() {
     refetch 
   } = useQuery({
     queryKey: ['calls', company?.id, user?.id],
-    queryFn: async () => {
-      // This would normally fetch from your calls API
-      // For now, returning empty array to prevent build errors
-      return [] as Call[];
+    queryFn: async (): Promise<Call[]> => {
+      try {
+        let query = supabase
+          .from("calls")
+          .select("*")
+          .order("timestamp", { ascending: false });
+
+        // Super admins can see all calls
+        if (!isSuperAdmin) {
+          if (company?.id) {
+            query = query.eq("company_id", company.id);
+          }
+          if (user?.id) {
+            query = query.eq("user_id", user.id);
+          }
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          console.error("[CALLS_SERVICE] Error fetching calls:", error);
+          throw error;
+        }
+
+        return data || [];
+      } catch (error: any) {
+        console.error("[CALLS_SERVICE] Error in useCalls:", error);
+        throw new Error(`Failed to fetch calls: ${error.message}`);
+      }
     },
     enabled: !!user && (!!company?.id || isSuperAdmin)
   });

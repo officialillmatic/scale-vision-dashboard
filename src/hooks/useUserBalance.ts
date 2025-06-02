@@ -1,7 +1,7 @@
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UserBalance {
   id: string;
@@ -9,20 +9,22 @@ interface UserBalance {
   company_id: string;
   balance: number;
   warning_threshold: number;
-  last_updated: Date;
-  created_at: Date;
+  created_at: string;
+  last_updated: string;
 }
 
-export const useUserBalance = () => {
+export function useUserBalance() {
   const { user, company } = useAuth();
-  const [balance, setBalance] = useState<UserBalance | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchBalance = async () => {
+  const { 
+    data: balance, 
+    isLoading, 
+    error 
+  } = useQuery({
+    queryKey: ['user-balance', user?.id, company?.id],
+    queryFn: async (): Promise<UserBalance | null> => {
       if (!user?.id || !company?.id) {
-        setIsLoading(false);
-        return;
+        return null;
       }
 
       try {
@@ -33,32 +35,35 @@ export const useUserBalance = () => {
           .eq("company_id", company.id)
           .single();
 
-        if (error && error.code !== 'PGRST116') {
-          console.error("Error fetching user balance:", error);
-        } else if (data) {
-          setBalance({
-            ...data,
-            last_updated: new Date(data.last_updated),
-            created_at: new Date(data.created_at)
-          });
+        if (error) {
+          console.error("[BALANCE_SERVICE] Error fetching user balance:", error);
+          // Return null if no balance found instead of throwing
+          if (error.code === 'PGRST116') {
+            return null;
+          }
+          throw error;
         }
-      } catch (error) {
-        console.error("Error in fetchBalance:", error);
-      } finally {
-        setIsLoading(false);
+
+        return data;
+      } catch (error: any) {
+        console.error("[BALANCE_SERVICE] Error in useUserBalance:", error);
+        throw new Error(`Failed to fetch user balance: ${error.message}`);
       }
-    };
+    },
+    enabled: !!user?.id && !!company?.id
+  });
 
-    fetchBalance();
-  }, [user?.id, company?.id]);
-
+  // Calculate remaining minutes based on current balance and average cost
   const remainingMinutes = balance ? Math.floor(balance.balance / 0.02) : 0;
-  const isLowBalance = balance ? balance.balance < (balance.warning_threshold || 10) : false;
+  
+  // Determine if balance is low
+  const isLowBalance = balance ? balance.balance <= (balance.warning_threshold || 10) : false;
 
   return {
     balance,
     isLoading,
+    error,
     remainingMinutes,
     isLowBalance
   };
-};
+}
