@@ -41,20 +41,21 @@ export function useRetellAgents() {
   const [error, setError] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Use useMemo to deduplicate agents and prevent unnecessary re-renders
+  // Use useMemo with robust deduplication to ensure absolute uniqueness
   const agents = useMemo(() => {
     if (rawAgents.length === 0) return [];
     
-    const uniqueAgentsMap = new Map<string, RetellAgentOption>();
+    console.log(`[USE_RETELL_AGENTS] Starting deduplication of ${rawAgents.length} raw agents`);
     
-    rawAgents.forEach((agent) => {
-      // Only add if we haven't seen this agent_id before
-      if (!uniqueAgentsMap.has(agent.retell_agent_id)) {
+    // Robust deduplication using Map with agent_id as key
+    const uniqueAgentsMap = new Map();
+    rawAgents.forEach(agent => {
+      if (agent?.retell_agent_id && !uniqueAgentsMap.has(agent.retell_agent_id)) {
         uniqueAgentsMap.set(agent.retell_agent_id, agent);
       }
     });
-    
     const uniqueAgents = Array.from(uniqueAgentsMap.values());
+    
     console.log(`[USE_RETELL_AGENTS] Deduplicated ${rawAgents.length} raw agents to ${uniqueAgents.length} unique agents`);
     
     return uniqueAgents;
@@ -178,7 +179,7 @@ export function useRetellAgents() {
       }
 
       if (agentsArray.length > 0) {
-        // Filter out null/undefined agents and create agent options
+        // Filter out null/undefined agents
         const validAgents = agentsArray.filter((agent: any) => 
           agent && 
           (agent.agent_id || agent.id) && 
