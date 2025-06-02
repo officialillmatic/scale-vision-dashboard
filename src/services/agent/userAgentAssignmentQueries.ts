@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface UserAgentAssignment {
@@ -79,17 +78,27 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         is_primary: assignment.is_primary || false,
         assigned_at: assignment.assigned_at,
         assigned_by: assignment.assigned_by,
-        user_details: assignment.profiles ? {
-          id: assignment.profiles.id,
-          email: assignment.profiles.email,
-          full_name: assignment.profiles.full_name
+        user_details: Array.isArray(assignment.profiles) && assignment.profiles.length > 0 ? {
+          id: assignment.profiles[0].id,
+          email: assignment.profiles[0].email,
+          full_name: assignment.profiles[0].full_name
+        } : assignment.profiles ? {
+          id: (assignment.profiles as any).id,
+          email: (assignment.profiles as any).email,
+          full_name: (assignment.profiles as any).full_name
         } : undefined,
-        agent_details: assignment.retell_agents ? {
-          id: assignment.retell_agents.id,
-          retell_agent_id: assignment.retell_agents.retell_agent_id,
-          name: assignment.retell_agents.name,
-          description: assignment.retell_agents.description,
-          status: assignment.retell_agents.status
+        agent_details: Array.isArray(assignment.retell_agents) && assignment.retell_agents.length > 0 ? {
+          id: assignment.retell_agents[0].id,
+          retell_agent_id: assignment.retell_agents[0].retell_agent_id,
+          name: assignment.retell_agents[0].name,
+          description: assignment.retell_agents[0].description,
+          status: assignment.retell_agents[0].status
+        } : assignment.retell_agents ? {
+          id: (assignment.retell_agents as any).id,
+          retell_agent_id: (assignment.retell_agents as any).retell_agent_id,
+          name: (assignment.retell_agents as any).name,
+          description: (assignment.retell_agents as any).description,
+          status: (assignment.retell_agents as any).status
         } : undefined
       };
     });
@@ -178,17 +187,27 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
       is_primary: assignment.is_primary || false,
       assigned_at: assignment.assigned_at,
       assigned_by: assignment.assigned_by,
-      user_details: assignment.profiles ? {
-        id: assignment.profiles.id,
-        email: assignment.profiles.email,
-        full_name: assignment.profiles.full_name
+      user_details: Array.isArray(assignment.profiles) && assignment.profiles.length > 0 ? {
+        id: assignment.profiles[0].id,
+        email: assignment.profiles[0].email,
+        full_name: assignment.profiles[0].full_name
+      } : assignment.profiles ? {
+        id: (assignment.profiles as any).id,
+        email: (assignment.profiles as any).email,
+        full_name: (assignment.profiles as any).full_name
       } : undefined,
-      agent_details: assignment.retell_agents ? {
-        id: assignment.retell_agents.id,
-        retell_agent_id: assignment.retell_agents.retell_agent_id,
-        name: assignment.retell_agents.name,
-        description: assignment.retell_agents.description,
-        status: assignment.retell_agents.status
+      agent_details: Array.isArray(assignment.retell_agents) && assignment.retell_agents.length > 0 ? {
+        id: assignment.retell_agents[0].id,
+        retell_agent_id: assignment.retell_agents[0].retell_agent_id,
+        name: assignment.retell_agents[0].name,
+        description: assignment.retell_agents[0].description,
+        status: assignment.retell_agents[0].status
+      } : assignment.retell_agents ? {
+        id: (assignment.retell_agents as any).id,
+        retell_agent_id: (assignment.retell_agents as any).retell_agent_id,
+        name: (assignment.retell_agents as any).name,
+        description: (assignment.retell_agents as any).description,
+        status: (assignment.retell_agents as any).status
       } : undefined
     }));
 
