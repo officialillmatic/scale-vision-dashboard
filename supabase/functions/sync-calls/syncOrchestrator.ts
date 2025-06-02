@@ -14,24 +14,27 @@ export interface SyncSummary {
   total_calls_from_api: number;
   requestId: string;
   timestamp: string;
+  validation_debug?: any[];
 }
 
 export class SyncOrchestrator {
   constructor(
     private supabaseClient: any,
     private retellClient: RetellApiClient,
-    private requestId: string
+    private requestId: string,
+    private bypassValidation: boolean = false
   ) {}
 
   async performSync(): Promise<SyncSummary> {
     console.log(`[SYNC-CALLS-${this.requestId}] === STARTING FULL CALL SYNC ===`);
-    console.log(`[SYNC-CALLS-${this.requestId}] Strategy: Fetch ALL calls with minimal validation`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Validation bypass: ${this.bypassValidation}`);
     
     let totalCallsFromApi = 0;
     let totalSynced = 0;
     let totalProcessed = 0;
     let pageToken: string | undefined = undefined;
     let pageCount = 0;
+    let validationDebug: any[] = [];
 
     // First, fetch ALL calls from Retell API (without agent filtering)
     try {
@@ -40,7 +43,6 @@ export class SyncOrchestrator {
       while (hasMore && pageCount < 10) { // Safety limit to prevent infinite loops
         pageCount++;
         console.log(`[SYNC-CALLS-${this.requestId}] === FETCHING PAGE ${pageCount} ===`);
-        console.log(`[SYNC-CALLS-${this.requestId}] Page token: ${pageToken || 'first_page'}`);
         
         const apiResponse = await this.retellClient.fetchAllCalls(100, pageToken);
         
@@ -48,35 +50,33 @@ export class SyncOrchestrator {
         hasMore = apiResponse.has_more || false;
         pageToken = apiResponse.next_page_token;
         
-        console.log(`[SYNC-CALLS-${this.requestId}] Page ${pageCount} results:`);
-        console.log(`[SYNC-CALLS-${this.requestId}] - Calls in this page: ${calls.length}`);
-        console.log(`[SYNC-CALLS-${this.requestId}] - Has more pages: ${hasMore}`);
-        console.log(`[SYNC-CALLS-${this.requestId}] - Next page token: ${pageToken || 'none'}`);
+        console.log(`[SYNC-CALLS-${this.requestId}] Page ${pageCount} results: ${calls.length} calls`);
         
         totalCallsFromApi += calls.length;
         
-        // Process each call with minimal validation
+        // Process each call
         for (const call of calls) {
           try {
             console.log(`[SYNC-CALLS-${this.requestId}] === PROCESSING CALL ${call.call_id} ===`);
-            console.log(`[SYNC-CALLS-${this.requestId}] Call agent_id: ${call.agent_id}`);
-            console.log(`[SYNC-CALLS-${this.requestId}] Call status: ${call.call_status}`);
-            console.log(`[SYNC-CALLS-${this.requestId}] Call start time: ${call.start_timestamp}`);
             
-            // MINIMAL VALIDATION - only check essential fields
-            if (!call.call_id) {
-              console.error(`[SYNC-CALLS-${this.requestId}] VALIDATION FAILED: Missing call_id`);
+            const validationResult = this.validateCall(call);
+            validationDebug.push({
+              call_id: call.call_id,
+              validation: validationResult,
+              bypass: this.bypassValidation
+            });
+
+            if (!this.bypassValidation && !validationResult.isValid) {
+              console.error(`[SYNC-CALLS-${this.requestId}] VALIDATION FAILED for ${call.call_id}:`, validationResult.errors);
               totalProcessed++;
               continue;
             }
 
-            if (!call.start_timestamp) {
-              console.error(`[SYNC-CALLS-${this.requestId}] VALIDATION FAILED: Missing start_timestamp`);
-              totalProcessed++;
-              continue;
+            if (this.bypassValidation) {
+              console.log(`[SYNC-CALLS-${this.requestId}] BYPASSING VALIDATION for ${call.call_id}`);
+            } else {
+              console.log(`[SYNC-CALLS-${this.requestId}] VALIDATION PASSED for ${call.call_id}`);
             }
-
-            console.log(`[SYNC-CALLS-${this.requestId}] VALIDATION PASSED: Essential fields present`);
 
             // Check if call already exists
             const { data: existingCall, error: checkError } = await this.supabaseClient
@@ -97,12 +97,12 @@ export class SyncOrchestrator {
               continue;
             }
 
-            // Try to find matching agent in our database (OPTIONAL - no validation)
+            // Try to find matching agent (OPTIONAL when bypassing validation)
             let agent = null;
             let userAgent = null;
             
             if (call.agent_id) {
-              console.log(`[SYNC-CALLS-${this.requestId}] Attempting to find agent for retell_agent_id: ${call.agent_id}`);
+              console.log(`[SYNC-CALLS-${this.requestId}] Looking for agent: ${call.agent_id}`);
               const { data: agentData, error: agentError } = await this.supabaseClient
                 .from('agents')
                 .select('id, name, company_id')
@@ -111,9 +111,9 @@ export class SyncOrchestrator {
 
               if (!agentError && agentData) {
                 agent = agentData;
-                console.log(`[SYNC-CALLS-${this.requestId}] Found matching agent: ${agent.name} (${agent.id})`);
+                console.log(`[SYNC-CALLS-${this.requestId}] Found agent: ${agent.name}`);
 
-                // Try to find user agent mapping (OPTIONAL - no validation)
+                // Try to find user agent mapping
                 const { data: userAgents, error: userAgentError } = await this.supabaseClient
                   .from('user_agents')
                   .select('user_id, company_id')
@@ -122,28 +122,22 @@ export class SyncOrchestrator {
 
                 if (!userAgentError && userAgents && userAgents.length > 0) {
                   userAgent = userAgents[0];
-                  console.log(`[SYNC-CALLS-${this.requestId}] Found user mapping: user_id=${userAgent.user_id}, company_id=${userAgent.company_id}`);
-                } else {
-                  console.log(`[SYNC-CALLS-${this.requestId}] No user mapping found for agent ${agent.id}`);
+                  console.log(`[SYNC-CALLS-${this.requestId}] Found user mapping: ${userAgent.user_id}`);
                 }
-              } else {
-                console.log(`[SYNC-CALLS-${this.requestId}] No matching agent found for retell_agent_id: ${call.agent_id}`);
               }
-            } else {
-              console.log(`[SYNC-CALLS-${this.requestId}] Call has no agent_id`);
             }
 
-            // Map and insert the call with MINIMAL validation and NULL for missing values
-            const mappedCall = this.mapCallDataMinimal(call, userAgent, agent);
+            // Map and insert the call (with or without validation)
+            const mappedCall = this.mapCallData(call, userAgent, agent);
             
             console.log(`[SYNC-CALLS-${this.requestId}] === ATTEMPTING DATABASE INSERT ===`);
-            console.log(`[SYNC-CALLS-${this.requestId}] Mapped call data:`, {
+            console.log(`[SYNC-CALLS-${this.requestId}] Mapped call summary:`, {
               call_id: mappedCall.call_id,
               user_id: mappedCall.user_id,
               company_id: mappedCall.company_id,
               agent_id: mappedCall.agent_id,
-              duration_sec: mappedCall.duration_sec,
-              call_status: mappedCall.call_status
+              has_duration: !!mappedCall.duration_sec,
+              has_timestamp: !!mappedCall.start_timestamp
             });
 
             const { data: insertData, error: insertError } = await this.supabaseClient
@@ -152,8 +146,16 @@ export class SyncOrchestrator {
               .select();
 
             if (insertError) {
-              console.error(`[SYNC-CALLS-${this.requestId}] DATABASE INSERT FAILED for call ${call.call_id}:`, insertError);
-              console.error(`[SYNC-CALLS-${this.requestId}] Insert error details:`, JSON.stringify(insertError, null, 2));
+              console.error(`[SYNC-CALLS-${this.requestId}] DATABASE INSERT FAILED:`, {
+                call_id: call.call_id,
+                error: insertError,
+                mapped_data_summary: {
+                  call_id: mappedCall.call_id,
+                  user_id: mappedCall.user_id,
+                  company_id: mappedCall.company_id,
+                  agent_id: mappedCall.agent_id
+                }
+              });
               totalProcessed++;
               continue;
             }
@@ -170,33 +172,71 @@ export class SyncOrchestrator {
 
         // Safety delay between pages
         if (hasMore) {
-          console.log(`[SYNC-CALLS-${this.requestId}] Waiting before next page...`);
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
 
     } catch (error) {
-      console.error(`[SYNC-CALLS-${this.requestId}] Error during full sync:`, error);
+      console.error(`[SYNC-CALLS-${this.requestId}] Error during sync:`, error);
       throw error;
     }
 
     console.log(`[SYNC-CALLS-${this.requestId}] === SYNC COMPLETED ===`);
-    console.log(`[SYNC-CALLS-${this.requestId}] Total pages fetched: ${pageCount}`);
     console.log(`[SYNC-CALLS-${this.requestId}] Total calls from API: ${totalCallsFromApi}`);
     console.log(`[SYNC-CALLS-${this.requestId}] Total calls processed: ${totalProcessed}`);
     console.log(`[SYNC-CALLS-${this.requestId}] Total calls synced: ${totalSynced}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Validation debug entries: ${validationDebug.length}`);
 
     return {
       message: 'Sync completed successfully',
       synced_calls: totalSynced,
       processed_calls: totalProcessed,
-      agents_processed: 0, // Not using agent-based processing anymore
+      agents_processed: 0,
       agents_found: 0,
       skipped_agents: 0,
       total_calls_from_api: totalCallsFromApi,
       requestId: this.requestId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      validation_debug: validationDebug.slice(0, 10) // First 10 for debugging
     };
+  }
+
+  private validateCall(call: any): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    
+    console.log(`[SYNC-CALLS-${this.requestId}] === DETAILED VALIDATION for ${call.call_id} ===`);
+    
+    // Check call_id
+    if (!call.call_id) {
+      const error = 'Missing call_id';
+      console.log(`[SYNC-CALLS-${this.requestId}] VALIDATION ERROR: ${error}`);
+      errors.push(error);
+    } else {
+      console.log(`[SYNC-CALLS-${this.requestId}] ✓ call_id present: ${call.call_id}`);
+    }
+
+    // Check start_timestamp
+    if (!call.start_timestamp) {
+      const error = 'Missing start_timestamp';
+      console.log(`[SYNC-CALLS-${this.requestId}] VALIDATION ERROR: ${error}`);
+      errors.push(error);
+    } else {
+      console.log(`[SYNC-CALLS-${this.requestId}] ✓ start_timestamp present: ${call.start_timestamp}`);
+    }
+
+    // Log additional fields for debugging
+    console.log(`[SYNC-CALLS-${this.requestId}] Additional fields:`, {
+      agent_id: call.agent_id || 'null',
+      call_status: call.call_status || 'null',
+      duration_ms: call.duration_ms || 'null',
+      from_number: call.from_number || 'null',
+      to_number: call.to_number || 'null'
+    });
+
+    const isValid = errors.length === 0;
+    console.log(`[SYNC-CALLS-${this.requestId}] VALIDATION RESULT: ${isValid ? 'PASSED' : 'FAILED'}`);
+    
+    return { isValid, errors };
   }
 
   async performTest(): Promise<any> {
@@ -214,7 +254,7 @@ export class SyncOrchestrator {
     };
   }
 
-  private mapCallDataMinimal(call: any, userAgent: any, agent: any) {
+  private mapCallData(call: any, userAgent: any, agent: any) {
     const timestamp = call.start_timestamp 
       ? new Date(call.start_timestamp * 1000) 
       : new Date();
@@ -224,23 +264,21 @@ export class SyncOrchestrator {
     const ratePerMinute = 0.17; // Default rate
     const calculatedRevenue = (duration / 60) * ratePerMinute;
 
-    // Use NULL for missing values - NO VALIDATION
+    // Set values - NULL allowed when bypassing validation
     const userId = userAgent?.user_id || null;
-    const companyId = userAgent?.company_id || agent?.company_id || null; // NULL if missing
+    const companyId = userAgent?.company_id || agent?.company_id || null;
     const agentId = agent?.id || null;
 
-    console.log(`[SYNC-CALLS-${this.requestId}] Mapping call ${call.call_id} with MINIMAL validation:`);
-    console.log(`[SYNC-CALLS-${this.requestId}] - userId: ${userId} (NULL allowed)`);
-    console.log(`[SYNC-CALLS-${this.requestId}] - companyId: ${companyId} (NULL allowed - NO VALIDATION)`);
-    console.log(`[SYNC-CALLS-${this.requestId}] - agentId: ${agentId} (NULL allowed)`);
-    console.log(`[SYNC-CALLS-${this.requestId}] - duration: ${duration}s`);
-    console.log(`[SYNC-CALLS-${this.requestId}] - cost: $${cost}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Mapping call ${call.call_id}:`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - userId: ${userId || 'NULL'}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - companyId: ${companyId || 'NULL'}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - agentId: ${agentId || 'NULL'}`);
 
     return {
       call_id: call.call_id,
-      user_id: userId, // NULL allowed
-      company_id: companyId, // NULL allowed - NO VALIDATION
-      agent_id: agentId, // NULL allowed
+      user_id: userId,
+      company_id: companyId,
+      agent_id: agentId,
       retell_agent_id: call.agent_id || null,
       start_timestamp: timestamp.toISOString(),
       end_timestamp: call.end_timestamp ? new Date(call.end_timestamp * 1000).toISOString() : null,

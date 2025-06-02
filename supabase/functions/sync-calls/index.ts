@@ -15,13 +15,11 @@ serve(async (req) => {
   console.log(`[SYNC-CALLS-${requestId}] ${new Date().toISOString()} - ${req.method} request received`);
 
   try {
-    // Load configuration with better error messages
+    // Load configuration
     let config;
     try {
       config = loadSyncConfig();
       console.log(`[SYNC-CALLS-${requestId}] Configuration loaded successfully`);
-      console.log(`[SYNC-CALLS-${requestId}] API Key present: ${config.retellApiKey ? 'YES' : 'NO'}`);
-      console.log(`[SYNC-CALLS-${requestId}] API Base URL: ${config.retellApiBaseUrl}`);
     } catch (configError) {
       console.error(`[SYNC-CALLS-${requestId}] Configuration error:`, configError);
       
@@ -39,7 +37,11 @@ serve(async (req) => {
       const requestBody = await req.json().catch(() => ({}));
       console.log(`[SYNC-CALLS-${requestId}] Request body:`, JSON.stringify(requestBody));
 
-      const orchestrator = new SyncOrchestrator(supabaseClient, retellClient, requestId);
+      // Check for bypass validation flag
+      const bypassValidation = requestBody.bypass_validation === true;
+      console.log(`[SYNC-CALLS-${requestId}] Bypass validation: ${bypassValidation}`);
+
+      const orchestrator = new SyncOrchestrator(supabaseClient, retellClient, requestId, bypassValidation);
 
       // Handle test mode
       if (requestBody.test) {
@@ -50,7 +52,6 @@ serve(async (req) => {
           return createSuccessResponse(testResult);
         } catch (error) {
           console.error(`[SYNC-CALLS-${requestId}] Test failed:`, error);
-          console.error(`[SYNC-CALLS-${requestId}] Test error stack:`, error.stack);
           
           if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
             return createErrorResponse('Retell API authentication failed. Please check your API key.', 401);
@@ -62,13 +63,12 @@ serve(async (req) => {
 
       // Perform full sync
       try {
-        console.log(`[SYNC-CALLS-${requestId}] Starting full sync...`);
+        console.log(`[SYNC-CALLS-${requestId}] Starting full sync with bypass_validation=${bypassValidation}...`);
         const summary = await orchestrator.performSync();
         console.log(`[SYNC-CALLS-${requestId}] Final summary:`, summary);
         return createSuccessResponse(summary);
       } catch (error) {
         console.error(`[SYNC-CALLS-${requestId}] Sync failed:`, error);
-        console.error(`[SYNC-CALLS-${requestId}] Sync error stack:`, error.stack);
         
         if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
           return createErrorResponse('Retell API authentication failed. Please check your API key.', 401);
@@ -86,7 +86,6 @@ serve(async (req) => {
 
   } catch (error) {
     console.error(`[SYNC-CALLS-${requestId}] Fatal error:`, error);
-    console.error(`[SYNC-CALLS-${requestId}] Fatal error stack:`, error.stack);
     return createErrorResponse(`Sync failed: ${error.message}`, 500);
   }
 });

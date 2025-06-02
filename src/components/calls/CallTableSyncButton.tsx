@@ -1,7 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Loader2, CheckCircle, AlertCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -12,20 +12,34 @@ interface CallTableSyncButtonProps {
 
 export function CallTableSyncButton({ onSyncComplete, disabled }: CallTableSyncButtonProps) {
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [lastSyncStatus, setLastSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const syncAbortController = useRef<AbortController | null>(null);
 
   const handleSync = async () => {
+    // Prevent multiple sync operations
+    if (isSyncing || isTesting) {
+      console.log('[SYNC_BUTTON] Sync blocked - another operation is running');
+      toast.error('Another sync operation is already running');
+      return;
+    }
+
     console.log('[SYNC_BUTTON] Starting call sync...');
     setIsSyncing(true);
+    setIsTesting(false); // Ensure test is not active
     setLastSyncStatus('idle');
+
+    // Create abort controller for this operation
+    syncAbortController.current = new AbortController();
 
     try {
       const { data, error } = await supabase.functions.invoke('sync-calls', {
-        body: {},
+        body: { bypass_validation: true }, // Add bypass flag for debugging
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-        }
+        },
+        signal: syncAbortController.current.signal
       });
 
       if (error) {
@@ -65,17 +79,31 @@ export function CallTableSyncButton({ onSyncComplete, disabled }: CallTableSyncB
       }
 
     } catch (error: any) {
-      console.error('[SYNC_BUTTON] Sync error:', error);
-      setLastSyncStatus('error');
-      toast.error(`Sync failed: ${error.message}`);
+      if (error.name === 'AbortError') {
+        console.log('[SYNC_BUTTON] Sync aborted');
+        toast.info('Sync operation cancelled');
+      } else {
+        console.error('[SYNC_BUTTON] Sync error:', error);
+        setLastSyncStatus('error');
+        toast.error(`Sync failed: ${error.message}`);
+      }
     } finally {
       setIsSyncing(false);
+      syncAbortController.current = null;
     }
   };
 
   const handleTestSync = async () => {
+    // Prevent multiple operations
+    if (isSyncing || isTesting) {
+      console.log('[SYNC_BUTTON] Test blocked - another operation is running');
+      toast.error('Another operation is already running');
+      return;
+    }
+
     console.log('[SYNC_BUTTON] Testing sync connectivity...');
-    setIsSyncing(true);
+    setIsTesting(true);
+    setIsSyncing(false); // Ensure sync is not active
 
     try {
       const { data, error } = await supabase.functions.invoke('sync-calls', {
@@ -99,7 +127,7 @@ export function CallTableSyncButton({ onSyncComplete, disabled }: CallTableSyncB
       console.error('[SYNC_BUTTON] Test error:', error);
       toast.error(`Test failed: ${error.message}`);
     } finally {
-      setIsSyncing(false);
+      setIsTesting(false);
     }
   };
 
@@ -116,26 +144,28 @@ export function CallTableSyncButton({ onSyncComplete, disabled }: CallTableSyncB
     return <RefreshCw className="h-4 w-4" />;
   };
 
+  const isAnyOperationRunning = isSyncing || isTesting;
+
   return (
     <div className="flex items-center gap-2">
       <Button
         variant="outline"
         size="sm"
         onClick={handleTestSync}
-        disabled={isSyncing || disabled}
+        disabled={isAnyOperationRunning || disabled}
         className="bg-white hover:bg-gray-50"
       >
-        {isSyncing ? (
+        {isTesting ? (
           <Loader2 className="h-4 w-4 animate-spin mr-2" />
         ) : (
           <RefreshCw className="h-4 w-4 mr-2" />
         )}
-        Test API
+        {isTesting ? 'Testing...' : 'Test API'}
       </Button>
       
       <Button
         onClick={handleSync}
-        disabled={isSyncing || disabled}
+        disabled={isAnyOperationRunning || disabled}
         className="flex items-center gap-2"
       >
         {getStatusIcon()}
