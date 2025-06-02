@@ -98,13 +98,7 @@ export function TeamAgentsContainer() {
       />
 
       {(isSuperAdmin || isAdmin) && (
-        <TeamAgentsAssignments
-          userAgents={userAgents}
-          isLoading={isLoading}
-          isLoadingUserAgents={isLoadingUserAgents}
-          onRemove={handleRemoveAgentAssignment}
-          onRefresh={handleRefreshAssignments}
-        />
+        <TeamAgentsAssignments />
       )}
 
       {(isSuperAdmin || isAdmin) && (
