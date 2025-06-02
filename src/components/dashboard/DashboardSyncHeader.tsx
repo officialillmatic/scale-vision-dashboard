@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAgentSync } from "@/hooks/useAgentSync";
-import { RefreshCw, Bot } from "lucide-react";
+import { retellAgentSyncService } from "@/services/retell/retellAgentSync";
+import { RefreshCw, Bot, TestTube } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 export function DashboardSyncHeader() {
   const {
@@ -17,9 +19,30 @@ export function DashboardSyncHeader() {
     refreshStats
   } = useAgentSync();
 
+  const [isTesting, setIsTesting] = React.useState(false);
+
   const latestSync = syncStats?.[0];
   const isCurrentlyRunning = latestSync?.sync_status === 'running';
   const unassignedCount = unassignedAgents?.length || 0;
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    try {
+      console.log('[DASHBOARD_SYNC_HEADER] Testing API connection...');
+      const result = await retellAgentSyncService.testConnection();
+      
+      if (result.success) {
+        toast.success(`✅ API connection successful! Found ${result.response?.agents?.length || 0} agents.`);
+      } else {
+        toast.error(`❌ API connection failed: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('[DASHBOARD_SYNC_HEADER] Test connection error:', error);
+      toast.error(`Test failed: ${error.message}`);
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const getSyncStatusBadge = () => {
     if (isCurrentlyRunning) {
@@ -75,6 +98,21 @@ export function DashboardSyncHeader() {
         </div>
         
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleTestConnection}
+            disabled={isTesting}
+            className="bg-white hover:bg-gray-50"
+          >
+            {isTesting ? (
+              <LoadingSpinner size="sm" />
+            ) : (
+              <TestTube className="h-4 w-4" />
+            )}
+            Test API
+          </Button>
+          
           <Button
             variant="outline"
             size="sm"

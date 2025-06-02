@@ -1,5 +1,6 @@
 
 import { supabase } from '@/lib/supabase';
+import { retellApiDebugger } from './retellApiDebugger';
 
 export interface AgentSyncResult {
   total_agents_fetched: number;
@@ -37,20 +38,39 @@ class RetellAgentSyncService {
   }
 
   /**
+   * Test API connection and environment setup
+   */
+  async testConnection(): Promise<any> {
+    console.log('[RETELL_AGENT_SYNC] Testing API connection...');
+    return await retellApiDebugger.testAndDisplayResults();
+  }
+
+  /**
    * Force a sync of agents from Retell AI
    */
   async forceSync(): Promise<AgentSyncResult> {
     console.log('[RETELL_AGENT_SYNC] Starting force sync...');
 
+    // First test the API connection
+    const connectionTest = await retellApiDebugger.testApiConnection();
+    if (!connectionTest.success) {
+      console.error('[RETELL_AGENT_SYNC] API connection test failed:', connectionTest);
+      throw new Error(`API connection failed: ${connectionTest.error} (Status: ${connectionTest.status})`);
+    }
+
+    console.log('[RETELL_AGENT_SYNC] ✅ API connection test passed, proceeding with sync...');
+
     try {
       // Call the Supabase edge function for agent sync
+      console.log('[RETELL_AGENT_SYNC] Calling Supabase edge function...');
+      
       const { data, error } = await supabase.functions.invoke('retell-agent-sync', {
         method: 'POST',
         body: { force: true }
       });
 
       if (error) {
-        console.error('[RETELL_AGENT_SYNC] Sync failed:', error);
+        console.error('[RETELL_AGENT_SYNC] Supabase edge function error:', error);
         throw new Error(`Sync failed: ${error.message}`);
       }
 
@@ -67,6 +87,8 @@ class RetellAgentSyncService {
    */
   async getSyncStats(limit: number = 10): Promise<SyncStats[]> {
     try {
+      console.log('[RETELL_AGENT_SYNC] Fetching sync stats...');
+      
       const { data, error } = await supabase
         .from('retell_sync_stats')
         .select('*')
@@ -78,6 +100,7 @@ class RetellAgentSyncService {
         throw new Error(`Failed to fetch sync stats: ${error.message}`);
       }
 
+      console.log('[RETELL_AGENT_SYNC] Fetched', data?.length || 0, 'sync stats records');
       return data || [];
     } catch (error: any) {
       console.error('[RETELL_AGENT_SYNC] Error in getSyncStats:', error);
@@ -90,6 +113,8 @@ class RetellAgentSyncService {
    */
   async getUnassignedAgents(): Promise<any[]> {
     try {
+      console.log('[RETELL_AGENT_SYNC] Fetching unassigned agents...');
+      
       // First try to get unassigned agents using a subquery approach
       const { data, error } = await supabase
         .from('retell_agents')
@@ -120,11 +145,15 @@ class RetellAgentSyncService {
 
         const assignedAgentIds = new Set((assignments || []).map(a => a.agent_id));
         
-        return (allAgents || []).filter(agent => 
+        const unassigned = (allAgents || []).filter(agent => 
           !assignedAgentIds.has(agent.retell_agent_id)
         );
+        
+        console.log('[RETELL_AGENT_SYNC] Found', unassigned.length, 'unassigned agents (fallback method)');
+        return unassigned;
       }
 
+      console.log('[RETELL_AGENT_SYNC] Found', data?.length || 0, 'unassigned agents');
       return data || [];
     } catch (error: any) {
       console.error('[RETELL_AGENT_SYNC] Error in getUnassignedAgents:', error);
