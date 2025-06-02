@@ -14,9 +14,10 @@ import { UserAnalytics } from '@/components/analytics/UserAnalytics';
 import { RevenueAnalytics } from '@/components/analytics/RevenueAnalytics';
 import { ExportControls } from '@/components/analytics/ExportControls';
 import { DemoAnalyticsSection } from '@/components/analytics/DemoAnalyticsSection';
-import { BarChart3, Users, Bot, DollarSign, Download, TrendingUp, Zap } from 'lucide-react';
+import { BarChart3, Users, Bot, DollarSign, Download, TrendingUp, Zap, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // Updated CallData interface to match retell_calls structure
 export interface CallData {
@@ -53,7 +54,7 @@ export interface CallData {
 
 const AnalyticsPage = () => {
   const { company } = useAuth();
-  const { retellCalls, isLoading, refetch } = useRetellCalls();
+  const { retellCalls, isLoading, error, refetch } = useRetellCalls();
   const [filteredData, setFilteredData] = useState<CallData[]>([]);
   const [previousCallData, setPreviousCallData] = useState<CallData[]>([]);
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
@@ -62,50 +63,84 @@ const AnalyticsPage = () => {
   ]);
   const [showDemo, setShowDemo] = useState(false);
 
+  // Debug logging for component state
+  useEffect(() => {
+    console.log('🔍 [AnalyticsPage] Component state update:', {
+      retellCallsLength: retellCalls?.length || 0,
+      filteredDataLength: filteredData?.length || 0,
+      isLoading,
+      hasError: !!error,
+      errorMessage: error?.message,
+      dateRange,
+      companyId: company?.id
+    });
+  }, [retellCalls, filteredData, isLoading, error, dateRange, company?.id]);
+
   // Transform retell calls to CallData format
   useEffect(() => {
-    if (retellCalls && retellCalls.length > 0) {
-      const transformedData: CallData[] = retellCalls.map(call => ({
-        id: call.id,
-        call_id: call.call_id,
-        timestamp: new Date(call.start_timestamp),
-        duration_sec: call.duration_sec,
-        cost_usd: call.cost_usd,
-        sentiment: call.sentiment,
-        sentiment_score: null, // Not available in retell_calls
-        disconnection_reason: null, // Not available in retell_calls
-        call_status: call.call_status,
-        from: call.from_number || 'Unknown',
-        to: call.to_number || 'Unknown',
-        from_number: call.from_number,
-        to_number: call.to_number,
-        audio_url: call.recording_url,
-        recording_url: call.recording_url,
-        transcript: call.transcript,
-        transcript_url: null, // Not available in retell_calls
-        user_id: call.user_id || '',
-        company_id: call.company_id || '',
-        call_type: 'phone_call',
-        latency_ms: call.latency_ms,
-        call_summary: call.call_summary,
-        disposition: call.disposition,
-        agent: call.agent
-      }));
+    console.log('🔍 [AnalyticsPage] Transforming retell calls data...');
+    console.log('🔍 [AnalyticsPage] Raw retell calls:', retellCalls);
 
+    if (retellCalls && retellCalls.length > 0) {
+      const transformedData: CallData[] = retellCalls.map(call => {
+        const transformed = {
+          id: call.id,
+          call_id: call.call_id,
+          timestamp: new Date(call.start_timestamp),
+          duration_sec: call.duration_sec,
+          cost_usd: call.cost_usd,
+          sentiment: call.sentiment,
+          sentiment_score: null, // Not available in retell_calls
+          disconnection_reason: null, // Not available in retell_calls
+          call_status: call.call_status,
+          from: call.from_number || 'Unknown',
+          to: call.to_number || 'Unknown',
+          from_number: call.from_number,
+          to_number: call.to_number,
+          audio_url: call.recording_url,
+          recording_url: call.recording_url,
+          transcript: call.transcript,
+          transcript_url: null, // Not available in retell_calls
+          user_id: call.user_id || '',
+          company_id: call.company_id || '',
+          call_type: 'phone_call',
+          latency_ms: call.latency_ms,
+          call_summary: call.call_summary,
+          disposition: call.disposition,
+          agent: call.agent
+        };
+
+        console.log('🔍 [AnalyticsPage] Transformed call:', {
+          id: transformed.id,
+          timestamp: transformed.timestamp,
+          call_status: transformed.call_status,
+          cost_usd: transformed.cost_usd
+        });
+
+        return transformed;
+      });
+
+      console.log(`✅ [AnalyticsPage] Successfully transformed ${transformedData.length} calls`);
       setFilteredData(transformedData);
     } else {
+      console.log('⚠️ [AnalyticsPage] No retell calls data to transform');
       setFilteredData([]);
     }
   }, [retellCalls]);
 
   // Filter the data based on the date range
   useEffect(() => {
-    if (!retellCalls || retellCalls.length === 0) return;
+    if (!retellCalls || retellCalls.length === 0) {
+      console.log('🔍 [AnalyticsPage] No data to filter');
+      return;
+    }
     
     const [start, end] = dateRange;
+    console.log('🔍 [AnalyticsPage] Applying date filter:', { start, end });
     
     // If no date range is selected, use all data
     if (!start && !end) {
+      console.log('🔍 [AnalyticsPage] No date filter applied');
       return;
     }
     
@@ -113,7 +148,14 @@ const AnalyticsPage = () => {
     const filtered = filteredData.filter(call => {
       const callDate = call.timestamp;
       if (start && end) {
-        return callDate >= start && callDate <= end;
+        const isInRange = callDate >= start && callDate <= end;
+        console.log('🔍 [AnalyticsPage] Date filter check:', {
+          callDate: callDate.toISOString(),
+          start: start.toISOString(),
+          end: end.toISOString(),
+          isInRange
+        });
+        return isInRange;
       }
       if (start) {
         return callDate >= start;
@@ -124,10 +166,19 @@ const AnalyticsPage = () => {
       return true;
     });
     
+    console.log(`🔍 [AnalyticsPage] Filtered ${filtered.length} calls from ${filteredData.length} total`);
     setFilteredData(filtered);
   }, [dateRange, retellCalls]);
 
   const hasRealData = !isLoading && filteredData.length > 0;
+
+  console.log('🔍 [AnalyticsPage] Render state:', {
+    hasRealData,
+    showDemo,
+    isLoading,
+    filteredDataLength: filteredData.length,
+    retellCallsLength: retellCalls?.length || 0
+  });
 
   return (
     <ProductionDashboardLayout>
@@ -160,6 +211,33 @@ const AnalyticsPage = () => {
             )}
           </div>
         </div>
+
+        {/* Debug Information */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Error loading analytics data: {error.message}
+              <Button variant="outline" size="sm" onClick={() => refetch()} className="ml-2">
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Debug Panel for Development */}
+        {process.env.NODE_ENV === 'development' && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Debug Info:</strong> Loading: {isLoading ? 'Yes' : 'No'}, 
+              Raw Calls: {retellCalls?.length || 0}, 
+              Filtered: {filteredData?.length || 0}, 
+              Company: {company?.id || 'None'}, 
+              Error: {error?.message || 'None'}
+            </AlertDescription>
+          </Alert>
+        )}
         
         {/* Show demo mode or real data */}
         {showDemo && !hasRealData ? (
@@ -177,13 +255,26 @@ const AnalyticsPage = () => {
             </div>
             
             {/* Show empty state when no data */}
-            {!isLoading && filteredData.length === 0 && (
+            {!isLoading && filteredData.length === 0 && retellCalls.length === 0 && (
               <div className="mt-8">
                 <EmptyStateMessage
                   title="No analytics data available yet"
                   description="Analytics will appear here once you have call data. Start by syncing your calls or making your first call."
                   actionLabel="Refresh Data"
                   onAction={refetch}
+                  isLoading={isLoading}
+                />
+              </div>
+            )}
+
+            {/* Show filtered empty state */}
+            {!isLoading && filteredData.length === 0 && retellCalls.length > 0 && (
+              <div className="mt-8">
+                <EmptyStateMessage
+                  title="No calls found for selected date range"
+                  description={`Found ${retellCalls.length} total calls, but none match the current filter. Try adjusting your date range.`}
+                  actionLabel="Clear Filters"
+                  onAction={() => setDateRange([null, null])}
                   isLoading={isLoading}
                 />
               </div>

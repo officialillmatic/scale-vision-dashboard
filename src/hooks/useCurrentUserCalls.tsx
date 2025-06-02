@@ -35,13 +35,20 @@ export const useCurrentUserCalls = () => {
   const { data: userCalls = [], isLoading, error, refetch } = useQuery({
     queryKey: ['current-user-calls', user?.id, company?.id],
     queryFn: async (): Promise<UserCall[]> => {
-      if (!user?.id) {
-        console.log('🔍 [useCurrentUserCalls] No user ID available');
+      console.log('🔍 [useCurrentUserCalls] Starting query with params:', {
+        userId: user?.id,
+        companyId: company?.id,
+        hasUser: !!user,
+        hasCompany: !!company
+      });
+
+      if (!user?.id || !company?.id) {
+        console.log('❌ [useCurrentUserCalls] Missing user ID or company ID');
         return [];
       }
 
       try {
-        console.log('🔍 [useCurrentUserCalls] Fetching calls for user:', user.id);
+        console.log('🔍 [useCurrentUserCalls] Fetching user agent assignments...');
         
         // Get user's assigned agents first
         const { data: userAgents, error: agentsError } = await supabase
@@ -54,9 +61,84 @@ export const useCurrentUserCalls = () => {
           throw agentsError;
         }
 
+        console.log('🔍 [useCurrentUserCalls] User agent assignments:', userAgents);
+
         if (!userAgents || userAgents.length === 0) {
-          console.log('🔍 [useCurrentUserCalls] No agents assigned to user');
-          return [];
+          console.log('⚠️ [useCurrentUserCalls] No agents assigned to user, trying all company calls');
+          
+          // If no specific agents assigned, get all company calls
+          const { data: allCompanyCalls, error: allCallsError } = await supabase
+            .from('retell_calls')
+            .select(`
+              id,
+              call_id,
+              user_id,
+              agent_id,
+              company_id,
+              start_timestamp,
+              end_timestamp,
+              duration_sec,
+              cost_usd,
+              revenue_amount,
+              call_status,
+              from_number,
+              to_number,
+              transcript,
+              recording_url,
+              call_summary,
+              sentiment,
+              agents!retell_calls_agent_id_fkey (
+                id,
+                name,
+                description,
+                retell_agent_id
+              )
+            `)
+            .eq('company_id', company.id)
+            .order('start_timestamp', { ascending: false })
+            .limit(50);
+
+          if (allCallsError) {
+            console.error('❌ [useCurrentUserCalls] Error fetching all company calls:', allCallsError);
+            throw allCallsError;
+          }
+
+          console.log(`🔍 [useCurrentUserCalls] Found ${allCompanyCalls?.length || 0} company calls (no agent filter)`);
+          
+          // Transform and return all company calls
+          const transformedCalls: UserCall[] = (allCompanyCalls || []).map(call => ({
+            id: call.id,
+            call_id: call.call_id,
+            user_id: call.user_id || user.id,
+            agent_id: call.agent_id || '',
+            company_id: call.company_id || company.id,
+            start_timestamp: call.start_timestamp,
+            end_timestamp: call.end_timestamp,
+            duration_sec: call.duration_sec || 0,
+            cost_usd: call.cost_usd || 0,
+            revenue_amount: call.revenue_amount || 0,
+            call_status: call.call_status || 'unknown',
+            from_number: call.from_number,
+            to_number: call.to_number,
+            transcript: call.transcript,
+            recording_url: call.recording_url,
+            call_summary: call.call_summary,
+            sentiment: call.sentiment,
+            agent_details: Array.isArray(call.agents) && call.agents.length > 0 ? {
+              id: call.agents[0].id,
+              name: call.agents[0].name,
+              description: call.agents[0].description,
+              retell_agent_id: call.agents[0].retell_agent_id
+            } : call.agents ? {
+              id: (call.agents as any).id,
+              name: (call.agents as any).name,
+              description: (call.agents as any).description,
+              retell_agent_id: (call.agents as any).retell_agent_id
+            } : undefined
+          }));
+
+          console.log('🔍 [useCurrentUserCalls] Returning all company calls:', transformedCalls.length);
+          return transformedCalls;
         }
 
         const agentIds = userAgents.map(ua => ua.agent_id);
@@ -91,6 +173,7 @@ export const useCurrentUserCalls = () => {
             )
           `)
           .in('agent_id', agentIds)
+          .eq('company_id', company.id)
           .order('start_timestamp', { ascending: false })
           .limit(50);
 
@@ -107,7 +190,7 @@ export const useCurrentUserCalls = () => {
           call_id: call.call_id,
           user_id: call.user_id || user.id,
           agent_id: call.agent_id || '',
-          company_id: call.company_id || company?.id || '',
+          company_id: call.company_id || company.id,
           start_timestamp: call.start_timestamp,
           end_timestamp: call.end_timestamp,
           duration_sec: call.duration_sec || 0,
@@ -134,17 +217,22 @@ export const useCurrentUserCalls = () => {
         }));
 
         console.log('🔍 [useCurrentUserCalls] Transformed calls:', transformedCalls.length);
-        console.log('🔍 [useCurrentUserCalls] Sample call:', transformedCalls[0]);
-
         return transformedCalls;
       } catch (error: any) {
         console.error('❌ [useCurrentUserCalls] Error in query:', error);
         throw new Error(`Failed to fetch user calls: ${error.message}`);
       }
     },
-    enabled: !!user?.id,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    enabled: !!user?.id && !!company?.id,
+    staleTime: 1000 * 30, // 30 seconds for debugging
     retry: 2
+  });
+
+  console.log('🔍 [useCurrentUserCalls] Hook state:', {
+    userCallsLength: userCalls?.length || 0,
+    isLoading,
+    hasError: !!error,
+    errorMessage: error?.message
   });
 
   return {
