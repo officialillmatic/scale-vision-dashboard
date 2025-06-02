@@ -20,6 +20,8 @@ serve(async (req) => {
     const supabaseClient = createClient(config.supabaseUrl, config.supabaseServiceKey);
     const retellClient = new RetellApiClient(config.retellApiKey, config.retellApiBaseUrl);
     
+    console.log(`[SYNC-CALLS-${requestId}] Configuration loaded successfully`);
+    
     if (req.method === 'POST') {
       const requestBody = await req.json().catch(() => ({}));
       console.log(`[SYNC-CALLS-${requestId}] Request body:`, JSON.stringify(requestBody));
@@ -29,6 +31,7 @@ serve(async (req) => {
       // Handle test mode
       if (requestBody.test) {
         try {
+          console.log(`[SYNC-CALLS-${requestId}] Running connectivity test...`);
           const testResult = await orchestrator.performTest();
           return createSuccessResponse(testResult);
         } catch (error) {
@@ -39,6 +42,7 @@ serve(async (req) => {
 
       // Perform full sync
       try {
+        console.log(`[SYNC-CALLS-${requestId}] Starting full sync...`);
         const summary = await orchestrator.performSync();
         console.log(`[SYNC-CALLS-${requestId}] Final summary:`, summary);
         return createSuccessResponse(summary);

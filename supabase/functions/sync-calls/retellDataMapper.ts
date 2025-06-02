@@ -1,4 +1,3 @@
-
 // Data mapping utilities for transforming Retell API responses to Supabase schema
 
 export interface RetellCall {
@@ -41,6 +40,14 @@ export function mapRetellCallToSupabase(
   const ratePerMinute = 0.17; // This should be fetched from agent rate, but using default for now
   const calculatedRevenue = durationMinutes * ratePerMinute;
   
+  // Sanitize phone numbers for privacy if they exist
+  const sanitizePhoneNumber = (phoneNumber?: string): string | null => {
+    if (!phoneNumber || phoneNumber === 'unknown') return null;
+    
+    // Keep the phone number as is for now, but could be masked for privacy
+    return phoneNumber;
+  };
+
   const mappedCall = {
     call_id: retellCall.call_id,
     user_id: userId,
@@ -58,8 +65,8 @@ export function mapRetellCallToSupabase(
     rate_per_minute: ratePerMinute,
     call_status: retellCall.call_status || 'unknown',
     status: retellCall.call_status || 'unknown', // New convenience column
-    from_number: retellCall.from_number || null,
-    to_number: retellCall.to_number || null,
+    from_number: sanitizePhoneNumber(retellCall.from_number),
+    to_number: sanitizePhoneNumber(retellCall.to_number),
     disconnection_reason: retellCall.disconnection_reason || null,
     recording_url: retellCall.recording_url || null,
     transcript: retellCall.transcript || null,
@@ -74,7 +81,7 @@ export function mapRetellCallToSupabase(
     updated_at: new Date().toISOString(),
   };
 
-  console.log(`[DATA_MAPPER] Successfully mapped call ${retellCall.call_id} with revenue ${calculatedRevenue}`);
+  console.log(`[DATA_MAPPER] Successfully mapped call ${retellCall.call_id} with revenue ${calculatedRevenue.toFixed(2)}`);
   return mappedCall;
 }
 

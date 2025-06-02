@@ -18,6 +18,9 @@ export function loadSyncConfig(): SyncConfig {
   if (!supabaseServiceKey) throw new Error('⚠️  Missing required env var: SUPABASE_SERVICE_ROLE_KEY');
   if (!retellApiKey) throw new Error('⚠️  Missing required env var: RETELL_API_KEY');
 
+  console.log(`[SYNC_CONFIG] Using Retell API base URL: ${retellApiBaseUrl}`);
+  console.log(`[SYNC_CONFIG] Retell API key configured: ${retellApiKey ? 'Yes' : 'No'}`);
+
   return {
     supabaseUrl,
     supabaseServiceKey,
@@ -29,5 +32,6 @@ export function loadSyncConfig(): SyncConfig {
 export const SYNC_CONSTANTS = {
   BATCH_SIZE: 50,
   RATE_LIMIT_DELAY: 200,
-  TEST_LIMIT: 1
+  TEST_LIMIT: 1,
+  MAX_CALLS_PER_AGENT: 1000 // Prevent infinite loops
 } as const;

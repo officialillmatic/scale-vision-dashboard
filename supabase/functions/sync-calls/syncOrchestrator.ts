@@ -27,7 +27,7 @@ export class SyncOrchestrator {
     
     const { data: agents, error: agentsError } = await this.supabaseClient
       .from('agents')
-      .select('id, retell_agent_id, rate_per_minute, name')
+      .select('id, retell_agent_id, rate_per_minute, name, company_id')
       .not('retell_agent_id', 'is', null)
       .eq('status', 'active');
 
@@ -68,15 +68,22 @@ export class SyncOrchestrator {
         const userAgent = userAgents[0];
         processedAgents++;
 
+        console.log(`[SYNC-CALLS-${this.requestId}] Processing agent ${agent.name} for user ${userAgent.user_id}`);
+
         const result: AgentSyncResult = await agentProcessor.processAgent(agent, userAgent);
         
         totalProcessed += result.callsProcessed;
         totalSynced += result.callsSynced;
 
+        console.log(`[SYNC-CALLS-${this.requestId}] Agent ${agent.name} result: ${result.callsProcessed} processed, ${result.callsSynced} synced`);
+
       } catch (error) {
         console.error(`[SYNC-CALLS-${this.requestId}] Error processing agent ${agent.retell_agent_id}:`, error);
+        skippedAgents++;
       }
     }
+
+    console.log(`[SYNC-CALLS-${this.requestId}] Sync completed - Total: ${totalSynced} synced, ${totalProcessed} processed`);
 
     return {
       message: 'Sync completed successfully',
@@ -91,6 +98,8 @@ export class SyncOrchestrator {
   }
 
   async performTest(): Promise<any> {
+    console.log(`[SYNC-CALLS-${this.requestId}] Starting connectivity test...`);
+    
     const testData = await this.retellClient.testConnectivity(this.requestId);
     console.log(`[SYNC-CALLS-${this.requestId}] Test successful - API connectivity verified`);
     
@@ -98,7 +107,8 @@ export class SyncOrchestrator {
       message: 'Retell API connectivity test passed',
       callsFound: testData?.calls?.length || 0,
       hasMore: testData?.has_more || false,
-      requestId: this.requestId
+      requestId: this.requestId,
+      apiConnected: true
     };
   }
 }

@@ -35,8 +35,9 @@ export class AgentProcessor {
 
       let pageToken: string | null = null;
       let hasMore = true;
+      let totalProcessed = 0;
 
-      while (hasMore) {
+      while (hasMore && totalProcessed < SYNC_CONSTANTS.MAX_CALLS_PER_AGENT) {
         console.log(`[SYNC-CALLS-${this.requestId}] Fetching calls for ${agent.name}, page token: ${pageToken || 'first'}`);
 
         const responseData = await this.retellClient.fetchCalls(
@@ -54,14 +55,24 @@ export class AgentProcessor {
         // Process each call
         for (const call of calls) {
           try {
-            const processed = await this.processCall(call, userAgent, agent);
+            // Get detailed call information if needed
+            let detailedCall = call;
+            if (!call.transcript && !call.recording_url) {
+              console.log(`[SYNC-CALLS-${this.requestId}] Fetching detailed info for call ${call.call_id}`);
+              detailedCall = await this.retellClient.fetchCallDetails(call.call_id);
+            }
+
+            const processed = await this.processCall(detailedCall, userAgent, agent);
             result.callsProcessed++;
+            totalProcessed++;
+            
             if (processed) {
               result.callsSynced++;
             }
           } catch (callError) {
             console.error(`[SYNC-CALLS-${this.requestId}] Error processing call ${call.call_id}:`, callError);
             result.callsProcessed++;
+            totalProcessed++;
           }
         }
 
@@ -102,6 +113,15 @@ export class AgentProcessor {
       userAgent.company_id,
       agent.id
     );
+
+    console.log(`[SYNC-CALLS-${this.requestId}] Mapped call data:`, {
+      call_id: mappedCall.call_id,
+      duration_sec: mappedCall.duration_sec,
+      revenue_amount: mappedCall.revenue_amount,
+      call_status: mappedCall.call_status,
+      from_number: mappedCall.from_number,
+      to_number: mappedCall.to_number
+    });
 
     // Insert into retell_calls table
     const { error: insertError } = await this.supabaseClient
