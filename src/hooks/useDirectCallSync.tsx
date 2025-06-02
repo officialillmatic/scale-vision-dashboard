@@ -26,34 +26,59 @@ export const useDirectCallSync = () => {
     return user?.id;
   };
 
-  const syncCallsDirectly = async (): Promise<DirectSyncResult> => {
-    console.log("[DIRECT_SYNC] Starting direct call sync...");
-    
+  const makeRetellAPICall = async (requestBody: any) => {
     const retellApiKey = import.meta.env.VITE_RETELL_API_KEY;
     if (!retellApiKey) {
       throw new Error("RETELL_API_KEY not found in environment variables");
     }
 
-    // Step 1: Fetch calls from Retell API
-    console.log("[DIRECT_SYNC] Fetching calls from Retell API...");
-    const apiResponse = await fetch('https://api.retellai.com/v2/list-calls', {
+    const apiUrl = 'https://api.retellai.com/v2/list-calls';
+    
+    console.log("[DIRECT_SYNC] === EXACT API CALL DEBUG ===");
+    console.log("[DIRECT_SYNC] API URL:", apiUrl);
+    console.log("[DIRECT_SYNC] Request method: POST");
+    console.log("[DIRECT_SYNC] Authorization header:", `Bearer ${retellApiKey.substring(0, 15)}...`);
+    console.log("[DIRECT_SYNC] Content-Type: application/json");
+    console.log("[DIRECT_SYNC] Request body:", JSON.stringify(requestBody, null, 2));
+    console.log("[DIRECT_SYNC] === END API CALL DEBUG ===");
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${retellApiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ limit: 50 }) // Increased limit for better sync
+      body: JSON.stringify(requestBody)
     });
 
-    if (!apiResponse.ok) {
-      const errorText = await apiResponse.text();
-      throw new Error(`Retell API error ${apiResponse.status}: ${errorText}`);
+    console.log("[DIRECT_SYNC] Response status:", response.status);
+    console.log("[DIRECT_SYNC] Response headers:", Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[DIRECT_SYNC] API Error Response:", errorText);
+      throw new Error(`Retell API error ${response.status}: ${errorText}`);
     }
 
-    const apiData = await apiResponse.json();
-    const calls = apiData.calls || [];
+    const data = await response.json();
+    console.log("[DIRECT_SYNC] Raw API Response:", JSON.stringify(data, null, 2));
+    console.log("[DIRECT_SYNC] Calls found:", data.calls?.length || 0);
     
-    console.log(`[DIRECT_SYNC] Fetched ${calls.length} calls from Retell API`);
+    return data;
+  };
+
+  const syncCallsDirectly = async (): Promise<DirectSyncResult> => {
+    console.log("[DIRECT_SYNC] Starting direct call sync...");
+    
+    // Step 1: Use EXACT same API call format as Direct API Test
+    console.log("[DIRECT_SYNC] Fetching calls from Retell API using EXACT same format as test...");
+    
+    // This is the EXACT same request body as the working Direct API Test
+    const requestBody = { limit: 50 };
+    const apiData = await makeRetellAPICall(requestBody);
+    
+    const calls = apiData.calls || [];
+    console.log(`[DIRECT_SYNC] Fetched ${calls.length} calls from Retell API (same as test format)`);
 
     // Step 2: Get user context
     const userId = await getUserId();

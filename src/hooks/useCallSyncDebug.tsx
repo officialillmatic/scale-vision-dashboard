@@ -48,7 +48,44 @@ export const useCallSyncDebug = () => {
     }));
   };
 
-  // Test 1: Direct Retell API call from frontend
+  const makeRetellAPICall = async (requestBody: any, testName: string) => {
+    const retellApiKey = import.meta.env.VITE_RETELL_API_KEY || 'key_not_found';
+    const apiUrl = 'https://api.retellai.com/v2/list-calls';
+    
+    console.log(`[${testName}] === EXACT API CALL DEBUG ===`);
+    console.log(`[${testName}] API URL:`, apiUrl);
+    console.log(`[${testName}] Request method: POST`);
+    console.log(`[${testName}] Authorization header:`, `Bearer ${retellApiKey.substring(0, 15)}...`);
+    console.log(`[${testName}] Content-Type: application/json`);
+    console.log(`[${testName}] Request body:`, JSON.stringify(requestBody, null, 2));
+    console.log(`[${testName}] === END API CALL DEBUG ===`);
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${retellApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    console.log(`[${testName}] Response status:`, response.status);
+    console.log(`[${testName}] Response headers:`, Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[${testName}] API Error Response:`, errorText);
+      throw new Error(`API Error ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log(`[${testName}] Raw API Response:`, JSON.stringify(data, null, 2));
+    console.log(`[${testName}] Calls found:`, data.calls?.length || 0);
+    
+    return data;
+  };
+
+  // Test 1: Direct Retell API call from frontend (WORKING VERSION)
   const testDirectRetellAPI = async (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
@@ -60,45 +97,21 @@ export const useCallSyncDebug = () => {
       return;
     }
 
-    console.log("[DEBUG] Testing direct Retell API call from frontend...");
+    console.log("[DEBUG_API_TEST] Testing direct Retell API call from frontend...");
     setLoading('directApi', true);
     
     try {
-      const response = await fetch('https://api.retellai.com/v2/list-calls', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_RETELL_API_KEY || 'key_not_found'}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ limit: 5 })
-      });
-
-      console.log("[DEBUG] Direct API Response Status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[DEBUG] Direct API Error:", errorText);
-        
-        const result = {
-          success: false,
-          error: `API Error ${response.status}: ${errorText}`,
-          timestamp: new Date().toISOString()
-        };
-        
-        logResult('directApiTest', result);
-        toast.error(`Direct API test failed: ${response.status}`);
-        return;
-      }
-
-      const data = await response.json();
-      console.log("[DEBUG] Direct API Raw Response:", JSON.stringify(data, null, 2));
+      // Use the EXACT same request body that works
+      const requestBody = { limit: 5 };
+      const data = await makeRetellAPICall(requestBody, "DEBUG_API_TEST");
       
       const result = {
         success: true,
         data: {
           callsFound: data.calls?.length || 0,
           hasMore: data.has_more,
-          firstCall: data.calls?.[0] || null
+          firstCall: data.calls?.[0] || null,
+          requestUsed: requestBody
         },
         timestamp: new Date().toISOString()
       };
@@ -106,8 +119,8 @@ export const useCallSyncDebug = () => {
       logResult('directApiTest', result);
       toast.success(`Direct API test successful! Found ${data.calls?.length || 0} calls`);
 
-    } catch (error) {
-      console.error("[DEBUG] Direct API Error:", error);
+    } catch (error: any) {
+      console.error("[DEBUG_API_TEST] Direct API Error:", error);
       
       const result = {
         success: false,
@@ -190,7 +203,7 @@ export const useCallSyncDebug = () => {
       logResult('dbTest', result);
       toast.success("Database insertion test successful!");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("[DEBUG] Database test error:", error);
       
       const result = {
@@ -262,7 +275,7 @@ export const useCallSyncDebug = () => {
       logResult('edgeFunctionTest', result);
       toast.success("Edge function test completed successfully!");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("[DEBUG] Edge function test error:", error);
       
       const result = {
@@ -331,7 +344,7 @@ export const useCallSyncDebug = () => {
       logResult('apiTest', result);
       toast.success("API connectivity test successful!");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("[DEBUG] API connectivity test error:", error);
       
       const result = {
