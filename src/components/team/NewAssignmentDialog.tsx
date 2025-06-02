@@ -76,7 +76,8 @@ export function NewAssignmentDialog({
       users: availableUsers.map(user => ({
         id: user.id,
         email: user.email,
-        full_name: user.full_name
+        full_name: user.full_name,
+        displayName: user.full_name ? `${user.full_name} (${user.email})` : user.email
       })),
       hasError: !!usersError,
       errorMessage: usersError?.message
@@ -206,11 +207,18 @@ export function NewAssignmentDialog({
                       {hasUsersError ? "Failed to load users" : "No users found in database"}
                     </SelectItem>
                   ) : (
-                    availableUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.full_name ? `${user.full_name} (${user.email})` : user.email}
-                      </SelectItem>
-                    ))
+                    availableUsers.map((user) => {
+                      // Handle null full_name by using email as display name
+                      const displayName = user.full_name 
+                        ? `${user.full_name} (${user.email})` 
+                        : user.email;
+                      
+                      return (
+                        <SelectItem key={user.id} value={user.id}>
+                          {displayName}
+                        </SelectItem>
+                      );
+                    })
                   )}
                 </SelectContent>
               </Select>

@@ -26,17 +26,19 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
       throw new Error('No active session - please log in');
     }
     
-    console.log('🔍 [fetchAvailableUsers] Session found, fetching ALL users from profiles table');
+    console.log('🔍 [fetchAvailableUsers] Session found, user ID:', session.session.user.id);
+    console.log('🔍 [fetchAvailableUsers] Fetching ALL users from profiles table with exact query');
     
-    // Fetch ALL users from profiles table without any role filters
+    // Use the exact query requested - no WHERE clauses, no filters
     const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, role")
-      .order("full_name");
+      .from('profiles')
+      .select('id, full_name, email, role');
+
+    console.log('🔍 [fetchAvailableUsers] Raw Supabase response:', { data, error });
 
     if (error) {
-      console.error("[ASSIGNMENT_HELPERS] Supabase error fetching users:", error);
-      console.error("[ASSIGNMENT_HELPERS] Error details:", {
+      console.error('🔍 [fetchAvailableUsers] Supabase error:', error);
+      console.error('🔍 [fetchAvailableUsers] Error details:', {
         message: error.message,
         details: error.details,
         hint: error.hint,
@@ -45,50 +47,62 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
       throw new Error(`Database error: ${error.message}`);
     }
 
-    console.log('🔍 [fetchAvailableUsers] Raw query response:', data);
+    console.log('🔍 [fetchAvailableUsers] Query successful!');
+    console.log('🔍 [fetchAvailableUsers] Raw data returned:', data);
     console.log('🔍 [fetchAvailableUsers] Total users fetched:', data?.length || 0);
     
-    if (!data || data.length === 0) {
+    if (!data) {
+      console.warn('🔍 [fetchAvailableUsers] Data is null/undefined');
+      return [];
+    }
+    
+    if (data.length === 0) {
       console.warn('🔍 [fetchAvailableUsers] No users found in profiles table!');
       console.warn('🔍 [fetchAvailableUsers] This might indicate:');
       console.warn('  - The profiles table is empty');
-      console.warn('  - RLS policies are blocking access');
-      console.warn('  - Wrong table name or connection issues');
+      console.warn('  - RLS policies are still blocking access');
+      console.warn('  - User does not have SELECT permissions');
       
       // Let's also try to check if the table exists and has any data at all
       const { count, error: countError } = await supabase
-        .from("profiles")
-        .select("*", { count: 'exact', head: true });
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
         
       if (countError) {
         console.error('🔍 [fetchAvailableUsers] Error checking user count:', countError);
       } else {
         console.log('🔍 [fetchAvailableUsers] Total rows in profiles table:', count);
       }
+      
+      return [];
     }
     
     // Log each user for debugging
-    data?.forEach((user, index) => {
+    data.forEach((user, index) => {
       console.log(`🔍 [fetchAvailableUsers] User ${index + 1}:`, {
         id: user.id,
         email: user.email,
         full_name: user.full_name,
-        role: user.role
+        role: user.role,
+        displayName: user.full_name || user.email
       });
     });
 
     // Transform the data to match the AssignmentUser interface
-    const transformedUsers = data?.map(user => ({
+    // Handle null full_name by using email as fallback
+    const transformedUsers = data.map(user => ({
       id: user.id,
-      email: user.email,
-      full_name: user.full_name
-    })) || [];
+      email: user.email || 'No email', // Fallback for null email
+      full_name: user.full_name // Keep as is, can be null
+    }));
 
     console.log('🔍 [fetchAvailableUsers] Transformed users:', transformedUsers);
+    console.log('🔍 [fetchAvailableUsers] Final count:', transformedUsers.length);
+    
     return transformedUsers;
   } catch (error: any) {
-    console.error("[ASSIGNMENT_HELPERS] Error in fetchAvailableUsers:", error);
-    console.error("[ASSIGNMENT_HELPERS] Error stack:", error.stack);
+    console.error('🔍 [fetchAvailableUsers] Error in fetchAvailableUsers:', error);
+    console.error('🔍 [fetchAvailableUsers] Error stack:', error.stack);
     throw new Error(`Failed to fetch users: ${error.message}`);
   }
 };
