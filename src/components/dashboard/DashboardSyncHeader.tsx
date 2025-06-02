@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAgentSync } from "@/hooks/useAgentSync";
-import { RefreshCw, Sync, Bot } from "lucide-react";
+import { RefreshCw, Bot } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export function DashboardSyncHeader() {
@@ -103,7 +103,7 @@ export function DashboardSyncHeader() {
               </>
             ) : (
               <>
-                <Sync className="h-4 w-4" />
+                <RefreshCw className="h-4 w-4" />
                 Sync Agents
               </>
             )}

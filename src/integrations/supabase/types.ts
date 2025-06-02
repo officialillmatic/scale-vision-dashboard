@@ -600,6 +600,55 @@ export type Database = {
           },
         ]
       }
+      user_agent_assignments: {
+        Row: {
+          agent_id: string | null
+          assigned_at: string | null
+          assigned_by: string | null
+          id: string
+          is_primary: boolean | null
+          user_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          is_primary?: boolean | null
+          user_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          is_primary?: boolean | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_agent_assignments_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "retell_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_agent_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_agent_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_agents: {
         Row: {
           agent_id: string
@@ -752,6 +801,33 @@ export type Database = {
           id?: string
           name?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string | null
+          id: string
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1091,6 +1167,14 @@ export type Database = {
       get_user_email: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_user_primary_agent: {
+        Args: { user_email: string }
+        Returns: {
+          retell_agent_id: string
+          agent_name: string
+          agent_description: string
+        }[]
       }
       get_webhook_health: {
         Args: Record<PropertyKey, never>
