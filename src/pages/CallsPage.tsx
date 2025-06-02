@@ -8,8 +8,8 @@ const CallsPage: React.FC = () => {
     <ProductionDashboardLayout>
       <div className="space-y-8">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900">Call Management</h1>
-          <p className="text-gray-600">Manage and analyze your AI call interactions with advanced filtering and insights.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Communication Hub</h1>
+          <p className="text-gray-600">Manage and analyze your communication interactions with advanced filtering and insights.</p>
         </div>
         
         <WhiteLabelCallsTable />

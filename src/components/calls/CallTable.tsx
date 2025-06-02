@@ -7,5 +7,5 @@ interface CallTableProps {
 }
 
 export function CallTable({ onSelectCall }: CallTableProps) {
-  return <WhiteLabelCallsTable />;
+  return <WhiteLabelCallsTable onSelectCall={onSelectCall} />;
 }
