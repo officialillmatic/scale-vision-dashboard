@@ -543,6 +543,114 @@ export type Database = {
         }
         Relationships: []
       }
+      retell_calls: {
+        Row: {
+          agent_id: string | null
+          billing_duration_sec: number
+          call_id: string
+          call_status: string
+          call_summary: string | null
+          company_id: string | null
+          cost_usd: number
+          created_at: string
+          disconnection_reason: string | null
+          disposition: string | null
+          duration_sec: number
+          end_timestamp: string | null
+          from_number: string | null
+          id: string
+          latency_ms: number | null
+          rate_per_minute: number
+          recording_url: string | null
+          result_sentiment: Json | null
+          retell_agent_id: string | null
+          revenue_amount: number
+          sentiment: string | null
+          sentiment_score: number | null
+          start_timestamp: string
+          to_number: string | null
+          transcript: string | null
+          transcript_url: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          billing_duration_sec?: number
+          call_id: string
+          call_status?: string
+          call_summary?: string | null
+          company_id?: string | null
+          cost_usd?: number
+          created_at?: string
+          disconnection_reason?: string | null
+          disposition?: string | null
+          duration_sec?: number
+          end_timestamp?: string | null
+          from_number?: string | null
+          id?: string
+          latency_ms?: number | null
+          rate_per_minute?: number
+          recording_url?: string | null
+          result_sentiment?: Json | null
+          retell_agent_id?: string | null
+          revenue_amount?: number
+          sentiment?: string | null
+          sentiment_score?: number | null
+          start_timestamp: string
+          to_number?: string | null
+          transcript?: string | null
+          transcript_url?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          billing_duration_sec?: number
+          call_id?: string
+          call_status?: string
+          call_summary?: string | null
+          company_id?: string | null
+          cost_usd?: number
+          created_at?: string
+          disconnection_reason?: string | null
+          disposition?: string | null
+          duration_sec?: number
+          end_timestamp?: string | null
+          from_number?: string | null
+          id?: string
+          latency_ms?: number | null
+          rate_per_minute?: number
+          recording_url?: string | null
+          result_sentiment?: Json | null
+          retell_agent_id?: string | null
+          revenue_amount?: number
+          sentiment?: string | null
+          sentiment_score?: number | null
+          start_timestamp?: string
+          to_number?: string | null
+          transcript?: string | null
+          transcript_url?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retell_calls_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retell_calls_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       retell_sync_stats: {
         Row: {
           agents_created: number
@@ -1199,6 +1307,45 @@ export type Database = {
           date: string
           call_count: number
           total_duration_min: number
+        }[]
+      }
+      get_retell_call_metrics: {
+        Args: {
+          p_company_id: string
+          p_start_date?: string
+          p_end_date?: string
+        }
+        Returns: {
+          total_calls: number
+          total_duration_min: number
+          avg_duration_sec: number
+          total_cost: number
+          total_revenue: number
+          success_rate: number
+        }[]
+      }
+      get_retell_call_outcomes: {
+        Args: {
+          p_company_id: string
+          p_start_date?: string
+          p_end_date?: string
+        }
+        Returns: {
+          status_type: string
+          count: number
+        }[]
+      }
+      get_retell_daily_calls: {
+        Args: {
+          p_company_id: string
+          p_start_date?: string
+          p_end_date?: string
+        }
+        Returns: {
+          date: string
+          call_count: number
+          total_duration_min: number
+          total_revenue: number
         }[]
       }
       get_revenue_metrics: {
