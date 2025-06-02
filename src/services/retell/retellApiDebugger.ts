@@ -67,7 +67,7 @@ export class RetellApiDebugger {
 
     try {
       const endpoint = `${this.baseUrl}/agents`;
-      console.log('[RETELL_API_DEBUG] Making request to:', endpoint);
+      console.log('[RETELL_API_DEBUG] Making GET request to:', endpoint);
       console.log('[RETELL_API_DEBUG] Using API key prefix:', this.apiKey.substring(0, 8) + '...');
 
       const response = await fetch(endpoint, {
@@ -83,11 +83,12 @@ export class RetellApiDebugger {
       console.log('[RETELL_API_DEBUG] Response headers:', Object.fromEntries(response.headers.entries()));
 
       const responseText = await response.text();
-      console.log('[RETELL_API_DEBUG] Raw response:', responseText);
+      console.log('[RETELL_API_DEBUG] Raw response text:', responseText);
 
       let responseData;
       try {
         responseData = JSON.parse(responseText);
+        console.log('[RETELL_API_DEBUG] Parsed response data:', responseData);
       } catch (parseError) {
         console.error('[RETELL_API_DEBUG] Failed to parse JSON response:', parseError);
         responseData = { raw_response: responseText };
@@ -133,64 +134,7 @@ export class RetellApiDebugger {
   async testApiConnection(): Promise<ApiTestResult> {
     console.log('[RETELL_API_DEBUG] Testing API connection...');
     
-    const envCheck = this.verifyEnvironment();
-    if (!envCheck.isValid) {
-      console.error('[RETELL_API_DEBUG] Environment check failed:', envCheck.issues);
-      return {
-        success: false,
-        error: `Environment issues: ${envCheck.issues.join(', ')}`
-      };
-    }
-
-    try {
-      console.log('[RETELL_API_DEBUG] Making test request to:', `${this.baseUrl}/agents`);
-      console.log('[RETELL_API_DEBUG] Using API key prefix:', this.apiKey.substring(0, 8) + '...');
-
-      const response = await fetch(`${this.baseUrl}/agents`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('[RETELL_API_DEBUG] Response status:', response.status);
-      console.log('[RETELL_API_DEBUG] Response status text:', response.statusText);
-      console.log('[RETELL_API_DEBUG] Response headers:', Object.fromEntries(response.headers.entries()));
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[RETELL_API_DEBUG] API error response:', errorText);
-        
-        return {
-          success: false,
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText || 'Unknown API error',
-          apiKeyFormat: this.apiKey.substring(0, 8) + '...'
-        };
-      }
-
-      const data = await response.json();
-      console.log('[RETELL_API_DEBUG] API success response:', data);
-
-      return {
-        success: true,
-        status: response.status,
-        statusText: response.statusText,
-        response: data,
-        apiKeyFormat: this.apiKey.substring(0, 8) + '...'
-      };
-
-    } catch (error: any) {
-      console.error('[RETELL_API_DEBUG] Network/fetch error:', error);
-      
-      return {
-        success: false,
-        error: `Network error: ${error.message}`,
-        apiKeyFormat: this.apiKey.substring(0, 8) + '...'
-      };
-    }
+    return await this.testAgentsEndpoint();
   }
 
   /**
