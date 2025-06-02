@@ -34,8 +34,8 @@ export function useAgents() {
     error: agentsError
   } = useQuery({
     queryKey: ['agents', company?.id, isSuperAdmin],
-    queryFn: () => fetchAgents(isSuperAdmin ? undefined : company?.id), // Super admins fetch all agents
-    enabled: !!company?.id || isSuperAdmin // Always allow super admins to query
+    queryFn: () => fetchAgents(isSuperAdmin ? undefined : company?.id),
+    enabled: !!company?.id || isSuperAdmin
   });
 
   const {
@@ -46,18 +46,20 @@ export function useAgents() {
   } = useQuery({
     queryKey: ['user-agents', company?.id, isSuperAdmin],
     queryFn: () => {
-      // LOGS DE DEBUG AGREGADOS
       console.log('🔍 [useAgents] Calling fetchUserAgents with company?.id:', company?.id);
       console.log('🔍 [useAgents] isSuperAdmin:', isSuperAdmin);
       return fetchUserAgents(isSuperAdmin ? undefined : company?.id);
     },
-    enabled: !!company?.id || isSuperAdmin // Always allow super admins to query
+    enabled: !!company?.id || isSuperAdmin,
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: true
   });
 
-  // LOGS DE DEBUG AGREGADOS
   console.log('🔍 [useAgents] userAgents result:', userAgents);
+  console.log('🔍 [useAgents] userAgents length:', userAgents?.length);
   console.log('🔍 [useAgents] userAgentsError:', userAgentsError);
   console.log('🔍 [useAgents] company object:', company);
+  console.log('🔍 [useAgents] isLoadingUserAgents:', isLoadingUserAgents);
   
   // Filter agents based on user role - super admins see all
   const agents = allAgents ? (isSuperAdmin || isAdmin 

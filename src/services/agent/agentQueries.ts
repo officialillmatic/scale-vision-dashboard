@@ -33,13 +33,15 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
       .from("user_agents")
       .select(`
         *,
-        agent:agents(*),
-        user_details:user_profiles(id, email, name, avatar_url)
+        agent:agents!inner(*),
+        user_details:user_profiles!inner(id, email, name, avatar_url)
       `);
 
     if (companyId) {
       query = query.eq("company_id", companyId);
     }
+
+    console.log('🔍 [fetchUserAgents] Executing query with company_id:', companyId);
 
     const { data, error } = await query;
 
@@ -47,6 +49,8 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
       console.error("[AGENT_SERVICE] Error fetching user agents:", error);
       throw error;
     }
+
+    console.log('🔍 [fetchUserAgents] Raw data received:', data);
 
     return data || [];
   } catch (error: any) {
@@ -98,12 +102,14 @@ export const fetchUserAccessibleAgents = async (userId: string, companyId?: stri
 
 export const fetchCompanyUserAgents = async (companyId: string): Promise<UserAgent[]> => {
   try {
+    console.log('🔍 [fetchCompanyUserAgents] Fetching for company:', companyId);
+    
     const { data, error } = await supabase
       .from("user_agents")
       .select(`
         *,
-        agent:agents(*),
-        user_details:user_profiles(id, email, name, avatar_url)
+        agent:agents!inner(*),
+        user_details:user_profiles!inner(id, email, name, avatar_url)
       `)
       .eq("company_id", companyId);
 
@@ -111,6 +117,8 @@ export const fetchCompanyUserAgents = async (companyId: string): Promise<UserAge
       console.error("[AGENT_SERVICE] Error fetching company user agents:", error);
       throw error;
     }
+
+    console.log('🔍 [fetchCompanyUserAgents] Data received:', data);
 
     return data || [];
   } catch (error: any) {
