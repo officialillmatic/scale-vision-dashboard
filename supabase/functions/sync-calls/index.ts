@@ -8,6 +8,39 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// Función para convertir timestamp válido
+function convertTimestamp(timestamp: any): string {
+  if (!timestamp) return new Date().toISOString();
+  
+  // Si es un número (Unix timestamp en segundos o milisegundos)
+  if (typeof timestamp === 'number') {
+    // Si parece ser segundos (< año 2100), convertir a milisegundos
+    const ts = timestamp < 4000000000 ? timestamp * 1000 : timestamp;
+    const date = new Date(ts);
+    
+    // Validar que la fecha esté en un rango razonable (1970-2100)
+    if (isNaN(date.getTime()) || date.getFullYear() < 1970 || date.getFullYear() > 2100) {
+      console.log(`[TIMESTAMP_ERROR] Invalid timestamp detected: ${timestamp}, using current date`);
+      return new Date().toISOString();
+    }
+    
+    return date.toISOString();
+  }
+  
+  // Si es string, intentar parsearlo
+  if (typeof timestamp === 'string') {
+    const parsed = new Date(timestamp);
+    if (isNaN(parsed.getTime()) || parsed.getFullYear() > 3000 || parsed.getFullYear() < 1970) {
+      console.log(`[TIMESTAMP_ERROR] Invalid string timestamp detected: ${timestamp}, using current date`);
+      return new Date().toISOString(); // Fallback a fecha actual
+    }
+    return parsed.toISOString();
+  }
+  
+  console.log(`[TIMESTAMP_ERROR] Unknown timestamp format: ${timestamp}, using current date`);
+  return new Date().toISOString();
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -179,7 +212,19 @@ serve(async (req) => {
                 to_number: call.to_number,
                 duration_sec: call.duration_sec,
                 call_status: call.call_status,
-                start_timestamp: call.start_timestamp
+                start_timestamp: call.start_timestamp,
+                raw_start_timestamp: call.start_timestamp
+              });
+
+              // Validate and convert timestamps
+              const validStartTimestamp = convertTimestamp(call.start_timestamp);
+              const validEndTimestamp = convertTimestamp(call.end_timestamp);
+              
+              console.log(`[SYNC-CALLS-${requestId}] Timestamp conversion for ${call.call_id}:`, {
+                original_start: call.start_timestamp,
+                converted_start: validStartTimestamp,
+                original_end: call.end_timestamp,
+                converted_end: validEndTimestamp
               });
 
               // Check if call already exists in retell_calls table
@@ -200,19 +245,15 @@ serve(async (req) => {
                 continue;
               }
 
-              // Map call data for retell_calls table
+              // Map call data for retell_calls table using validated timestamps
               const retellCallData = {
                 call_id: call.call_id,
                 user_id: null, // Allow null when bypassing validation
                 company_id: null, // Allow null when bypassing validation
                 agent_id: null, // Allow null when bypassing validation
                 retell_agent_id: call.agent_id || null,
-                start_timestamp: call.start_timestamp 
-                  ? new Date(call.start_timestamp * 1000).toISOString()
-                  : new Date().toISOString(),
-                end_timestamp: call.end_timestamp 
-                  ? new Date(call.end_timestamp * 1000).toISOString() 
-                  : null,
+                start_timestamp: validStartTimestamp,
+                end_timestamp: call.end_timestamp ? validEndTimestamp : null,
                 duration_sec: call.duration_sec || 0,
                 duration: call.duration_sec || 0,
                 cost_usd: call.call_cost?.combined_cost || 0,
@@ -273,18 +314,14 @@ serve(async (req) => {
                 continue;
               }
 
-              // FIXED: Map call data for calls table - using correct field names and ensuring required fields
+              // Map call data for calls table using validated timestamps
               const callData = {
                 call_id: call.call_id,
                 user_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', // Temporary UUID for bypassed validation
                 company_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', // Required NOT NULL field with temporary UUID
                 agent_id: null,
-                timestamp: call.start_timestamp 
-                  ? new Date(call.start_timestamp * 1000).toISOString()
-                  : new Date().toISOString(), // FIXED: Using 'timestamp' field name
-                start_time: call.start_timestamp 
-                  ? new Date(call.start_timestamp * 1000).toISOString()
-                  : new Date().toISOString(),
+                timestamp: validStartTimestamp, // Using validated timestamp
+                start_time: validStartTimestamp, // Using validated timestamp
                 duration_sec: call.duration_sec || 0,
                 cost_usd: call.call_cost?.combined_cost || 0,
                 revenue_amount: 0,
@@ -309,7 +346,7 @@ serve(async (req) => {
                 call_type: 'phone_call' // Required NOT NULL field
               };
 
-              console.log(`[SYNC-CALLS-${requestId}] About to insert call data into calls table:`, callData);
+              console.log(`[SYNC-CALLS-${requestId}] About to insert call data into calls table with validated timestamps:`, callData);
 
               // Insert into calls table with enhanced error handling
               const { data: callInsertData, error: callInsertError } = await supabaseClient
@@ -332,7 +369,8 @@ serve(async (req) => {
                 });
                 console.error(`[SYNC-CALLS-${requestId}] Failed data:`, JSON.stringify(callData, null, 2));
                 errors.push(`calls table insert error for ${call.call_id}: ${callInsertError.message} - ${callInsertError.details || ''}`);
-                throw callInsertError; // Throw to see the full error
+                // Don't throw, continue processing other calls
+                continue;
               }
 
               console.log(`[SYNC-CALLS-${requestId}] Successfully synced call ${call.call_id} to both tables`);
