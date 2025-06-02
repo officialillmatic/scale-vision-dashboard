@@ -49,7 +49,6 @@ export interface RetellAgent {
 }
 
 class RetellAgentSyncService {
-  private readonly baseUrl = 'https://api.retellai.com/v2';
   private readonly apiKey: string;
 
   constructor() {
@@ -119,27 +118,65 @@ class RetellAgentSyncService {
   }
 
   /**
-   * Fetch agents from Retell AI API
+   * Fetch agents from Retell AI API using endpoint discovery
    */
   private async fetchRetellAgents(): Promise<RetellAgent[]> {
-    console.log('[RETELL_AGENT_SYNC] Fetching agents from Retell API...');
+    console.log('[RETELL_AGENT_SYNC] Fetching agents using endpoint discovery...');
     
-    const response = await fetch(`${this.baseUrl}/list-agents`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ limit: 100 })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Retell API error: ${response.status} - ${errorText}`);
+    // Use the same endpoint discovery logic as useRetellAgents
+    const apiResult = await retellApiDebugger.testAllEndpoints();
+    
+    if (!apiResult.success) {
+      throw new Error(`Failed to find working API endpoint: ${apiResult.error}`);
     }
 
-    const data = await response.json();
-    return data.agents || [];
+    console.log('[RETELL_AGENT_SYNC] Using working endpoint:', apiResult.endpoint);
+    
+    // Extract agents from the response using the same logic as useRetellAgents
+    let agentsArray = [];
+    const responseData = apiResult.response;
+    
+    if (Array.isArray(responseData)) {
+      agentsArray = responseData;
+    } else if (responseData?.agents && Array.isArray(responseData.agents)) {
+      agentsArray = responseData.agents;
+    } else if (responseData?.data && Array.isArray(responseData.data)) {
+      agentsArray = responseData.data;
+    }
+
+    // Filter out null/undefined agents and map to RetellAgent format
+    const validAgents = agentsArray.filter((agent: any) => 
+      agent && 
+      (agent.agent_id || agent.id) && 
+      (agent.agent_name || agent.name)
+    );
+
+    const retellAgents: RetellAgent[] = validAgents.map((agent: any) => ({
+      agent_id: agent.agent_id || agent.id,
+      agent_name: agent.agent_name || agent.name || `Agent ${agent.agent_id || agent.id}`,
+      voice_id: agent.voice_id,
+      voice_model: agent.voice_model,
+      language: agent.language,
+      response_engine: agent.response_engine,
+      llm_websocket_url: agent.llm_websocket_url,
+      prompt: agent.prompt,
+      boosted_keywords: agent.boosted_keywords,
+      ambient_sound: agent.ambient_sound,
+      ambient_sound_volume: agent.ambient_sound_volume,
+      backchannel_frequency: agent.backchannel_frequency,
+      backchannel_words: agent.backchannel_words,
+      reminder_trigger_ms: agent.reminder_trigger_ms,
+      reminder_max_count: agent.reminder_max_count,
+      interruption_sensitivity: agent.interruption_sensitivity,
+      enable_transcription_formatting: agent.enable_transcription_formatting,
+      opt_out_sensitive_data_storage: agent.opt_out_sensitive_data_storage,
+      pronunciation_dictionary: agent.pronunciation_dictionary,
+      normalize_for_speech: agent.normalize_for_speech,
+      responsiveness: agent.responsiveness,
+    }));
+
+    console.log('[RETELL_AGENT_SYNC] Successfully fetched and mapped', retellAgents.length, 'agents');
+    return retellAgents;
   }
 
   /**
@@ -188,7 +225,7 @@ class RetellAgentSyncService {
 
     console.log('[RETELL_AGENT_SYNC] ✅ User authenticated:', user.email);
 
-    // First test the API connection
+    // First test the API connection using endpoint discovery
     const connectionTest = await retellApiDebugger.testApiConnection();
     if (!connectionTest.success) {
       console.error('[RETELL_AGENT_SYNC] API connection test failed:', connectionTest);
@@ -223,7 +260,7 @@ class RetellAgentSyncService {
     };
 
     try {
-      // Fetch agents from Retell API
+      // Fetch agents from Retell API using endpoint discovery
       const retellAgents = await this.fetchRetellAgents();
       stats.total_agents_fetched = retellAgents.length;
 
