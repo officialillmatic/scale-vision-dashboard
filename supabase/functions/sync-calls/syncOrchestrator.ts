@@ -11,6 +11,7 @@ export interface SyncSummary {
   agents_processed: number;
   agents_found: number;
   skipped_agents: number;
+  total_calls_from_api: number;
   requestId: string;
   timestamp: string;
 }
@@ -23,75 +24,144 @@ export class SyncOrchestrator {
   ) {}
 
   async performSync(): Promise<SyncSummary> {
-    console.log(`[SYNC-CALLS-${this.requestId}] Fetching agents with Retell integration...`);
+    console.log(`[SYNC-CALLS-${this.requestId}] === STARTING FULL CALL SYNC ===`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Strategy: Fetch ALL calls without filters`);
     
-    const { data: agents, error: agentsError } = await this.supabaseClient
-      .from('agents')
-      .select('id, retell_agent_id, rate_per_minute, name, company_id')
-      .not('retell_agent_id', 'is', null)
-      .eq('status', 'active');
-
-    if (agentsError) {
-      console.error(`[SYNC-CALLS-${this.requestId}] Error fetching agents:`, agentsError);
-      throw new Error(`Failed to fetch agents: ${agentsError.message}`);
-    }
-
-    console.log(`[SYNC-CALLS-${this.requestId}] Found ${agents?.length || 0} agents with Retell integration`);
-
+    let totalCallsFromApi = 0;
     let totalSynced = 0;
     let totalProcessed = 0;
-    let skippedAgents = 0;
-    let processedAgents = 0;
+    let pageToken: string | undefined = undefined;
+    let pageCount = 0;
 
-    const agentProcessor = new AgentProcessor(this.supabaseClient, this.retellClient, this.requestId);
-
-    for (const agent of agents || []) {
-      try {
-        // Find user agent mapping for this agent
-        const { data: userAgents, error: userAgentError } = await this.supabaseClient
-          .from('user_agents')
-          .select('user_id, company_id')
-          .eq('agent_id', agent.id);
-
-        if (userAgentError) {
-          console.error(`[SYNC-CALLS-${this.requestId}] Error fetching user agents for agent ${agent.id}:`, userAgentError);
-          continue;
-        }
-
-        if (!userAgents || userAgents.length === 0) {
-          console.warn(`[SYNC-CALLS-${this.requestId}] No user mapping found for agent ${agent.id}, skipping...`);
-          skippedAgents++;
-          continue;
-        }
-
-        // Use the first user agent mapping
-        const userAgent = userAgents[0];
-        processedAgents++;
-
-        console.log(`[SYNC-CALLS-${this.requestId}] Processing agent ${agent.name} for user ${userAgent.user_id}`);
-
-        const result: AgentSyncResult = await agentProcessor.processAgent(agent, userAgent);
+    // First, fetch ALL calls from Retell API (without agent filtering)
+    try {
+      let hasMore = true;
+      
+      while (hasMore && pageCount < 10) { // Safety limit to prevent infinite loops
+        pageCount++;
+        console.log(`[SYNC-CALLS-${this.requestId}] === FETCHING PAGE ${pageCount} ===`);
+        console.log(`[SYNC-CALLS-${this.requestId}] Page token: ${pageToken || 'first_page'}`);
         
-        totalProcessed += result.callsProcessed;
-        totalSynced += result.callsSynced;
+        const apiResponse = await this.retellClient.fetchAllCalls(100, pageToken);
+        
+        const calls = apiResponse.calls || [];
+        hasMore = apiResponse.has_more || false;
+        pageToken = apiResponse.next_page_token;
+        
+        console.log(`[SYNC-CALLS-${this.requestId}] Page ${pageCount} results:`);
+        console.log(`[SYNC-CALLS-${this.requestId}] - Calls in this page: ${calls.length}`);
+        console.log(`[SYNC-CALLS-${this.requestId}] - Has more pages: ${hasMore}`);
+        console.log(`[SYNC-CALLS-${this.requestId}] - Next page token: ${pageToken || 'none'}`);
+        
+        totalCallsFromApi += calls.length;
+        
+        // Process each call
+        for (const call of calls) {
+          try {
+            console.log(`[SYNC-CALLS-${this.requestId}] Processing call: ${call.call_id}`);
+            console.log(`[SYNC-CALLS-${this.requestId}] Call agent_id: ${call.agent_id}`);
+            console.log(`[SYNC-CALLS-${this.requestId}] Call status: ${call.call_status}`);
+            console.log(`[SYNC-CALLS-${this.requestId}] Call start time: ${call.start_timestamp}`);
+            
+            // Try to find matching agent in our database
+            const { data: agent, error: agentError } = await this.supabaseClient
+              .from('agents')
+              .select('id, name, company_id')
+              .eq('retell_agent_id', call.agent_id)
+              .single();
 
-        console.log(`[SYNC-CALLS-${this.requestId}] Agent ${agent.name} result: ${result.callsProcessed} processed, ${result.callsSynced} synced`);
+            if (agentError || !agent) {
+              console.log(`[SYNC-CALLS-${this.requestId}] No matching agent found for retell_agent_id: ${call.agent_id}, skipping call`);
+              totalProcessed++;
+              continue;
+            }
 
-      } catch (error) {
-        console.error(`[SYNC-CALLS-${this.requestId}] Error processing agent ${agent.retell_agent_id}:`, error);
-        skippedAgents++;
+            console.log(`[SYNC-CALLS-${this.requestId}] Found matching agent: ${agent.name} (${agent.id})`);
+
+            // Find user agent mapping
+            const { data: userAgents, error: userAgentError } = await this.supabaseClient
+              .from('user_agents')
+              .select('user_id, company_id')
+              .eq('agent_id', agent.id)
+              .limit(1);
+
+            if (userAgentError || !userAgents || userAgents.length === 0) {
+              console.log(`[SYNC-CALLS-${this.requestId}] No user mapping found for agent ${agent.id}, skipping call`);
+              totalProcessed++;
+              continue;
+            }
+
+            const userAgent = userAgents[0];
+            console.log(`[SYNC-CALLS-${this.requestId}] Found user mapping: user_id=${userAgent.user_id}, company_id=${userAgent.company_id}`);
+
+            // Check if call already exists
+            const { data: existingCall, error: checkError } = await this.supabaseClient
+              .from('retell_calls')
+              .select('id')
+              .eq('call_id', call.call_id)
+              .maybeSingle();
+
+            if (checkError) {
+              console.error(`[SYNC-CALLS-${this.requestId}] Error checking existing call:`, checkError);
+              totalProcessed++;
+              continue;
+            }
+
+            if (existingCall) {
+              console.log(`[SYNC-CALLS-${this.requestId}] Call ${call.call_id} already exists, skipping`);
+              totalProcessed++;
+              continue;
+            }
+
+            // Map and insert the call
+            const mappedCall = this.mapCallData(call, userAgent.user_id, userAgent.company_id, agent.id);
+            
+            const { data: insertData, error: insertError } = await this.supabaseClient
+              .from('retell_calls')
+              .insert(mappedCall)
+              .select();
+
+            if (insertError) {
+              console.error(`[SYNC-CALLS-${this.requestId}] Error inserting call ${call.call_id}:`, insertError);
+              totalProcessed++;
+              continue;
+            }
+
+            console.log(`[SYNC-CALLS-${this.requestId}] Successfully synced call ${call.call_id}`);
+            totalSynced++;
+            totalProcessed++;
+
+          } catch (callError) {
+            console.error(`[SYNC-CALLS-${this.requestId}] Error processing call ${call.call_id}:`, callError);
+            totalProcessed++;
+          }
+        }
+
+        // Safety delay between pages
+        if (hasMore) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
       }
+
+    } catch (error) {
+      console.error(`[SYNC-CALLS-${this.requestId}] Error during full sync:`, error);
+      throw error;
     }
 
-    console.log(`[SYNC-CALLS-${this.requestId}] Sync completed - Total: ${totalSynced} synced, ${totalProcessed} processed`);
+    console.log(`[SYNC-CALLS-${this.requestId}] === SYNC COMPLETED ===`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Total pages fetched: ${pageCount}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Total calls from API: ${totalCallsFromApi}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Total calls processed: ${totalProcessed}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Total calls synced: ${totalSynced}`);
 
     return {
       message: 'Sync completed successfully',
       synced_calls: totalSynced,
       processed_calls: totalProcessed,
-      agents_processed: processedAgents,
-      agents_found: agents?.length || 0,
-      skipped_agents: skippedAgents,
+      agents_processed: 0, // Not using agent-based processing anymore
+      agents_found: 0,
+      skipped_agents: 0,
+      total_calls_from_api: totalCallsFromApi,
       requestId: this.requestId,
       timestamp: new Date().toISOString()
     };
@@ -109,6 +179,50 @@ export class SyncOrchestrator {
       hasMore: testData?.has_more || false,
       requestId: this.requestId,
       apiConnected: true
+    };
+  }
+
+  private mapCallData(call: any, userId: string, companyId: string, agentId: string) {
+    const timestamp = call.start_timestamp 
+      ? new Date(call.start_timestamp * 1000) 
+      : new Date();
+    
+    const duration = call.duration_sec || 0;
+    const cost = call.cost || 0;
+    const ratePerMinute = 0.17; // Default rate
+    const calculatedRevenue = (duration / 60) * ratePerMinute;
+
+    return {
+      call_id: call.call_id,
+      user_id: userId,
+      company_id: companyId,
+      agent_id: agentId,
+      retell_agent_id: call.agent_id,
+      start_timestamp: timestamp.toISOString(),
+      end_timestamp: call.end_timestamp ? new Date(call.end_timestamp * 1000).toISOString() : null,
+      duration_sec: duration,
+      duration: duration,
+      cost_usd: cost,
+      revenue_amount: calculatedRevenue,
+      revenue: calculatedRevenue,
+      billing_duration_sec: duration,
+      rate_per_minute: ratePerMinute,
+      call_status: call.call_status || 'unknown',
+      status: call.call_status || 'unknown',
+      from_number: call.from_number || null,
+      to_number: call.to_number || null,
+      disconnection_reason: call.disconnection_reason || null,
+      recording_url: call.recording_url || null,
+      transcript: call.transcript || null,
+      transcript_url: call.transcript_url || null,
+      sentiment: call.sentiment?.overall_sentiment || null,
+      sentiment_score: call.sentiment?.score || null,
+      result_sentiment: call.sentiment ? JSON.stringify(call.sentiment) : null,
+      disposition: call.disposition || null,
+      latency_ms: call.latency_ms || null,
+      call_summary: call.summary || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
   }
 }
