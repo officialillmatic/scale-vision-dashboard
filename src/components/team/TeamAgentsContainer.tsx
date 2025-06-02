@@ -5,6 +5,7 @@ import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRole } from '@/hooks/useRole';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
+import { useUserAgentAssignments } from '@/hooks/useUserAgentAssignments';
 import { Agent } from '@/services/agentService';
 import { TeamAgentsHeader } from './TeamAgentsHeader';
 import { TeamAgentsSection } from './TeamAgentsSection';
@@ -12,6 +13,7 @@ import { TeamAgentsAssignments } from './TeamAgentsAssignments';
 import { TeamAgentsDialogs } from './TeamAgentsDialogs';
 import { UserAgentViewer } from './UserAgentViewer';
 import { RetellAgentsSection } from './RetellAgentsSection';
+import { NewAssignmentDialog } from './NewAssignmentDialog';
 import { Separator } from '@/components/ui/separator';
 
 export function TeamAgentsContainer() {
@@ -43,12 +45,22 @@ export function TeamAgentsContainer() {
 
   const { teamMembers, isLoading: isLoadingMembers } = useTeamMembers(company?.id);
 
+  const {
+    availableUsers,
+    availableAgents,
+    isLoadingUsers,
+    isLoadingAgents: isLoadingAvailableAgents,
+    handleCreateAssignment,
+    isCreating: isCreatingAssignment
+  } = useUserAgentAssignments();
+
   const handleOpenAgentDialog = (agent?: Agent) => {
     setSelectedAgent(agent || null);
     setIsAgentDialogOpen(true);
   };
 
   const handleOpenAssignDialog = (agent?: Agent) => {
+    console.log('🔍 [TeamAgentsContainer] Opening assignment dialog for agent:', agent?.name);
     setSelectedAgent(agent || null);
     setIsAssignDialogOpen(true);
   };
@@ -63,6 +75,17 @@ export function TeamAgentsContainer() {
       await handleDeleteAgent(selectedAgent.id);
     }
     setIsDeleteDialogOpen(false);
+  };
+
+  const handleCloseAssignDialog = () => {
+    setSelectedAgent(null);
+    setIsAssignDialogOpen(false);
+  };
+
+  const handleAssignmentSubmit = async (userId: string, agentId: string, isPrimary: boolean) => {
+    console.log('🔍 [TeamAgentsContainer] Creating assignment:', { userId, agentId, isPrimary });
+    await handleCreateAssignment(userId, agentId, isPrimary);
+    handleCloseAssignDialog();
   };
 
   const handleRefreshAssignments = () => {
@@ -104,7 +127,7 @@ export function TeamAgentsContainer() {
       {(isSuperAdmin || isAdmin) && (
         <TeamAgentsDialogs
           isAgentDialogOpen={isAgentDialogOpen}
-          isAssignDialogOpen={isAssignDialogOpen}
+          isAssignDialogOpen={false}
           isDeleteDialogOpen={isDeleteDialogOpen}
           selectedAgent={selectedAgent}
           isCreating={isCreating}
@@ -114,7 +137,7 @@ export function TeamAgentsContainer() {
           teamMembers={teamMembers}
           agents={agents}
           onCloseAgentDialog={() => setIsAgentDialogOpen(false)}
-          onCloseAssignDialog={() => setIsAssignDialogOpen(false)}
+          onCloseAssignDialog={() => {}}
           onCloseDeleteDialog={() => setIsDeleteDialogOpen(false)}
           onCreateAgent={handleCreateAgent}
           onUpdateAgent={handleUpdateAgent}
@@ -122,6 +145,18 @@ export function TeamAgentsContainer() {
           onDeleteConfirmed={handleDeleteConfirmed}
         />
       )}
+
+      {/* New Assignment Dialog for agent-specific assignments */}
+      <NewAssignmentDialog
+        isOpen={isAssignDialogOpen}
+        onClose={handleCloseAssignDialog}
+        onSubmit={handleAssignmentSubmit}
+        availableUsers={availableUsers}
+        availableAgents={availableAgents}
+        selectedAgent={selectedAgent}
+        isLoading={isLoadingUsers || isLoadingAvailableAgents}
+        isSubmitting={isCreatingAssignment}
+      />
     </div>
   );
 }

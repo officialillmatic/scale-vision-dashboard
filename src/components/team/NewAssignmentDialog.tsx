@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,7 @@ interface NewAssignmentDialogProps {
   onSubmit: (userId: string, agentId: string, isPrimary: boolean) => void;
   availableUsers: AssignmentUser[];
   availableAgents: AssignmentAgent[];
+  selectedAgent?: any; // Agent from the agents table
   isLoading: boolean;
   isSubmitting: boolean;
 }
@@ -36,12 +37,32 @@ export function NewAssignmentDialog({
   onSubmit,
   availableUsers,
   availableAgents,
+  selectedAgent,
   isLoading,
   isSubmitting
 }: NewAssignmentDialogProps) {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [isPrimary, setIsPrimary] = useState<boolean>(false);
+
+  // When dialog opens with a selected agent, find the corresponding retell_agent
+  useEffect(() => {
+    if (isOpen && selectedAgent) {
+      console.log('🔍 [NewAssignmentDialog] Selected agent:', selectedAgent);
+      
+      // Find the corresponding retell_agent based on retell_agent_id
+      const matchingRetellAgent = availableAgents.find(agent => 
+        agent.retell_agent_id === selectedAgent.retell_agent_id
+      );
+      
+      if (matchingRetellAgent) {
+        console.log('🔍 [NewAssignmentDialog] Found matching retell agent:', matchingRetellAgent);
+        setSelectedAgentId(matchingRetellAgent.id);
+      } else {
+        console.warn('🔍 [NewAssignmentDialog] No matching retell agent found for:', selectedAgent.retell_agent_id);
+      }
+    }
+  }, [isOpen, selectedAgent, availableAgents]);
 
   const handleSubmit = () => {
     if (!selectedUserId || !selectedAgentId) {
@@ -79,6 +100,7 @@ export function NewAssignmentDialog({
     availableAgentsCount: availableAgents.length,
     selectedUserId,
     selectedAgentId,
+    selectedAgent: selectedAgent?.name,
     canSubmit
   });
 
@@ -86,7 +108,12 @@ export function NewAssignmentDialog({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Create New Assignment</DialogTitle>
+          <DialogTitle>
+            {selectedAgent 
+              ? `Assign ${selectedAgent.name} to User`
+              : 'Create New Assignment'
+            }
+          </DialogTitle>
         </DialogHeader>
         
         {isLoading ? (
@@ -112,10 +139,19 @@ export function NewAssignmentDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="agent-select">Select Agent ({availableAgents.length} available)</Label>
-              <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+              <Label htmlFor="agent-select">
+                {selectedAgent 
+                  ? `Agent: ${selectedAgent.name}`
+                  : `Select Agent (${availableAgents.length} available)`
+                }
+              </Label>
+              <Select 
+                value={selectedAgentId} 
+                onValueChange={setSelectedAgentId}
+                disabled={!!selectedAgent}
+              >
                 <SelectTrigger id="agent-select">
-                  <SelectValue placeholder="Choose an agent..." />
+                  <SelectValue placeholder={selectedAgent ? selectedAgent.name : "Choose an agent..."} />
                 </SelectTrigger>
                 <SelectContent>
                   {availableAgents.map((agent) => (
