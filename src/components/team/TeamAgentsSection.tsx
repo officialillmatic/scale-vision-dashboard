@@ -2,11 +2,12 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Settings } from 'lucide-react';
 import { AgentsTable } from './AgentsTable';
 import { RoleCheck } from '../auth/RoleCheck';
 import { Agent } from '@/services/agentService';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 
 interface TeamAgentsSectionProps {
   agents: Agent[];
@@ -32,7 +33,13 @@ export function TeamAgentsSection({
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">AI Agents</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold">Custom AI Agents</h2>
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            <Settings className="w-3 h-3 mr-1" />
+            Company Managed
+          </Badge>
+        </div>
         {/* Super admins always have access to create agents */}
         {isSuperAdmin || isAdmin ? (
           <Button 
@@ -40,7 +47,7 @@ export function TeamAgentsSection({
             className="bg-brand-green hover:bg-brand-deep-green"
           >
             <Plus className="mr-2 h-4 w-4" />
-            Create Agent
+            Create Custom Agent
           </Button>
         ) : (
           <RoleCheck adminOnly>
@@ -49,7 +56,7 @@ export function TeamAgentsSection({
               className="bg-brand-green hover:bg-brand-deep-green"
             >
               <Plus className="mr-2 h-4 w-4" />
-              Create Agent
+              Create Custom Agent
             </Button>
           </RoleCheck>
         )}

@@ -11,6 +11,8 @@ import { TeamAgentsSection } from './TeamAgentsSection';
 import { TeamAgentsAssignments } from './TeamAgentsAssignments';
 import { TeamAgentsDialogs } from './TeamAgentsDialogs';
 import { UserAgentViewer } from './UserAgentViewer';
+import { RetellAgentsSection } from './RetellAgentsSection';
+import { Separator } from '@/components/ui/separator';
 
 export function TeamAgentsContainer() {
   const { company } = useAuth();
@@ -75,9 +77,15 @@ export function TeamAgentsContainer() {
   }
   
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
       <TeamAgentsHeader isSuperAdmin={isSuperAdmin} />
       
+      {/* Synced Retell AI Agents Section */}
+      <RetellAgentsSection />
+      
+      <Separator className="my-8" />
+      
+      {/* Company Custom Agents Section */}
       <TeamAgentsSection
         agents={agents}
         isLoading={isLoading}
