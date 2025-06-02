@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 
 export interface ApiTestResult {
@@ -142,16 +143,15 @@ export class RetellApiDebugger {
     }
 
     try {
-      console.log('[RETELL_API_DEBUG] Making test request to:', `${this.baseUrl}/list-agents`);
+      console.log('[RETELL_API_DEBUG] Making test request to:', `${this.baseUrl}/agents`);
       console.log('[RETELL_API_DEBUG] Using API key prefix:', this.apiKey.substring(0, 8) + '...');
 
-      const response = await fetch(`${this.baseUrl}/list-agents`, {
-        method: 'POST',
+      const response = await fetch(`${this.baseUrl}/agents`, {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ limit: 1 })
+        }
       });
 
       console.log('[RETELL_API_DEBUG] Response status:', response.status);
