@@ -3,6 +3,7 @@ import React from "react";
 import { UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Agent } from "@/services/agentService";
 import { CompanyMember } from "@/services/memberService";
 import { AgentAssignFormValues } from "../schemas/agentAssignFormSchema";
@@ -72,6 +73,27 @@ export const AgentAssignFormFields = ({
               </SelectContent>
             </Select>
             <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="is_primary"
+        render={({ field }) => (
+          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <FormLabel className="text-base">Primary Agent</FormLabel>
+              <div className="text-sm text-muted-foreground">
+                Set this agent as the primary agent for this user. Only one agent can be primary per user.
+              </div>
+            </div>
+            <FormControl>
+              <Switch
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            </FormControl>
           </FormItem>
         )}
       />

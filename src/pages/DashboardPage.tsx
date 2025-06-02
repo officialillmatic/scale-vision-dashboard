@@ -4,9 +4,11 @@ import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDash
 import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { SuperAdminDashboard } from "@/components/dashboard/SuperAdminDashboard";
+import { UserAgentDashboard } from "@/components/dashboard/UserAgentDashboard";
 import { DashboardSyncHeader } from "@/components/dashboard/DashboardSyncHeader";
 import { DashboardSyncAlerts } from "@/components/dashboard/DashboardSyncAlerts";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +18,7 @@ import { toast } from "sonner";
 
 export default function DashboardPage() {
   const { isSuperAdmin } = useSuperAdmin();
+  const { isCompanyOwner, can } = useRole();
   const [testResults, setTestResults] = useState<any>(null);
   const [isTestRunning, setIsTestRunning] = useState(false);
 
@@ -105,20 +108,10 @@ export default function DashboardPage() {
                   <div className="text-sm text-red-700">Deactivated</div>
                 </div>
               </div>
-              
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <AlertCircle className="h-4 w-4" />
-                <span>
-                  Sync Status: {data.sync_status} | 
-                  Started: {data.sync_started_at && new Date(data.sync_started_at).toLocaleTimeString()} | 
-                  Completed: {data.sync_completed_at && new Date(data.sync_completed_at).toLocaleTimeString()}
-                </span>
-              </div>
             </div>
           ) : (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="text-red-600 font-medium">Sync Failed</div>
-              <p className="text-red-600 text-sm mt-1">{error}</p>
+            <div className="text-red-600 bg-red-50 p-4 rounded-lg">
+              <strong>Error:</strong> {error}
             </div>
           )}
         </CardContent>
@@ -126,64 +119,70 @@ export default function DashboardPage() {
     );
   };
 
+  // Super admin gets the special super admin dashboard
   if (isSuperAdmin) {
     return (
       <ProductionDashboardLayout>
-        <div className="space-y-8">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-gray-900">System Overview</h1>
-            <p className="text-gray-600">Manage your AI calling platform and monitor system health.</p>
-          </div>
+        <div className="space-y-6">
+          <DashboardSyncHeader />
+          <DashboardSyncAlerts />
+          
+          {/* Sync Test Section for Super Admins */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5" />
+                Agent Synchronization Test
+              </CardTitle>
+              <CardDescription>
+                Test the Retell AI agent synchronization system and view detailed results.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={runSyncTest}
+                disabled={isTestRunning}
+                className="mb-4"
+              >
+                {isTestRunning ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Running Sync Test...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Run Sync Test
+                  </>
+                )}
+              </Button>
+              
+              {renderTestResults()}
+            </CardContent>
+          </Card>
+          
           <SuperAdminDashboard />
         </div>
       </ProductionDashboardLayout>
     );
   }
 
+  // Company owners and admins get the management dashboard
+  if (isCompanyOwner || can.manageTeam) {
+    return (
+      <ProductionDashboardLayout>
+        <div className="space-y-6">
+          <DashboardMetrics />
+          <DashboardCharts />
+        </div>
+      </ProductionDashboardLayout>
+    );
+  }
+
+  // Regular users get the user agent dashboard
   return (
     <ProductionDashboardLayout>
-      <div className="space-y-8">
-        <DashboardSyncHeader />
-        <DashboardSyncAlerts />
-        
-        {/* Test Sync Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5" />
-              Agent Synchronization Test
-            </CardTitle>
-            <CardDescription>
-              Test the connection to Retell AI and sync agents to verify the integration is working properly.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              onClick={runSyncTest}
-              disabled={isTestRunning}
-              size="lg"
-              className="flex items-center gap-2"
-            >
-              {isTestRunning ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  Running Sync Test...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4" />
-                  Test Sync
-                </>
-              )}
-            </Button>
-            
-            {renderTestResults()}
-          </CardContent>
-        </Card>
-        
-        <DashboardMetrics />
-        <DashboardCharts />
-      </div>
+      <UserAgentDashboard />
     </ProductionDashboardLayout>
   );
 }

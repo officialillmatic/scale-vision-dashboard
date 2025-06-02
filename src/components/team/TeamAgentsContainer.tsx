@@ -35,7 +35,8 @@ export function TeamAgentsContainer() {
     handleDeleteAgent,
     handleAssignAgent,
     handleRemoveAgentAssignment,
-    isAdmin
+    isAdmin,
+    refetchUserAgents
   } = useAgents();
 
   const { teamMembers, isLoading: isLoadingMembers } = useTeamMembers(company?.id);
@@ -60,6 +61,10 @@ export function TeamAgentsContainer() {
       await handleDeleteAgent(selectedAgent.id);
     }
     setIsDeleteDialogOpen(false);
+  };
+
+  const handleRefreshAssignments = () => {
+    refetchUserAgents();
   };
 
   const isLoading = isLoadingAgents || isLoadingUserAgents || isLoadingMembers;
@@ -90,6 +95,7 @@ export function TeamAgentsContainer() {
           isLoading={isLoading}
           isLoadingUserAgents={isLoadingUserAgents}
           onRemove={handleRemoveAgentAssignment}
+          onRefresh={handleRefreshAssignments}
         />
       )}
 

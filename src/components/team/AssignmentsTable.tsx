@@ -10,22 +10,27 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Trash2, Loader } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { UserAgent } from '@/services/agentService';
+import { UserAgent, updateUserAgentPrimary } from '@/services/agentService';
+import { toast } from 'sonner';
 
 interface AssignmentsTableProps {
   userAgents: UserAgent[];
   isLoading: boolean;
   onRemove: (id: string) => void;
+  onRefresh?: () => void;
 }
 
 export function AssignmentsTable({ 
   userAgents, 
   isLoading, 
-  onRemove 
+  onRemove,
+  onRefresh
 }: AssignmentsTableProps) {
   const [removingId, setRemovingId] = React.useState<string | null>(null);
+  const [updatingPrimaryId, setUpdatingPrimaryId] = React.useState<string | null>(null);
 
   const handleRemove = async (id: string) => {
     setRemovingId(id);
@@ -33,6 +38,24 @@ export function AssignmentsTable({
       await onRemove(id);
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  const handlePrimaryToggle = async (userAgent: UserAgent, isPrimary: boolean) => {
+    setUpdatingPrimaryId(userAgent.id);
+    try {
+      await updateUserAgentPrimary(
+        userAgent.id, 
+        isPrimary, 
+        userAgent.user_id, 
+        userAgent.company_id
+      );
+      toast.success(isPrimary ? 'Set as primary agent' : 'Removed primary status');
+      onRefresh?.();
+    } catch (error: any) {
+      toast.error(`Failed to update primary status: ${error.message}`);
+    } finally {
+      setUpdatingPrimaryId(null);
     }
   };
 
@@ -57,18 +80,31 @@ export function AssignmentsTable({
           ) : userAgents.length > 0 ? (
             userAgents.map((userAgent) => (
               <TableRow key={userAgent.id} className="hover:bg-muted/50">
-                <TableCell>{userAgent.user_details?.email || 'Unknown user'}</TableCell>
+                <TableCell>
+                  <div>
+                    <p className="font-medium">{userAgent.user_details?.name || 'Unknown User'}</p>
+                    <p className="text-sm text-muted-foreground">{userAgent.user_details?.email}</p>
+                  </div>
+                </TableCell>
                 <TableCell>
                   {userAgent.agent?.name || 'Unknown Agent'}
                 </TableCell>
                 <TableCell>
-                  {userAgent.is_primary ? (
-                    <Badge className="bg-brand-light-green text-brand-deep-green border-brand-green">
-                      Primary
-                    </Badge>
-                  ) : (
-                    'No'
-                  )}
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={userAgent.is_primary}
+                      onCheckedChange={(checked) => handlePrimaryToggle(userAgent, checked)}
+                      disabled={updatingPrimaryId === userAgent.id}
+                    />
+                    {userAgent.is_primary && (
+                      <Badge className="bg-brand-light-green text-brand-deep-green border-brand-green">
+                        Primary
+                      </Badge>
+                    )}
+                    {updatingPrimaryId === userAgent.id && (
+                      <Loader className="h-4 w-4 animate-spin" />
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Button
