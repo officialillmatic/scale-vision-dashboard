@@ -55,6 +55,8 @@ export class AgentProcessor {
         // Process each call
         for (const call of calls) {
           try {
+            console.log(`[SYNC-CALLS-${this.requestId}] Processing call ${call.call_id} for agent ${agent.name}`);
+            
             // Get detailed call information if needed
             let detailedCall = call;
             if (!call.transcript && !call.recording_url) {
@@ -68,9 +70,13 @@ export class AgentProcessor {
             
             if (processed) {
               result.callsSynced++;
+              console.log(`[SYNC-CALLS-${this.requestId}] Successfully synced call ${call.call_id}`);
+            } else {
+              console.log(`[SYNC-CALLS-${this.requestId}] Call ${call.call_id} already exists, skipped`);
             }
           } catch (callError) {
             console.error(`[SYNC-CALLS-${this.requestId}] Error processing call ${call.call_id}:`, callError);
+            console.error(`[SYNC-CALLS-${this.requestId}] Call error stack:`, callError.stack);
             result.callsProcessed++;
             totalProcessed++;
           }
@@ -78,6 +84,7 @@ export class AgentProcessor {
 
         // Add delay to prevent rate limiting
         if (hasMore) {
+          console.log(`[SYNC-CALLS-${this.requestId}] Adding rate limit delay...`);
           await new Promise(resolve => setTimeout(resolve, SYNC_CONSTANTS.RATE_LIMIT_DELAY));
         }
       }
@@ -87,6 +94,7 @@ export class AgentProcessor {
 
     } catch (error) {
       console.error(`[SYNC-CALLS-${this.requestId}] Error processing agent ${agent.retell_agent_id}:`, error);
+      console.error(`[SYNC-CALLS-${this.requestId}] Agent error stack:`, error.stack);
       result.error = error.message;
     }
 
@@ -94,12 +102,24 @@ export class AgentProcessor {
   }
 
   private async processCall(call: any, userAgent: any, agent: any): Promise<boolean> {
+    console.log(`[SYNC-CALLS-${this.requestId}] Processing call data:`, {
+      call_id: call.call_id,
+      agent_id: agent.retell_agent_id,
+      status: call.call_status,
+      duration: call.duration_sec
+    });
+
     // Check if call already exists in retell_calls table
-    const { data: existingCall } = await this.supabaseClient
+    const { data: existingCall, error: checkError } = await this.supabaseClient
       .from('retell_calls')
       .select('id')
       .eq('call_id', call.call_id)
       .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error(`[SYNC-CALLS-${this.requestId}] Error checking existing call:`, checkError);
+      throw checkError;
+    }
 
     if (existingCall) {
       console.log(`[SYNC-CALLS-${this.requestId}] Call ${call.call_id} already exists in retell_calls, skipping`);
@@ -120,20 +140,30 @@ export class AgentProcessor {
       revenue_amount: mappedCall.revenue_amount,
       call_status: mappedCall.call_status,
       from_number: mappedCall.from_number,
-      to_number: mappedCall.to_number
+      to_number: mappedCall.to_number,
+      agent_id: mappedCall.agent_id,
+      user_id: mappedCall.user_id,
+      company_id: mappedCall.company_id
     });
 
     // Insert into retell_calls table
-    const { error: insertError } = await this.supabaseClient
+    const { data: insertData, error: insertError } = await this.supabaseClient
       .from('retell_calls')
-      .insert(mappedCall);
+      .insert(mappedCall)
+      .select();
 
     if (insertError) {
       console.error(`[SYNC-CALLS-${this.requestId}] Error inserting call ${call.call_id} into retell_calls:`, insertError);
+      console.error(`[SYNC-CALLS-${this.requestId}] Insert error details:`, {
+        code: insertError.code,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint
+      });
       throw insertError;
     }
 
-    console.log(`[SYNC-CALLS-${this.requestId}] Successfully synced call ${call.call_id} to retell_calls table`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Successfully inserted call ${call.call_id} into retell_calls table with ID:`, insertData?.[0]?.id);
     return true;
   }
 }

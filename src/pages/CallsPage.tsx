@@ -4,10 +4,11 @@ import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDash
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Phone, BarChart3, Settings, Activity } from "lucide-react";
+import { Phone, BarChart3, Settings, Activity, Bug } from "lucide-react";
 import { CallDataTable } from "@/components/calls/CallDataTable";
 import { CallTableSyncButton } from "@/components/calls/CallTableSyncButton";
 import { CallTableErrorAlert } from "@/components/calls/CallTableErrorAlert";
+import { SyncDebugPanel } from "@/components/calls/SyncDebugPanel";
 import { useCallData } from "@/hooks/useCallData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
@@ -22,9 +23,9 @@ export default function CallsPage() {
   };
 
   const totalCalls = calls.length;
-  const activeCalls = calls.filter(call => call.status === 'completed').length;
-  const totalDuration = calls.reduce((sum, call) => sum + (call.duration || 0), 0);
-  const totalCost = calls.reduce((sum, call) => sum + (call.cost || 0), 0);
+  const activeCalls = calls.filter(call => call.call_status === 'completed').length;
+  const totalDuration = calls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
+  const totalCost = calls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -122,9 +123,10 @@ export default function CallsPage() {
 
         {/* Main Content */}
         <Tabs defaultValue="calls" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="calls">Call History</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="debug">Debug</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -178,6 +180,10 @@ export default function CallsPage() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="debug">
+            <SyncDebugPanel />
           </TabsContent>
 
           <TabsContent value="settings">

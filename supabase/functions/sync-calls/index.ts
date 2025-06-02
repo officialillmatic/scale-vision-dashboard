@@ -20,6 +20,8 @@ serve(async (req) => {
     try {
       config = loadSyncConfig();
       console.log(`[SYNC-CALLS-${requestId}] Configuration loaded successfully`);
+      console.log(`[SYNC-CALLS-${requestId}] API Key present: ${config.retellApiKey ? 'YES' : 'NO'}`);
+      console.log(`[SYNC-CALLS-${requestId}] API Base URL: ${config.retellApiBaseUrl}`);
     } catch (configError) {
       console.error(`[SYNC-CALLS-${requestId}] Configuration error:`, configError);
       
@@ -44,9 +46,11 @@ serve(async (req) => {
         try {
           console.log(`[SYNC-CALLS-${requestId}] Running connectivity test...`);
           const testResult = await orchestrator.performTest();
+          console.log(`[SYNC-CALLS-${requestId}] Test result:`, testResult);
           return createSuccessResponse(testResult);
         } catch (error) {
           console.error(`[SYNC-CALLS-${requestId}] Test failed:`, error);
+          console.error(`[SYNC-CALLS-${requestId}] Test error stack:`, error.stack);
           
           if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
             return createErrorResponse('Retell API authentication failed. Please check your API key.', 401);
@@ -64,6 +68,7 @@ serve(async (req) => {
         return createSuccessResponse(summary);
       } catch (error) {
         console.error(`[SYNC-CALLS-${requestId}] Sync failed:`, error);
+        console.error(`[SYNC-CALLS-${requestId}] Sync error stack:`, error.stack);
         
         if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
           return createErrorResponse('Retell API authentication failed. Please check your API key.', 401);
@@ -81,6 +86,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error(`[SYNC-CALLS-${requestId}] Fatal error:`, error);
+    console.error(`[SYNC-CALLS-${requestId}] Fatal error stack:`, error.stack);
     return createErrorResponse(`Sync failed: ${error.message}`, 500);
   }
 });
