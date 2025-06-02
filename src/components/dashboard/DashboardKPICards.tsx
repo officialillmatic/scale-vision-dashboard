@@ -1,12 +1,28 @@
 
-import React from "react";
-import { UnifiedRevenueMetricsCards } from "./UnifiedRevenueMetricsCards";
+import React from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
+import { useRole } from '@/hooks/useRole';
+import { DashboardMetrics } from './DashboardMetrics';
+import { UserDashboardKPIs } from './UserDashboardKPIs';
 
-interface DashboardKPICardsProps {
-  startDate?: Date;
-  endDate?: Date;
-}
+export function DashboardKPICards() {
+  const { user } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
+  const { isCompanyOwner, can } = useRole();
 
-export function DashboardKPICards({ startDate, endDate }: DashboardKPICardsProps) {
-  return <UnifiedRevenueMetricsCards startDate={startDate} endDate={endDate} />;
+  console.log('🔍 [DashboardKPICards] Current user role check:', {
+    userId: user?.id,
+    isSuperAdmin,
+    isCompanyOwner,
+    canManageTeam: can.manageTeam
+  });
+
+  // Super admins and company owners get the full business metrics
+  if (isSuperAdmin || isCompanyOwner || can.manageTeam) {
+    return <DashboardMetrics />;
+  }
+
+  // Regular users get user-specific KPIs
+  return <UserDashboardKPIs />;
 }

@@ -4,9 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCalls } from '@/hooks/useCalls';
-import { useUserBalance } from '@/hooks/useUserBalance';
 import { useCurrentUserAgents } from '@/hooks/useCurrentUserAgents';
+import { useCurrentUserCalls } from '@/hooks/useCurrentUserCalls';
+import { useUserBalance } from '@/hooks/useUserBalance';
 import { formatCurrency } from '@/lib/formatters';
 import { PhoneCall, User, Bot, DollarSign, Clock, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -15,12 +15,13 @@ export function UserAgentDashboard() {
   const { user, company } = useAuth();
   const navigate = useNavigate();
   const { data: userAgentAssignments, isLoading: isLoadingUserAgents } = useCurrentUserAgents();
-  const { calls, isLoading: isLoadingCalls } = useCalls();
-  const { balance, isLoading: isLoadingBalance, remainingMinutes, isLowBalance } = useUserBalance();
+  const { userCalls, isLoading: isLoadingCalls } = useCurrentUserCalls();
+  const { balance, remainingMinutes, isLowBalance } = useUserBalance();
 
   console.log('🔍 [UserAgentDashboard] Current user:', user?.id);
   console.log('🔍 [UserAgentDashboard] Current company:', company?.id);
   console.log('🔍 [UserAgentDashboard] User agent assignments:', userAgentAssignments);
+  console.log('🔍 [UserAgentDashboard] User calls:', userCalls?.length);
 
   // Find the primary agent for the current authenticated user
   const primaryAgent = userAgentAssignments?.find(assignment => 
@@ -33,17 +34,13 @@ export function UserAgentDashboard() {
   console.log('🔍 [UserAgentDashboard] Primary agent found:', primaryAgent);
   console.log('🔍 [UserAgentDashboard] Assigned agent found:', assignedAgent);
 
-  // Get agent-specific metrics for the current user
-  const agentCalls = calls.filter(call => 
-    assignedAgent && call.agent_id === assignedAgent.agent_id && call.user_id === user?.id
-  );
-
-  const totalCallDuration = agentCalls.reduce((total, call) => total + (call.duration_sec || 0), 0);
-  const totalCallCost = agentCalls.reduce((total, call) => total + (call.cost_usd || 0), 0);
-  const avgCallDuration = agentCalls.length > 0 ? totalCallDuration / agentCalls.length : 0;
+  // Calculate metrics from user's calls
+  const totalCallDuration = userCalls?.reduce((total, call) => total + (call.duration_sec || 0), 0) || 0;
+  const totalCallCost = userCalls?.reduce((total, call) => total + (call.cost_usd || 0), 0) || 0;
+  const avgCallDuration = userCalls?.length ? totalCallDuration / userCalls.length : 0;
 
   // Show loading state while data is being fetched
-  if (isLoadingUserAgents || isLoadingCalls || isLoadingBalance) {
+  if (isLoadingUserAgents || isLoadingCalls) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -171,9 +168,9 @@ export function UserAgentDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Calls</p>
-                <h3 className="text-2xl font-bold mt-1">{agentCalls.length}</h3>
+                <h3 className="text-2xl font-bold mt-1">{userCalls?.length || 0}</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  With your agent
+                  From your assigned agents
                 </p>
               </div>
               <PhoneCall className="h-5 w-5 text-blue-500" />
@@ -217,35 +214,41 @@ export function UserAgentDashboard() {
       </div>
 
       {/* Recent Calls for Current User */}
-      {agentCalls.length > 0 && (
+      {userCalls && userCalls.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Your Recent Calls with {assignedAgent.agent_details?.name}</CardTitle>
+            <CardTitle>Your Recent Calls ({userCalls.length})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {agentCalls.slice(0, 5).map((call) => (
+              {userCalls.slice(0, 5).map((call) => (
                 <div key={call.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <PhoneCall className="w-4 h-4 text-gray-500" />
                     <div>
-                      <p className="font-medium">{call.to || 'Unknown'}</p>
+                      <p className="font-medium">{call.to_number || call.from_number || 'Unknown'}</p>
                       <p className="text-sm text-muted-foreground">
-                        {new Date(call.timestamp).toLocaleDateString()} at {new Date(call.timestamp).toLocaleTimeString()}
+                        {new Date(call.start_timestamp).toLocaleDateString()} at {new Date(call.start_timestamp).toLocaleTimeString()}
                       </p>
+                      {call.agent_details && (
+                        <p className="text-xs text-blue-600">Agent: {call.agent_details.name}</p>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-medium">{Math.round((call.duration_sec || 0) / 60)}m</p>
                     <p className="text-sm text-muted-foreground">{formatCurrency(call.cost_usd || 0)}</p>
+                    <Badge variant="outline" className="text-xs mt-1">
+                      {call.call_status}
+                    </Badge>
                   </div>
                 </div>
               ))}
             </div>
-            {agentCalls.length > 5 && (
+            {userCalls.length > 5 && (
               <div className="mt-4 text-center">
                 <Button variant="outline" onClick={() => navigate('/calls')}>
-                  View All Your Calls
+                  View All Your Calls ({userCalls.length})
                 </Button>
               </div>
             )}
