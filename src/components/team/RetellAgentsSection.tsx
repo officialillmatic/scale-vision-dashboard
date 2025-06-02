@@ -27,12 +27,23 @@ export function RetellAgentsSection() {
   const handleRefresh = () => {
     console.log('🔍 [RetellAgentsSection] Manual refresh triggered');
     refetchRetellAgents();
+    toast.info('Refreshing agents list...');
   };
 
   const handleSync = () => {
     console.log('🔍 [RetellAgentsSection] Sync triggered');
     triggerSync();
   };
+
+  // Auto-refresh after successful sync
+  React.useEffect(() => {
+    if (latestSync?.sync_status === 'completed') {
+      console.log('🔍 [RetellAgentsSection] Sync completed, refreshing agents list');
+      refetchRetellAgents();
+    }
+  }, [latestSync?.sync_status, refetchRetellAgents]);
+
+  const agentCount = retellAgents?.length || 0;
 
   return (
     <div className="space-y-4">
@@ -86,7 +97,7 @@ export function RetellAgentsSection() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Retell AI Agents ({retellAgents.length})</span>
+            <span>Retell AI Agents ({agentCount})</span>
             <div className="flex items-center gap-2">
               {isLoadingRetellAgents && (
                 <Badge variant="secondary">Loading...</Badge>
@@ -121,7 +132,7 @@ export function RetellAgentsSection() {
       {/* Debug info in development */}
       {process.env.NODE_ENV === 'development' && (
         <div className="text-xs text-gray-500 mt-2">
-          Debug: {retellAgents.length} synced agents loaded, isLoading: {isLoadingRetellAgents.toString()}
+          Debug: {agentCount} synced agents loaded, isLoading: {isLoadingRetellAgents.toString()}
           {retellAgentsError && `, Error: ${retellAgentsError instanceof Error ? retellAgentsError.message : 'Unknown'}`}
         </div>
       )}

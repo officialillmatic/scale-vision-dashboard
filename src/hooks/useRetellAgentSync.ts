@@ -38,7 +38,7 @@ export function useRetellAgentSync() {
       toast.info('Starting agent synchronization...');
     },
     onSuccess: (data: AgentSyncResult) => {
-      // Invalidate all related queries
+      // Invalidate all related queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['retell-sync-stats'] });
       queryClient.invalidateQueries({ queryKey: ['retell-unassigned-agents'] });
       queryClient.invalidateQueries({ queryKey: ['retell-agents'] });
@@ -48,6 +48,8 @@ export function useRetellAgentSync() {
       toast.success(
         `Sync completed! ${totalProcessed} agents processed (${data.agents_created} created, ${data.agents_updated} updated, ${data.agents_deactivated} deactivated)`
       );
+      
+      console.log('🔍 [useRetellAgentSync] Sync completed, queries invalidated');
     },
     onError: (error: any) => {
       console.error('[USE_RETELL_AGENT_SYNC] Sync error:', error);

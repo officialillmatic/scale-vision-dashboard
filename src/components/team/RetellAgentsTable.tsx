@@ -57,25 +57,29 @@ export function RetellAgentsTable({
                 <LoadingSpinner size="md" className="mx-auto" />
               </TableCell>
             </TableRow>
-          ) : agents.length > 0 ? (
+          ) : agents && agents.length > 0 ? (
             agents.map((agent) => (
               <TableRow key={agent.id}>
                 <TableCell className="font-medium">
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      {agent.name.charAt(0).toUpperCase()}
+                      {agent.name?.charAt(0)?.toUpperCase() || 'A'}
                     </div>
-                    <span>{agent.name}</span>
+                    <span>{agent.name || 'Unnamed Agent'}</span>
                   </div>
                 </TableCell>
-                <TableCell>{agent.description || 'No description'}</TableCell>
+                <TableCell>
+                  <div className="max-w-xs truncate">
+                    {agent.description || 'No description'}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <Badge className={getStatusBadgeColor(agent.status)}>
                     {agent.status}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {formatCurrency(agent.rate_per_minute || 0.02)}/min
+                  {formatCurrency(agent.rate_per_minute || 0.17)}/min
                 </TableCell>
                 <TableCell>{agent.voice_model || 'N/A'}</TableCell>
                 <TableCell>{agent.language || 'en-US'}</TableCell>
