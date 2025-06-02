@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -178,21 +179,35 @@ export class RetellAbstraction {
    * Get sanitized call data for frontend consumption
    */
   async getCallData(userIdOrCompanyId: string, limit: number = 100): Promise<any[]> {
-    console.log('[RETELL_SERVICE] Fetching calls for user/company:', userIdOrCompanyId);
+    console.log('[RETELL_SERVICE] Fetching calls for user:', userIdOrCompanyId);
     
     const { data, error } = await supabase
       .from('retell_calls')
       .select(`
         id,
         call_id,
-        retell_agent_id,
+        agent_id,
         user_id,
         company_id,
+        start_timestamp,
+        end_timestamp,
+        duration_sec,
+        cost_usd,
+        revenue_amount,
+        call_status,
+        from_number,
+        to_number,
+        transcript,
+        recording_url,
+        call_summary,
+        sentiment,
+        disposition,
+        disconnection_reason,
         created_at,
         updated_at
       `)
-      .eq('user_id', userIdOrCompanyId) // CAMBIO: usar user_id en lugar de company_id
-      .order('created_at', { ascending: false })
+      .eq('user_id', userIdOrCompanyId)
+      .order('start_timestamp', { ascending: false })
       .limit(limit);
 
     console.log('[RETELL_SERVICE] Query result:', { data, error, dataLength: data?.length });
@@ -206,19 +221,20 @@ export class RetellAbstraction {
     return data?.map(call => ({
       id: call.id,
       callId: call.call_id,
-      timestamp: call.created_at,
-      duration: 0, // No está disponible en retell_calls
-      cost: 0, // No está disponible en retell_calls
-      sentiment: null,
+      timestamp: call.start_timestamp,
+      duration: call.duration_sec || 0,
+      cost: call.cost_usd || 0,
+      sentiment: call.sentiment,
       sentimentScore: null,
-      status: 'completed', // Valor por defecto
-      fromNumber: 'Unknown', // No está disponible en retell_calls
-      toNumber: 'Unknown', // No está disponible en retell_calls  
-      hasRecording: false,
-      hasTranscript: false,
-      summary: null,
+      status: call.call_status || 'completed',
+      fromNumber: call.from_number || 'Unknown',
+      toNumber: call.to_number || 'Unknown',  
+      hasRecording: !!call.recording_url,
+      hasTranscript: !!call.transcript,
+      summary: call.call_summary,
+      disconnectionReason: call.disconnection_reason,
       agent: {
-        id: call.retell_agent_id,
+        id: call.agent_id,
         name: 'Unknown Agent',
         ratePerMinute: 0
       }

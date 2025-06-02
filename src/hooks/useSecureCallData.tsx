@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { retellService } from "@/utils/retellAbstraction";
 import { useAuth } from "@/contexts/AuthContext";
@@ -5,7 +6,7 @@ import { useSecurityMonitor } from "@/hooks/useSecurityMonitor";
 import { toast } from "sonner";
 
 export const useSecureCallData = (limit: number = 100) => {
-  const { company, user } = useAuth();
+  const { user } = useAuth();
   const { checkRateLimit, logSecurityEvent } = useSecurityMonitor();
 
   const { 
@@ -16,7 +17,7 @@ export const useSecureCallData = (limit: number = 100) => {
   } = useQuery({
     queryKey: ["secure-calls", user?.id, limit],
     queryFn: async () => {
-      console.log("[DEBUG] User ID:", user?.id, "Company:", company);
+      console.log("[SECURE_CALL_DATA] User ID:", user?.id);
       
       if (!user?.id) {
         console.log("[SECURE_CALL_DATA] Missing user ID");
@@ -34,12 +35,12 @@ export const useSecureCallData = (limit: number = 100) => {
       console.log("[SECURE_CALL_DATA] Fetching secure call data for user:", user.id);
       
       try {
-        // CAMBIO: usar user.id en lugar de company.id
         const callData = await retellService.getCallData(user.id, limit);
         
         // Log successful access
         await logSecurityEvent('call_data_access', `Successfully fetched ${callData.length} calls`);
         
+        console.log("[SECURE_CALL_DATA] Successfully fetched calls:", callData.length);
         return callData;
       } catch (error: any) {
         console.error("[SECURE_CALL_DATA] Error fetching call data:", error);
@@ -58,7 +59,7 @@ export const useSecureCallData = (limit: number = 100) => {
         throw error;
       }
     },
-    enabled: !!user?.id, // CAMBIO: solo verificar user?.id
+    enabled: !!user?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: (failureCount, error: any) => {
       // Don't retry rate limit or permission errors
