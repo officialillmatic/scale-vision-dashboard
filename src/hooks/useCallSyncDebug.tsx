@@ -10,14 +10,36 @@ interface DebugResult {
   timestamp: string;
 }
 
+interface LoadingStates {
+  directApi: boolean;
+  database: boolean;
+  edgeFunction: boolean;
+  apiConnectivity: boolean;
+}
+
 export const useCallSyncDebug = () => {
-  const [isDebugging, setIsDebugging] = useState(false);
+  const [loadingStates, setLoadingStates] = useState<LoadingStates>({
+    directApi: false,
+    database: false,
+    edgeFunction: false,
+    apiConnectivity: false
+  });
+
   const [debugResults, setDebugResults] = useState<{
     apiTest?: DebugResult;
     dbTest?: DebugResult;
     directApiTest?: DebugResult;
     edgeFunctionTest?: DebugResult;
   }>({});
+
+  const isAnyTestRunning = Object.values(loadingStates).some(state => state);
+
+  const setLoading = (testType: keyof LoadingStates, isLoading: boolean) => {
+    setLoadingStates(prev => ({
+      ...prev,
+      [testType]: isLoading
+    }));
+  };
 
   const logResult = (testType: string, result: DebugResult) => {
     setDebugResults(prev => ({
@@ -27,9 +49,19 @@ export const useCallSyncDebug = () => {
   };
 
   // Test 1: Direct Retell API call from frontend
-  const testDirectRetellAPI = async () => {
+  const testDirectRetellAPI = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (isAnyTestRunning) {
+      toast.warning("Another test is already running. Please wait.");
+      return;
+    }
+
     console.log("[DEBUG] Testing direct Retell API call from frontend...");
-    setIsDebugging(true);
+    setLoading('directApi', true);
     
     try {
       const response = await fetch('https://api.retellai.com/v2/list-calls', {
@@ -93,14 +125,24 @@ export const useCallSyncDebug = () => {
       logResult('directApiTest', result);
       toast.error(`Direct API test failed: ${error.message}`);
     } finally {
-      setIsDebugging(false);
+      setLoading('directApi', false);
     }
   };
 
   // Test 2: Force insert a test call record
-  const testDatabaseInsertion = async () => {
+  const testDatabaseInsertion = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (isAnyTestRunning) {
+      toast.warning("Another test is already running. Please wait.");
+      return;
+    }
+
     console.log("[DEBUG] Testing database insertion...");
-    setIsDebugging(true);
+    setLoading('database', true);
     
     try {
       const testCall = {
@@ -168,14 +210,24 @@ export const useCallSyncDebug = () => {
       logResult('dbTest', result);
       toast.error(`Database test failed: ${error.message}`);
     } finally {
-      setIsDebugging(false);
+      setLoading('database', false);
     }
   };
 
   // Test 3: Edge function with detailed logging
-  const testEdgeFunction = async () => {
+  const testEdgeFunction = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (isAnyTestRunning) {
+      toast.warning("Another test is already running. Please wait.");
+      return;
+    }
+
     console.log("[DEBUG] Testing edge function with bypass validation...");
-    setIsDebugging(true);
+    setLoading('edgeFunction', true);
     
     try {
       const { data, error } = await supabase.functions.invoke('sync-calls', {
@@ -225,14 +277,24 @@ export const useCallSyncDebug = () => {
       logResult('edgeFunctionTest', result);
       toast.error(`Edge function test failed: ${error.message}`);
     } finally {
-      setIsDebugging(false);
+      setLoading('edgeFunction', false);
     }
   };
 
   // Test 4: API connectivity test
-  const testAPIConnectivity = async () => {
+  const testAPIConnectivity = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (isAnyTestRunning) {
+      toast.warning("Another test is already running. Please wait.");
+      return;
+    }
+
     console.log("[DEBUG] Testing API connectivity through edge function...");
-    setIsDebugging(true);
+    setLoading('apiConnectivity', true);
     
     try {
       const { data, error } = await supabase.functions.invoke('sync-calls', {
@@ -279,7 +341,7 @@ export const useCallSyncDebug = () => {
       logResult('apiTest', result);
       toast.error(`API connectivity test failed: ${error.message}`);
     } finally {
-      setIsDebugging(false);
+      setLoading('apiConnectivity', false);
     }
   };
 
@@ -294,7 +356,8 @@ export const useCallSyncDebug = () => {
   };
 
   return {
-    isDebugging,
+    loadingStates,
+    isAnyTestRunning,
     debugResults,
     testDirectRetellAPI,
     testDatabaseInsertion,

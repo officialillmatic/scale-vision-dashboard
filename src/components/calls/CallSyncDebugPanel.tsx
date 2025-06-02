@@ -20,7 +20,8 @@ import { useCallSyncDebug } from "@/hooks/useCallSyncDebug";
 
 export function CallSyncDebugPanel() {
   const {
-    isDebugging,
+    loadingStates,
+    isAnyTestRunning,
     debugResults,
     testDirectRetellAPI,
     testDatabaseInsertion,
@@ -43,6 +44,14 @@ export function CallSyncDebugPanel() {
       <Badge className="bg-red-100 text-red-800">Failed</Badge>;
   };
 
+  const handleButtonClick = (testFunction: (e?: React.MouseEvent) => Promise<void>) => {
+    return (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      testFunction(e);
+    };
+  };
+
   return (
     <div className="space-y-6">
       <Card className="border-0 shadow-sm">
@@ -59,6 +68,7 @@ export function CallSyncDebugPanel() {
               size="sm" 
               onClick={clearResults}
               className="text-gray-600"
+              disabled={isAnyTestRunning}
             >
               <Trash2 className="h-4 w-4 mr-1" />
               Clear Results
@@ -82,12 +92,12 @@ export function CallSyncDebugPanel() {
                 </p>
                 <div className="flex items-center justify-between">
                   <Button 
-                    onClick={testDirectRetellAPI} 
-                    disabled={isDebugging}
+                    onClick={handleButtonClick(testDirectRetellAPI)} 
+                    disabled={isAnyTestRunning}
                     size="sm"
                     className="bg-blue-600 hover:bg-blue-700"
                   >
-                    {isDebugging ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    {loadingStates.directApi ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                     Test API
                   </Button>
                   {getResultBadge(debugResults.directApiTest)}
@@ -110,12 +120,12 @@ export function CallSyncDebugPanel() {
                 </p>
                 <div className="flex items-center justify-between">
                   <Button 
-                    onClick={testDatabaseInsertion} 
-                    disabled={isDebugging}
+                    onClick={handleButtonClick(testDatabaseInsertion)} 
+                    disabled={isAnyTestRunning}
                     size="sm"
                     className="bg-green-600 hover:bg-green-700"
                   >
-                    {isDebugging ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    {loadingStates.database ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                     Test DB
                   </Button>
                   {getResultBadge(debugResults.dbTest)}
@@ -138,12 +148,12 @@ export function CallSyncDebugPanel() {
                 </p>
                 <div className="flex items-center justify-between">
                   <Button 
-                    onClick={testEdgeFunction} 
-                    disabled={isDebugging}
+                    onClick={handleButtonClick(testEdgeFunction)} 
+                    disabled={isAnyTestRunning}
                     size="sm"
                     className="bg-purple-600 hover:bg-purple-700"
                   >
-                    {isDebugging ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    {loadingStates.edgeFunction ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                     Test Sync
                   </Button>
                   {getResultBadge(debugResults.edgeFunctionTest)}
@@ -166,12 +176,12 @@ export function CallSyncDebugPanel() {
                 </p>
                 <div className="flex items-center justify-between">
                   <Button 
-                    onClick={testAPIConnectivity} 
-                    disabled={isDebugging}
+                    onClick={handleButtonClick(testAPIConnectivity)} 
+                    disabled={isAnyTestRunning}
                     size="sm"
                     className="bg-orange-600 hover:bg-orange-700"
                   >
-                    {isDebugging ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    {loadingStates.apiConnectivity ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                     Test API
                   </Button>
                   {getResultBadge(debugResults.apiTest)}
@@ -179,6 +189,16 @@ export function CallSyncDebugPanel() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Global Status */}
+          {isAnyTestRunning && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-700">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm font-medium">Test in progress... Please wait for completion before running another test.</span>
+              </div>
+            </div>
+          )}
 
           {/* Results Display */}
           {Object.keys(debugResults).length > 0 && (
