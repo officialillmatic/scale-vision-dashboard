@@ -7,20 +7,27 @@ import { SuperAdminDashboard } from "@/components/dashboard/SuperAdminDashboard"
 import { UserAgentDashboard } from "@/components/dashboard/UserAgentDashboard";
 import { DashboardSyncHeader } from "@/components/dashboard/DashboardSyncHeader";
 import { DashboardSyncAlerts } from "@/components/dashboard/DashboardSyncAlerts";
+import { DashboardKPICards } from "@/components/dashboard/DashboardKPICards";
+import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { AgentStatusOverview } from "@/components/dashboard/AgentStatusOverview";
+import { DashboardAlerts } from "@/components/dashboard/DashboardAlerts";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrentUserAgents } from "@/hooks/useCurrentUserAgents";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { retellAgentSyncService } from "@/services/retell/retellAgentSync";
-import { RefreshCw, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { RefreshCw, CheckCircle, XCircle, AlertCircle, BarChart3, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { isCompanyOwner, can } = useRole();
+  const { data: userAgents } = useCurrentUserAgents();
   const [testResults, setTestResults] = useState<any>(null);
   const [isTestRunning, setIsTestRunning] = useState(false);
 
@@ -131,6 +138,17 @@ export default function DashboardPage() {
     return (
       <ProductionDashboardLayout>
         <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Super Admin Dashboard</h1>
+              <p className="text-gray-600">System-wide insights and management tools</p>
+            </div>
+            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+              <AlertCircle className="w-3 h-3 mr-1" />
+              Super Admin
+            </Badge>
+          </div>
+
           <DashboardSyncHeader />
           <DashboardSyncAlerts />
           
@@ -142,7 +160,7 @@ export default function DashboardPage() {
                 Agent Synchronization Test
               </CardTitle>
               <CardDescription>
-                Test the Retell AI agent synchronization system and view detailed results.
+                Test the agent synchronization system and view detailed results.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -174,23 +192,94 @@ export default function DashboardPage() {
     );
   }
 
-  // Company owners and team managers get the management dashboard
+  // Company owners and team managers get the comprehensive business dashboard
   if (isCompanyOwner || can.manageTeam) {
     return (
       <ProductionDashboardLayout>
         <div className="space-y-6">
-          <DashboardMetrics />
+          {/* Dashboard Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Business Intelligence Dashboard</h1>
+              <p className="text-gray-600">Key metrics, insights, and performance analytics for your organization</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                <BarChart3 className="w-3 h-3 mr-1" />
+                Business View
+              </Badge>
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <TrendingUp className="w-3 h-3 mr-1" />
+                Live Data
+              </Badge>
+            </div>
+          </div>
+
+          {/* Key Performance Indicators */}
+          <DashboardKPICards />
+
+          {/* Main Dashboard Grid */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {/* Recent Activity Feed */}
+            <div className="lg:col-span-2">
+              <RecentActivityFeed />
+            </div>
+
+            {/* Quick Actions */}
+            <QuickActions />
+
+            {/* Agent Status Overview */}
+            <div className="lg:col-span-2">
+              <AgentStatusOverview />
+            </div>
+
+            {/* Alerts & Notifications */}
+            <DashboardAlerts />
+          </div>
+
+          {/* Performance Charts Section */}
           <DashboardCharts />
         </div>
       </ProductionDashboardLayout>
     );
   }
 
-  // Universal system: ALL other authenticated users get the UserAgentDashboard
-  // This automatically detects if they have a primary agent or shows welcome message
+  // All other authenticated users get the simplified user dashboard
   return (
     <ProductionDashboardLayout>
-      <UserAgentDashboard />
+      <div className="space-y-6">
+        {/* User Dashboard Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">My Dashboard</h1>
+            <p className="text-gray-600">Your personal AI assistant overview and recent activity</p>
+          </div>
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            User View
+          </Badge>
+        </div>
+
+        {/* User-specific KPIs */}
+        <DashboardKPICards />
+
+        {/* User Dashboard Grid */}
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* User's Recent Activity */}
+          <RecentActivityFeed />
+          
+          {/* User's Quick Actions */}
+          <QuickActions />
+          
+          {/* User's Agent Status */}
+          <AgentStatusOverview />
+          
+          {/* User's Alerts */}
+          <DashboardAlerts />
+        </div>
+
+        {/* Fallback to UserAgentDashboard for detailed user info */}
+        <UserAgentDashboard />
+      </div>
     </ProductionDashboardLayout>
   );
 }
