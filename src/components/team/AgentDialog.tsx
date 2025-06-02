@@ -35,7 +35,8 @@ export function AgentDialog({
       description: agent?.description || '',
       avatar_url: agent?.avatar_url || '',
       status: (agent?.status as 'active' | 'inactive') || 'active',
-      retell_agent_id: agent?.retell_agent_id || ''
+      retell_agent_id: agent?.retell_agent_id || '',
+      rate_per_minute: agent?.rate_per_minute || 0.02
     }
   });
 
@@ -46,12 +47,14 @@ export function AgentDialog({
         description: agent?.description || '',
         avatar_url: agent?.avatar_url || '',
         status: (agent?.status as 'active' | 'inactive') || 'active',
-        retell_agent_id: agent?.retell_agent_id || ''
+        retell_agent_id: agent?.retell_agent_id || '',
+        rate_per_minute: agent?.rate_per_minute || 0.02
       });
     }
   }, [form, isOpen, agent]);
 
   const handleSubmit = async (values: AgentFormValues) => {
+    console.log('🔍 [AgentDialog] Submitting agent data:', values);
     const success = await onSubmit(values);
     if (success) {
       form.reset();
@@ -59,9 +62,14 @@ export function AgentDialog({
     }
   };
 
+  const handleClose = () => {
+    form.reset();
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[500px]">
         <AgentFormHeader agent={agent} />
         
         <Form {...form}>
@@ -69,7 +77,7 @@ export function AgentDialog({
             <AgentFormFields form={form} />
             <AgentFormFooter 
               isSubmitting={isSubmitting} 
-              onClose={onClose}
+              onClose={handleClose}
               agent={agent}
             />
           </form>

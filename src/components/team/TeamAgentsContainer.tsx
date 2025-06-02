@@ -14,7 +14,13 @@ import { TeamAgentsDialogs } from './TeamAgentsDialogs';
 import { UserAgentViewer } from './UserAgentViewer';
 import { RetellAgentsSection } from './RetellAgentsSection';
 import { NewAssignmentDialog } from './NewAssignmentDialog';
+import { AgentAssignmentManager } from './AgentAssignmentManager';
 import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Plus, Settings } from 'lucide-react';
+import { AgentsTable } from './AgentsTable';
+import { Badge } from '@/components/ui/badge';
 
 export function TeamAgentsContainer() {
   const { company } = useAuth();
@@ -110,22 +116,57 @@ export function TeamAgentsContainer() {
       
       <Separator className="my-8" />
       
-      {/* Company Custom Agents Section */}
-      <TeamAgentsSection
-        agents={agents}
-        isLoading={isLoading}
-        isLoadingAgents={isLoadingAgents}
-        isSuperAdmin={isSuperAdmin}
-        isAdmin={isAdmin}
-        onOpenAgentDialog={handleOpenAgentDialog}
-        onOpenAssignDialog={handleOpenAssignDialog}
-        onConfirmDelete={handleConfirmDelete}
-      />
+      {/* Custom AI Agents Management Section */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">Custom AI Agents</h2>
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              <Settings className="w-3 h-3 mr-1" />
+              Company Managed
+            </Badge>
+          </div>
+          {/* Super admins always have access to create agents */}
+          {isSuperAdmin || isAdmin ? (
+            <Button 
+              onClick={() => handleOpenAgentDialog()}
+              className="bg-brand-green hover:bg-brand-deep-green"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Custom Agent
+            </Button>
+          ) : null}
+        </div>
+        
+        <Card>
+          <CardContent className="p-0">
+            <AgentsTable
+              agents={agents}
+              isLoading={isLoadingAgents}
+              onEdit={isAdmin ? handleOpenAgentDialog : undefined}
+              onAssign={isAdmin ? handleOpenAssignDialog : undefined}
+              onDelete={isAdmin ? handleConfirmDelete : undefined}
+              isAdmin={isAdmin}
+              showRates={isAdmin}
+            />
+          </CardContent>
+        </Card>
+      </div>
 
-      {(isSuperAdmin || isAdmin) && (
-        <TeamAgentsAssignments />
-      )}
+      <Separator className="my-8" />
 
+      {/* User Agent Assignment Management */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold">Agent Assignment Management</h2>
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            User Assignments
+          </Badge>
+        </div>
+        <AgentAssignmentManager />
+      </div>
+
+      {/* Agent Management Dialogs */}
       {(isSuperAdmin || isAdmin) && (
         <TeamAgentsDialogs
           isAgentDialogOpen={isAgentDialogOpen}

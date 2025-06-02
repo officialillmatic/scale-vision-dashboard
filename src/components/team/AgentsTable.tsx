@@ -98,7 +98,19 @@ export function AgentsTable({
                 )}
                 <TableCell>
                   <div className="flex space-x-2">
-                    {/* Always show assign button for admins */}
+                    {/* Edit button */}
+                    {onEdit && isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => onEdit(agent)}
+                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                    )}
+                    {/* Assign button */}
                     {onAssign && isAdmin && (
                       <Button 
                         variant="outline" 
@@ -110,22 +122,16 @@ export function AgentsTable({
                         Assign
                       </Button>
                     )}
-                    {onEdit && isAdmin && (
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={() => onEdit(agent)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    )}
+                    {/* Delete button */}
                     {onDelete && isAdmin && (
                       <Button 
                         variant="outline" 
-                        size="icon" 
+                        size="sm" 
                         onClick={() => onDelete(agent)}
+                        className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
                       </Button>
                     )}
                   </div>
@@ -136,7 +142,10 @@ export function AgentsTable({
             <TableRow>
               <TableCell colSpan={showRates ? 5 : 4} className="h-24 text-center">
                 {isAdmin ? (
-                  "No agents found. Create one to get started."
+                  <div className="flex flex-col items-center space-y-2">
+                    <p className="text-gray-600">No custom agents found.</p>
+                    <p className="text-sm text-gray-500">Create your first custom agent to get started.</p>
+                  </div>
                 ) : (
                   "No agents available."
                 )}

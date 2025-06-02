@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { AgentAssignmentManager } from './AgentAssignmentManager';
+import { TeamAgentsContainer } from './TeamAgentsContainer';
 
 export function TeamAgents() {
-  return <AgentAssignmentManager />;
+  return <TeamAgentsContainer />;
 }
