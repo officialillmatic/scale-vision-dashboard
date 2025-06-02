@@ -12,8 +12,7 @@ export interface UserAgentAssignment {
   user_details?: {
     id: string;
     email: string;
-    name?: string;
-    avatar_url?: string;
+    full_name?: string;
   };
   agent_details?: {
     id: string;
@@ -52,10 +51,10 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
     for (const assignment of assignments) {
       console.log('🔍 [fetchUserAgentAssignments] Processing assignment:', assignment.id);
 
-      // Fetch user details
+      // Fetch user details from users table
       const { data: userData, error: userError } = await supabase
-        .from("user_profiles")
-        .select("id, email, name, avatar_url")
+        .from("users")
+        .select("id, email, full_name")
         .eq("id", assignment.user_id)
         .single();
 
@@ -63,9 +62,9 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         console.warn('⚠️ [fetchUserAgentAssignments] User data error for', assignment.user_id, ':', userError);
       }
 
-      // Fetch agent details
+      // Fetch agent details from retell_agents table
       const { data: agentData, error: agentError } = await supabase
-        .from("agents")
+        .from("retell_agents")
         .select("id, retell_agent_id, name, description, status")
         .eq("id", assignment.agent_id)
         .single();
@@ -84,8 +83,7 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         user_details: userData ? {
           id: userData.id,
           email: userData.email,
-          name: userData.name,
-          avatar_url: userData.avatar_url
+          full_name: userData.full_name
         } : undefined,
         agent_details: agentData ? {
           id: agentData.id,

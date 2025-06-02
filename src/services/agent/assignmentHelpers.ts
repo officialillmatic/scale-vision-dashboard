@@ -4,8 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface AssignmentUser {
   id: string;
   email: string;
-  name?: string;
-  avatar_url?: string;
+  full_name?: string;
 }
 
 export interface AssignmentAgent {
@@ -18,11 +17,11 @@ export interface AssignmentAgent {
 
 export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
   try {
-    console.log('🔍 [fetchAvailableUsers] Fetching users from user_profiles');
+    console.log('🔍 [fetchAvailableUsers] Fetching users from users table');
     
     const { data, error } = await supabase
-      .from("user_profiles")
-      .select("id, email, name, avatar_url")
+      .from("users")
+      .select("id, email, full_name")
       .order("email");
 
     if (error) {
@@ -40,10 +39,10 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
 
 export const fetchAvailableAgents = async (): Promise<AssignmentAgent[]> => {
   try {
-    console.log('🔍 [fetchAvailableAgents] Fetching agents from agents table');
+    console.log('🔍 [fetchAvailableAgents] Fetching agents from retell_agents table');
     
     const { data, error } = await supabase
-      .from("agents")
+      .from("retell_agents")
       .select("id, name, description, status, retell_agent_id")
       .eq("status", "active")
       .order("name");

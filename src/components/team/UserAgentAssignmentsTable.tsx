@@ -113,9 +113,9 @@ export function UserAgentAssignmentsTable({
                   <TableCell>
                     <div>
                       <p className="font-medium">
-                        {assignment.user_details?.name || assignment.user_details?.email || `User ID: ${assignment.user_id}`}
+                        {assignment.user_details?.full_name || assignment.user_details?.email || `User ID: ${assignment.user_id}`}
                       </p>
-                      {assignment.user_details?.name && assignment.user_details?.email && (
+                      {assignment.user_details?.full_name && assignment.user_details?.email && (
                         <p className="text-sm text-muted-foreground">{assignment.user_details.email}</p>
                       )}
                       {!assignment.user_details && (

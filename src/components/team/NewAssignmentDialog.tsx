@@ -104,7 +104,7 @@ export function NewAssignmentDialog({
                 <SelectContent>
                   {availableUsers.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
-                      {user.name ? `${user.name} (${user.email})` : user.email}
+                      {user.full_name ? `${user.full_name} (${user.email})` : user.email}
                     </SelectItem>
                   ))}
                 </SelectContent>
