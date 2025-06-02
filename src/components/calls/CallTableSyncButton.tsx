@@ -38,8 +38,7 @@ export function CallTableSyncButton({ onSyncComplete, disabled }: CallTableSyncB
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-        },
-        signal: syncAbortController.current.signal
+        }
       });
 
       if (error) {

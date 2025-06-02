@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +8,7 @@ import { CallDataTable } from "@/components/calls/CallDataTable";
 import { CallTableSyncButton } from "@/components/calls/CallTableSyncButton";
 import { CallTableErrorAlert } from "@/components/calls/CallTableErrorAlert";
 import { SyncDebugPanel } from "@/components/calls/SyncDebugPanel";
+import { SyncTestPanel } from "@/components/calls/SyncTestPanel";
 import { useCallData } from "@/hooks/useCallData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
@@ -123,10 +123,11 @@ export default function CallsPage() {
 
         {/* Main Content */}
         <Tabs defaultValue="calls" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="calls">Call History</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="debug">Debug</TabsTrigger>
+            <TabsTrigger value="test">Test Suite</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -184,6 +185,10 @@ export default function CallsPage() {
 
           <TabsContent value="debug">
             <SyncDebugPanel />
+          </TabsContent>
+
+          <TabsContent value="test">
+            <SyncTestPanel />
           </TabsContent>
 
           <TabsContent value="settings">
