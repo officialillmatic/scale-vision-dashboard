@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { retellService } from "@/utils/retellAbstraction";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,10 +14,12 @@ export const useSecureCallData = (limit: number = 100) => {
     error,
     refetch
   } = useQuery({
-    queryKey: ["secure-calls", company?.id, limit],
+    queryKey: ["secure-calls", user?.id, limit],
     queryFn: async () => {
-      if (!company?.id || !user?.id) {
-        console.log("[SECURE_CALL_DATA] Missing required IDs");
+      console.log("[DEBUG] User ID:", user?.id, "Company:", company);
+      
+      if (!user?.id) {
+        console.log("[SECURE_CALL_DATA] Missing user ID");
         return [];
       }
 
@@ -30,10 +31,11 @@ export const useSecureCallData = (limit: number = 100) => {
         throw new Error("Rate limit exceeded");
       }
 
-      console.log("[SECURE_CALL_DATA] Fetching secure call data for company:", company.id);
+      console.log("[SECURE_CALL_DATA] Fetching secure call data for user:", user.id);
       
       try {
-        const callData = await retellService.getCallData(company.id, limit);
+        // CAMBIO: usar user.id en lugar de company.id
+        const callData = await retellService.getCallData(user.id, limit);
         
         // Log successful access
         await logSecurityEvent('call_data_access', `Successfully fetched ${callData.length} calls`);
@@ -56,7 +58,7 @@ export const useSecureCallData = (limit: number = 100) => {
         throw error;
       }
     },
-    enabled: !!company?.id && !!user?.id,
+    enabled: !!user?.id, // CAMBIO: solo verificar user?.id
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: (failureCount, error: any) => {
       // Don't retry rate limit or permission errors
