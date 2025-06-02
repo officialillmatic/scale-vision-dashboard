@@ -4,9 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAgents } from '@/hooks/useAgents';
 import { useCalls } from '@/hooks/useCalls';
 import { useUserBalance } from '@/hooks/useUserBalance';
+import { useCurrentUserAgents } from '@/hooks/useCurrentUserAgents';
 import { formatCurrency } from '@/lib/formatters';
 import { PhoneCall, User, Bot, DollarSign, Clock, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -14,24 +14,28 @@ import { useNavigate } from 'react-router-dom';
 export function UserAgentDashboard() {
   const { user, company } = useAuth();
   const navigate = useNavigate();
-  const { userAgents, isLoadingUserAgents } = useAgents();
+  const { data: userAgentAssignments, isLoading: isLoadingUserAgents } = useCurrentUserAgents();
   const { calls, isLoading: isLoadingCalls } = useCalls();
   const { balance, isLoading: isLoadingBalance, remainingMinutes, isLowBalance } = useUserBalance();
 
   console.log('🔍 [UserAgentDashboard] Current user:', user?.id);
   console.log('🔍 [UserAgentDashboard] Current company:', company?.id);
-  console.log('🔍 [UserAgentDashboard] User agents:', userAgents);
+  console.log('🔍 [UserAgentDashboard] User agent assignments:', userAgentAssignments);
 
   // Find the primary agent for the current authenticated user
-  const primaryAgent = userAgents.find(ua => 
-    ua.user_id === user?.id && ua.is_primary
+  const primaryAgent = userAgentAssignments?.find(assignment => 
+    assignment.user_id === user?.id && assignment.is_primary
   );
 
+  // If no primary agent, get the first assigned agent
+  const assignedAgent = primaryAgent || userAgentAssignments?.[0];
+
   console.log('🔍 [UserAgentDashboard] Primary agent found:', primaryAgent);
+  console.log('🔍 [UserAgentDashboard] Assigned agent found:', assignedAgent);
 
   // Get agent-specific metrics for the current user
   const agentCalls = calls.filter(call => 
-    primaryAgent && call.agent_id === primaryAgent.agent_id && call.user_id === user?.id
+    assignedAgent && call.agent_id === assignedAgent.agent_id && call.user_id === user?.id
   );
 
   const totalCallDuration = agentCalls.reduce((total, call) => total + (call.duration_sec || 0), 0);
@@ -56,8 +60,8 @@ export function UserAgentDashboard() {
     );
   }
 
-  // Universal welcome screen: Show this if user has no primary agent assigned
-  if (!primaryAgent) {
+  // Universal welcome screen: Show this if user has no agent assignments
+  if (!assignedAgent || !userAgentAssignments || userAgentAssignments.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-6">
         <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-green-100 rounded-full flex items-center justify-center">
@@ -82,7 +86,7 @@ export function UserAgentDashboard() {
     );
   }
 
-  // Universal agent dashboard: Show this for any user with a primary agent
+  // Universal agent dashboard: Show this for any user with agent assignments
   return (
     <div className="space-y-6">
       {/* Agent Header */}
@@ -94,17 +98,52 @@ export function UserAgentDashboard() {
                 <Bot className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <CardTitle className="text-xl">{primaryAgent.agent?.name || 'Your AI Agent'}</CardTitle>
+                <CardTitle className="text-xl">
+                  Your assigned agent: {assignedAgent.agent_details?.name || 'AI Agent'}
+                </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Primary AI Assistant for {user?.email}
+                  {assignedAgent.is_primary ? 'Primary' : 'Secondary'} AI Assistant for {user?.email}
                 </p>
+                {assignedAgent.agent_details?.description && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    {assignedAgent.agent_details.description}
+                  </p>
+                )}
               </div>
             </div>
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-              Active
-            </Badge>
+            <div className="flex flex-col gap-2">
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                {assignedAgent.agent_details?.status || 'Active'}
+              </Badge>
+              {assignedAgent.is_primary && (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  Primary Agent
+                </Badge>
+              )}
+            </div>
           </div>
+
+          {/* Show all assigned agents if user has multiple */}
+          {userAgentAssignments && userAgentAssignments.length > 1 && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm font-medium text-gray-700 mb-2">
+                All your assigned agents ({userAgentAssignments.length}):
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {userAgentAssignments.map((assignment) => (
+                  <Badge 
+                    key={assignment.id} 
+                    variant={assignment.is_primary ? "default" : "secondary"}
+                    className="text-xs"
+                  >
+                    {assignment.agent_details?.name || 'Unknown Agent'}
+                    {assignment.is_primary && ' (Primary)'}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </CardHeader>
       </Card>
 
@@ -181,7 +220,7 @@ export function UserAgentDashboard() {
       {agentCalls.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Your Recent Calls with {primaryAgent.agent?.name}</CardTitle>
+            <CardTitle>Your Recent Calls with {assignedAgent.agent_details?.name}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

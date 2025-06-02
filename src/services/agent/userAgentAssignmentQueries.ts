@@ -103,6 +103,76 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
   }
 };
 
+// New function to fetch assignments for the current authenticated user
+export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssignment[]> => {
+  try {
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Starting fetch for current user');
+    
+    const { data: assignments, error } = await supabase
+      .from("user_agent_assignments")
+      .select(`
+        id,
+        user_id,
+        agent_id,
+        is_primary,
+        assigned_at,
+        assigned_by,
+        profiles!user_agent_assignments_user_id_fkey (
+          id,
+          email,
+          full_name
+        ),
+        retell_agents!user_agent_assignments_agent_id_fkey (
+          id,
+          retell_agent_id,
+          name,
+          description,
+          status
+        )
+      `)
+      .eq('user_id', supabase.auth.getUser().then(({ data }) => data.user?.id))
+      .order("assigned_at", { ascending: false });
+
+    if (error) {
+      console.error('❌ [fetchCurrentUserAgentAssignments] Error:', error);
+      throw new Error(`Failed to fetch current user assignments: ${error.message}`);
+    }
+
+    if (!assignments || assignments.length === 0) {
+      console.log('🔍 [fetchCurrentUserAgentAssignments] No assignments found for current user');
+      return [];
+    }
+
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Found', assignments.length, 'assignments for current user');
+
+    const enrichedAssignments: UserAgentAssignment[] = assignments.map(assignment => ({
+      id: assignment.id,
+      user_id: assignment.user_id,
+      agent_id: assignment.agent_id,
+      is_primary: assignment.is_primary || false,
+      assigned_at: assignment.assigned_at,
+      assigned_by: assignment.assigned_by,
+      user_details: assignment.profiles ? {
+        id: assignment.profiles.id,
+        email: assignment.profiles.email,
+        full_name: assignment.profiles.full_name
+      } : undefined,
+      agent_details: assignment.retell_agents ? {
+        id: assignment.retell_agents.id,
+        retell_agent_id: assignment.retell_agents.retell_agent_id,
+        name: assignment.retell_agents.name,
+        description: assignment.retell_agents.description,
+        status: assignment.retell_agents.status
+      } : undefined
+    }));
+
+    return enrichedAssignments;
+  } catch (error: any) {
+    console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error in fetchCurrentUserAgentAssignments:", error);
+    throw new Error(`Failed to fetch current user agent assignments: ${error.message}`);
+  }
+};
+
 export const removeUserAgentAssignment = async (assignmentId: string): Promise<boolean> => {
   try {
     console.log('🔍 [removeUserAgentAssignment] Removing assignment:', assignmentId);
