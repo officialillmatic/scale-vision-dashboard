@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -56,6 +55,8 @@ export class RetellAbstraction {
     skipped_agents: number;
     agents_found: number;
   }> {
+    console.log("[RETELL_SERVICE] Starting call sync");
+    
     const { data, error } = await supabase.functions.invoke('sync-calls', {
       body: {},
       headers: {
@@ -65,9 +66,11 @@ export class RetellAbstraction {
     });
 
     if (error) {
+      console.error("[RETELL_SERVICE] Call sync failed:", error);
       throw new Error(`Call sync failed: ${error.message}`);
     }
 
+    console.log("[RETELL_SERVICE] Call sync completed:", data);
     return data;
   }
 
@@ -75,6 +78,8 @@ export class RetellAbstraction {
    * Test API connection
    */
   async testConnection(): Promise<boolean> {
+    console.log("[RETELL_SERVICE] Testing API connection");
+    
     try {
       const { data, error } = await supabase.functions.invoke('sync-calls', {
         body: { test: true },
@@ -85,13 +90,15 @@ export class RetellAbstraction {
       });
 
       if (error) {
-        console.error('API test failed:', error);
+        console.error('[RETELL_SERVICE] API test failed:', error);
         return false;
       }
 
-      return data?.success === true;
+      const isConnected = data?.success === true;
+      console.log("[RETELL_SERVICE] Connection test result:", isConnected);
+      return isConnected;
     } catch (error) {
-      console.error('API test connection failed:', error);
+      console.error('[RETELL_SERVICE] API test connection failed:', error);
       return false;
     }
   }
@@ -100,6 +107,8 @@ export class RetellAbstraction {
    * Register webhook endpoint
    */
   async registerWebhook(): Promise<boolean> {
+    console.log("[RETELL_SERVICE] Registering webhook");
+    
     try {
       const { data, error } = await supabase.functions.invoke('register-retell-webhook', {
         body: {},
@@ -110,13 +119,15 @@ export class RetellAbstraction {
       });
 
       if (error) {
-        console.error('Webhook registration failed:', error);
+        console.error('[RETELL_SERVICE] Webhook registration failed:', error);
         return false;
       }
 
-      return data?.success === true;
+      const success = data?.success === true;
+      console.log("[RETELL_SERVICE] Webhook registration result:", success);
+      return success;
     } catch (error) {
-      console.error('Webhook registration connection failed:', error);
+      console.error('[RETELL_SERVICE] Webhook registration connection failed:', error);
       return false;
     }
   }
@@ -128,6 +139,8 @@ export class RetellAbstraction {
     isValid: boolean;
     issues: string[];
   }> {
+    console.log("[RETELL_SERVICE] Validating agent config for:", agentId);
+    
     try {
       // Get agent from database
       const { data: agent, error } = await supabase
@@ -137,6 +150,7 @@ export class RetellAbstraction {
         .single();
 
       if (error || !agent) {
+        console.log("[RETELL_SERVICE] Agent not found:", error);
         return {
           isValid: false,
           issues: ['Agent not found in database']
@@ -162,12 +176,15 @@ export class RetellAbstraction {
         issues.push('Agent must be active');
       }
 
-      return {
+      const result = {
         isValid: issues.length === 0,
         issues
       };
+
+      console.log("[RETELL_SERVICE] Agent validation result:", result);
+      return result;
     } catch (error) {
-      console.error('Agent validation failed:', error);
+      console.error('[RETELL_SERVICE] Agent validation failed:', error);
       return {
         isValid: false,
         issues: ['Failed to validate agent configuration']
@@ -179,66 +196,84 @@ export class RetellAbstraction {
    * Get sanitized call data for frontend consumption
    */
   async getCallData(userIdOrCompanyId: string, limit: number = 100): Promise<any[]> {
-    console.log('[RETELL_SERVICE] Fetching calls for user:', userIdOrCompanyId);
+    console.log('[RETELL_SERVICE] Starting getCallData');
+    console.log('[RETELL_SERVICE] Parameters:', { userIdOrCompanyId, limit });
+    console.log('[RETELL_SERVICE] Fetching calls for user/company:', userIdOrCompanyId);
     
-    const { data, error } = await supabase
-      .from('retell_calls')
-      .select(`
-        id,
-        call_id,
-        agent_id,
-        user_id,
-        company_id,
-        start_timestamp,
-        end_timestamp,
-        duration_sec,
-        cost_usd,
-        revenue_amount,
-        call_status,
-        from_number,
-        to_number,
-        transcript,
-        recording_url,
-        call_summary,
-        sentiment,
-        disposition,
-        disconnection_reason,
-        created_at,
-        updated_at
-      `)
-      .eq('user_id', userIdOrCompanyId)
-      .order('start_timestamp', { ascending: false })
-      .limit(limit);
+    try {
+      console.log('[RETELL_SERVICE] Making Supabase query...');
+      
+      const { data, error } = await supabase
+        .from('retell_calls') // USAR retell_calls en lugar de calls
+        .select(`
+          id,
+          call_id,
+          retell_agent_id,
+          user_id,
+          company_id,
+          created_at,
+          updated_at
+        `)
+        .eq('user_id', userIdOrCompanyId) // FILTRAR por user_id
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-    console.log('[RETELL_SERVICE] Query result:', { data, error, dataLength: data?.length });
+      console.log('[RETELL_SERVICE] Supabase query completed');
+      console.log('[RETELL_SERVICE] Query result:', { 
+        data: data ? `${data.length} records` : 'null', 
+        error, 
+        dataLength: data?.length,
+        actualData: data 
+      });
 
-    if (error) {
-      console.error('[RETELL_SERVICE] Error:', error);
+      if (error) {
+        console.error('[RETELL_SERVICE] Supabase error:', error);
+        throw new Error(`Failed to fetch call data: ${error.message}`);
+      }
+
+      if (!data) {
+        console.log('[RETELL_SERVICE] No data returned from query');
+        return [];
+      }
+
+      console.log('[RETELL_SERVICE] Raw data from Supabase:', data);
+
+      // Transform retell_calls data to match expected frontend format
+      const transformedData = data.map((call, index) => {
+        console.log(`[RETELL_SERVICE] Transforming call ${index + 1}:`, call);
+        
+        return {
+          id: call.id,
+          callId: call.call_id,
+          timestamp: call.created_at,
+          duration: 0, // No está disponible en retell_calls
+          cost: 0, // No está disponible en retell_calls
+          sentiment: null,
+          sentimentScore: null,
+          status: 'completed', // Valor por defecto
+          fromNumber: 'Unknown', // No está disponible en retell_calls
+          toNumber: 'Unknown', // No está disponible en retell_calls  
+          hasRecording: false,
+          hasTranscript: false,
+          summary: null,
+          agent: {
+            id: call.retell_agent_id,
+            name: 'Unknown Agent',
+            ratePerMinute: 0
+          }
+        };
+      });
+
+      console.log('[RETELL_SERVICE] Transformed data:', transformedData);
+      console.log('[RETELL_SERVICE] Returning', transformedData.length, 'calls');
+      
+      return transformedData;
+      
+    } catch (error: any) {
+      console.error('[RETELL_SERVICE] Exception in getCallData:', error);
+      console.error('[RETELL_SERVICE] Error stack:', error.stack);
       throw new Error(`Failed to fetch call data: ${error.message}`);
     }
-
-    // Transform retell_calls data to match expected frontend format
-    return data?.map(call => ({
-      id: call.id,
-      callId: call.call_id,
-      timestamp: call.start_timestamp,
-      duration: call.duration_sec || 0,
-      cost: call.cost_usd || 0,
-      sentiment: call.sentiment,
-      sentimentScore: null,
-      status: call.call_status || 'completed',
-      fromNumber: call.from_number || 'Unknown',
-      toNumber: call.to_number || 'Unknown',  
-      hasRecording: !!call.recording_url,
-      hasTranscript: !!call.transcript,
-      summary: call.call_summary,
-      disconnectionReason: call.disconnection_reason,
-      agent: {
-        id: call.agent_id,
-        name: 'Unknown Agent',
-        ratePerMinute: 0
-      }
-    })) || [];
   }
 
   /**
@@ -262,6 +297,8 @@ export class RetellAbstraction {
    * Rate limiting check before API calls
    */
   async checkRateLimit(action: string): Promise<boolean> {
+    console.log("[RETELL_SERVICE] Checking rate limit for action:", action);
+    
     try {
       const { data, error } = await supabase.rpc('check_rate_limit', {
         p_identifier: `user_${action}`,
@@ -270,13 +307,15 @@ export class RetellAbstraction {
       });
 
       if (error) {
-        console.error('Rate limit check failed:', error);
+        console.error('[RETELL_SERVICE] Rate limit check failed:', error);
         return false; // Fail safe - allow request if check fails
       }
 
-      return data === true;
+      const result = data === true;
+      console.log("[RETELL_SERVICE] Rate limit check result:", result);
+      return result;
     } catch (error) {
-      console.error('Rate limit check error:', error);
+      console.error('[RETELL_SERVICE] Rate limit check error:', error);
       return false;
     }
   }
