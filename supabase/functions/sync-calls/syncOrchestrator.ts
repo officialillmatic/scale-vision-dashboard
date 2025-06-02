@@ -15,6 +15,7 @@ export interface SyncSummary {
   requestId: string;
   timestamp: string;
   validation_debug?: any[];
+  debug_info?: any;
 }
 
 export class SyncOrchestrator {
@@ -22,12 +23,14 @@ export class SyncOrchestrator {
     private supabaseClient: any,
     private retellClient: RetellApiClient,
     private requestId: string,
-    private bypassValidation: boolean = false
+    private bypassValidation: boolean = false,
+    private debugMode: boolean = false
   ) {}
 
   async performSync(): Promise<SyncSummary> {
     console.log(`[SYNC-CALLS-${this.requestId}] === STARTING FULL CALL SYNC ===`);
     console.log(`[SYNC-CALLS-${this.requestId}] Validation bypass: ${this.bypassValidation}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Debug mode: ${this.debugMode}`);
     
     let totalCallsFromApi = 0;
     let totalSynced = 0;
@@ -35,6 +38,12 @@ export class SyncOrchestrator {
     let pageToken: string | undefined = undefined;
     let pageCount = 0;
     let validationDebug: any[] = [];
+    let debugInfo: any = {
+      api_responses: [],
+      insertion_attempts: [],
+      validation_results: [],
+      errors: []
+    };
 
     // First, fetch ALL calls from Retell API (without agent filtering)
     try {
@@ -45,6 +54,16 @@ export class SyncOrchestrator {
         console.log(`[SYNC-CALLS-${this.requestId}] === FETCHING PAGE ${pageCount} ===`);
         
         const apiResponse = await this.retellClient.fetchAllCalls(100, pageToken);
+        
+        if (this.debugMode) {
+          debugInfo.api_responses.push({
+            page: pageCount,
+            calls_count: apiResponse.calls?.length || 0,
+            has_more: apiResponse.has_more,
+            response_keys: Object.keys(apiResponse),
+            first_call_sample: apiResponse.calls?.[0] || null
+          });
+        }
         
         const calls = apiResponse.calls || [];
         hasMore = apiResponse.has_more || false;
@@ -66,8 +85,27 @@ export class SyncOrchestrator {
               bypass: this.bypassValidation
             });
 
+            if (this.debugMode) {
+              debugInfo.validation_results.push({
+                call_id: call.call_id,
+                is_valid: validationResult.isValid,
+                errors: validationResult.errors,
+                bypass_validation: this.bypassValidation,
+                call_keys: Object.keys(call),
+                has_agent_id: !!call.agent_id,
+                has_start_timestamp: !!call.start_timestamp
+              });
+            }
+
             if (!this.bypassValidation && !validationResult.isValid) {
               console.error(`[SYNC-CALLS-${this.requestId}] VALIDATION FAILED for ${call.call_id}:`, validationResult.errors);
+              if (this.debugMode) {
+                debugInfo.errors.push({
+                  type: 'validation_failed',
+                  call_id: call.call_id,
+                  errors: validationResult.errors
+                });
+              }
               totalProcessed++;
               continue;
             }
@@ -87,6 +125,13 @@ export class SyncOrchestrator {
 
             if (checkError) {
               console.error(`[SYNC-CALLS-${this.requestId}] Error checking existing call:`, checkError);
+              if (this.debugMode) {
+                debugInfo.errors.push({
+                  type: 'check_existing_error',
+                  call_id: call.call_id,
+                  error: checkError
+                });
+              }
               totalProcessed++;
               continue;
             }
@@ -130,6 +175,22 @@ export class SyncOrchestrator {
             // Map and insert the call (with or without validation)
             const mappedCall = this.mapCallData(call, userAgent, agent);
             
+            if (this.debugMode) {
+              debugInfo.insertion_attempts.push({
+                call_id: call.call_id,
+                mapped_call_keys: Object.keys(mappedCall),
+                user_id: mappedCall.user_id,
+                company_id: mappedCall.company_id,
+                agent_id: mappedCall.agent_id,
+                has_required_fields: {
+                  call_id: !!mappedCall.call_id,
+                  start_timestamp: !!mappedCall.start_timestamp,
+                  duration_sec: mappedCall.duration_sec !== undefined,
+                  cost_usd: mappedCall.cost_usd !== undefined
+                }
+              });
+            }
+            
             console.log(`[SYNC-CALLS-${this.requestId}] === ATTEMPTING DATABASE INSERT ===`);
             console.log(`[SYNC-CALLS-${this.requestId}] Mapped call summary:`, {
               call_id: mappedCall.call_id,
@@ -156,6 +217,16 @@ export class SyncOrchestrator {
                   agent_id: mappedCall.agent_id
                 }
               });
+              
+              if (this.debugMode) {
+                debugInfo.errors.push({
+                  type: 'database_insert_error',
+                  call_id: call.call_id,
+                  error: insertError,
+                  mapped_call: mappedCall
+                });
+              }
+              
               totalProcessed++;
               continue;
             }
@@ -166,6 +237,13 @@ export class SyncOrchestrator {
 
           } catch (callError) {
             console.error(`[SYNC-CALLS-${this.requestId}] Error processing call ${call.call_id}:`, callError);
+            if (this.debugMode) {
+              debugInfo.errors.push({
+                type: 'call_processing_error',
+                call_id: call.call_id,
+                error: callError.message || callError
+              });
+            }
             totalProcessed++;
           }
         }
@@ -178,6 +256,12 @@ export class SyncOrchestrator {
 
     } catch (error) {
       console.error(`[SYNC-CALLS-${this.requestId}] Error during sync:`, error);
+      if (this.debugMode) {
+        debugInfo.errors.push({
+          type: 'sync_error',
+          error: error.message || error
+        });
+      }
       throw error;
     }
 
@@ -187,7 +271,7 @@ export class SyncOrchestrator {
     console.log(`[SYNC-CALLS-${this.requestId}] Total calls synced: ${totalSynced}`);
     console.log(`[SYNC-CALLS-${this.requestId}] Validation debug entries: ${validationDebug.length}`);
 
-    return {
+    const summary: SyncSummary = {
       message: 'Sync completed successfully',
       synced_calls: totalSynced,
       processed_calls: totalProcessed,
@@ -199,6 +283,12 @@ export class SyncOrchestrator {
       timestamp: new Date().toISOString(),
       validation_debug: validationDebug.slice(0, 10) // First 10 for debugging
     };
+
+    if (this.debugMode) {
+      summary.debug_info = debugInfo;
+    }
+
+    return summary;
   }
 
   private validateCall(call: any): { isValid: boolean; errors: string[] } {

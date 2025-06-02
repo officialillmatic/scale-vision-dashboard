@@ -39,9 +39,11 @@ serve(async (req) => {
 
       // Check for bypass validation flag
       const bypassValidation = requestBody.bypass_validation === true;
+      const debugMode = requestBody.debug_mode === true;
       console.log(`[SYNC-CALLS-${requestId}] Bypass validation: ${bypassValidation}`);
+      console.log(`[SYNC-CALLS-${requestId}] Debug mode: ${debugMode}`);
 
-      const orchestrator = new SyncOrchestrator(supabaseClient, retellClient, requestId, bypassValidation);
+      const orchestrator = new SyncOrchestrator(supabaseClient, retellClient, requestId, bypassValidation, debugMode);
 
       // Handle test mode
       if (requestBody.test) {
@@ -63,7 +65,7 @@ serve(async (req) => {
 
       // Perform full sync
       try {
-        console.log(`[SYNC-CALLS-${requestId}] Starting full sync with bypass_validation=${bypassValidation}...`);
+        console.log(`[SYNC-CALLS-${requestId}] Starting full sync with bypass_validation=${bypassValidation}, debug_mode=${debugMode}...`);
         const summary = await orchestrator.performSync();
         console.log(`[SYNC-CALLS-${requestId}] Final summary:`, summary);
         return createSuccessResponse(summary);
