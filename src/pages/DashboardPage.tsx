@@ -4,6 +4,8 @@ import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDash
 import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { SuperAdminDashboard } from "@/components/dashboard/SuperAdminDashboard";
+import { DashboardSyncHeader } from "@/components/dashboard/DashboardSyncHeader";
+import { DashboardSyncAlerts } from "@/components/dashboard/DashboardSyncAlerts";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 
 export default function DashboardPage() {
@@ -26,11 +28,8 @@ export default function DashboardPage() {
   return (
     <ProductionDashboardLayout>
       <div className="space-y-8">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Monitor your AI call performance and insights.</p>
-        </div>
-        
+        <DashboardSyncHeader />
+        <DashboardSyncAlerts />
         <DashboardMetrics />
         <DashboardCharts />
       </div>
