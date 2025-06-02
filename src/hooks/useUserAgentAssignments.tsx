@@ -29,7 +29,7 @@ export function useUserAgentAssignments() {
       console.log('🔍 [useUserAgentAssignments] QueryFn called - fetching assignments');
       try {
         const result = await fetchUserAgentAssignments();
-        console.log('🔍 [useUserAgentAssignments] QueryFn success - result:', result);
+        console.log('🔍 [useUserAgentAssignments] QueryFn success - result:', result?.length || 0, 'assignments');
         return result;
       } catch (error) {
         console.error('🔍 [useUserAgentAssignments] QueryFn error:', error);
@@ -79,13 +79,12 @@ export function useUserAgentAssignments() {
   });
 
   console.log('🔍 [useUserAgentAssignments] Hook state:', {
-    assignments,
-    assignmentsLength: assignments?.length,
+    assignmentsCount: assignments?.length || 0,
     isLoadingAssignments,
     isError,
-    assignmentsError,
-    availableUsers: availableUsers?.length,
-    availableAgents: availableAgents?.length
+    assignmentsError: assignmentsError?.message,
+    availableUsersCount: availableUsers?.length || 0,
+    availableAgentsCount: availableAgents?.length || 0
   });
 
   const handleRemoveAssignment = async (assignmentId: string) => {
