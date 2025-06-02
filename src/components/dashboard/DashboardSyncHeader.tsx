@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAgentSync } from "@/hooks/useAgentSync";
 import { retellAgentSyncService } from "@/services/retell/retellAgentSync";
-import { RefreshCw, Bot, TestTube } from "lucide-react";
+import { retellApiDebugger } from "@/services/retell/retellApiDebugger";
+import { RefreshCw, Bot, TestTube, Users } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
@@ -20,6 +21,7 @@ export function DashboardSyncHeader() {
   } = useAgentSync();
 
   const [isTesting, setIsTesting] = React.useState(false);
+  const [isTestingAgents, setIsTestingAgents] = React.useState(false);
 
   const latestSync = syncStats?.[0];
   const isCurrentlyRunning = latestSync?.sync_status === 'running';
@@ -41,6 +43,29 @@ export function DashboardSyncHeader() {
       toast.error(`Test failed: ${error.message}`);
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const handleTestAgentsApi = async () => {
+    setIsTestingAgents(true);
+    try {
+      console.log('[DASHBOARD_SYNC_HEADER] Testing agents API...');
+      const result = await retellApiDebugger.testAgentsAndDisplayResults();
+      
+      // Additional detailed logging for debugging
+      console.log('[DASHBOARD_SYNC_HEADER] Agents API test result:', {
+        success: result.success,
+        status: result.status,
+        agentCount: Array.isArray(result.response) ? result.response.length : 
+                   result.response?.agents?.length || 0,
+        responseKeys: result.response ? Object.keys(result.response) : [],
+        fullResponse: result.response
+      });
+    } catch (error: any) {
+      console.error('[DASHBOARD_SYNC_HEADER] Test agents API error:', error);
+      toast.error(`Agents API test failed: ${error.message}`);
+    } finally {
+      setIsTestingAgents(false);
     }
   };
 
@@ -98,6 +123,21 @@ export function DashboardSyncHeader() {
         </div>
         
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleTestAgentsApi}
+            disabled={isTestingAgents}
+            className="bg-white hover:bg-gray-50"
+          >
+            {isTestingAgents ? (
+              <LoadingSpinner size="sm" />
+            ) : (
+              <Users className="h-4 w-4" />
+            )}
+            Test Agents API
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
