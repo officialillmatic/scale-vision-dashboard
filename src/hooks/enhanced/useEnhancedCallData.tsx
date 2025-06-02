@@ -25,16 +25,16 @@ export const useEnhancedCallData = (initialCalls: EnhancedCallData[] = []) => {
   } = useQuery({
     queryKey: ["enhanced-calls", company?.id, user?.id],
     queryFn: async (): Promise<EnhancedCallData[]> => {
-      if (!company?.id || !user?.id) {
-        console.log("[USE_ENHANCED_CALL_DATA] Missing required IDs", { 
-          companyId: company?.id, 
+      if (!user?.id) {
+        console.log("[USE_ENHANCED_CALL_DATA] Missing user ID", { 
           userId: user?.id 
         });
         return [];
       }
       
       try {
-        return await fetchEnhancedCalls(company.id);
+        // Use company ID if available, otherwise fetch all calls for the user
+        return await fetchEnhancedCalls(company?.id || null);
       } catch (error: any) {
         console.error("[USE_ENHANCED_CALL_DATA] Error fetching calls:", error);
         
@@ -50,7 +50,7 @@ export const useEnhancedCallData = (initialCalls: EnhancedCallData[] = []) => {
         return [];
       }
     },
-    enabled: !!company?.id && !!user?.id,
+    enabled: !!user?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: (failureCount, error: any) => {
       if (error?.message?.includes("permission denied") || 

@@ -63,37 +63,6 @@ export class SyncOrchestrator {
             console.log(`[SYNC-CALLS-${this.requestId}] Call status: ${call.call_status}`);
             console.log(`[SYNC-CALLS-${this.requestId}] Call start time: ${call.start_timestamp}`);
             
-            // Try to find matching agent in our database
-            const { data: agent, error: agentError } = await this.supabaseClient
-              .from('agents')
-              .select('id, name, company_id')
-              .eq('retell_agent_id', call.agent_id)
-              .single();
-
-            if (agentError || !agent) {
-              console.log(`[SYNC-CALLS-${this.requestId}] No matching agent found for retell_agent_id: ${call.agent_id}, skipping call`);
-              totalProcessed++;
-              continue;
-            }
-
-            console.log(`[SYNC-CALLS-${this.requestId}] Found matching agent: ${agent.name} (${agent.id})`);
-
-            // Find user agent mapping
-            const { data: userAgents, error: userAgentError } = await this.supabaseClient
-              .from('user_agents')
-              .select('user_id, company_id')
-              .eq('agent_id', agent.id)
-              .limit(1);
-
-            if (userAgentError || !userAgents || userAgents.length === 0) {
-              console.log(`[SYNC-CALLS-${this.requestId}] No user mapping found for agent ${agent.id}, skipping call`);
-              totalProcessed++;
-              continue;
-            }
-
-            const userAgent = userAgents[0];
-            console.log(`[SYNC-CALLS-${this.requestId}] Found user mapping: user_id=${userAgent.user_id}, company_id=${userAgent.company_id}`);
-
             // Check if call already exists
             const { data: existingCall, error: checkError } = await this.supabaseClient
               .from('retell_calls')
@@ -113,8 +82,43 @@ export class SyncOrchestrator {
               continue;
             }
 
-            // Map and insert the call
-            const mappedCall = this.mapCallData(call, userAgent.user_id, userAgent.company_id, agent.id);
+            // Try to find matching agent in our database (optional)
+            let agent = null;
+            let userAgent = null;
+            
+            if (call.agent_id) {
+              const { data: agentData, error: agentError } = await this.supabaseClient
+                .from('agents')
+                .select('id, name, company_id')
+                .eq('retell_agent_id', call.agent_id)
+                .maybeSingle();
+
+              if (!agentError && agentData) {
+                agent = agentData;
+                console.log(`[SYNC-CALLS-${this.requestId}] Found matching agent: ${agent.name} (${agent.id})`);
+
+                // Try to find user agent mapping (optional)
+                const { data: userAgents, error: userAgentError } = await this.supabaseClient
+                  .from('user_agents')
+                  .select('user_id, company_id')
+                  .eq('agent_id', agent.id)
+                  .limit(1);
+
+                if (!userAgentError && userAgents && userAgents.length > 0) {
+                  userAgent = userAgents[0];
+                  console.log(`[SYNC-CALLS-${this.requestId}] Found user mapping: user_id=${userAgent.user_id}, company_id=${userAgent.company_id}`);
+                } else {
+                  console.log(`[SYNC-CALLS-${this.requestId}] No user mapping found for agent ${agent.id}, using defaults`);
+                }
+              } else {
+                console.log(`[SYNC-CALLS-${this.requestId}] No matching agent found for retell_agent_id: ${call.agent_id}, using defaults`);
+              }
+            } else {
+              console.log(`[SYNC-CALLS-${this.requestId}] Call has no agent_id, using defaults`);
+            }
+
+            // Map and insert the call with flexible defaults
+            const mappedCall = this.mapCallDataFlexible(call, userAgent, agent);
             
             const { data: insertData, error: insertError } = await this.supabaseClient
               .from('retell_calls')
@@ -182,22 +186,34 @@ export class SyncOrchestrator {
     };
   }
 
-  private mapCallData(call: any, userId: string, companyId: string, agentId: string) {
+  private mapCallDataFlexible(call: any, userAgent: any, agent: any) {
     const timestamp = call.start_timestamp 
       ? new Date(call.start_timestamp * 1000) 
       : new Date();
     
-    const duration = call.duration_sec || 0;
-    const cost = call.cost || 0;
+    const duration = call.duration_sec || (call.duration_ms ? Math.floor(call.duration_ms / 1000) : 0);
+    const cost = call.call_cost?.combined_cost || 0;
     const ratePerMinute = 0.17; // Default rate
     const calculatedRevenue = (duration / 60) * ratePerMinute;
+
+    // Use flexible defaults for missing values
+    const userId = userAgent?.user_id || null;
+    const companyId = userAgent?.company_id || agent?.company_id || null;
+    const agentId = agent?.id || null;
+
+    console.log(`[SYNC-CALLS-${this.requestId}] Mapping call ${call.call_id}:`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - userId: ${userId}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - companyId: ${companyId}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - agentId: ${agentId}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - duration: ${duration}s`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - cost: $${cost}`);
 
     return {
       call_id: call.call_id,
       user_id: userId,
       company_id: companyId,
       agent_id: agentId,
-      retell_agent_id: call.agent_id,
+      retell_agent_id: call.agent_id || null,
       start_timestamp: timestamp.toISOString(),
       end_timestamp: call.end_timestamp ? new Date(call.end_timestamp * 1000).toISOString() : null,
       duration_sec: duration,
@@ -207,20 +223,20 @@ export class SyncOrchestrator {
       revenue: calculatedRevenue,
       billing_duration_sec: duration,
       rate_per_minute: ratePerMinute,
-      call_status: call.call_status || 'unknown',
-      status: call.call_status || 'unknown',
+      call_status: call.call_status || 'ended',
+      status: call.call_status || 'ended',
       from_number: call.from_number || null,
       to_number: call.to_number || null,
       disconnection_reason: call.disconnection_reason || null,
       recording_url: call.recording_url || null,
       transcript: call.transcript || null,
       transcript_url: call.transcript_url || null,
-      sentiment: call.sentiment?.overall_sentiment || null,
-      sentiment_score: call.sentiment?.score || null,
-      result_sentiment: call.sentiment ? JSON.stringify(call.sentiment) : null,
+      sentiment: call.call_analysis?.user_sentiment || null,
+      sentiment_score: null,
+      result_sentiment: call.call_analysis ? JSON.stringify(call.call_analysis) : null,
       disposition: call.disposition || null,
-      latency_ms: call.latency_ms || null,
-      call_summary: call.summary || null,
+      latency_ms: call.latency?.llm?.p50 || null,
+      call_summary: call.call_analysis?.call_summary || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
