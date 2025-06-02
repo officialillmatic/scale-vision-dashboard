@@ -60,10 +60,10 @@ class RetellAgentSyncService {
   }
 
   /**
-   * Test API connection and environment setup
+   * Test API connection using comprehensive endpoint discovery
    */
   async testConnection(): Promise<any> {
-    console.log('[RETELL_AGENT_SYNC] Testing API connection...');
+    console.log('[RETELL_AGENT_SYNC] Testing API connection with endpoint discovery...');
     return await retellApiDebugger.testAndDisplayResults();
   }
 
