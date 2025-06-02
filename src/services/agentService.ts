@@ -14,5 +14,6 @@ export {
   updateAgent,
   deleteAgent,
   assignAgentToUser,
-  removeAgentFromUser
+  removeAgentFromUser,
+  updateUserAgentPrimary
 } from "./agent/agentMutations";

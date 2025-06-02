@@ -9,6 +9,7 @@ import { DashboardSyncHeader } from "@/components/dashboard/DashboardSyncHeader"
 import { DashboardSyncAlerts } from "@/components/dashboard/DashboardSyncAlerts";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { useRole } from "@/hooks/useRole";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,10 +18,16 @@ import { RefreshCw, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { isCompanyOwner, can } = useRole();
   const [testResults, setTestResults] = useState<any>(null);
   const [isTestRunning, setIsTestRunning] = useState(false);
+
+  console.log('🔍 [DashboardPage] Current user:', user?.id);
+  console.log('🔍 [DashboardPage] isSuperAdmin:', isSuperAdmin);
+  console.log('🔍 [DashboardPage] isCompanyOwner:', isCompanyOwner);
+  console.log('🔍 [DashboardPage] can.manageTeam:', can.manageTeam);
 
   const runSyncTest = async () => {
     setIsTestRunning(true);
@@ -167,7 +174,7 @@ export default function DashboardPage() {
     );
   }
 
-  // Company owners and admins get the management dashboard
+  // Company owners and team managers get the management dashboard
   if (isCompanyOwner || can.manageTeam) {
     return (
       <ProductionDashboardLayout>
@@ -179,7 +186,8 @@ export default function DashboardPage() {
     );
   }
 
-  // Regular users get the user agent dashboard
+  // Universal system: ALL other authenticated users get the UserAgentDashboard
+  // This automatically detects if they have a primary agent or shows welcome message
   return (
     <ProductionDashboardLayout>
       <UserAgentDashboard />

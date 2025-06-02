@@ -18,20 +18,27 @@ export function UserAgentDashboard() {
   const { calls, isLoading: isLoadingCalls } = useCalls();
   const { balance, isLoading: isLoadingBalance, remainingMinutes, isLowBalance } = useUserBalance();
 
-  // Find the primary agent for the current user
+  console.log('🔍 [UserAgentDashboard] Current user:', user?.id);
+  console.log('🔍 [UserAgentDashboard] Current company:', company?.id);
+  console.log('🔍 [UserAgentDashboard] User agents:', userAgents);
+
+  // Find the primary agent for the current authenticated user
   const primaryAgent = userAgents.find(ua => 
     ua.user_id === user?.id && ua.is_primary
   );
 
-  // Get agent-specific metrics
+  console.log('🔍 [UserAgentDashboard] Primary agent found:', primaryAgent);
+
+  // Get agent-specific metrics for the current user
   const agentCalls = calls.filter(call => 
-    primaryAgent && call.agent_id === primaryAgent.agent_id
+    primaryAgent && call.agent_id === primaryAgent.agent_id && call.user_id === user?.id
   );
 
   const totalCallDuration = agentCalls.reduce((total, call) => total + (call.duration_sec || 0), 0);
   const totalCallCost = agentCalls.reduce((total, call) => total + (call.cost_usd || 0), 0);
   const avgCallDuration = agentCalls.length > 0 ? totalCallDuration / agentCalls.length : 0;
 
+  // Show loading state while data is being fetched
   if (isLoadingUserAgents || isLoadingCalls || isLoadingBalance) {
     return (
       <div className="space-y-6">
@@ -49,27 +56,33 @@ export function UserAgentDashboard() {
     );
   }
 
-  // If no primary agent is assigned, show welcome message
+  // Universal welcome screen: Show this if user has no primary agent assigned
   if (!primaryAgent) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-6">
-        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center">
-          <Bot className="w-12 h-12 text-gray-400" />
+        <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-green-100 rounded-full flex items-center justify-center">
+          <Bot className="w-12 h-12 text-blue-600" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-gray-900">Welcome to Your AI Assistant Dashboard</h2>
+          <h2 className="text-3xl font-bold text-gray-900">Welcome to Dr Scale AI!</h2>
           <p className="text-gray-600 max-w-md">
-            You don't have an AI agent assigned yet. Contact your administrator to get access to an AI agent 
-            that can handle your calls and customer interactions.
+            Hello {user?.email}! You don't have an AI agent assigned yet. 
+            Contact your administrator to get access to an AI agent that can handle your calls and customer interactions.
           </p>
         </div>
-        <Button onClick={() => navigate('/team')} variant="outline">
-          Contact Administrator
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button onClick={() => navigate('/team')} variant="outline">
+            View Team Settings
+          </Button>
+          <Button onClick={() => navigate('/support')}>
+            Contact Support
+          </Button>
+        </div>
       </div>
     );
   }
 
+  // Universal agent dashboard: Show this for any user with a primary agent
   return (
     <div className="space-y-6">
       {/* Agent Header */}
@@ -83,7 +96,7 @@ export function UserAgentDashboard() {
               <div>
                 <CardTitle className="text-xl">{primaryAgent.agent?.name || 'Your AI Agent'}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Primary AI Assistant
+                  Primary AI Assistant for {user?.email}
                 </p>
               </div>
             </div>
@@ -95,7 +108,7 @@ export function UserAgentDashboard() {
         </CardHeader>
       </Card>
 
-      {/* Metrics Grid */}
+      {/* Universal Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Balance Card */}
         <Card className={isLowBalance ? "border-amber-400 bg-amber-50" : ""}>
@@ -164,11 +177,11 @@ export function UserAgentDashboard() {
         </Card>
       </div>
 
-      {/* Recent Calls */}
+      {/* Recent Calls for Current User */}
       {agentCalls.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Recent Calls with {primaryAgent.agent?.name}</CardTitle>
+            <CardTitle>Your Recent Calls with {primaryAgent.agent?.name}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -193,7 +206,7 @@ export function UserAgentDashboard() {
             {agentCalls.length > 5 && (
               <div className="mt-4 text-center">
                 <Button variant="outline" onClick={() => navigate('/calls')}>
-                  View All Calls
+                  View All Your Calls
                 </Button>
               </div>
             )}
