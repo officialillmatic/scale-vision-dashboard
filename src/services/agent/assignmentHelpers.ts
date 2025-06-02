@@ -17,7 +17,7 @@ export interface AssignmentAgent {
 
 export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
   try {
-    console.log('🔍 [fetchAvailableUsers] Fetching users from users table');
+    console.log('🔍 [fetchAvailableUsers] Fetching ALL users from users table');
     
     const { data, error } = await supabase
       .from("users")
@@ -29,7 +29,18 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
       throw error;
     }
 
-    console.log('🔍 [fetchAvailableUsers] Users fetched:', data?.length || 0, 'users');
+    console.log('🔍 [fetchAvailableUsers] Raw users data:', data);
+    console.log('🔍 [fetchAvailableUsers] Total users fetched:', data?.length || 0);
+    
+    // Log each user for debugging
+    data?.forEach((user, index) => {
+      console.log(`🔍 [fetchAvailableUsers] User ${index + 1}:`, {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name
+      });
+    });
+
     return data || [];
   } catch (error: any) {
     console.error("[ASSIGNMENT_HELPERS] Error in fetchAvailableUsers:", error);

@@ -64,6 +64,18 @@ export function NewAssignmentDialog({
     }
   }, [isOpen, selectedAgent, availableAgents]);
 
+  // Debug available users when they change
+  useEffect(() => {
+    console.log('🔍 [NewAssignmentDialog] Available users updated:', {
+      count: availableUsers.length,
+      users: availableUsers.map(user => ({
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name
+      }))
+    });
+  }, [availableUsers]);
+
   const handleSubmit = () => {
     if (!selectedUserId || !selectedAgentId) {
       return;
@@ -123,19 +135,46 @@ export function NewAssignmentDialog({
         ) : (
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="user-select">Select User ({availableUsers.length} available)</Label>
+              <Label htmlFor="user-select">
+                Select User ({availableUsers.length} available)
+                {availableUsers.length === 0 && (
+                  <span className="text-red-500 ml-2">- No users found!</span>
+                )}
+              </Label>
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
                 <SelectTrigger id="user-select">
-                  <SelectValue placeholder="Choose a user..." />
+                  <SelectValue placeholder={
+                    availableUsers.length === 0 
+                      ? "No users available" 
+                      : "Choose a user..."
+                  } />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableUsers.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.full_name ? `${user.full_name} (${user.email})` : user.email}
+                  {availableUsers.length === 0 ? (
+                    <SelectItem value="no-users" disabled>
+                      No users found in database
                     </SelectItem>
-                  ))}
+                  ) : (
+                    availableUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.full_name ? `${user.full_name} (${user.email})` : user.email}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
+              
+              {/* Debug info for development */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="text-xs text-gray-500 mt-1">
+                  Debug: Found {availableUsers.length} users in database
+                  {availableUsers.length > 0 && (
+                    <div className="mt-1">
+                      Users: {availableUsers.map(u => u.email).join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -184,7 +223,7 @@ export function NewAssignmentDialog({
           </Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={!canSubmit}
+            disabled={!canSubmit || availableUsers.length === 0}
           >
             {isSubmitting ? (
               <>
