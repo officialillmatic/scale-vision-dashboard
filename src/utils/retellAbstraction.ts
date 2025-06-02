@@ -177,11 +177,11 @@ export class RetellAbstraction {
   /**
    * Get sanitized call data for frontend consumption
    */
-  async getCallData(companyId: string, limit: number = 100): Promise<any[]> {
-    console.log('[RETELL_SERVICE] Fetching calls for company:', companyId);
+  async getCallData(userIdOrCompanyId: string, limit: number = 100): Promise<any[]> {
+    console.log('[RETELL_SERVICE] Fetching calls for user/company:', userIdOrCompanyId);
     
     const { data, error } = await supabase
-      .from('retell_calls') // CAMBIO: de 'calls' a 'retell_calls'
+      .from('retell_calls')
       .select(`
         id,
         call_id,
@@ -191,7 +191,7 @@ export class RetellAbstraction {
         created_at,
         updated_at
       `)
-      .eq('company_id', companyId)
+      .eq('user_id', userIdOrCompanyId) // CAMBIO: usar user_id en lugar de company_id
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -207,7 +207,7 @@ export class RetellAbstraction {
       id: call.id,
       callId: call.call_id,
       timestamp: call.created_at,
-      duration: 0, // No está disponible en retell_calls, se puede obtener de otra fuente
+      duration: 0, // No está disponible en retell_calls
       cost: 0, // No está disponible en retell_calls
       sentiment: null,
       sentimentScore: null,
@@ -219,7 +219,7 @@ export class RetellAbstraction {
       summary: null,
       agent: {
         id: call.retell_agent_id,
-        name: 'Unknown Agent', // Se puede hacer join con agents si se quiere el nombre
+        name: 'Unknown Agent',
         ratePerMinute: 0
       }
     })) || [];
