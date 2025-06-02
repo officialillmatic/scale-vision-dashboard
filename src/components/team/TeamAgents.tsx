@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { TeamAgentsContainer } from './TeamAgentsContainer';
+import { UserManagementDashboard } from './UserManagementDashboard';
 
 export function TeamAgents() {
-  return <TeamAgentsContainer />;
+  return <UserManagementDashboard />;
 }
