@@ -13,13 +13,16 @@ export interface RetellCallData {
   start_timestamp: Date;
   end_timestamp?: Date;
   duration_sec: number;
+  duration: number; // Convenience column
   call_status: string;
+  status: string; // Convenience column
   disconnection_reason?: string;
   disposition?: string;
   from_number?: string;
   to_number?: string;
   cost_usd: number;
   revenue_amount: number;
+  revenue: number; // Convenience column
   billing_duration_sec: number;
   rate_per_minute: number;
   recording_url?: string;

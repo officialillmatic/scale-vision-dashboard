@@ -83,19 +83,19 @@ export class AgentProcessor {
   }
 
   private async processCall(call: any, userAgent: any, agent: any): Promise<boolean> {
-    // Check if call already exists
+    // Check if call already exists in retell_calls table
     const { data: existingCall } = await this.supabaseClient
-      .from('calls')
+      .from('retell_calls')
       .select('id')
       .eq('call_id', call.call_id)
       .single();
 
     if (existingCall) {
-      console.log(`[SYNC-CALLS-${this.requestId}] Call ${call.call_id} already exists, skipping`);
+      console.log(`[SYNC-CALLS-${this.requestId}] Call ${call.call_id} already exists in retell_calls, skipping`);
       return false;
     }
 
-    // Map Retell call data to Supabase format
+    // Map Retell call data to Supabase format for retell_calls table
     const mappedCall = mapRetellCallToSupabase(
       call,
       userAgent.user_id,
@@ -103,19 +103,17 @@ export class AgentProcessor {
       agent.id
     );
 
-    // Upsert the call
-    const { error: upsertError } = await this.supabaseClient
-      .from('calls')
-      .upsert(mappedCall, {
-        onConflict: 'call_id',
-        ignoreDuplicates: false
-      });
+    // Insert into retell_calls table
+    const { error: insertError } = await this.supabaseClient
+      .from('retell_calls')
+      .insert(mappedCall);
 
-    if (upsertError) {
-      console.error(`[SYNC-CALLS-${this.requestId}] Error upserting call ${call.call_id}:`, upsertError);
-      throw upsertError;
+    if (insertError) {
+      console.error(`[SYNC-CALLS-${this.requestId}] Error inserting call ${call.call_id} into retell_calls:`, insertError);
+      throw insertError;
     }
 
+    console.log(`[SYNC-CALLS-${this.requestId}] Successfully synced call ${call.call_id} to retell_calls table`);
     return true;
   }
 }

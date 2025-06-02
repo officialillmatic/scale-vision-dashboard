@@ -551,23 +551,30 @@ export type Database = {
           call_status: string
           call_summary: string | null
           company_id: string | null
+          contact_id: string | null
           cost_usd: number
           created_at: string
           disconnection_reason: string | null
           disposition: string | null
+          duration: number | null
           duration_sec: number
           end_timestamp: string | null
           from_number: string | null
           id: string
           latency_ms: number | null
+          notes: string | null
+          outcome: string | null
+          phone_number: string | null
           rate_per_minute: number
           recording_url: string | null
           result_sentiment: Json | null
           retell_agent_id: string | null
+          revenue: number | null
           revenue_amount: number
           sentiment: string | null
           sentiment_score: number | null
           start_timestamp: string
+          status: string | null
           to_number: string | null
           transcript: string | null
           transcript_url: string | null
@@ -581,23 +588,30 @@ export type Database = {
           call_status?: string
           call_summary?: string | null
           company_id?: string | null
+          contact_id?: string | null
           cost_usd?: number
           created_at?: string
           disconnection_reason?: string | null
           disposition?: string | null
+          duration?: number | null
           duration_sec?: number
           end_timestamp?: string | null
           from_number?: string | null
           id?: string
           latency_ms?: number | null
+          notes?: string | null
+          outcome?: string | null
+          phone_number?: string | null
           rate_per_minute?: number
           recording_url?: string | null
           result_sentiment?: Json | null
           retell_agent_id?: string | null
+          revenue?: number | null
           revenue_amount?: number
           sentiment?: string | null
           sentiment_score?: number | null
           start_timestamp: string
+          status?: string | null
           to_number?: string | null
           transcript?: string | null
           transcript_url?: string | null
@@ -611,23 +625,30 @@ export type Database = {
           call_status?: string
           call_summary?: string | null
           company_id?: string | null
+          contact_id?: string | null
           cost_usd?: number
           created_at?: string
           disconnection_reason?: string | null
           disposition?: string | null
+          duration?: number | null
           duration_sec?: number
           end_timestamp?: string | null
           from_number?: string | null
           id?: string
           latency_ms?: number | null
+          notes?: string | null
+          outcome?: string | null
+          phone_number?: string | null
           rate_per_minute?: number
           recording_url?: string | null
           result_sentiment?: Json | null
           retell_agent_id?: string | null
+          revenue?: number | null
           revenue_amount?: number
           sentiment?: string | null
           sentiment_score?: number | null
           start_timestamp?: string
+          status?: string | null
           to_number?: string | null
           transcript?: string | null
           transcript_url?: string | null

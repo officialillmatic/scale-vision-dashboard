@@ -34,24 +34,34 @@ export function mapRetellCallToSupabase(
   
   const timestamp = new Date(retellCall.start_timestamp * 1000);
   const startTime = retellCall.start_timestamp ? new Date(retellCall.start_timestamp * 1000) : null;
+  const endTime = retellCall.end_timestamp ? new Date(retellCall.end_timestamp * 1000) : null;
+  
+  // Calculate revenue based on duration and agent rate (default 0.17 per minute)
+  const durationMinutes = retellCall.duration_sec / 60;
+  const ratePerMinute = 0.17; // This should be fetched from agent rate, but using default for now
+  const calculatedRevenue = durationMinutes * ratePerMinute;
   
   const mappedCall = {
     call_id: retellCall.call_id,
     user_id: userId,
     company_id: companyId,
     agent_id: agentId,
-    timestamp: timestamp.toISOString(),
-    start_time: startTime?.toISOString() || null,
+    retell_agent_id: retellCall.agent_id,
+    start_timestamp: timestamp.toISOString(),
+    end_timestamp: endTime?.toISOString() || null,
     duration_sec: retellCall.duration_sec || 0,
+    duration: retellCall.duration_sec || 0, // New convenience column
     cost_usd: retellCall.cost || 0,
+    revenue_amount: calculatedRevenue,
+    revenue: calculatedRevenue, // New convenience column
+    billing_duration_sec: retellCall.duration_sec || 0,
+    rate_per_minute: ratePerMinute,
     call_status: retellCall.call_status || 'unknown',
-    from: retellCall.from_number || 'unknown',
-    to: retellCall.to_number || 'unknown',
+    status: retellCall.call_status || 'unknown', // New convenience column
     from_number: retellCall.from_number || null,
     to_number: retellCall.to_number || null,
     disconnection_reason: retellCall.disconnection_reason || null,
     recording_url: retellCall.recording_url || null,
-    audio_url: retellCall.recording_url || null, // Backwards compatibility
     transcript: retellCall.transcript || null,
     transcript_url: retellCall.transcript_url || null,
     sentiment: retellCall.sentiment?.overall_sentiment || null,
@@ -59,11 +69,12 @@ export function mapRetellCallToSupabase(
     result_sentiment: retellCall.sentiment ? JSON.stringify(retellCall.sentiment) : null,
     disposition: retellCall.disposition || null,
     latency_ms: retellCall.latency_ms || null,
-    call_type: 'phone_call',
     call_summary: retellCall.summary || null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 
-  console.log(`[DATA_MAPPER] Successfully mapped call ${retellCall.call_id}`);
+  console.log(`[DATA_MAPPER] Successfully mapped call ${retellCall.call_id} with revenue ${calculatedRevenue}`);
   return mappedCall;
 }
 

@@ -69,6 +69,15 @@ export function useUnifiedRevenueData(
       calls: data.calls
     })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+    // Calculate combined metrics
+    const legacyDuration = legacyRevenue.revenueMetrics?.total_calls || 0;
+    const retellDuration = retellData.retellMetrics?.total_duration_min || 0;
+    const totalDurationMin = legacyDuration + retellDuration;
+
+    const legacyAvgDuration = 0; // Legacy doesn't track duration in revenue metrics
+    const retellAvgDuration = retellData.retellMetrics?.avg_duration_sec || 0;
+    const avgDurationSec = totalCalls > 0 ? ((legacyAvgDuration * legacyTotalCalls) + (retellAvgDuration * retellTotalCalls)) / totalCalls : 0;
+
     return {
       total_revenue: totalRevenue,
       total_calls: totalCalls,
@@ -76,8 +85,8 @@ export function useUnifiedRevenueData(
       top_performing_agent: legacyRevenue.revenueMetrics?.top_performing_agent || 'N/A',
       revenue_by_day,
       success_rate: retellData.retellMetrics?.success_rate || 0,
-      total_duration_min: retellData.retellMetrics?.total_duration_min || 0,
-      avg_duration_sec: retellData.retellMetrics?.avg_duration_sec || 0,
+      total_duration_min: totalDurationMin,
+      avg_duration_sec: avgDurationSec,
     };
   }, [legacyRevenue.revenueMetrics, retellData.retellMetrics, retellData.retellDailyStats]);
 
