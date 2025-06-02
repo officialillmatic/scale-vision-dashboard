@@ -62,59 +62,15 @@ export const useRetellCalls = () => {
 
         console.log('🔍 [useRetellCalls] User agent assignments:', userAgents);
 
-        // If user has no agent assignments, try to get all calls for this user
         if (!userAgents || userAgents.length === 0) {
-          console.log('⚠️ [useRetellCalls] No agents assigned to user, fetching all calls for user');
-          
-          const { data: userCalls, error: userCallsError } = await supabase
-            .from('retell_calls')
-            .select(`
-              id,
-              call_id,
-              user_id,
-              agent_id,
-              company_id,
-              start_timestamp,
-              end_timestamp,
-              duration_sec,
-              cost_usd,
-              revenue_amount,
-              call_status,
-              from_number,
-              to_number,
-              transcript,
-              recording_url,
-              call_summary,
-              sentiment,
-              disposition,
-              latency_ms,
-              agents!retell_calls_agent_id_fkey (
-                id,
-                name,
-                description,
-                retell_agent_id
-              )
-            `)
-            .eq('user_id', user.id)
-            .order('start_timestamp', { ascending: false })
-            .limit(100);
-
-          if (userCallsError) {
-            console.error('❌ [useRetellCalls] Error fetching user calls:', userCallsError);
-            throw userCallsError;
-          }
-
-          console.log(`🔍 [useRetellCalls] Found ${userCalls?.length || 0} calls for user (no agent filter)`);
-          
-          const transformedCalls = (userCalls || []).map(call => transformCall(call));
-          console.log(`✅ [useRetellCalls] Successfully transformed ${transformedCalls.length} user calls`);
-          return transformedCalls;
+          console.log('⚠️ [useRetellCalls] No agents assigned to user');
+          return [];
         }
 
         const agentIds = userAgents.map(ua => ua.agent_id);
         console.log('🔍 [useRetellCalls] User assigned agent IDs:', agentIds);
 
-        // Get calls from retell_calls table where the agent_id matches assigned agents
+        // Get calls from retell_calls table with proper agent joining
         const { data: calls, error: callsError } = await supabase
           .from('retell_calls')
           .select(`
@@ -137,7 +93,7 @@ export const useRetellCalls = () => {
             sentiment,
             disposition,
             latency_ms,
-            agents!retell_calls_agent_id_fkey (
+            retell_agents!retell_calls_agent_id_fkey (
               id,
               name,
               description,
@@ -154,6 +110,7 @@ export const useRetellCalls = () => {
         }
 
         console.log(`🔍 [useRetellCalls] Found ${calls?.length || 0} calls for user's agents`);
+        console.log('🔍 [useRetellCalls] Sample call with agent data:', calls?.[0]);
 
         const transformedCalls = (calls || []).map(call => transformCall(call));
         console.log(`✅ [useRetellCalls] Successfully transformed ${transformedCalls.length} calls`);
@@ -205,16 +162,16 @@ function transformCall(call: any): RetellCall {
     sentiment: call.sentiment,
     disposition: call.disposition,
     latency_ms: call.latency_ms,
-    agent: Array.isArray(call.agents) && call.agents.length > 0 ? {
-      id: call.agents[0].id,
-      name: call.agents[0].name,
-      description: call.agents[0].description,
-      retell_agent_id: call.agents[0].retell_agent_id
-    } : call.agents ? {
-      id: (call.agents as any).id,
-      name: (call.agents as any).name,
-      description: (call.agents as any).description,
-      retell_agent_id: (call.agents as any).retell_agent_id
+    agent: Array.isArray(call.retell_agents) && call.retell_agents.length > 0 ? {
+      id: call.retell_agents[0].id,
+      name: call.retell_agents[0].name,
+      description: call.retell_agents[0].description,
+      retell_agent_id: call.retell_agents[0].retell_agent_id
+    } : call.retell_agents ? {
+      id: (call.retell_agents as any).id,
+      name: (call.retell_agents as any).name,
+      description: (call.retell_agents as any).description,
+      retell_agent_id: (call.retell_agents as any).retell_agent_id
     } : undefined
   };
 }

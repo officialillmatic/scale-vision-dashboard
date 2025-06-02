@@ -62,87 +62,14 @@ export const useCurrentUserCalls = () => {
         console.log('🔍 [useCurrentUserCalls] User agent assignments:', userAgents);
 
         if (!userAgents || userAgents.length === 0) {
-          console.log('⚠️ [useCurrentUserCalls] No agents assigned to user, trying user-specific calls');
-          
-          // If no specific agents assigned, get calls for this user
-          const { data: userCalls, error: userCallsError } = await supabase
-            .from('retell_calls')
-            .select(`
-              id,
-              call_id,
-              user_id,
-              agent_id,
-              company_id,
-              start_timestamp,
-              end_timestamp,
-              duration_sec,
-              cost_usd,
-              revenue_amount,
-              call_status,
-              from_number,
-              to_number,
-              transcript,
-              recording_url,
-              call_summary,
-              sentiment,
-              agents!retell_calls_agent_id_fkey (
-                id,
-                name,
-                description,
-                retell_agent_id
-              )
-            `)
-            .eq('user_id', user.id)
-            .order('start_timestamp', { ascending: false })
-            .limit(50);
-
-          if (userCallsError) {
-            console.error('❌ [useCurrentUserCalls] Error fetching user calls:', userCallsError);
-            throw userCallsError;
-          }
-
-          console.log(`🔍 [useCurrentUserCalls] Found ${userCalls?.length || 0} calls for user (no agent filter)`);
-          
-          // Transform and return user calls
-          const transformedCalls: UserCall[] = (userCalls || []).map(call => ({
-            id: call.id,
-            call_id: call.call_id,
-            user_id: call.user_id || user.id,
-            agent_id: call.agent_id || '',
-            company_id: call.company_id || '',
-            start_timestamp: call.start_timestamp,
-            end_timestamp: call.end_timestamp,
-            duration_sec: call.duration_sec || 0,
-            cost_usd: call.cost_usd || 0,
-            revenue_amount: call.revenue_amount || 0,
-            call_status: call.call_status || 'unknown',
-            from_number: call.from_number,
-            to_number: call.to_number,
-            transcript: call.transcript,
-            recording_url: call.recording_url,
-            call_summary: call.call_summary,
-            sentiment: call.sentiment,
-            agent_details: Array.isArray(call.agents) && call.agents.length > 0 ? {
-              id: call.agents[0].id,
-              name: call.agents[0].name,
-              description: call.agents[0].description,
-              retell_agent_id: call.agents[0].retell_agent_id
-            } : call.agents ? {
-              id: (call.agents as any).id,
-              name: (call.agents as any).name,
-              description: (call.agents as any).description,
-              retell_agent_id: (call.agents as any).retell_agent_id
-            } : undefined
-          }));
-
-          console.log('🔍 [useCurrentUserCalls] Returning user calls:', transformedCalls.length);
-          return transformedCalls;
+          console.log('⚠️ [useCurrentUserCalls] No agents assigned to user');
+          return [];
         }
 
         const agentIds = userAgents.map(ua => ua.agent_id);
         console.log('🔍 [useCurrentUserCalls] User assigned agent IDs:', agentIds);
 
-        // Get calls from retell_calls table where the agent_id matches assigned agents
+        // Get calls from retell_calls table with proper agent joining
         const { data: calls, error: callsError } = await supabase
           .from('retell_calls')
           .select(`
@@ -163,7 +90,7 @@ export const useCurrentUserCalls = () => {
             recording_url,
             call_summary,
             sentiment,
-            agents!retell_calls_agent_id_fkey (
+            retell_agents!retell_calls_agent_id_fkey (
               id,
               name,
               description,
@@ -200,16 +127,16 @@ export const useCurrentUserCalls = () => {
           recording_url: call.recording_url,
           call_summary: call.call_summary,
           sentiment: call.sentiment,
-          agent_details: Array.isArray(call.agents) && call.agents.length > 0 ? {
-            id: call.agents[0].id,
-            name: call.agents[0].name,
-            description: call.agents[0].description,
-            retell_agent_id: call.agents[0].retell_agent_id
-          } : call.agents ? {
-            id: (call.agents as any).id,
-            name: (call.agents as any).name,
-            description: (call.agents as any).description,
-            retell_agent_id: (call.agents as any).retell_agent_id
+          agent_details: Array.isArray(call.retell_agents) && call.retell_agents.length > 0 ? {
+            id: call.retell_agents[0].id,
+            name: call.retell_agents[0].name,
+            description: call.retell_agents[0].description,
+            retell_agent_id: call.retell_agents[0].retell_agent_id
+          } : call.retell_agents ? {
+            id: (call.retell_agents as any).id,
+            name: (call.retell_agents as any).name,
+            description: (call.retell_agents as any).description,
+            retell_agent_id: (call.retell_agents as any).retell_agent_id
           } : undefined
         }));
 
