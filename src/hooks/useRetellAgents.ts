@@ -40,6 +40,49 @@ export function useRetellAgents() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const testEndpoint = async (baseUrl: string, endpoint: string): Promise<{ success: boolean; data?: any; status?: number; error?: string }> => {
+    const fullUrl = `${baseUrl}${endpoint}`;
+    const apiKey = import.meta.env.VITE_RETELL_API_KEY;
+    
+    try {
+      console.log(`[USE_RETELL_AGENTS] Testing endpoint: ${fullUrl}`);
+      
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const responseText = await response.text();
+      let responseData;
+      
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (parseError) {
+        responseData = { raw_response: responseText };
+      }
+
+      console.log(`[USE_RETELL_AGENTS] ${fullUrl} - Status: ${response.status}`);
+
+      return {
+        success: response.ok,
+        data: responseData,
+        status: response.status,
+        error: response.ok ? undefined : responseText
+      };
+
+    } catch (error: any) {
+      console.error(`[USE_RETELL_AGENTS] ${fullUrl} - Network error:`, error);
+      return {
+        success: false,
+        error: `Network error: ${error.message}`,
+        status: 0
+      };
+    }
+  };
+
   const fetchAgents = async () => {
     const apiKey = import.meta.env.VITE_RETELL_API_KEY;
     
@@ -53,36 +96,72 @@ export function useRetellAgents() {
     setError(null);
 
     try {
-      console.log('[USE_RETELL_AGENTS] Fetching agents from Retell AI API...');
+      console.log('[USE_RETELL_AGENTS] Starting endpoint discovery...');
       
-      const response = await fetch('https://api.retellai.com/agents', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      // Test all possible endpoint combinations (same as debugger)
+      const possibleBaseUrls = [
+        'https://api.retellai.com',
+        'https://api.retellai.com/v1',
+        'https://api.retellai.com/v2'
+      ];
+      
+      const possibleEndpoints = [
+        '/agent',
+        '/agents', 
+        '/v1/agents',
+        '/list-agents',
+        '/agent/list'
+      ];
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[USE_RETELL_AGENTS] API error:', response.status, errorText);
-        throw new Error(`Failed to fetch agents: ${response.status} - ${errorText}`);
+      let workingEndpoint = null;
+      let workingData = null;
+
+      // Test all combinations to find the working endpoint
+      for (const baseUrl of possibleBaseUrls) {
+        for (const endpoint of possibleEndpoints) {
+          const result = await testEndpoint(baseUrl, endpoint);
+          
+          if (result.success && result.data) {
+            workingEndpoint = `${baseUrl}${endpoint}`;
+            workingData = result.data;
+            console.log(`[USE_RETELL_AGENTS] ✅ Found working endpoint: ${workingEndpoint}`);
+            break;
+          }
+          
+          // Small delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        if (workingEndpoint) break;
       }
 
-      const data: RetellAgentsResponse = await response.json();
-      console.log('[USE_RETELL_AGENTS] Raw API response:', data);
+      if (!workingEndpoint || !workingData) {
+        throw new Error('No working endpoint found for Retell AI agents API');
+      }
 
-      if (data.agents && Array.isArray(data.agents)) {
-        const agentOptions: RetellAgentOption[] = data.agents.map(agent => ({
-          retell_agent_id: agent.agent_id,
-          name: agent.agent_name,
-          display_text: `${agent.agent_name} (${agent.agent_id})`
+      console.log('[USE_RETELL_AGENTS] Raw API response:', workingData);
+
+      // Handle different response formats
+      let agentsArray = [];
+      if (Array.isArray(workingData)) {
+        agentsArray = workingData;
+      } else if (workingData.agents && Array.isArray(workingData.agents)) {
+        agentsArray = workingData.agents;
+      } else if (workingData.data && Array.isArray(workingData.data)) {
+        agentsArray = workingData.data;
+      }
+
+      if (agentsArray.length > 0) {
+        const agentOptions: RetellAgentOption[] = agentsArray.map((agent: any) => ({
+          retell_agent_id: agent.agent_id || agent.id,
+          name: agent.agent_name || agent.name || `Agent ${agent.agent_id || agent.id}`,
+          display_text: `${agent.agent_name || agent.name || `Agent ${agent.agent_id || agent.id}`} (${agent.agent_id || agent.id})`
         }));
         
         setAgents(agentOptions);
-        console.log('[USE_RETELL_AGENTS] Successfully loaded', agentOptions.length, 'agents from Retell AI API');
+        console.log(`[USE_RETELL_AGENTS] Successfully loaded ${agentOptions.length} agents from ${workingEndpoint}`);
       } else {
-        console.warn('[USE_RETELL_AGENTS] Unexpected API response format:', data);
+        console.warn('[USE_RETELL_AGENTS] No agents found in API response');
         setAgents([]);
       }
     } catch (error: any) {
