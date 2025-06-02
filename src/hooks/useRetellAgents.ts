@@ -39,6 +39,7 @@ export function useRetellAgents() {
   const [agents, setAgents] = useState<RetellAgentOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   const testEndpoint = async (baseUrl: string, endpoint: string): Promise<{ success: boolean; data?: any; status?: number; error?: string }> => {
     const fullUrl = `${baseUrl}${endpoint}`;
@@ -92,13 +93,19 @@ export function useRetellAgents() {
       return;
     }
 
+    // Prevent multiple simultaneous calls
+    if (isLoading) {
+      console.log('[USE_RETELL_AGENTS] Already loading, skipping fetch');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
       console.log('[USE_RETELL_AGENTS] Starting endpoint discovery...');
       
-      // Test all possible endpoint combinations (same as debugger)
+      // Test all possible endpoint combinations
       const possibleBaseUrls = [
         'https://api.retellai.com',
         'https://api.retellai.com/v1',
@@ -152,14 +159,35 @@ export function useRetellAgents() {
       }
 
       if (agentsArray.length > 0) {
-        const agentOptions: RetellAgentOption[] = agentsArray.map((agent: any) => ({
-          retell_agent_id: agent.agent_id || agent.id,
-          name: agent.agent_name || agent.name || `Agent ${agent.agent_id || agent.id}`,
-          display_text: `${agent.agent_name || agent.name || `Agent ${agent.agent_id || agent.id}`} (${agent.agent_id || agent.id})`
-        }));
+        // Filter out null/undefined agents and create agent options
+        const validAgents = agentsArray.filter((agent: any) => 
+          agent && 
+          (agent.agent_id || agent.id) && 
+          (agent.agent_name || agent.name)
+        );
+
+        // Remove duplicates based on agent_id using a Map for efficient lookup
+        const uniqueAgentsMap = new Map<string, RetellAgentOption>();
         
-        setAgents(agentOptions);
-        console.log(`[USE_RETELL_AGENTS] Successfully loaded ${agentOptions.length} agents from ${workingEndpoint}`);
+        validAgents.forEach((agent: any) => {
+          const agentId = agent.agent_id || agent.id;
+          const agentName = agent.agent_name || agent.name || `Agent ${agentId}`;
+          
+          // Only add if we haven't seen this agent_id before
+          if (!uniqueAgentsMap.has(agentId)) {
+            uniqueAgentsMap.set(agentId, {
+              retell_agent_id: agentId,
+              name: agentName,
+              display_text: `${agentName} (${agentId})`
+            });
+          }
+        });
+
+        // Convert Map back to array
+        const uniqueAgentOptions = Array.from(uniqueAgentsMap.values());
+        
+        setAgents(uniqueAgentOptions);
+        console.log(`[USE_RETELL_AGENTS] Successfully loaded ${uniqueAgentOptions.length} unique agents from ${workingEndpoint}`);
       } else {
         console.warn('[USE_RETELL_AGENTS] No agents found in API response');
         setAgents([]);
@@ -183,12 +211,16 @@ export function useRetellAgents() {
       setAgents([]);
     } finally {
       setIsLoading(false);
+      setHasInitialized(true);
     }
   };
 
   useEffect(() => {
-    fetchAgents();
-  }, []);
+    // Only fetch if we haven't initialized yet
+    if (!hasInitialized) {
+      fetchAgents();
+    }
+  }, [hasInitialized]); // Only depend on hasInitialized to prevent multiple calls
 
   return {
     agents,
