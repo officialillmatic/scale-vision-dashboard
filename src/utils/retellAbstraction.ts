@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -179,81 +178,51 @@ export class RetellAbstraction {
    * Get sanitized call data for frontend consumption
    */
   async getCallData(companyId: string, limit: number = 100): Promise<any[]> {
+    console.log('[RETELL_SERVICE] Fetching calls for company:', companyId);
+    
     const { data, error } = await supabase
-      .from('calls')
+      .from('retell_calls') // CAMBIO: de 'calls' a 'retell_calls'
       .select(`
         id,
         call_id,
-        timestamp,
-        duration_sec,
-        cost_usd,
-        sentiment,
-        sentiment_score,
-        call_status,
-        from_number,
-        to_number,
-        recording_url,
-        transcript_url,
-        call_summary,
-        agents!calls_agent_id_fkey (
-          id,
-          name,
-          rate_per_minute
-        )
+        retell_agent_id,
+        user_id,
+        company_id,
+        created_at,
+        updated_at
       `)
       .eq('company_id', companyId)
-      .order('timestamp', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit);
 
+    console.log('[RETELL_SERVICE] Query result:', { data, error, dataLength: data?.length });
+
     if (error) {
+      console.error('[RETELL_SERVICE] Error:', error);
       throw new Error(`Failed to fetch call data: ${error.message}`);
     }
 
-    // Sanitize the data before returning
-    return data?.map(call => {
-      // Handle agent data more explicitly with proper typing
-      let agentData = null;
-      
-      if (call.agents) {
-        // Type-safe agent handling
-        const agents = call.agents as any; // Use any to bypass strict typing for complex joins
-        
-        if (Array.isArray(agents) && agents.length > 0) {
-          const firstAgent = agents[0];
-          if (firstAgent && typeof firstAgent === 'object' && firstAgent.id) {
-            agentData = {
-              id: firstAgent.id,
-              name: firstAgent.name,
-              ratePerMinute: firstAgent.rate_per_minute
-            };
-          }
-        } else if (typeof agents === 'object' && agents.id) {
-          // Single agent object
-          agentData = {
-            id: agents.id,
-            name: agents.name,
-            ratePerMinute: agents.rate_per_minute
-          };
-        }
+    // Transform retell_calls data to match expected frontend format
+    return data?.map(call => ({
+      id: call.id,
+      callId: call.call_id,
+      timestamp: call.created_at,
+      duration: 0, // No está disponible en retell_calls, se puede obtener de otra fuente
+      cost: 0, // No está disponible en retell_calls
+      sentiment: null,
+      sentimentScore: null,
+      status: 'completed', // Valor por defecto
+      fromNumber: 'Unknown', // No está disponible en retell_calls
+      toNumber: 'Unknown', // No está disponible en retell_calls  
+      hasRecording: false,
+      hasTranscript: false,
+      summary: null,
+      agent: {
+        id: call.retell_agent_id,
+        name: 'Unknown Agent', // Se puede hacer join con agents si se quiere el nombre
+        ratePerMinute: 0
       }
-
-      return {
-        id: call.id,
-        callId: call.call_id,
-        timestamp: call.timestamp,
-        duration: call.duration_sec,
-        cost: call.cost_usd,
-        sentiment: call.sentiment,
-        sentimentScore: call.sentiment_score,
-        status: call.call_status,
-        fromNumber: this.sanitizePhoneNumber(call.from_number),
-        toNumber: this.sanitizePhoneNumber(call.to_number),
-        hasRecording: !!call.recording_url,
-        hasTranscript: !!call.transcript_url,
-        summary: call.call_summary,
-        agent: agentData
-      };
-    }) || [];
+    })) || [];
   }
 
   /**
