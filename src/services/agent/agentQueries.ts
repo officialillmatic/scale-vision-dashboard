@@ -75,8 +75,17 @@ export const fetchUserAccessibleAgents = async (userId: string, companyId?: stri
       throw error;
     }
 
-    // Extract agents from the nested structure
-    return data?.map(item => item.agent).filter(Boolean) || [];
+    // Extract agents from the nested structure and ensure proper typing
+    const agents: Agent[] = [];
+    if (data && Array.isArray(data)) {
+      data.forEach(item => {
+        if (item && item.agent && typeof item.agent === 'object') {
+          agents.push(item.agent as Agent);
+        }
+      });
+    }
+
+    return agents;
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchUserAccessibleAgents:", error);
     throw new Error(`Failed to fetch user accessible agents: ${error.message}`);

@@ -34,7 +34,7 @@ export function AgentDialog({
       name: agent?.name || '',
       description: agent?.description || '',
       avatar_url: agent?.avatar_url || '',
-      status: agent?.status as 'active' | 'inactive' | 'maintenance' || 'active'
+      status: (agent?.status as 'active' | 'inactive') || 'active' // Cast to correct type
     }
   });
 
@@ -44,7 +44,7 @@ export function AgentDialog({
         name: agent?.name || '',
         description: agent?.description || '',
         avatar_url: agent?.avatar_url || '',
-        status: agent?.status as 'active' | 'inactive' | 'maintenance' || 'active'
+        status: (agent?.status as 'active' | 'inactive') || 'active' // Cast to correct type
       });
     }
   }, [form, isOpen, agent]);
