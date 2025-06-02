@@ -53,7 +53,7 @@ export interface CallData {
 }
 
 const AnalyticsPage = () => {
-  const { company } = useAuth();
+  const { user } = useAuth();
   const { retellCalls, isLoading, error, refetch } = useRetellCalls();
   const [filteredData, setFilteredData] = useState<CallData[]>([]);
   const [previousCallData, setPreviousCallData] = useState<CallData[]>([]);
@@ -72,9 +72,9 @@ const AnalyticsPage = () => {
       hasError: !!error,
       errorMessage: error?.message,
       dateRange,
-      companyId: company?.id
+      userId: user?.id
     });
-  }, [retellCalls, filteredData, isLoading, error, dateRange, company?.id]);
+  }, [retellCalls, filteredData, isLoading, error, dateRange, user?.id]);
 
   // Transform retell calls to CallData format
   useEffect(() => {
@@ -101,7 +101,7 @@ const AnalyticsPage = () => {
           recording_url: call.recording_url,
           transcript: call.transcript,
           transcript_url: null, // Not available in retell_calls
-          user_id: call.user_id || '',
+          user_id: call.user_id || user?.id || '',
           company_id: call.company_id || '',
           call_type: 'phone_call',
           latency_ms: call.latency_ms,
@@ -126,7 +126,7 @@ const AnalyticsPage = () => {
       console.log('⚠️ [AnalyticsPage] No retell calls data to transform');
       setFilteredData([]);
     }
-  }, [retellCalls]);
+  }, [retellCalls, user?.id]);
 
   // Filter the data based on the date range
   useEffect(() => {
@@ -233,7 +233,7 @@ const AnalyticsPage = () => {
               <strong>Debug Info:</strong> Loading: {isLoading ? 'Yes' : 'No'}, 
               Raw Calls: {retellCalls?.length || 0}, 
               Filtered: {filteredData?.length || 0}, 
-              Company: {company?.id || 'None'}, 
+              User: {user?.id || 'None'}, 
               Error: {error?.message || 'None'}
             </AlertDescription>
           </Alert>
