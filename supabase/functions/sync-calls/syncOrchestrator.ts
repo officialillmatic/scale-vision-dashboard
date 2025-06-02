@@ -25,7 +25,7 @@ export class SyncOrchestrator {
 
   async performSync(): Promise<SyncSummary> {
     console.log(`[SYNC-CALLS-${this.requestId}] === STARTING FULL CALL SYNC ===`);
-    console.log(`[SYNC-CALLS-${this.requestId}] Strategy: Fetch ALL calls without filters`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Strategy: Fetch ALL calls with minimal validation`);
     
     let totalCallsFromApi = 0;
     let totalSynced = 0;
@@ -55,14 +55,29 @@ export class SyncOrchestrator {
         
         totalCallsFromApi += calls.length;
         
-        // Process each call
+        // Process each call with minimal validation
         for (const call of calls) {
           try {
-            console.log(`[SYNC-CALLS-${this.requestId}] Processing call: ${call.call_id}`);
+            console.log(`[SYNC-CALLS-${this.requestId}] === PROCESSING CALL ${call.call_id} ===`);
             console.log(`[SYNC-CALLS-${this.requestId}] Call agent_id: ${call.agent_id}`);
             console.log(`[SYNC-CALLS-${this.requestId}] Call status: ${call.call_status}`);
             console.log(`[SYNC-CALLS-${this.requestId}] Call start time: ${call.start_timestamp}`);
             
+            // MINIMAL VALIDATION - only check essential fields
+            if (!call.call_id) {
+              console.error(`[SYNC-CALLS-${this.requestId}] VALIDATION FAILED: Missing call_id`);
+              totalProcessed++;
+              continue;
+            }
+
+            if (!call.start_timestamp) {
+              console.error(`[SYNC-CALLS-${this.requestId}] VALIDATION FAILED: Missing start_timestamp`);
+              totalProcessed++;
+              continue;
+            }
+
+            console.log(`[SYNC-CALLS-${this.requestId}] VALIDATION PASSED: Essential fields present`);
+
             // Check if call already exists
             const { data: existingCall, error: checkError } = await this.supabaseClient
               .from('retell_calls')
@@ -82,11 +97,12 @@ export class SyncOrchestrator {
               continue;
             }
 
-            // Try to find matching agent in our database (optional)
+            // Try to find matching agent in our database (OPTIONAL - no validation)
             let agent = null;
             let userAgent = null;
             
             if (call.agent_id) {
+              console.log(`[SYNC-CALLS-${this.requestId}] Attempting to find agent for retell_agent_id: ${call.agent_id}`);
               const { data: agentData, error: agentError } = await this.supabaseClient
                 .from('agents')
                 .select('id, name, company_id')
@@ -97,7 +113,7 @@ export class SyncOrchestrator {
                 agent = agentData;
                 console.log(`[SYNC-CALLS-${this.requestId}] Found matching agent: ${agent.name} (${agent.id})`);
 
-                // Try to find user agent mapping (optional)
+                // Try to find user agent mapping (OPTIONAL - no validation)
                 const { data: userAgents, error: userAgentError } = await this.supabaseClient
                   .from('user_agents')
                   .select('user_id, company_id')
@@ -108,30 +124,41 @@ export class SyncOrchestrator {
                   userAgent = userAgents[0];
                   console.log(`[SYNC-CALLS-${this.requestId}] Found user mapping: user_id=${userAgent.user_id}, company_id=${userAgent.company_id}`);
                 } else {
-                  console.log(`[SYNC-CALLS-${this.requestId}] No user mapping found for agent ${agent.id}, using defaults`);
+                  console.log(`[SYNC-CALLS-${this.requestId}] No user mapping found for agent ${agent.id}`);
                 }
               } else {
-                console.log(`[SYNC-CALLS-${this.requestId}] No matching agent found for retell_agent_id: ${call.agent_id}, using defaults`);
+                console.log(`[SYNC-CALLS-${this.requestId}] No matching agent found for retell_agent_id: ${call.agent_id}`);
               }
             } else {
-              console.log(`[SYNC-CALLS-${this.requestId}] Call has no agent_id, using defaults`);
+              console.log(`[SYNC-CALLS-${this.requestId}] Call has no agent_id`);
             }
 
-            // Map and insert the call with flexible defaults
-            const mappedCall = this.mapCallDataFlexible(call, userAgent, agent);
+            // Map and insert the call with MINIMAL validation and NULL for missing values
+            const mappedCall = this.mapCallDataMinimal(call, userAgent, agent);
             
+            console.log(`[SYNC-CALLS-${this.requestId}] === ATTEMPTING DATABASE INSERT ===`);
+            console.log(`[SYNC-CALLS-${this.requestId}] Mapped call data:`, {
+              call_id: mappedCall.call_id,
+              user_id: mappedCall.user_id,
+              company_id: mappedCall.company_id,
+              agent_id: mappedCall.agent_id,
+              duration_sec: mappedCall.duration_sec,
+              call_status: mappedCall.call_status
+            });
+
             const { data: insertData, error: insertError } = await this.supabaseClient
               .from('retell_calls')
               .insert(mappedCall)
               .select();
 
             if (insertError) {
-              console.error(`[SYNC-CALLS-${this.requestId}] Error inserting call ${call.call_id}:`, insertError);
+              console.error(`[SYNC-CALLS-${this.requestId}] DATABASE INSERT FAILED for call ${call.call_id}:`, insertError);
+              console.error(`[SYNC-CALLS-${this.requestId}] Insert error details:`, JSON.stringify(insertError, null, 2));
               totalProcessed++;
               continue;
             }
 
-            console.log(`[SYNC-CALLS-${this.requestId}] Successfully synced call ${call.call_id}`);
+            console.log(`[SYNC-CALLS-${this.requestId}] ✅ Successfully synced call ${call.call_id}`);
             totalSynced++;
             totalProcessed++;
 
@@ -143,6 +170,7 @@ export class SyncOrchestrator {
 
         // Safety delay between pages
         if (hasMore) {
+          console.log(`[SYNC-CALLS-${this.requestId}] Waiting before next page...`);
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
@@ -186,7 +214,7 @@ export class SyncOrchestrator {
     };
   }
 
-  private mapCallDataFlexible(call: any, userAgent: any, agent: any) {
+  private mapCallDataMinimal(call: any, userAgent: any, agent: any) {
     const timestamp = call.start_timestamp 
       ? new Date(call.start_timestamp * 1000) 
       : new Date();
@@ -196,23 +224,23 @@ export class SyncOrchestrator {
     const ratePerMinute = 0.17; // Default rate
     const calculatedRevenue = (duration / 60) * ratePerMinute;
 
-    // Use flexible defaults for missing values
+    // Use NULL for missing values - NO VALIDATION
     const userId = userAgent?.user_id || null;
-    const companyId = userAgent?.company_id || agent?.company_id || null;
+    const companyId = userAgent?.company_id || agent?.company_id || null; // NULL if missing
     const agentId = agent?.id || null;
 
-    console.log(`[SYNC-CALLS-${this.requestId}] Mapping call ${call.call_id}:`);
-    console.log(`[SYNC-CALLS-${this.requestId}] - userId: ${userId}`);
-    console.log(`[SYNC-CALLS-${this.requestId}] - companyId: ${companyId}`);
-    console.log(`[SYNC-CALLS-${this.requestId}] - agentId: ${agentId}`);
+    console.log(`[SYNC-CALLS-${this.requestId}] Mapping call ${call.call_id} with MINIMAL validation:`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - userId: ${userId} (NULL allowed)`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - companyId: ${companyId} (NULL allowed - NO VALIDATION)`);
+    console.log(`[SYNC-CALLS-${this.requestId}] - agentId: ${agentId} (NULL allowed)`);
     console.log(`[SYNC-CALLS-${this.requestId}] - duration: ${duration}s`);
     console.log(`[SYNC-CALLS-${this.requestId}] - cost: $${cost}`);
 
     return {
       call_id: call.call_id,
-      user_id: userId,
-      company_id: companyId,
-      agent_id: agentId,
+      user_id: userId, // NULL allowed
+      company_id: companyId, // NULL allowed - NO VALIDATION
+      agent_id: agentId, // NULL allowed
       retell_agent_id: call.agent_id || null,
       start_timestamp: timestamp.toISOString(),
       end_timestamp: call.end_timestamp ? new Date(call.end_timestamp * 1000).toISOString() : null,
