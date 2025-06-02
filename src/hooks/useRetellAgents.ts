@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 export interface RetellAgentOption {
   retell_agent_id: string;
@@ -36,10 +36,29 @@ interface RetellAgentsResponse {
 }
 
 export function useRetellAgents() {
-  const [agents, setAgents] = useState<RetellAgentOption[]>([]);
+  const [rawAgents, setRawAgents] = useState<RetellAgentOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Use useMemo to deduplicate agents and prevent unnecessary re-renders
+  const agents = useMemo(() => {
+    if (rawAgents.length === 0) return [];
+    
+    const uniqueAgentsMap = new Map<string, RetellAgentOption>();
+    
+    rawAgents.forEach((agent) => {
+      // Only add if we haven't seen this agent_id before
+      if (!uniqueAgentsMap.has(agent.retell_agent_id)) {
+        uniqueAgentsMap.set(agent.retell_agent_id, agent);
+      }
+    });
+    
+    const uniqueAgents = Array.from(uniqueAgentsMap.values());
+    console.log(`[USE_RETELL_AGENTS] Deduplicated ${rawAgents.length} raw agents to ${uniqueAgents.length} unique agents`);
+    
+    return uniqueAgents;
+  }, [rawAgents]);
 
   const testEndpoint = async (baseUrl: string, endpoint: string): Promise<{ success: boolean; data?: any; status?: number; error?: string }> => {
     const fullUrl = `${baseUrl}${endpoint}`;
@@ -166,31 +185,23 @@ export function useRetellAgents() {
           (agent.agent_name || agent.name)
         );
 
-        // Remove duplicates based on agent_id using a Map for efficient lookup
-        const uniqueAgentsMap = new Map<string, RetellAgentOption>();
-        
-        validAgents.forEach((agent: any) => {
+        // Create agent options array (deduplication will happen in useMemo)
+        const agentOptions: RetellAgentOption[] = validAgents.map((agent: any) => {
           const agentId = agent.agent_id || agent.id;
           const agentName = agent.agent_name || agent.name || `Agent ${agentId}`;
           
-          // Only add if we haven't seen this agent_id before
-          if (!uniqueAgentsMap.has(agentId)) {
-            uniqueAgentsMap.set(agentId, {
-              retell_agent_id: agentId,
-              name: agentName,
-              display_text: `${agentName} (${agentId})`
-            });
-          }
+          return {
+            retell_agent_id: agentId,
+            name: agentName,
+            display_text: `${agentName} (${agentId})`
+          };
         });
-
-        // Convert Map back to array
-        const uniqueAgentOptions = Array.from(uniqueAgentsMap.values());
         
-        setAgents(uniqueAgentOptions);
-        console.log(`[USE_RETELL_AGENTS] Successfully loaded ${uniqueAgentOptions.length} unique agents from ${workingEndpoint}`);
+        setRawAgents(agentOptions);
+        console.log(`[USE_RETELL_AGENTS] Successfully loaded ${agentOptions.length} agents from ${workingEndpoint}`);
       } else {
         console.warn('[USE_RETELL_AGENTS] No agents found in API response');
-        setAgents([]);
+        setRawAgents([]);
       }
     } catch (error: any) {
       console.error('[USE_RETELL_AGENTS] Error fetching agents from Retell AI:', error);
@@ -208,7 +219,7 @@ export function useRetellAgents() {
       }
       
       setError(errorMessage);
-      setAgents([]);
+      setRawAgents([]);
     } finally {
       setIsLoading(false);
       setHasInitialized(true);
