@@ -11,10 +11,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Loader, RefreshCw, AlertCircle } from 'lucide-react';
+import { Trash2, Loader, RefreshCw } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { UserAgentAssignment } from '@/services/agent/userAgentAssignmentQueries';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface UserAgentAssignmentsTableProps {
   assignments: UserAgentAssignment[];
@@ -40,9 +39,7 @@ export function UserAgentAssignmentsTable({
   console.log('🔍 [UserAgentAssignmentsTable] Received props:', {
     assignments,
     assignmentsLength: assignments?.length,
-    isLoading,
-    assignmentsType: typeof assignments,
-    assignmentsIsArray: Array.isArray(assignments)
+    isLoading
   });
 
   const handleRemove = async (assignmentId: string) => {
@@ -65,7 +62,7 @@ export function UserAgentAssignmentsTable({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">User Agent Assignments</h3>
+        <h3 className="text-lg font-medium">User Agent Assignments ({assignments?.length || 0})</h3>
         <Button 
           variant="outline" 
           size="sm" 
@@ -76,22 +73,6 @@ export function UserAgentAssignmentsTable({
           Refresh
         </Button>
       </div>
-
-      {/* Show data status */}
-      {!isLoading && (
-        <Alert className="bg-gray-50">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            <div className="text-sm">
-              <p><strong>Data Status:</strong></p>
-              <p>Assignments found: {assignments?.length || 0}</p>
-              <p>Is loading: {isLoading.toString()}</p>
-              <p>Assignments type: {typeof assignments}</p>
-              <p>Is array: {Array.isArray(assignments).toString()}</p>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
       
       <div className="rounded-md border">
         <Table>
@@ -124,12 +105,8 @@ export function UserAgentAssignmentsTable({
                         <p className="font-medium">
                           {assignment.user_details?.name || assignment.user_details?.email || 'Unknown User'}
                         </p>
-                        {assignment.user_details?.name && (
+                        {assignment.user_details?.name && assignment.user_details?.email && (
                           <p className="text-sm text-muted-foreground">{assignment.user_details.email}</p>
-                        )}
-                        {/* Debug info */}
-                        {process.env.NODE_ENV === 'development' && (
-                          <p className="text-xs text-gray-400">ID: {assignment.user_id}</p>
                         )}
                       </div>
                     </TableCell>
@@ -139,11 +116,9 @@ export function UserAgentAssignmentsTable({
                           {assignment.agent_details?.name || 'Unknown Agent'}
                         </p>
                         {assignment.agent_details?.description && (
-                          <p className="text-sm text-muted-foreground">{assignment.agent_details.description}</p>
-                        )}
-                        {/* Debug info */}
-                        {process.env.NODE_ENV === 'development' && (
-                          <p className="text-xs text-gray-400">ID: {assignment.agent_id}</p>
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {assignment.agent_details.description}
+                          </p>
                         )}
                       </div>
                     </TableCell>
@@ -155,7 +130,7 @@ export function UserAgentAssignmentsTable({
                           disabled={isUpdating}
                         />
                         {assignment.is_primary && (
-                          <Badge className="bg-brand-light-green text-brand-deep-green border-brand-green">
+                          <Badge className="bg-green-100 text-green-800 border-green-200">
                             Primary
                           </Badge>
                         )}
@@ -191,16 +166,8 @@ export function UserAgentAssignmentsTable({
                   <div className="flex flex-col items-center space-y-2">
                     <p className="text-muted-foreground">No agent assignments found.</p>
                     <p className="text-sm text-muted-foreground">
-                      Assign agents to users to see them here.
+                      Create new assignments using the "New Assignment" button above.
                     </p>
-                    {/* Debug info */}
-                    {process.env.NODE_ENV === 'development' && (
-                      <div className="text-xs text-gray-400 mt-2 space-y-1">
-                        <p>Debug: assignments = {JSON.stringify(assignments)}</p>
-                        <p>Is array: {Array.isArray(assignments).toString()}</p>
-                        <p>Length: {assignments?.length || 'undefined'}</p>
-                      </div>
-                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -208,17 +175,6 @@ export function UserAgentAssignmentsTable({
           </TableBody>
         </Table>
       </div>
-      
-      {/* Debug info in development */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-50 rounded">
-          <p><strong>Debug Info:</strong></p>
-          <p>Assignments count: {assignments?.length || 0}</p>
-          <p>Is loading: {isLoading.toString()}</p>
-          <p>Is removing: {isRemoving.toString()}</p>
-          <p>Is updating: {isUpdating.toString()}</p>
-        </div>
-      )}
     </div>
   );
 }

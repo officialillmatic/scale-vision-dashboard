@@ -1,18 +1,22 @@
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   fetchUserAgentAssignments, 
   removeUserAgentAssignment,
   updateUserAgentAssignmentPrimary,
+  createUserAgentAssignment,
   UserAgentAssignment 
 } from "@/services/agent/userAgentAssignmentQueries";
+import { fetchAvailableUsers, fetchAvailableAgents } from "@/services/agent/assignmentHelpers";
 import { toast } from "sonner";
 
 export function useUserAgentAssignments() {
+  const queryClient = useQueryClient();
   const [isRemoving, setIsRemoving] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Query for assignments
   const { 
     data: assignments, 
     isLoading: isLoadingAssignments,
@@ -29,15 +33,48 @@ export function useUserAgentAssignments() {
         return result;
       } catch (error) {
         console.error('🔍 [useUserAgentAssignments] QueryFn error:', error);
-        toast.error(`Failed to load assignments: ${error.message}`);
         throw error;
       }
     },
-    staleTime: 30000, // 30 seconds
+    staleTime: 30000,
     refetchOnWindowFocus: true,
     retry: (failureCount, error) => {
       console.log('🔍 [useUserAgentAssignments] Query retry attempt:', failureCount, error);
-      return failureCount < 2; // Retry up to 2 times
+      return failureCount < 2;
+    }
+  });
+
+  // Query for available users
+  const { 
+    data: availableUsers, 
+    isLoading: isLoadingUsers 
+  } = useQuery({
+    queryKey: ['assignment-users'],
+    queryFn: fetchAvailableUsers,
+    staleTime: 60000
+  });
+
+  // Query for available agents
+  const { 
+    data: availableAgents, 
+    isLoading: isLoadingAgents 
+  } = useQuery({
+    queryKey: ['assignment-agents'],
+    queryFn: fetchAvailableAgents,
+    staleTime: 60000
+  });
+
+  // Mutation for creating assignments
+  const createMutation = useMutation({
+    mutationFn: ({ userId, agentId, isPrimary }: { userId: string; agentId: string; isPrimary: boolean }) =>
+      createUserAgentAssignment(userId, agentId, isPrimary),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-agent-assignments'] });
+      toast.success('Assignment created successfully');
+    },
+    onError: (error: any) => {
+      console.error('🔍 [useUserAgentAssignments] Create error:', error);
+      toast.error(`Failed to create assignment: ${error.message}`);
     }
   });
 
@@ -46,7 +83,9 @@ export function useUserAgentAssignments() {
     assignmentsLength: assignments?.length,
     isLoadingAssignments,
     isError,
-    assignmentsError
+    assignmentsError,
+    availableUsers: availableUsers?.length,
+    availableAgents: availableAgents?.length
   });
 
   const handleRemoveAssignment = async (assignmentId: string) => {
@@ -89,6 +128,11 @@ export function useUserAgentAssignments() {
     }
   };
 
+  const handleCreateAssignment = async (userId: string, agentId: string, isPrimary: boolean = false) => {
+    console.log('🔍 [useUserAgentAssignments] Creating assignment:', { userId, agentId, isPrimary });
+    createMutation.mutate({ userId, agentId, isPrimary });
+  };
+
   return {
     assignments: assignments || [],
     isLoadingAssignments,
@@ -98,6 +142,14 @@ export function useUserAgentAssignments() {
     isError,
     refetchAssignments,
     handleRemoveAssignment,
-    handleUpdatePrimary
+    handleUpdatePrimary,
+    handleCreateAssignment,
+    
+    // Data for creating new assignments
+    availableUsers: availableUsers || [],
+    availableAgents: availableAgents || [],
+    isLoadingUsers,
+    isLoadingAgents,
+    isCreating: createMutation.isPending
   };
 }
