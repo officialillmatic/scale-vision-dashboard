@@ -180,34 +180,26 @@ class RetellAgentSyncService {
   }
 
   /**
-   * Map Retell agent to database format
+   * Map Retell agent to database format - ensuring all required columns are included
    */
   private mapAgentToDbFormat(retellAgent: RetellAgent) {
+    const now = new Date().toISOString();
+    
     return {
-      retell_agent_id: retellAgent.agent_id,
+      // Required columns for retell_agents table
+      agent_id: retellAgent.agent_id, // This maps to agent_id column (required)
+      retell_agent_id: retellAgent.agent_id, // This is the nullable column for external reference
       name: retellAgent.agent_name,
-      voice_id: retellAgent.voice_id,
+      description: retellAgent.prompt ? retellAgent.prompt.substring(0, 500) : null,
       voice_model: retellAgent.voice_model,
-      language: retellAgent.language || 'en-US',
-      response_engine: retellAgent.response_engine,
-      llm_websocket_url: retellAgent.llm_websocket_url,
-      prompt: retellAgent.prompt,
-      boosted_keywords: retellAgent.boosted_keywords,
-      ambient_sound: retellAgent.ambient_sound,
-      ambient_sound_volume: retellAgent.ambient_sound_volume,
-      backchannel_frequency: retellAgent.backchannel_frequency,
-      backchannel_words: retellAgent.backchannel_words,
-      reminder_trigger_ms: retellAgent.reminder_trigger_ms,
-      reminder_max_count: retellAgent.reminder_max_count,
-      interruption_sensitivity: retellAgent.interruption_sensitivity,
-      enable_transcription_formatting: retellAgent.enable_transcription_formatting,
-      opt_out_sensitive_data_storage: retellAgent.opt_out_sensitive_data_storage,
-      pronunciation_dictionary: retellAgent.pronunciation_dictionary,
-      normalize_for_speech: retellAgent.normalize_for_speech,
-      responsiveness: retellAgent.responsiveness,
+      avatar_url: null, // Not provided by Retell API
+      language: retellAgent.language || 'en',
+      status: 'active',
+      rate_per_minute: 0.17, // Default rate
       is_active: true,
-      last_synced_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      created_at: now,
+      updated_at: now,
+      last_synced: now
     };
   }
 
@@ -282,7 +274,7 @@ class RetellAgentSyncService {
       }
 
       const existingAgentIds = new Set(
-        existingAgents?.map(agent => agent.retell_agent_id) || []
+        existingAgents?.map(agent => agent.agent_id) || []
       );
       const fetchedAgentIds = new Set(
         retellAgents.map(agent => agent.agent_id)
@@ -292,7 +284,7 @@ class RetellAgentSyncService {
       for (const retellAgent of retellAgents) {
         try {
           const existingAgent = existingAgents?.find(
-            agent => agent.retell_agent_id === retellAgent.agent_id
+            agent => agent.agent_id === retellAgent.agent_id
           );
 
           const agentData = this.mapAgentToDbFormat(retellAgent);
@@ -330,7 +322,7 @@ class RetellAgentSyncService {
 
       // Deactivate agents that are no longer in Retell
       const agentsToDeactivate = existingAgents?.filter(
-        agent => agent.is_active && !fetchedAgentIds.has(agent.retell_agent_id)
+        agent => agent.is_active && !fetchedAgentIds.has(agent.agent_id)
       ) || [];
 
       for (const agent of agentsToDeactivate) {
@@ -343,7 +335,7 @@ class RetellAgentSyncService {
           .eq('id', agent.id);
 
         if (deactivateError) {
-          console.error('[RETELL_AGENT_SYNC] Error deactivating agent', agent.retell_agent_id, ':', deactivateError);
+          console.error('[RETELL_AGENT_SYNC] Error deactivating agent', agent.agent_id, ':', deactivateError);
         } else {
           stats.agents_deactivated++;
           console.log('[RETELL_AGENT_SYNC] Deactivated agent:', agent.name);

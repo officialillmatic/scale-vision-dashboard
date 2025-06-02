@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface RetellAgent {
   id: string;
   retell_agent_id: string;
+  agent_id: string;
   name: string;
   description?: string;
   status: 'active' | 'inactive';

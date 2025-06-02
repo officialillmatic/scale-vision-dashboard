@@ -401,90 +401,51 @@ export type Database = {
       }
       retell_agents: {
         Row: {
-          ambient_sound: string | null
-          ambient_sound_volume: number | null
-          backchannel_frequency: number | null
-          backchannel_words: string[] | null
-          boosted_keywords: string[] | null
-          created_at: string
-          enable_transcription_formatting: boolean | null
+          agent_id: string
+          avatar_url: string | null
+          created_at: string | null
+          description: string | null
           id: string
-          interruption_sensitivity: number | null
-          is_active: boolean
+          is_active: boolean | null
           language: string | null
-          last_synced_at: string | null
-          llm_websocket_url: string | null
+          last_synced: string | null
           name: string
-          normalize_for_speech: boolean | null
-          opt_out_sensitive_data_storage: boolean | null
-          prompt: string | null
-          pronunciation_dictionary: Json | null
-          reminder_max_count: number | null
-          reminder_trigger_ms: number | null
-          response_engine: string | null
-          responsiveness: number | null
-          retell_agent_id: string
-          status: string
-          updated_at: string
-          voice_id: string | null
+          rate_per_minute: number | null
+          retell_agent_id: string | null
+          status: string | null
+          updated_at: string | null
           voice_model: string | null
         }
         Insert: {
-          ambient_sound?: string | null
-          ambient_sound_volume?: number | null
-          backchannel_frequency?: number | null
-          backchannel_words?: string[] | null
-          boosted_keywords?: string[] | null
-          created_at?: string
-          enable_transcription_formatting?: boolean | null
+          agent_id: string
+          avatar_url?: string | null
+          created_at?: string | null
+          description?: string | null
           id?: string
-          interruption_sensitivity?: number | null
-          is_active?: boolean
+          is_active?: boolean | null
           language?: string | null
-          last_synced_at?: string | null
-          llm_websocket_url?: string | null
+          last_synced?: string | null
           name: string
-          normalize_for_speech?: boolean | null
-          opt_out_sensitive_data_storage?: boolean | null
-          prompt?: string | null
-          pronunciation_dictionary?: Json | null
-          reminder_max_count?: number | null
-          reminder_trigger_ms?: number | null
-          response_engine?: string | null
-          responsiveness?: number | null
-          retell_agent_id: string
-          status?: string
-          updated_at?: string
-          voice_id?: string | null
+          rate_per_minute?: number | null
+          retell_agent_id?: string | null
+          status?: string | null
+          updated_at?: string | null
           voice_model?: string | null
         }
         Update: {
-          ambient_sound?: string | null
-          ambient_sound_volume?: number | null
-          backchannel_frequency?: number | null
-          backchannel_words?: string[] | null
-          boosted_keywords?: string[] | null
-          created_at?: string
-          enable_transcription_formatting?: boolean | null
+          agent_id?: string
+          avatar_url?: string | null
+          created_at?: string | null
+          description?: string | null
           id?: string
-          interruption_sensitivity?: number | null
-          is_active?: boolean
+          is_active?: boolean | null
           language?: string | null
-          last_synced_at?: string | null
-          llm_websocket_url?: string | null
+          last_synced?: string | null
           name?: string
-          normalize_for_speech?: boolean | null
-          opt_out_sensitive_data_storage?: boolean | null
-          prompt?: string | null
-          pronunciation_dictionary?: Json | null
-          reminder_max_count?: number | null
-          reminder_trigger_ms?: number | null
-          response_engine?: string | null
-          responsiveness?: number | null
-          retell_agent_id?: string
-          status?: string
-          updated_at?: string
-          voice_id?: string | null
+          rate_per_minute?: number | null
+          retell_agent_id?: string | null
+          status?: string | null
+          updated_at?: string | null
           voice_model?: string | null
         }
         Relationships: []

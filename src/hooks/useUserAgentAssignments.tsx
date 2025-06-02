@@ -29,6 +29,7 @@ export function useUserAgentAssignments() {
         return result;
       } catch (error) {
         console.error('🔍 [useUserAgentAssignments] QueryFn error:', error);
+        toast.error(`Failed to load assignments: ${error.message}`);
         throw error;
       }
     },
@@ -37,13 +38,6 @@ export function useUserAgentAssignments() {
     retry: (failureCount, error) => {
       console.log('🔍 [useUserAgentAssignments] Query retry attempt:', failureCount, error);
       return failureCount < 2; // Retry up to 2 times
-    },
-    onError: (error) => {
-      console.error('🔍 [useUserAgentAssignments] Query error callback:', error);
-      toast.error(`Failed to load assignments: ${error.message}`);
-    },
-    onSuccess: (data) => {
-      console.log('🔍 [useUserAgentAssignments] Query success callback - data:', data);
     }
   });
 
