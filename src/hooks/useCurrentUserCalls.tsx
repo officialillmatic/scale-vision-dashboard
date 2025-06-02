@@ -35,7 +35,7 @@ export const useCurrentUserCalls = () => {
   const { data: userCalls = [], isLoading, error, refetch } = useQuery({
     queryKey: ['current-user-calls', user?.id],
     queryFn: async (): Promise<UserCall[]> => {
-      console.log('🔍 [useCurrentUserCalls] === STARTING USER CALLS DEBUG ===');
+      console.log('🔍 [useCurrentUserCalls] === STARTING WITH CORRECTED LOGIC ===');
       console.log('🔍 [useCurrentUserCalls] User context:', {
         userId: user?.id,
         userEmail: user?.email,
@@ -74,8 +74,43 @@ export const useCurrentUserCalls = () => {
         const agentIds = userAgents.map(ua => ua.agent_id);
         console.log('🔍 [useCurrentUserCalls] Agent IDs to query:', agentIds);
 
-        // STEP 2: Get calls directly by agent IDs
-        console.log('🔍 [useCurrentUserCalls] === STEP 2: DIRECT CALL QUERY ===');
+        // STEP 2: Get retell_agents data for matching (using string comparison)
+        console.log('🔍 [useCurrentUserCalls] === STEP 2: RETELL AGENTS ===');
+        const { data: retellAgents, error: retellAgentsError } = await supabase
+          .from('retell_agents')
+          .select('agent_id, id, name, description, retell_agent_id')
+          .in('id', agentIds);
+
+        console.log('🔍 [useCurrentUserCalls] Retell agents:', {
+          data: retellAgents,
+          error: retellAgentsError,
+          count: retellAgents?.length || 0
+        });
+
+        // Create a mapping for agent details
+        const agentDetailsMap = new Map();
+        retellAgents?.forEach(agent => {
+          if (agent.agent_id) {
+            agentDetailsMap.set(agent.agent_id, {
+              id: agent.id,
+              name: agent.name,
+              description: agent.description,
+              retell_agent_id: agent.retell_agent_id
+            });
+          }
+        });
+
+        // Get the agent_id values from retell_agents for matching
+        const retellAgentIds = retellAgents?.map(a => a.agent_id).filter(Boolean) || [];
+        console.log('🔍 [useCurrentUserCalls] Retell agent IDs for matching:', retellAgentIds);
+
+        if (retellAgentIds.length === 0) {
+          console.log('⚠️ [useCurrentUserCalls] No retell agent IDs to match');
+          return [];
+        }
+
+        // STEP 3: Get calls using corrected string matching
+        console.log('🔍 [useCurrentUserCalls] === STEP 3: CALLS QUERY ===');
         const { data: calls, error: callsError } = await supabase
           .from('retell_calls')
           .select(`
@@ -97,7 +132,7 @@ export const useCurrentUserCalls = () => {
             call_summary,
             sentiment
           `)
-          .in('agent_id', agentIds)
+          .in('agent_id', retellAgentIds)
           .order('start_timestamp', { ascending: false })
           .limit(50);
 
@@ -112,22 +147,17 @@ export const useCurrentUserCalls = () => {
           throw callsError;
         }
 
-        // STEP 3: Get agent details
-        console.log('🔍 [useCurrentUserCalls] === STEP 3: AGENT DETAILS ===');
-        const { data: agentDetails, error: agentDetailsError } = await supabase
-          .from('retell_agents')
-          .select('id, name, description, retell_agent_id')
-          .in('id', agentIds);
-
-        console.log('🔍 [useCurrentUserCalls] Agent details:', {
-          data: agentDetails,
-          error: agentDetailsError,
-          count: agentDetails?.length || 0
-        });
-
-        // STEP 4: Transform data
+        // STEP 4: Transform data with corrected agent matching
         const transformedCalls: UserCall[] = (calls || []).map(call => {
-          const agentDetail = agentDetails?.find(a => a.id === call.agent_id);
+          // Use string comparison to match agent_id
+          const agentDetail = agentDetailsMap.get(call.agent_id);
+          
+          console.log('🔍 [useCurrentUserCalls] Matching call:', {
+            callId: call.call_id,
+            callAgentId: call.agent_id,
+            foundAgent: !!agentDetail,
+            agentName: agentDetail?.name
+          });
           
           return {
             id: call.id,
@@ -147,12 +177,7 @@ export const useCurrentUserCalls = () => {
             recording_url: call.recording_url,
             call_summary: call.call_summary,
             sentiment: call.sentiment,
-            agent_details: agentDetail ? {
-              id: agentDetail.id,
-              name: agentDetail.name,
-              description: agentDetail.description,
-              retell_agent_id: agentDetail.retell_agent_id
-            } : undefined
+            agent_details: agentDetail
           };
         });
 

@@ -657,13 +657,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "retell_calls_agent_id_fkey"
-            columns: ["agent_id"]
-            isOneToOne: false
-            referencedRelation: "retell_agents"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "retell_calls_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
