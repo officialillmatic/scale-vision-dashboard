@@ -62,7 +62,18 @@ export const useDirectCallSync = () => {
 
     const data = await response.json();
     console.log("[DIRECT_SYNC] Raw API Response:", JSON.stringify(data, null, 2));
-    console.log("[DIRECT_SYNC] Calls found:", data.calls?.length || 0);
+    console.log("[DIRECT_SYNC] Raw response type:", typeof data);
+    console.log("[DIRECT_SYNC] Raw response keys:", Object.keys(data || {}));
+    
+    // Debug the calls array specifically
+    if (data && data.calls) {
+      console.log("[DIRECT_SYNC] Calls array found:", Array.isArray(data.calls));
+      console.log("[DIRECT_SYNC] Calls array length:", data.calls.length);
+      console.log("[DIRECT_SYNC] First call structure:", data.calls[0] ? JSON.stringify(data.calls[0], null, 2) : "No calls");
+    } else {
+      console.log("[DIRECT_SYNC] NO CALLS ARRAY FOUND in response");
+      console.log("[DIRECT_SYNC] Available properties:", Object.keys(data || {}));
+    }
     
     return data;
   };
@@ -77,8 +88,34 @@ export const useDirectCallSync = () => {
     const requestBody = { limit: 50 };
     const apiData = await makeRetellAPICall(requestBody);
     
-    const calls = apiData.calls || [];
-    console.log(`[DIRECT_SYNC] Fetched ${calls.length} calls from Retell API (same as test format)`);
+    // ENHANCED PARSING DEBUG
+    console.log("[DIRECT_SYNC] === PARSING DEBUG START ===");
+    console.log("[DIRECT_SYNC] API Data type:", typeof apiData);
+    console.log("[DIRECT_SYNC] API Data:", JSON.stringify(apiData, null, 2));
+    
+    // Check for calls array in different possible locations
+    let calls = [];
+    if (apiData && apiData.calls && Array.isArray(apiData.calls)) {
+      calls = apiData.calls;
+      console.log("[DIRECT_SYNC] Found calls in apiData.calls");
+    } else if (apiData && Array.isArray(apiData)) {
+      calls = apiData;
+      console.log("[DIRECT_SYNC] API data itself is an array");
+    } else if (apiData && apiData.data && Array.isArray(apiData.data)) {
+      calls = apiData.data;
+      console.log("[DIRECT_SYNC] Found calls in apiData.data");
+    } else {
+      console.log("[DIRECT_SYNC] NO CALLS ARRAY FOUND - checking all properties:");
+      if (apiData && typeof apiData === 'object') {
+        Object.keys(apiData).forEach(key => {
+          console.log(`[DIRECT_SYNC] Property ${key}:`, typeof apiData[key], Array.isArray(apiData[key]) ? `Array length: ${apiData[key].length}` : 'Not an array');
+        });
+      }
+    }
+    
+    console.log(`[DIRECT_SYNC] EXTRACTED CALLS: ${calls.length} items`);
+    console.log("[DIRECT_SYNC] First call extracted:", calls[0] ? JSON.stringify(calls[0], null, 2) : "No calls");
+    console.log("[DIRECT_SYNC] === PARSING DEBUG END ===");
 
     // Step 2: Get user context
     const userId = await getUserId();
@@ -92,16 +129,28 @@ export const useDirectCallSync = () => {
       throw new Error("No company found for user");
     }
 
+    console.log("[DIRECT_SYNC] User context:", { userId, companyId });
+
     // Step 3: Process and insert calls
     let syncedCalls = 0;
     let processedCalls = 0;
     const errors: string[] = [];
 
+    console.log("[DIRECT_SYNC] === PROCESSING CALLS START ===");
     for (const call of calls) {
       try {
         processedCalls++;
+        console.log(`[DIRECT_SYNC] Processing call ${processedCalls}/${calls.length}:`, call.call_id || 'NO_CALL_ID');
+        
+        // Validate call has required data
+        if (!call.call_id) {
+          console.log("[DIRECT_SYNC] Skipping call - no call_id:", JSON.stringify(call, null, 2));
+          errors.push(`Call ${processedCalls}: Missing call_id`);
+          continue;
+        }
         
         // Check if call already exists
+        console.log(`[DIRECT_SYNC] Checking if call ${call.call_id} already exists...`);
         const { data: existingCall, error: checkError } = await supabase
           .from('retell_calls')
           .select('id')
@@ -119,47 +168,52 @@ export const useDirectCallSync = () => {
           continue;
         }
 
-        // Map call data for insertion
+        console.log(`[DIRECT_SYNC] Call ${call.call_id} is new, preparing to insert...`);
+        
+        // Map call data for insertion - ENHANCED MAPPING
         const mappedCall = {
           call_id: call.call_id,
           user_id: userId,
           company_id: companyId,
           agent_id: null, // Will be populated by trigger if agent mapping exists
-          retell_agent_id: call.agent_id || null,
+          retell_agent_id: call.agent_id || call.retell_agent_id || null,
           start_timestamp: call.start_timestamp 
             ? new Date(call.start_timestamp * 1000).toISOString()
+            : call.created_at
+            ? new Date(call.created_at).toISOString()
             : new Date().toISOString(),
           end_timestamp: call.end_timestamp 
             ? new Date(call.end_timestamp * 1000).toISOString() 
             : null,
-          duration_sec: call.duration_sec || 0,
-          duration: call.duration_sec || 0,
-          cost_usd: call.call_cost?.combined_cost || 0,
+          duration_sec: call.duration_sec || call.duration_ms ? Math.floor(call.duration_ms / 1000) : 0,
+          duration: call.duration_sec || call.duration_ms ? Math.floor(call.duration_ms / 1000) : 0,
+          cost_usd: call.call_cost?.combined_cost || call.cost_usd || 0,
           revenue_amount: 0, // Will be calculated by trigger
           revenue: 0,
-          billing_duration_sec: call.duration_sec || 0,
+          billing_duration_sec: call.duration_sec || call.duration_ms ? Math.floor(call.duration_ms / 1000) : 0,
           rate_per_minute: 0.17,
-          call_status: call.call_status || 'unknown',
-          status: call.call_status || 'unknown',
-          from_number: call.from_number || null,
-          to_number: call.to_number || null,
+          call_status: call.call_status || call.status || 'unknown',
+          status: call.call_status || call.status || 'unknown',
+          from_number: call.from_number || call.from || null,
+          to_number: call.to_number || call.to || null,
           disconnection_reason: call.disconnection_reason || null,
           recording_url: call.recording_url || null,
           transcript: call.transcript || null,
           transcript_url: call.transcript_url || null,
-          sentiment: call.call_analysis?.user_sentiment || null,
+          sentiment: call.call_analysis?.user_sentiment || call.sentiment || null,
           sentiment_score: null,
           result_sentiment: call.call_analysis ? JSON.stringify(call.call_analysis) : null,
           disposition: call.disposition || null,
-          latency_ms: call.latency?.llm?.p50 || null,
-          call_summary: call.call_analysis?.call_summary || null,
+          latency_ms: call.latency?.llm?.p50 || call.latency_ms || null,
+          call_summary: call.call_analysis?.call_summary || call.summary || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
 
-        console.log(`[DIRECT_SYNC] Inserting call ${call.call_id}`);
+        console.log(`[DIRECT_SYNC] Mapped call data for ${call.call_id}:`, JSON.stringify(mappedCall, null, 2));
 
         // Insert the call
+        console.log(`[DIRECT_SYNC] Inserting call ${call.call_id} into database...`);
         const { error: insertError } = await supabase
           .from('retell_calls')
           .insert(mappedCall);
@@ -174,10 +228,11 @@ export const useDirectCallSync = () => {
         syncedCalls++;
 
       } catch (callError: any) {
-        console.error(`[DIRECT_SYNC] Error processing call ${call.call_id}:`, callError);
-        errors.push(`Processing error for ${call.call_id}: ${callError.message}`);
+        console.error(`[DIRECT_SYNC] Error processing call ${call.call_id || 'unknown'}:`, callError);
+        errors.push(`Processing error for ${call.call_id || 'unknown'}: ${callError.message}`);
       }
     }
+    console.log("[DIRECT_SYNC] === PROCESSING CALLS END ===");
 
     const result: DirectSyncResult = {
       success: true,
