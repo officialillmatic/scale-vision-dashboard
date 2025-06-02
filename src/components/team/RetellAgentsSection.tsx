@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Database, Sync } from 'lucide-react';
+import { RefreshCw, Database, RotateCcw } from 'lucide-react';
 import { RetellAgentsTable } from './RetellAgentsTable';
 import { useRetellAgentsData } from '@/hooks/useRetellAgentsData';
 import { useRetellAgentSync } from '@/hooks/useRetellAgentSync';
@@ -66,7 +66,7 @@ export function RetellAgentsSection() {
               </>
             ) : (
               <>
-                <Sync className="h-4 w-4" />
+                <RotateCcw className="h-4 w-4" />
                 Sync Agents
               </>
             )}
