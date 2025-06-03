@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,17 @@ export const ProductionCallsTable = () => {
   
   const { calls, isLoading, error, syncCallsSecurely } = useSecureCallData();
   
-  console.log("🔥 DATOS DEL HOOK:", { calls: calls?.length, isLoading, error });
+  console.log("🔥 DATOS DEL HOOK:", { 
+    calls: calls?.length, 
+    isLoading, 
+    error: error?.message,
+    callsData: calls 
+  });
+
+  // Si hay datos, mostrar los primeros para debug
+  if (calls && calls.length > 0) {
+    console.log("🔥 PRIMERA LLAMADA:", calls[0]);
+  }
   
   console.log("[COMPONENT] ProductionCallsTable renderizando");
   console.log("[COMPONENT] Hook result:", { calls: calls.length, isLoading, error });
@@ -30,6 +41,7 @@ export const ProductionCallsTable = () => {
   };
 
   if (isLoading) {
+    console.log("🔥 ESTADO: Cargando datos...");
     return (
       <Card className="border-0 shadow-sm">
         <CardContent className="flex items-center justify-center py-12">
@@ -40,6 +52,7 @@ export const ProductionCallsTable = () => {
   }
 
   if (error) {
+    console.log("🔥 ERROR DETECTADO:", error);
     return (
       <Card className="border-0 shadow-sm">
         <CardContent className="flex items-center justify-center py-12">
@@ -61,6 +74,13 @@ export const ProductionCallsTable = () => {
   const totalCalls = calls.length;
   const totalCost = calls.reduce((sum, call) => sum + (call.cost || 0), 0);
   const totalDuration = calls.reduce((sum, call) => sum + (call.duration || 0), 0);
+
+  console.log("🔥 ESTADÍSTICAS CALCULADAS:", {
+    totalCalls,
+    totalCost,
+    totalDuration,
+    callsArray: calls
+  });
 
   return (
     <div className="space-y-6">
@@ -138,6 +158,11 @@ export const ProductionCallsTable = () => {
               <Phone className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <p className="text-lg font-medium mb-2">No calls yet</p>
               <p className="text-sm">Your call history will appear here once you start making calls.</p>
+              <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  🔥 DEBUG: No calls found. Check console logs for data details.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="divide-y divide-gray-100">

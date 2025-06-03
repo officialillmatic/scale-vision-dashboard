@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Phone, BarChart3, Settings, Activity, Bug } from "lucide-react";
+import { ProductionCallsTable } from "@/components/calls/ProductionCallsTable";
 import { RetellCallDataTable } from "@/components/calls/RetellCallDataTable";
 import { CallTableSyncButton } from "@/components/calls/CallTableSyncButton";
 import { CallTableErrorAlert } from "@/components/calls/CallTableErrorAlert";
@@ -13,12 +14,27 @@ import { SyncTestPanel } from "@/components/calls/SyncTestPanel";
 import { CallSyncDebugPanel } from "@/components/calls/CallSyncDebugPanel";
 import { CallDataDebugPanel } from "@/components/debug/CallDataDebugPanel";
 import { useRetellCalls } from "@/hooks/useRetellCalls";
+import { useSecureCallData } from "@/hooks/useSecureCallData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 export default function CallsPage() {
+  console.log("🔥 CALLS PAGE RENDERIZADA");
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
-  const { retellCalls, isLoading, error, refetch } = useRetellCalls();
+  const { retellCalls, isLoading: retellLoading, error: retellError, refetch } = useRetellCalls();
+  
+  // También usar el hook de ProductionCallsTable para comparar
+  const { calls: secureCalls, isLoading: secureLoading, error: secureError } = useSecureCallData();
+
+  console.log("🔥 CALLS PAGE - HOOKS DATA:", {
+    retellCalls: retellCalls?.length || 0,
+    retellLoading,
+    retellError: retellError?.message,
+    secureCalls: secureCalls?.length || 0,
+    secureLoading,
+    secureError: secureError?.message
+  });
 
   const handleSyncComplete = () => {
     console.log('[CALLS_PAGE] Sync completed, refreshing call data...');
@@ -63,7 +79,18 @@ export default function CallsPage() {
         </div>
 
         {/* Show error alert if there's an error */}
-        <CallTableErrorAlert error={error} />
+        <CallTableErrorAlert error={retellError} />
+
+        {/* Debug Info Card */}
+        <Card className="border-2 border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <h3 className="font-medium text-yellow-800 mb-2">🔥 DEBUG INFO</h3>
+            <div className="text-sm text-yellow-700 space-y-1">
+              <p><strong>Retell Calls:</strong> {retellCalls?.length || 0} | Loading: {retellLoading ? 'Yes' : 'No'} | Error: {retellError?.message || 'None'}</p>
+              <p><strong>Secure Calls:</strong> {secureCalls?.length || 0} | Loading: {secureLoading ? 'Yes' : 'No'} | Error: {secureError?.message || 'None'}</p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -126,8 +153,9 @@ export default function CallsPage() {
 
         {/* Main Content */}
         <Tabs defaultValue="calls" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="calls">Call History</TabsTrigger>
+            <TabsTrigger value="production-calls">Production Table</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="debug">Debug</TabsTrigger>
             <TabsTrigger value="test">Test Suite</TabsTrigger>
@@ -146,7 +174,7 @@ export default function CallsPage() {
             <Card className="border-0 shadow-sm">
               <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl font-semibold text-gray-900">Recent Calls</CardTitle>
+                  <CardTitle className="text-xl font-semibold text-gray-900">Recent Calls (Retell Hook)</CardTitle>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -165,19 +193,30 @@ export default function CallsPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {isLoading ? (
+                {retellLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <LoadingSpinner size="lg" />
                   </div>
                 ) : (
                   <RetellCallDataTable
                     calls={retellCalls}
-                    isLoading={isLoading}
+                    isLoading={retellLoading}
                     searchTerm={searchTerm}
                     date={selectedDate}
                     onSelectCall={(call) => console.log('Selected call:', call)}
                   />
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="production-calls">
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="border-b border-gray-100">
+                <CardTitle className="text-xl font-semibold text-gray-900">Production Calls Table (Secure Hook)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ProductionCallsTable />
               </CardContent>
             </Card>
           </TabsContent>
