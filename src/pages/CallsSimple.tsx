@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDashboardLayout";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { CallDetailModal } from "@/components/calls/CallDetailModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,6 @@ import {
   Download
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-
 interface Call {
   id: string;
   call_id: string;
@@ -75,7 +74,6 @@ export default function CallsSimple() {
   useEffect(() => {
     applyFiltersAndSort();
   }, [calls, searchTerm, statusFilter, sortField, sortOrder]);
-
   // Function to load audio duration from recording URL
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
@@ -127,6 +125,34 @@ export default function CallsSimple() {
     }
   }, [calls]);
 
+  // Helper function to get actual duration from call object or audio
+  const getCallDuration = (call: any) => {
+    // First try to get duration from loaded audio
+    if (audioDurations[call.id]) {
+      console.log(`🎵 Using audio duration for call ${call.call_id.substring(0, 8)}: ${audioDurations[call.id]}s`);
+      return audioDurations[call.id];
+    }
+    
+    // Try different possible duration fields from database
+    const possibleFields = [
+      'duration_sec',
+      'duration', 
+      'call_duration',
+      'length',
+      'time_duration',
+      'total_duration'
+    ];
+    
+    for (const field of possibleFields) {
+      if (call[field] && call[field] > 0) {
+        console.log(`🕐 Found non-zero duration in field '${field}':`, call[field]);
+        return call[field];
+      }
+    }
+    
+    console.log("🕐 No duration found, using 0");
+    return 0;
+  };
   const fetchCalls = async () => {
     try {
       setLoading(true);
@@ -197,7 +223,6 @@ export default function CallsSimple() {
       setLoading(false);
     }
   };
-
   const applyFiltersAndSort = () => {
     let filtered = [...calls];
 
@@ -253,35 +278,6 @@ export default function CallsSimple() {
   const handleModalClose = () => {
     setIsModalOpen(false);
     setSelectedCall(null);
-  };
-
-  // Helper function to get actual duration from call object or audio
-  const getCallDuration = (call: any) => {
-    // First try to get duration from loaded audio
-    if (audioDurations[call.id]) {
-      console.log(`🎵 Using audio duration for call ${call.call_id.substring(0, 8)}: ${audioDurations[call.id]}s`);
-      return audioDurations[call.id];
-    }
-    
-    // Try different possible duration fields from database
-    const possibleFields = [
-      'duration_sec',
-      'duration', 
-      'call_duration',
-      'length',
-      'time_duration',
-      'total_duration'
-    ];
-    
-    for (const field of possibleFields) {
-      if (call[field] && call[field] > 0) {
-        console.log(`🕐 Found non-zero duration in field '${field}':`, call[field]);
-        return call[field];
-      }
-    }
-    
-    console.log("🕐 No duration found, using 0");
-    return 0;
   };
 
   // Fixed duration formatting with better debugging
@@ -361,343 +357,137 @@ export default function CallsSimple() {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-
   return (
-    <ProductionDashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
-            <p className="text-gray-600">Comprehensive call data for alexbuenhombre2012@gmail.com</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-              <User className="w-3 h-3 mr-1" />
-              Active User
-            </Badge>
-            <Button
-              onClick={fetchCalls}
-              disabled={loading}
-              variant="outline"
-              size="sm"
-            >
-              {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
-            </Button>
-          </div>
-        </div>
-
-        {/* Error Alert */}
-        {error && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-4">
-              <p className="text-red-800 font-medium">❌ {error}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Total Calls</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                </div>
-                <Phone className="h-8 w-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Completed</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Total Cost</p>
-                  <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
-                </div>
-                <DollarSign className="h-8 w-8 text-purple-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Total Duration</p>
-                  <p className="text-xl font-bold text-gray-900">{formatDuration(stats.totalDuration)}</p>
-                </div>
-                <Clock className="h-8 w-8 text-orange-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-pink-50 to-pink-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Avg Duration</p>
-                  <p className="text-xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
-                </div>
-                <Clock className="h-8 w-8 text-pink-600" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters and Search */}
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row gap-4 items-center">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search calls by ID, phone, or summary..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-gray-500" />
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Status</option>
-                  {uniqueStatuses.map(status => (
-                    <option key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="text-sm text-gray-500">
-                Showing {filteredCalls.length} of {calls.length} calls
-              </div>
+    <DashboardLayout>
+      <div className="container mx-auto py-4">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
+              <p className="text-gray-600">Comprehensive call data for alexbuenhombre2012@gmail.com</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                <User className="w-3 h-3 mr-1" />
+                Active User
+              </Badge>
+              <Button
+                onClick={fetchCalls}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+              >
+                {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
+              </Button>
+            </div>
+          </div>
 
-        {/* Professional Calls Table */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b border-gray-100 pb-4">
-            <CardTitle className="text-xl font-semibold text-gray-900">
-              📋 Call History ({filteredCalls.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <LoadingSpinner size="lg" />
-                <span className="ml-3 text-gray-600">Loading calls...</span>
-              </div>
-            ) : filteredCalls.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Phone className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-lg font-medium mb-2">No calls found</p>
-                <p className="text-sm">No calls match your current filters</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort('timestamp')}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Date & Time {getSortIcon('timestamp')}
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Call Details
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort('duration_sec')}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Duration {getSortIcon('duration_sec')}
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort('cost_usd')}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Cost {getSortIcon('cost_usd')}
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort('call_status')}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Status {getSortIcon('call_status')}
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Content
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredCalls.map((call, index) => (
-                      <tr 
-                        key={call.id} 
-                        className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => handleCallClick(call)}
-                      >
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 font-medium">
-                            {formatDate(call.timestamp).split(',')[0]}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {formatTime(call.timestamp)}
-                          </div>
-                        </td>
-                        
-                        <td className="px-4 py-4">
-                          <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
-                            <Phone className="h-3 w-3 text-gray-400" />
-                            {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
-                          </div>
-                          <div className="text-xs text-gray-500 font-mono">
-                            ID: {call.call_id.substring(0, 16)}...
-                          </div>
-                        </td>
-                        
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {formatDuration(getCallDuration(call))}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {audioDurations[call.id] ? 
-                              `${getCallDuration(call)}s (from audio)` : 
-                              `${getCallDuration(call)}s`
-                            }
-                          </div>
-                        </td>
-                        
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {formatCurrency(call.cost_usd)}
-                          </div>
-                        </td>
-                        
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex flex-col gap-1">
-                            <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
-                              {call.call_status}
-                            </Badge>
-                            {call.sentiment && (
-                              <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
-                                {call.sentiment}
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            {call.transcript && (
-                              <div className="flex items-center gap-1 text-xs text-green-600">
-                                <FileText className="h-3 w-3" />
-                                Transcript
-                              </div>
-                            )}
-                            {call.call_summary && (
-                              <div className="flex items-center gap-1 text-xs text-blue-600">
-                                <PlayCircle className="h-3 w-3" />
-                                Summary
-                              </div>
-                            )}
-                            {call.recording_url && (
-                              <div className="flex items-center gap-1 text-xs text-red-600">
-                                <Volume2 className="h-3 w-3" />
-                                Audio
-                              </div>
-                            )}
-                          </div>
-                          {call.call_summary && (
-                            <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
-                              {call.call_summary}
-                            </div>
-                          )}
-                        </td>
-                        
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-6 w-6 p-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCallClick(call);
-                              }}
-                            >
-                              <Eye className="h-3 w-3" />
-                            </Button>
-                            {call.recording_url && (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-6 w-6 p-0"
-                                asChild
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <a
-                                  href={call.recording_url}
-                                  download={`call-${call.call_id}.mp3`}
-                                >
-                                  <Download className="h-3 w-3" />
-                                </a>
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+          {/* Error Alert */}
+          {error && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="p-4">
+                <p className="text-red-800 font-medium">❌ {error}</p>
+              </CardContent>
+            </Card>
+          )}
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Calls</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                  </div>
+                  <Phone className="h-8 w-8 text-blue-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Completed</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Cost</p>
+                    <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-purple-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Duration</p>
+                    <p className="text-xl font-bold text-gray-900">{formatDuration(stats.totalDuration)}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-orange-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-pink-50 to-pink-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Avg Duration</p>
+                    <p className="text-xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-pink-600" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          {/* Filters and Search */}
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search calls by ID, phone, or summary..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Status</option>
+                    {uniqueStatuses.map(status => (
+                      <option key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
+                  </select>
+                </div>
+                <div className="text-sm text-gray-500">
+                  Showing {filteredCalls.length} of {calls.length} calls
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Call Detail Modal */}
-        <CallDetailModal 
-          call={selectedCall}
-          isOpen={isModalOpen}
-          onClose={handleModalClose}
-          audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
-        />
-      </div>
-    </ProductionDashboardLayout>
-  );
-}
-{/* Professional Calls Table */}
+            </CardContent>
+          </Card>
+          {/* Professional Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
