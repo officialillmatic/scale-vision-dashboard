@@ -10,6 +10,8 @@ import { RefreshCw, Phone, Clock, DollarSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export const ProductionCallsTable = () => {
+  console.log("🚨 COMPONENTE INICIADO - ProductionCallsTable");
+  
   console.log("🔥 COMPONENT RENDERIZADO - ProductionCallsTable");
   
   const { calls, isLoading, error, syncCallsSecurely } = useSecureCallData();
