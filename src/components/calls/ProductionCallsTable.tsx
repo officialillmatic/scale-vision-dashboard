@@ -113,6 +113,14 @@ export const ProductionCallsTable = () => {
     firstCall: calls[0]
   });
 
+  // LOG FINAL ANTES DEL RETURN PRINCIPAL
+  console.log("🔥 ANTES DEL RETURN PRINCIPAL:", {
+    calls: calls.length,
+    isLoading,
+    error,
+    "llegando al render": true
+  });
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
