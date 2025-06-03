@@ -16,6 +16,13 @@ export const ProductionCallsTable = () => {
   
   const { calls, isLoading, error, syncCallsSecurely } = useSecureCallData();
   
+  console.log("🔍 PASO 1: Después de obtener datos del hook", {
+    calls: calls?.length || 0,
+    isLoading,
+    error: error?.message || null,
+    callsArray: calls
+  });
+  
   console.log("🔥 DATOS COMPLETOS DEL HOOK:", { 
     calls, 
     callsLength: calls?.length, 
@@ -58,8 +65,15 @@ export const ProductionCallsTable = () => {
     }
   };
 
+  console.log("🔍 PASO 2: Después de definir handleRefresh", {
+    isLoading,
+    error: !!error,
+    callsLength: calls?.length
+  });
+
   if (isLoading) {
     console.log("🔥 ESTADO: Cargando datos...");
+    console.log("🔍 RETURN TEMPRANO: isLoading = true, retornando LoadingSpinner");
     return (
       <Card className="border-0 shadow-sm">
         <CardContent className="flex items-center justify-center py-12">
@@ -69,8 +83,11 @@ export const ProductionCallsTable = () => {
     );
   }
 
+  console.log("🔍 PASO 3: Pasó la condición isLoading");
+
   if (error) {
     console.log("🔥 ERROR DETECTADO:", error);
+    console.log("🔍 RETURN TEMPRANO: error existe, retornando ErrorCard");
     return (
       <Card className="border-0 shadow-sm">
         <CardContent className="flex items-center justify-center py-12">
@@ -89,9 +106,20 @@ export const ProductionCallsTable = () => {
     );
   }
 
+  console.log("🔍 PASO 4: Pasó la condición error");
+
+  console.log("🔍 PASO 5: Antes de calcular totales");
+
   const totalCalls = calls.length;
   const totalCost = calls.reduce((sum, call) => sum + (call.cost || 0), 0);
   const totalDuration = calls.reduce((sum, call) => sum + (call.duration || 0), 0);
+
+  console.log("🔍 PASO 6: Después de calcular totales", {
+    totalCalls,
+    totalCost,
+    totalDuration,
+    firstCallStructure: calls[0]
+  });
 
   console.log("🔥 CÁLCULOS DE TOTALES:", {
     totalCalls,
@@ -115,6 +143,8 @@ export const ProductionCallsTable = () => {
     firstCall: calls[0]
   });
 
+  console.log("🔍 PASO 7: Antes del JSX return");
+
   // LOG FINAL ANTES DEL RETURN PRINCIPAL
   console.log("🔥 ANTES DEL RETURN PRINCIPAL:", {
     calls: calls.length,
@@ -122,6 +152,8 @@ export const ProductionCallsTable = () => {
     error,
     "llegando al render": true
   });
+
+  console.log("🔍 PASO 8: Iniciando construcción del JSX");
 
   return (
     <div className="space-y-6">
