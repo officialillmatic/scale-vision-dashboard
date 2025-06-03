@@ -39,7 +39,7 @@ interface Call {
   transcript?: string;
   call_summary?: string;
   sentiment?: string;
-  recording_url?: string; // Added back for checking
+  recording_url?: string;
 }
 
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
@@ -56,6 +56,7 @@ export default function CallsSimple() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
   const [stats, setStats] = useState({
     total: 0,
     totalCost: 0,
@@ -74,6 +75,57 @@ export default function CallsSimple() {
   useEffect(() => {
     applyFiltersAndSort();
   }, [calls, searchTerm, statusFilter, sortField, sortOrder]);
+
+  // Function to load audio duration from recording URL
+  const loadAudioDuration = async (call: Call) => {
+    if (!call.recording_url || audioDurations[call.id]) return;
+    
+    try {
+      console.log(`🎵 Loading audio duration for call ${call.call_id.substring(0, 8)}...`);
+      const audio = new Audio(call.recording_url);
+      
+      return new Promise<void>((resolve) => {
+        audio.addEventListener('loadedmetadata', () => {
+          const duration = Math.round(audio.duration);
+          console.log(`🎵 Audio duration loaded: ${duration}s for call ${call.call_id.substring(0, 8)}`);
+          setAudioDurations(prev => ({
+            ...prev,
+            [call.id]: duration
+          }));
+          resolve();
+        });
+        
+        audio.addEventListener('error', () => {
+          console.log(`❌ Failed to load audio for call ${call.call_id.substring(0, 8)}`);
+          resolve();
+        });
+      });
+    } catch (error) {
+      console.log(`❌ Error loading audio duration:`, error);
+    }
+  };
+
+  // Load audio durations for calls with recording URLs
+  useEffect(() => {
+    const loadAllAudioDurations = async () => {
+      const callsWithAudio = calls.filter(call => call.recording_url);
+      console.log(`🎵 Found ${callsWithAudio.length} calls with recording URLs`);
+      
+      // Load audio durations in batches to avoid overwhelming the browser
+      for (let i = 0; i < callsWithAudio.length; i += 3) {
+        const batch = callsWithAudio.slice(i, i + 3);
+        await Promise.all(batch.map(call => loadAudioDuration(call)));
+        // Small delay between batches
+        if (i + 3 < callsWithAudio.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    };
+
+    if (calls.length > 0) {
+      loadAllAudioDurations();
+    }
+  }, [calls]);
 
   const fetchCalls = async () => {
     try {
@@ -125,7 +177,7 @@ export default function CallsSimple() {
       // Calculate statistics with corrected duration calculation
       if (data && data.length > 0) {
         const totalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-        const totalDuration = data.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
+        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
         const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
         const completedCalls = data.filter(call => call.call_status === 'completed').length;
 
@@ -203,28 +255,51 @@ export default function CallsSimple() {
     setSelectedCall(null);
   };
 
+  // Helper function to get actual duration from call object or audio
+  const getCallDuration = (call: any) => {
+    // First try to get duration from loaded audio
+    if (audioDurations[call.id]) {
+      console.log(`🎵 Using audio duration for call ${call.call_id.substring(0, 8)}: ${audioDurations[call.id]}s`);
+      return audioDurations[call.id];
+    }
+    
+    // Try different possible duration fields from database
+    const possibleFields = [
+      'duration_sec',
+      'duration', 
+      'call_duration',
+      'length',
+      'time_duration',
+      'total_duration'
+    ];
+    
+    for (const field of possibleFields) {
+      if (call[field] && call[field] > 0) {
+        console.log(`🕐 Found non-zero duration in field '${field}':`, call[field]);
+        return call[field];
+      }
+    }
+    
+    console.log("🕐 No duration found, using 0");
+    return 0;
+  };
+
   // Fixed duration formatting with better debugging
   const formatDuration = (seconds: number) => {
-    console.log("🕐 Formatting duration:", seconds, typeof seconds);
-    
     // Handle null, undefined, or non-numeric values
     if (seconds === null || seconds === undefined || isNaN(seconds)) {
-      console.log("🕐 Duration is null/undefined/NaN");
       return "0:00";
     }
     
     // Convert to number if it's a string
     const numSeconds = Number(seconds);
     if (numSeconds === 0) {
-      console.log("🕐 Duration is exactly 0");
       return "0:00";
     }
     
     const mins = Math.floor(numSeconds / 60);
     const secs = Math.floor(numSeconds % 60);
-    const result = `${mins}:${secs.toString().padStart(2, '0')}`;
-    console.log("🕐 Formatted result:", result);
-    return result;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const formatCurrency = (amount: number) => {
@@ -514,10 +589,13 @@ export default function CallsSimple() {
                         
                         <td className="px-4 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
-                            {formatDuration(call.duration_sec)}
+                            {formatDuration(getCallDuration(call))}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {call.duration_sec}s
+                            {audioDurations[call.id] ? 
+                              `${getCallDuration(call)}s (from audio)` : 
+                              `${getCallDuration(call)}s`
+                            }
                           </div>
                         </td>
                         
@@ -613,6 +691,7 @@ export default function CallsSimple() {
           call={selectedCall}
           isOpen={isModalOpen}
           onClose={handleModalClose}
+          audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
         />
       </div>
     </ProductionDashboardLayout>
