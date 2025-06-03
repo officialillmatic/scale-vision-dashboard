@@ -90,6 +90,13 @@ export const ProductionCallsTable = () => {
   const totalCost = calls.reduce((sum, call) => sum + (call.cost || 0), 0);
   const totalDuration = calls.reduce((sum, call) => sum + (call.duration || 0), 0);
 
+  console.log("🔥 CÁLCULOS DE TOTALES:", {
+    totalCalls,
+    totalCost,
+    totalDuration,
+    firstCallStructure: calls[0]
+  });
+
   console.log("🔥 ESTADÍSTICAS CALCULADAS:", {
     totalCalls,
     totalCost,
