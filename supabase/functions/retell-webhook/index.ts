@@ -1,8 +1,29 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
-import { handleCors, createErrorResponse, createSuccessResponse } from "../_shared/corsUtils.ts";
 import { findAgentInDatabase, findUserAgentMapping, upsertCallData } from "../_shared/retellDatabaseOps.ts";
+
+// Enhanced CORS headers specifically for Retell AI
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-retell-signature, accept',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
+  'Access-Control-Max-Age': '86400',
+};
+
+function createSuccessResponse(data: any): Response {
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+function createErrorResponse(message: string, status: number = 500): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
 
 // Use environment helper for secure env var access
 function env(key: string): string {
@@ -16,16 +37,31 @@ const supabaseServiceKey = env('SUPABASE_SERVICE_ROLE_KEY');
 const retellSecret = env('RETELL_SECRET');
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
+  // Handle CORS preflight requests FIRST
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
+  }
 
   const requestId = crypto.randomUUID().substring(0, 8);
   console.log(`[RETELL-WEBHOOK-${requestId}] ${new Date().toISOString()} - ${req.method} request received`);
+  console.log(`[RETELL-WEBHOOK-${requestId}] Headers:`, Object.fromEntries(req.headers.entries()));
 
   try {
+    // Allow GET requests for health checks
+    if (req.method === 'GET') {
+      console.log(`[RETELL-WEBHOOK-${requestId}] Health check request`);
+      return createSuccessResponse({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        message: 'Retell webhook endpoint is operational'
+      });
+    }
+
     if (req.method !== 'POST') {
-      return createErrorResponse('Method not allowed - only POST requests supported', 405);
+      return createErrorResponse('Method not allowed - only POST and OPTIONS requests supported', 405);
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
