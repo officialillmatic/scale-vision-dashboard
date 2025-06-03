@@ -17,6 +17,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 interface Call {
   id: string;
@@ -41,6 +42,7 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth(); // 🔒 CAMBIO DE SEGURIDAD: Usar usuario autenticado
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,12 +58,12 @@ export default function DashboardPage() {
   });
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
 
-  // User ID for alexbuenhombre2012@gmail.com
-  const USER_ID = "efe4f9c1-8322-4ce7-8193-69bd8c982d03";
-
+  // 🔒 CAMBIO DE SEGURIDAD: Solo cargar datos si hay usuario autenticado
   useEffect(() => {
-    fetchCallsData();
-  }, []);
+    if (user?.id) {
+      fetchCallsData();
+    }
+  }, [user?.id]);
   // Load audio durations for better metrics
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
@@ -106,14 +108,22 @@ export default function DashboardPage() {
     }).format(amount);
   };
   const fetchCallsData = async () => {
+    // 🔒 CAMBIO DE SEGURIDAD: Verificar que el usuario esté autenticado
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
+      // 🔒 CAMBIO DE SEGURIDAD: Usar user.id en lugar del ID hardcodeado
       const { data, error: fetchError } = await supabase
         .from('calls')
         .select('*')
-        .eq('user_id', USER_ID)
+        .eq('user_id', user.id) // ⬅️ CAMBIO AQUÍ
         .order('timestamp', { ascending: false });
 
       if (fetchError) {
@@ -210,6 +220,19 @@ export default function DashboardPage() {
 
   const chartData = getChartData();
   const sentimentData = getSentimentData();
+  // 🔒 CAMBIO DE SEGURIDAD: Verificar autenticación antes de mostrar contenido
+  if (!user) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <p className="text-red-600 font-medium">Please log in to view dashboard</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -220,7 +243,6 @@ export default function DashboardPage() {
       </DashboardLayout>
     );
   }
-
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
