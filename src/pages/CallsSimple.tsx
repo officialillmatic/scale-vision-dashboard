@@ -97,6 +97,29 @@ export default function CallsSimple() {
 
       console.log("✅ Calls fetched successfully:", data?.length || 0);
       console.log("📊 Sample call data:", data?.[0]); // Log first call to see structure
+      
+      // Debug duration_sec specifically
+      if (data && data.length > 0) {
+        console.log("🕐 Duration debug:");
+        console.log("🔍 Available fields in first call:", Object.keys(data[0]));
+        
+        data.slice(0, 3).forEach((call, i) => {
+          console.log(`Call ${i+1}:`, {
+            call_id: call.call_id.substring(0, 8),
+            duration_sec: call.duration_sec,
+            duration: call.duration, // Check if it's named 'duration' instead
+            call_duration: call.call_duration, // Check alternative names
+            length: call.length,
+            time: call.time,
+            typeof_duration: typeof call.duration_sec,
+            is_null: call.duration_sec === null,
+            is_undefined: call.duration_sec === undefined,
+            is_zero: call.duration_sec === 0,
+            all_fields: Object.keys(call)
+          });
+        });
+      }
+      
       setCalls(data || []);
 
       // Calculate statistics with corrected duration calculation
@@ -180,12 +203,28 @@ export default function CallsSimple() {
     setSelectedCall(null);
   };
 
-  // Fixed duration formatting
+  // Fixed duration formatting with better debugging
   const formatDuration = (seconds: number) => {
-    if (!seconds || seconds === 0) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    console.log("🕐 Formatting duration:", seconds, typeof seconds);
+    
+    // Handle null, undefined, or non-numeric values
+    if (seconds === null || seconds === undefined || isNaN(seconds)) {
+      console.log("🕐 Duration is null/undefined/NaN");
+      return "0:00";
+    }
+    
+    // Convert to number if it's a string
+    const numSeconds = Number(seconds);
+    if (numSeconds === 0) {
+      console.log("🕐 Duration is exactly 0");
+      return "0:00";
+    }
+    
+    const mins = Math.floor(numSeconds / 60);
+    const secs = Math.floor(numSeconds % 60);
+    const result = `${mins}:${secs.toString().padStart(2, '0')}`;
+    console.log("🕐 Formatted result:", result);
+    return result;
   };
 
   const formatCurrency = (amount: number) => {
