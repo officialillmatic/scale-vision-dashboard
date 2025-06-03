@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDashboardLayout";
+import { CallDetailModal } from "@/components/calls/CallDetailModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,8 @@ import {
   Filter,
   Download,
   Eye,
-  ArrowUpDown
+  ArrowUpDown,
+  Volume2
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
@@ -37,6 +39,11 @@ interface Call {
   transcript?: string;
   call_summary?: string;
   sentiment?: string;
+  recording_url?: string;
+  disconnection_reason?: string;
+  end_to_end_latency?: number;
+  agent_name?: string;
+  version?: string;
 }
 
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
@@ -51,6 +58,8 @@ export default function CallsSimple() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>('timestamp');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [selectedCall, setSelectedCall] = useState<Call | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     totalCost: 0,
@@ -93,7 +102,12 @@ export default function CallsSimple() {
           to_number,
           transcript,
           call_summary,
-          sentiment
+          sentiment,
+          recording_url,
+          disconnection_reason,
+          end_to_end_latency,
+          agent_name,
+          version
         `)
         .eq('user_id', USER_ID)
         .order('timestamp', { ascending: false });
@@ -176,6 +190,16 @@ export default function CallsSimple() {
       setSortField(field);
       setSortOrder('desc');
     }
+  };
+
+  const handleCallClick = (call: Call) => {
+    setSelectedCall(call);
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedCall(null);
   };
 
   const formatDuration = (seconds: number) => {
@@ -446,7 +470,11 @@ export default function CallsSimple() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredCalls.map((call, index) => (
-                      <tr key={call.id} className="hover:bg-gray-50 transition-colors">
+                      <tr 
+                        key={call.id} 
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => handleCallClick(call)}
+                      >
                         <td className="px-4 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900 font-medium">
                             {formatDate(call.timestamp).split(',')[0]}
@@ -502,6 +530,12 @@ export default function CallsSimple() {
                                 Transcript
                               </div>
                             )}
+                            {call.recording_url && (
+                              <div className="flex items-center gap-1 text-xs text-red-600">
+                                <Volume2 className="h-3 w-3" />
+                                Audio
+                              </div>
+                            )}
                             {call.call_summary && (
                               <div className="flex items-center gap-1 text-xs text-blue-600">
                                 <PlayCircle className="h-3 w-3" />
@@ -518,12 +552,33 @@ export default function CallsSimple() {
                         
                         <td className="px-4 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCallClick(call);
+                              }}
+                            >
                               <Eye className="h-3 w-3" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                              <Download className="h-3 w-3" />
-                            </Button>
+                            {call.recording_url && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 w-6 p-0"
+                                asChild
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <a
+                                  href={call.recording_url}
+                                  download={`call-${call.call_id}.mp3`}
+                                >
+                                  <Download className="h-3 w-3" />
+                                </a>
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -534,6 +589,13 @@ export default function CallsSimple() {
             )}
           </CardContent>
         </Card>
+
+        {/* Call Detail Modal */}
+        <CallDetailModal 
+          call={selectedCall}
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+        />
       </div>
     </ProductionDashboardLayout>
   );
