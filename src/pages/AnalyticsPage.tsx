@@ -21,6 +21,7 @@ import {
   TrendingDown
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   LineChart, 
   Line, 
@@ -59,6 +60,7 @@ interface AnalyticsData {
   costEfficiency: Array<{duration: number, cost: number, status: string}>;
 }
 export default function AnalyticsPage() {
+  const { user } = useAuth(); // 🔒 CAMBIO DE SEGURIDAD: Usar usuario autenticado
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,12 +73,12 @@ export default function AnalyticsPage() {
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
   const [dateRange, setDateRange] = useState<string>("7"); // days
 
-  // User ID for alexbuenhombre2012@gmail.com
-  const USER_ID = "efe4f9c1-8322-4ce7-8193-69bd8c982d03";
-
+  // 🔒 CAMBIO DE SEGURIDAD: Solo cargar datos si hay usuario autenticado
   useEffect(() => {
-    fetchAnalyticsData();
-  }, [dateRange]);
+    if (user?.id) {
+      fetchAnalyticsData();
+    }
+  }, [dateRange, user?.id]);
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
     
@@ -120,6 +122,13 @@ export default function AnalyticsPage() {
     }).format(amount);
   };
   const fetchAnalyticsData = async () => {
+    // 🔒 CAMBIO DE SEGURIDAD: Verificar que el usuario esté autenticado
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -128,10 +137,11 @@ export default function AnalyticsPage() {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - daysAgo);
 
+      // 🔒 CAMBIO DE SEGURIDAD: Usar user.id en lugar del ID hardcodeado
       const { data, error: fetchError } = await supabase
         .from('calls')
         .select('*')
-        .eq('user_id', USER_ID)
+        .eq('user_id', user.id) // ⬅️ CAMBIO AQUÍ
         .gte('timestamp', startDate.toISOString())
         .order('timestamp', { ascending: true });
 
@@ -257,6 +267,19 @@ export default function AnalyticsPage() {
     negative: calls.filter(call => call.sentiment === 'negative').length,
     neutral: calls.filter(call => call.sentiment === 'neutral').length,
   };
+
+  // 🔒 CAMBIO DE SEGURIDAD: Verificar autenticación antes de mostrar contenido
+  if (!user) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <p className="text-red-600 font-medium">Please log in to view analytics</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (loading) {
     return (
