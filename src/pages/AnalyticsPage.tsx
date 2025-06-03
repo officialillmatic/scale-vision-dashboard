@@ -1,423 +1,791 @@
+import React, { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  BarChart3,
+  TrendingUp,
+  Clock,
+  DollarSign,
+  RefreshCw,
+  Zap,
+  Target,
+  Activity,
+  Phone,
+  Smile,
+  Frown,
+  Meh,
+  TrendingDown
+} from "lucide-react";
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  PieChart, 
+  Pie, 
+  Cell,
+  AreaChart,
+  Area,
+  ComposedChart
+} from 'recharts';
 
-import React, { useState, useEffect } from 'react';
-import { ProductionDashboardLayout } from '@/components/dashboard/ProductionDashboardLayout';
-import { useAuth } from '@/contexts/AuthContext';
-import { useRetellCalls } from '@/hooks/useRetellCalls';
-import { CallFilterBar } from '@/components/analytics/CallFilterBar';
-import { EmptyStateMessage } from '@/components/dashboard/EmptyStateMessage';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MetricsDashboard } from '@/components/analytics/MetricsDashboard';
-import { AnalyticsCharts } from '@/components/analytics/AnalyticsCharts';
-import { AgentAnalytics } from '@/components/analytics/AgentAnalytics';
-import { UserAnalytics } from '@/components/analytics/UserAnalytics';
-import { RevenueAnalytics } from '@/components/analytics/RevenueAnalytics';
-import { ExportControls } from '@/components/analytics/ExportControls';
-import { DemoAnalyticsSection } from '@/components/analytics/DemoAnalyticsSection';
-import { BarChart3, Users, Bot, DollarSign, Download, TrendingUp, Zap, AlertTriangle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-
-// Updated CallData interface to match retell_calls structure
-export interface CallData {
+interface Call {
   id: string;
   call_id: string;
-  timestamp: Date;
+  timestamp: string;
   duration_sec: number;
   cost_usd: number;
-  sentiment: string | null;
-  sentiment_score: number | null;
-  disconnection_reason: string | null;
   call_status: string;
-  from: string;
-  to: string;
-  from_number: string | null;
-  to_number: string | null;
-  audio_url: string | null;
-  recording_url: string | null;
-  transcript: string | null;
-  transcript_url: string | null;
-  user_id: string;
-  company_id: string;
-  call_type: string;
-  latency_ms: number | null;
-  call_summary: string | null;
-  disposition: string | null;
-  agent: {
-    id: string;
-    name: string;
-    rate_per_minute?: number;
-    retell_agent_id?: string;
-  } | null;
+  sentiment?: string;
+  recording_url?: string;
+  from_number: string;
+  to_number: string;
 }
 
-const AnalyticsPage = () => {
-  const { user } = useAuth();
-  const { retellCalls, isLoading, error, refetch } = useRetellCalls();
-  const [filteredData, setFilteredData] = useState<CallData[]>([]);
-  const [previousCallData, setPreviousCallData] = useState<CallData[]>([]);
-  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
-    new Date(new Date().setDate(new Date().getDate() - 30)), // Last 30 days
-    new Date()
-  ]);
-  const [showDemo, setShowDemo] = useState(false);
-
-  // Debug logging for component state
-  useEffect(() => {
-    console.log('🔍 [AnalyticsPage] Component state update:', {
-      retellCallsLength: retellCalls?.length || 0,
-      filteredDataLength: filteredData?.length || 0,
-      isLoading,
-      hasError: !!error,
-      errorMessage: error?.message,
-      dateRange,
-      userId: user?.id
-    });
-  }, [retellCalls, filteredData, isLoading, error, dateRange, user?.id]);
-
-  // Transform retell calls to CallData format
-  useEffect(() => {
-    console.log('🔍 [AnalyticsPage] Transforming retell calls data...');
-    console.log('🔍 [AnalyticsPage] Raw retell calls:', retellCalls);
-
-    if (retellCalls && retellCalls.length > 0) {
-      const transformedData: CallData[] = retellCalls.map(call => {
-        const transformed = {
-          id: call.id,
-          call_id: call.call_id,
-          timestamp: new Date(call.start_timestamp),
-          duration_sec: call.duration_sec,
-          cost_usd: call.cost_usd,
-          sentiment: call.sentiment,
-          sentiment_score: null, // Not available in retell_calls
-          disconnection_reason: null, // Not available in retell_calls
-          call_status: call.call_status,
-          from: call.from_number || 'Unknown',
-          to: call.to_number || 'Unknown',
-          from_number: call.from_number,
-          to_number: call.to_number,
-          audio_url: call.recording_url,
-          recording_url: call.recording_url,
-          transcript: call.transcript,
-          transcript_url: null, // Not available in retell_calls
-          user_id: call.user_id || user?.id || '',
-          company_id: call.company_id || '',
-          call_type: 'phone_call',
-          latency_ms: call.latency_ms,
-          call_summary: call.call_summary,
-          disposition: call.disposition,
-          agent: call.agent
-        };
-
-        console.log('🔍 [AnalyticsPage] Transformed call:', {
-          id: transformed.id,
-          timestamp: transformed.timestamp,
-          call_status: transformed.call_status,
-          cost_usd: transformed.cost_usd
-        });
-
-        return transformed;
-      });
-
-      console.log(`✅ [AnalyticsPage] Successfully transformed ${transformedData.length} calls`);
-      setFilteredData(transformedData);
-    } else {
-      console.log('⚠️ [AnalyticsPage] No retell calls data to transform');
-      setFilteredData([]);
-    }
-  }, [retellCalls, user?.id]);
-
-  // Filter the data based on the date range
-  useEffect(() => {
-    if (!retellCalls || retellCalls.length === 0) {
-      console.log('🔍 [AnalyticsPage] No data to filter');
-      return;
-    }
-    
-    const [start, end] = dateRange;
-    console.log('🔍 [AnalyticsPage] Applying date filter:', { start, end });
-    
-    // If no date range is selected, use all data
-    if (!start && !end) {
-      console.log('🔍 [AnalyticsPage] No date filter applied');
-      return;
-    }
-    
-    // Filter based on date range
-    const filtered = filteredData.filter(call => {
-      const callDate = call.timestamp;
-      if (start && end) {
-        const isInRange = callDate >= start && callDate <= end;
-        console.log('🔍 [AnalyticsPage] Date filter check:', {
-          callDate: callDate.toISOString(),
-          start: start.toISOString(),
-          end: end.toISOString(),
-          isInRange
-        });
-        return isInRange;
-      }
-      if (start) {
-        return callDate >= start;
-      }
-      if (end) {
-        return callDate <= end;
-      }
-      return true;
-    });
-    
-    console.log(`🔍 [AnalyticsPage] Filtered ${filtered.length} calls from ${filteredData.length} total`);
-    setFilteredData(filtered);
-  }, [dateRange, retellCalls]);
-
-  const hasRealData = !isLoading && filteredData.length > 0;
-
-  console.log('🔍 [AnalyticsPage] Render state:', {
-    hasRealData,
-    showDemo,
-    isLoading,
-    filteredDataLength: filteredData.length,
-    retellCallsLength: retellCalls?.length || 0
+interface AnalyticsData {
+  hourlyData: Array<{hour: string, calls: number, avgDuration: number, cost: number}>;
+  dailyData: Array<{date: string, calls: number, cost: number, success: number}>;
+  sentimentTrend: Array<{date: string, positive: number, negative: number, neutral: number}>;
+  costEfficiency: Array<{duration: number, cost: number, status: string}>;
+}
+export default function AnalyticsPage() {
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
+    hourlyData: [],
+    dailyData: [],
+    sentimentTrend: [],
+    costEfficiency: []
   });
+  const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
+  const [dateRange, setDateRange] = useState<string>("7"); // days
+
+  // User ID for alexbuenhombre2012@gmail.com
+  const USER_ID = "efe4f9c1-8322-4ce7-8193-69bd8c982d03";
+
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [dateRange]);
+
+  const loadAudioDuration = async (call: Call) => {
+    if (!call.recording_url || audioDurations[call.id]) return;
+    
+    try {
+      const audio = new Audio(call.recording_url);
+      return new Promise<void>((resolve) => {
+        audio.addEventListener('loadedmetadata', () => {
+          const duration = Math.round(audio.duration);
+          setAudioDurations(prev => ({
+            ...prev,
+            [call.id]: duration
+          }));
+          resolve();
+        });
+        audio.addEventListener('error', () => resolve());
+      });
+    } catch (error) {
+      console.log('Error loading audio duration:', error);
+    }
+  };
+
+  const getCallDuration = (call: Call) => {
+    if (audioDurations[call.id]) {
+      return audioDurations[call.id];
+    }
+    return call.duration_sec || 0;
+  };
+  const fetchAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const daysAgo = parseInt(dateRange);
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - daysAgo);
+
+      const { data, error: fetchError } = await supabase
+        .from('calls')
+        .select('*')
+        .eq('user_id', USER_ID)
+        .gte('timestamp', startDate.toISOString())
+        .order('timestamp', { ascending: true });
+
+      if (fetchError) {
+        setError(`Error: ${fetchError.message}`);
+        return;
+      }
+
+      setCalls(data || []);
+
+      // Load audio durations for analysis
+      if (data && data.length > 0) {
+        const callsWithAudio = data.filter(call => call.recording_url);
+        await Promise.all(callsWithAudio.map(call => loadAudioDuration(call)));
+      }
+
+      // Generate analytics data
+      if (data && data.length > 0) {
+        setAnalyticsData({
+          hourlyData: generateHourlyData(data),
+          dailyData: generateDailyData(data),
+          sentimentTrend: generateSentimentTrend(data),
+          costEfficiency: generateCostEfficiency(data)
+        });
+      }
+
+    } catch (err: any) {
+      setError(`Exception: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateHourlyData = (callsData: Call[]) => {
+    const hourlyStats: {[key: string]: {calls: number, totalDuration: number, totalCost: number}} = {};
+    
+    // Initialize all 24 hours
+    for (let i = 0; i < 24; i++) {
+      const hour = i.toString().padStart(2, '0') + ':00';
+      hourlyStats[hour] = { calls: 0, totalDuration: 0, totalCost: 0 };
+    }
+
+    callsData.forEach(call => {
+      const hour = new Date(call.timestamp).getHours().toString().padStart(2, '0') + ':00';
+      if (hourlyStats[hour]) {
+        hourlyStats[hour].calls += 1;
+        hourlyStats[hour].totalDuration += getCallDuration(call);
+        hourlyStats[hour].totalCost += call.cost_usd || 0;
+      }
+    });
+
+    return Object.entries(hourlyStats).map(([hour, stats]) => ({
+      hour,
+      calls: stats.calls,
+      avgDuration: stats.calls > 0 ? stats.totalDuration / stats.calls : 0,
+      cost: stats.totalCost
+    }));
+  };
+
+  const generateDailyData = (callsData: Call[]) => {
+    const dailyStats: {[key: string]: {calls: number, cost: number, success: number}} = {};
+    
+    callsData.forEach(call => {
+      const date = call.timestamp.split('T')[0];
+      if (!dailyStats[date]) {
+        dailyStats[date] = { calls: 0, cost: 0, success: 0 };
+      }
+      
+      dailyStats[date].calls += 1;
+      dailyStats[date].cost += call.cost_usd || 0;
+      if (call.call_status === 'completed' || call.call_status === 'ended') {
+        dailyStats[date].success += 1;
+      }
+    });
+
+    return Object.entries(dailyStats)
+      .map(([date, stats]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        calls: stats.calls,
+        cost: stats.cost,
+        success: (stats.success / stats.calls) * 100
+      }))
+      .slice(-14); // Last 14 days
+  };
+
+  const generateSentimentTrend = (callsData: Call[]) => {
+    const sentimentStats: {[key: string]: {positive: number, negative: number, neutral: number}} = {};
+    
+    callsData.forEach(call => {
+      const date = call.timestamp.split('T')[0];
+      if (!sentimentStats[date]) {
+        sentimentStats[date] = { positive: 0, negative: 0, neutral: 0 };
+      }
+      
+      if (call.sentiment === 'positive') sentimentStats[date].positive += 1;
+      else if (call.sentiment === 'negative') sentimentStats[date].negative += 1;
+      else sentimentStats[date].neutral += 1;
+    });
+
+    return Object.entries(sentimentStats)
+      .map(([date, stats]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        positive: stats.positive,
+        negative: stats.negative,
+        neutral: stats.neutral
+      }))
+      .slice(-7); // Last 7 days
+  };
+
+  const generateCostEfficiency = (callsData: Call[]) => {
+    return callsData.map(call => ({
+      duration: getCallDuration(call),
+      cost: call.cost_usd || 0,
+      status: call.call_status
+    })).filter(item => item.duration > 0);
+  };
+  const formatDuration = (seconds: number) => {
+    if (!seconds || seconds === 0) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  // Calculate key metrics
+  const totalCalls = calls.length;
+  const avgCallDuration = calls.length > 0 ? calls.reduce((sum, call) => sum + getCallDuration(call), 0) / calls.length : 0;
+  const totalCost = calls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+  const successRate = calls.length > 0 ? (calls.filter(call => call.call_status === 'completed' || call.call_status === 'ended').length / calls.length) * 100 : 0;
+  const sentimentDistribution = {
+    positive: calls.filter(call => call.sentiment === 'positive').length,
+    negative: calls.filter(call => call.sentiment === 'negative').length,
+    neutral: calls.filter(call => call.sentiment === 'neutral').length,
+  };
+
+  if (loading) {
+    return (
+      <ProductionDashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <LoadingSpinner size="lg" />
+          <span className="ml-3 text-gray-600">Loading analytics...</span>
+        </div>
+      </ProductionDashboardLayout>
+    );
+  }
 
   return (
     <ProductionDashboardLayout>
-      <div className="space-y-8 w-full max-w-none">
-        {/* Header Section */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                Business Intelligence Platform 📊
-              </h1>
-              <p className="text-lg text-gray-600 font-medium">
-                Comprehensive analytics and insights for your communication platform
-              </p>
-            </div>
-            {!hasRealData && (
-              <div className="flex items-center space-x-3">
-                <Button
-                  onClick={() => setShowDemo(!showDemo)}
-                  variant={showDemo ? "default" : "outline"}
-                  className="flex items-center space-x-2"
-                >
-                  <Zap className="h-4 w-4" />
-                  <span>{showDemo ? "Hide Demo" : "View Demo"}</span>
-                </Button>
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                  Preview Mode
-                </Badge>
-              </div>
-            )}
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">📈 Analytics</h1>
+            <p className="text-gray-600">Deep insights into your call performance and trends</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="7">Last 7 days</option>
+              <option value="14">Last 14 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+            <Button
+              onClick={fetchAnalyticsData}
+              disabled={loading}
+              variant="outline"
+              size="sm"
+            >
+              {loading ? <LoadingSpinner size="sm" /> : <RefreshCw className="h-4 w-4" />} Refresh
+            </Button>
           </div>
         </div>
 
-        {/* Debug Information */}
+        {/* Error Alert */}
         {error && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Error loading analytics data: {error.message}
-              <Button variant="outline" size="sm" onClick={() => refetch()} className="ml-2">
-                Retry
-              </Button>
-            </AlertDescription>
-          </Alert>
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <p className="text-red-800 font-medium">❌ {error}</p>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Debug Panel for Development */}
-        {process.env.NODE_ENV === 'development' && (
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Debug Info:</strong> Loading: {isLoading ? 'Yes' : 'No'}, 
-              Raw Calls: {retellCalls?.length || 0}, 
-              Filtered: {filteredData?.length || 0}, 
-              User: {user?.id || 'None'}, 
-              Error: {error?.message || 'None'}
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {/* Show demo mode or real data */}
-        {showDemo && !hasRealData ? (
-          <DemoAnalyticsSection />
-        ) : (
-          <>
-            {/* Filter Bar */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 p-6">
-              <CallFilterBar 
-                dateRange={dateRange} 
-                setDateRange={setDateRange} 
-                totalCalls={filteredData.length}
-                isLoading={isLoading}
-              />
-            </div>
-            
-            {/* Show empty state when no data */}
-            {!isLoading && filteredData.length === 0 && retellCalls.length === 0 && (
-              <div className="mt-8">
-                <EmptyStateMessage
-                  title="No analytics data available yet"
-                  description="Analytics will appear here once you have call data. Start by syncing your calls or making your first call."
-                  actionLabel="Refresh Data"
-                  onAction={refetch}
-                  isLoading={isLoading}
-                />
-              </div>
-            )}
-
-            {/* Show filtered empty state */}
-            {!isLoading && filteredData.length === 0 && retellCalls.length > 0 && (
-              <div className="mt-8">
-                <EmptyStateMessage
-                  title="No calls found for selected date range"
-                  description={`Found ${retellCalls.length} total calls, but none match the current filter. Try adjusting your date range.`}
-                  actionLabel="Clear Filters"
-                  onAction={() => setDateRange([null, null])}
-                  isLoading={isLoading}
-                />
-              </div>
-            )}
-
-            {/* Show content when we have data */}
-            {(filteredData.length > 0 || isLoading) && (
-              <>
-                {/* Key Metrics Dashboard */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-                      <TrendingUp className="h-6 w-6" />
-                      <span>Key Performance Indicators</span>
-                    </h2>
-                    <p className="text-gray-600">Overview of your platform's core metrics and performance</p>
-                  </div>
-                  {isLoading ? (
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                      {Array(4).fill(0).map((_, i) => (
-                        <Skeleton key={i} className="h-32 rounded-xl" />
-                      ))}
-                    </div>
-                  ) : (
-                    <MetricsDashboard data={filteredData} previousData={previousCallData} />
-                  )}
+        {/* Key Metrics Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 font-medium">Calls Analyzed</p>
+                  <p className="text-3xl font-bold text-gray-900">{totalCalls}</p>
+                  <p className="text-xs text-blue-600 mt-1">Last {dateRange} days</p>
                 </div>
-                
-                {/* Analytics Tabs */}
-                <Tabs defaultValue="overview" className="space-y-6">
-                  <TabsList className="grid w-full grid-cols-5">
-                    <TabsTrigger value="overview" className="flex items-center space-x-2">
-                      <BarChart3 className="h-4 w-4" />
-                      <span>Overview</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="agents" className="flex items-center space-x-2">
-                      <Bot className="h-4 w-4" />
-                      <span>Agents</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="users" className="flex items-center space-x-2">
-                      <Users className="h-4 w-4" />
-                      <span>Users</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="revenue" className="flex items-center space-x-2">
-                      <DollarSign className="h-4 w-4" />
-                      <span>Revenue</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="export" className="flex items-center space-x-2">
-                      <Download className="h-4 w-4" />
-                      <span>Export</span>
-                    </TabsTrigger>
-                  </TabsList>
+                <BarChart3 className="h-12 w-12 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
 
-                  <TabsContent value="overview" className="space-y-6">
-                    <div className="space-y-2">
-                      <h2 className="text-2xl font-bold text-gray-900">Analytics Overview</h2>
-                      <p className="text-gray-600">Visual insights into call patterns, performance trends, and usage analytics</p>
-                    </div>
-                    {isLoading ? (
-                      <div className="space-y-6">
-                        <Skeleton className="h-[400px] rounded-lg" />
-                        <div className="grid gap-6 md:grid-cols-2">
-                          <Skeleton className="h-[300px] rounded-lg" />
-                          <Skeleton className="h-[300px] rounded-lg" />
-                        </div>
-                      </div>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 font-medium">Success Rate</p>
+                  <p className="text-3xl font-bold text-gray-900">{successRate.toFixed(1)}%</p>
+                  <div className="flex items-center mt-1">
+                    {successRate >= 80 ? (
+                      <TrendingUp className="w-3 h-3 text-green-600 mr-1" />
                     ) : (
-                      <AnalyticsCharts data={filteredData} />
+                      <TrendingDown className="w-3 h-3 text-red-600 mr-1" />
                     )}
-                  </TabsContent>
+                    <p className="text-xs text-gray-600">Completion rate</p>
+                  </div>
+                </div>
+                <Target className="h-12 w-12 text-green-600" />
+              </div>
+            </CardContent>
+          </Card>
 
-                  <TabsContent value="agents" className="space-y-6">
-                    <div className="space-y-2">
-                      <h2 className="text-2xl font-bold text-gray-900">Agent Performance Analytics</h2>
-                      <p className="text-gray-600">Detailed performance metrics and utilization statistics for all agents</p>
-                    </div>
-                    {isLoading ? (
-                      <div className="space-y-6">
-                        <div className="grid gap-4 md:grid-cols-3">
-                          {Array(3).fill(0).map((_, i) => (
-                            <Skeleton key={i} className="h-32 rounded-xl" />
-                          ))}
-                        </div>
-                        <Skeleton className="h-[400px] rounded-lg" />
-                      </div>
-                    ) : (
-                      <AgentAnalytics data={filteredData} />
-                    )}
-                  </TabsContent>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 font-medium">Avg Duration</p>
+                  <p className="text-3xl font-bold text-gray-900">{formatDuration(avgCallDuration)}</p>
+                  <p className="text-xs text-purple-600 mt-1">Per conversation</p>
+                </div>
+                <Clock className="h-12 w-12 text-purple-600" />
+              </div>
+            </CardContent>
+          </Card>
 
-                  <TabsContent value="users" className="space-y-6">
-                    <div className="space-y-2">
-                      <h2 className="text-2xl font-bold text-gray-900">User Engagement Analytics</h2>
-                      <p className="text-gray-600">Insights into user behavior, engagement patterns, and activity metrics</p>
-                    </div>
-                    {isLoading ? (
-                      <div className="space-y-6">
-                        <div className="grid gap-4 md:grid-cols-4">
-                          {Array(4).fill(0).map((_, i) => (
-                            <Skeleton key={i} className="h-24 rounded-xl" />
-                          ))}
-                        </div>
-                        <Skeleton className="h-[400px] rounded-lg" />
-                      </div>
-                    ) : (
-                      <UserAnalytics data={filteredData} />
-                    )}
-                  </TabsContent>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 font-medium">Total Cost</p>
+                  <p className="text-3xl font-bold text-gray-900">{formatCurrency(totalCost)}</p>
+                  <p className="text-xs text-orange-600 mt-1">Period total</p>
+                </div>
+                <DollarSign className="h-12 w-12 text-orange-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        {/* Analytics Tabs */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="sentiment">Sentiment</TabsTrigger>
+            <TabsTrigger value="efficiency">Efficiency</TabsTrigger>
+          </TabsList>
 
-                  <TabsContent value="revenue" className="space-y-6">
-                    <div className="space-y-2">
-                      <h2 className="text-2xl font-bold text-gray-900">Revenue & Cost Analytics</h2>
-                      <p className="text-gray-600">Financial performance tracking, cost analysis, and revenue optimization insights</p>
-                    </div>
-                    {isLoading ? (
-                      <div className="space-y-6">
-                        <div className="grid gap-4 md:grid-cols-4">
-                          {Array(4).fill(0).map((_, i) => (
-                            <Skeleton key={i} className="h-24 rounded-xl" />
-                          ))}
-                        </div>
-                        <Skeleton className="h-[400px] rounded-lg" />
-                      </div>
-                    ) : (
-                      <RevenueAnalytics data={filteredData} />
-                    )}
-                  </TabsContent>
+          <TabsContent value="overview" className="space-y-6">
+            {/* Daily Trends */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Phone className="h-5 w-5 text-blue-600" />
+                    Daily Call Volume
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={analyticsData.dailyData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                      <YAxis stroke="#64748b" fontSize={12} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="calls" 
+                        stroke="#3b82f6" 
+                        fill="#93c5fd"
+                        fillOpacity={0.6}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
 
-                  <TabsContent value="export" className="space-y-6">
-                    <div className="space-y-2">
-                      <h2 className="text-2xl font-bold text-gray-900">Data Export & Reporting</h2>
-                      <p className="text-gray-600">Export your analytics data in various formats for external analysis and reporting</p>
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-green-600" />
+                    Daily Cost Trend
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={analyticsData.dailyData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                      <YAxis stroke="#64748b" fontSize={12} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px'
+                        }}
+                        formatter={(value) => [formatCurrency(Number(value)), 'Cost']}
+                      />
+                      <Bar dataKey="cost" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Hourly Activity */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-purple-600" />
+                  Hourly Activity Pattern
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={400}>
+                  <ComposedChart data={analyticsData.hourlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="hour" stroke="#64748b" fontSize={12} />
+                    <YAxis yAxisId="left" stroke="#64748b" fontSize={12} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#64748b" fontSize={12} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar yAxisId="left" dataKey="calls" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
+                    <Line yAxisId="right" type="monotone" dataKey="avgDuration" stroke="#f59e0b" strokeWidth={3} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="performance" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                    Success Rate Trend
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={analyticsData.dailyData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                      <YAxis stroke="#64748b" fontSize={12} domain={[0, 100]} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px'
+                        }}
+                        formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Success Rate']}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="success" 
+                        stroke="#10b981" 
+                        strokeWidth={3}
+                        dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-blue-600" />
+                    Performance Metrics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-700">Completed Calls</span>
                     </div>
-                    <ExportControls data={filteredData} dateRange={dateRange} />
-                  </TabsContent>
-                </Tabs>
-              </>
-            )}
-          </>
-        )}
+                    <span className="text-lg font-bold text-green-600">
+                      {calls.filter(call => call.call_status === 'completed').length}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-700">Ended Calls</span>
+                    </div>
+                    <span className="text-lg font-bold text-blue-600">
+                      {calls.filter(call => call.call_status === 'ended').length}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-700">Error Calls</span>
+                    </div>
+                    <span className="text-lg font-bold text-red-600">
+                      {calls.filter(call => call.call_status === 'error').length}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-700">With Recording</span>
+                    </div>
+                    <span className="text-lg font-bold text-purple-600">
+                      {calls.filter(call => call.recording_url).length}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+          <TabsContent value="sentiment" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-yellow-600" />
+                    Sentiment Distribution
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Positive', value: sentimentDistribution.positive, color: '#10B981' },
+                          { name: 'Neutral', value: sentimentDistribution.neutral, color: '#6B7280' },
+                          { name: 'Negative', value: sentimentDistribution.negative, color: '#EF4444' },
+                        ].filter(item => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {[
+                          { name: 'Positive', value: sentimentDistribution.positive, color: '#10B981' },
+                          { name: 'Neutral', value: sentimentDistribution.neutral, color: '#6B7280' },
+                          { name: 'Negative', value: sentimentDistribution.negative, color: '#EF4444' },
+                        ].filter(item => item.value > 0).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                    Sentiment Trend
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={analyticsData.sentimentTrend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                      <YAxis stroke="#64748b" fontSize={12} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Area type="monotone" dataKey="positive" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} />
+                      <Area type="monotone" dataKey="neutral" stackId="1" stroke="#6b7280" fill="#6b7280" fillOpacity={0.6} />
+                      <Area type="monotone" dataKey="negative" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Sentiment Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+                <CardContent className="p-6 text-center">
+                  <Smile className="h-10 w-10 text-green-600 mx-auto mb-3" />
+                  <p className="text-2xl font-bold text-gray-900">{sentimentDistribution.positive}</p>
+                  <p className="text-sm text-gray-600">Positive Calls</p>
+                  <p className="text-xs text-green-600 mt-1">
+                    {totalCalls > 0 ? ((sentimentDistribution.positive / totalCalls) * 100).toFixed(1) : 0}% of total
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-gray-50 to-gray-100/50">
+                <CardContent className="p-6 text-center">
+                  <Meh className="h-10 w-10 text-gray-600 mx-auto mb-3" />
+                  <p className="text-2xl font-bold text-gray-900">{sentimentDistribution.neutral}</p>
+                  <p className="text-sm text-gray-600">Neutral Calls</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {totalCalls > 0 ? ((sentimentDistribution.neutral / totalCalls) * 100).toFixed(1) : 0}% of total
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100/50">
+                <CardContent className="p-6 text-center">
+                  <Frown className="h-10 w-10 text-red-600 mx-auto mb-3" />
+                  <p className="text-2xl font-bold text-gray-900">{sentimentDistribution.negative}</p>
+                  <p className="text-sm text-gray-600">Negative Calls</p>
+                  <p className="text-xs text-red-600 mt-1">
+                    {totalCalls > 0 ? ((sentimentDistribution.negative / totalCalls) * 100).toFixed(1) : 0}% of total
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+          <TabsContent value="efficiency" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Target className="h-5 w-5 text-purple-600" />
+                    Cost vs Duration Analysis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={analyticsData.dailyData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                      <YAxis stroke="#64748b" fontSize={12} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px'
+                        }}
+                        formatter={(value) => [formatCurrency(Number(value)), 'Daily Cost']}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="cost" 
+                        stroke="#8b5cf6" 
+                        fill="#c4b5fd"
+                        fillOpacity={0.6}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-orange-600" />
+                    Call Efficiency Metrics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Average Cost per Call</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {totalCalls > 0 ? formatCurrency(totalCost / totalCalls) : '$0.00'}
+                      </p>
+                    </div>
+                    <DollarSign className="h-8 w-8 text-blue-600" />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Cost per Minute</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {avgCallDuration > 0 ? formatCurrency((totalCost / totalCalls) / (avgCallDuration / 60)) : '$0.00'}
+                      </p>
+                    </div>
+                    <Clock className="h-8 w-8 text-green-600" />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">ROI Score</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {successRate.toFixed(0)}%
+                      </p>
+                      <p className="text-xs text-purple-600">Based on success rate</p>
+                    </div>
+                    <Target className="h-8 w-8 text-purple-600" />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Quality Score</p>
+                      <p className="text-2xl font-bold text-yellow-600">
+                        {totalCalls > 0 ? (
+                          ((sentimentDistribution.positive * 1 + sentimentDistribution.neutral * 0.5) / totalCalls * 100).toFixed(0)
+                        ) : 0}%
+                      </p>
+                      <p className="text-xs text-yellow-600">Based on sentiment</p>
+                    </div>
+                    <Zap className="h-8 w-8 text-yellow-600" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Efficiency Summary */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-indigo-600" />
+                  Efficiency Overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="text-center p-4 bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-lg">
+                    <p className="text-sm text-gray-600 font-medium">Total Conversations</p>
+                    <p className="text-2xl font-bold text-indigo-600">{totalCalls}</p>
+                  </div>
+                  <div className="text-center p-4 bg-gradient-to-br from-cyan-50 to-cyan-100/50 rounded-lg">
+                    <p className="text-sm text-gray-600 font-medium">Avg Talk Time</p>
+                    <p className="text-2xl font-bold text-cyan-600">{formatDuration(avgCallDuration)}</p>
+                  </div>
+                  <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-lg">
+                    <p className="text-sm text-gray-600 font-medium">Success Rate</p>
+                    <p className="text-2xl font-bold text-emerald-600">{successRate.toFixed(1)}%</p>
+                  </div>
+                  <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-lg">
+                    <p className="text-sm text-gray-600 font-medium">Total Investment</p>
+                    <p className="text-2xl font-bold text-amber-600">{formatCurrency(totalCost)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+        </Tabs>
       </div>
     </ProductionDashboardLayout>
   );
-};
-
-export default AnalyticsPage;
+}
