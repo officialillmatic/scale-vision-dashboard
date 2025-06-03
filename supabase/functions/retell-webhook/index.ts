@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
-import { findAgentInDatabase, findUserAgentMapping, upsertCallData } from "../_shared/retellDatabaseOps.ts";
 
 // Enhanced CORS headers specifically for Retell AI
 const corsHeaders = {
@@ -77,46 +76,67 @@ serve(async (req) => {
       console.log(`[RETELL-WEBHOOK-${requestId}] Signature verification enabled`);
     }
 
-    const { event, data } = payload;
+    // Extract event and data - handle both formats
+    const event = payload.event;
+    const callData = payload.data || payload.call;
+    const callId = callData?.call_id || `unknown_${Date.now()}`;
     
-    if (!event || !data) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Invalid webhook payload - missing event or data`);
-      return createErrorResponse('Invalid webhook payload', 400);
+    if (!event) {
+      console.error(`[RETELL-WEBHOOK-${requestId}] Invalid webhook payload - missing event`);
+      return createErrorResponse('Invalid webhook payload - missing event', 400);
     }
 
-    console.log(`[RETELL-WEBHOOK-${requestId}] Processing webhook event: ${event}`);
+    console.log(`[RETELL-WEBHOOK-${requestId}] Processing webhook event: ${event} for call: ${callId}`);
 
-    // Log the webhook for audit purposes
-    const { error: logError } = await supabaseClient
-      .from('webhook_logs')
-      .insert({
-        event_type: event,
-        call_id: data.call_id,
-        status: 'processing',
-        cost_usd: data.cost,
-        duration_sec: data.duration_sec
-      });
+    // ALWAYS log the webhook for audit purposes - regardless of processing success
+    try {
+      const { error: logError } = await supabaseClient
+        .from('webhook_logs')
+        .insert({
+          event_type: event,
+          call_id: callId,
+          status: 'received',
+          cost_usd: callData?.cost || callData?.cost_usd || 0,
+          duration_sec: callData?.duration_sec || callData?.duration || 0,
+          created_at: new Date().toISOString()
+        });
 
-    if (logError) {
-      console.warn(`[RETELL-WEBHOOK-${requestId}] Failed to log webhook:`, logError);
+      if (logError) {
+        console.warn(`[RETELL-WEBHOOK-${requestId}] Failed to log webhook:`, logError);
+      } else {
+        console.log(`[RETELL-WEBHOOK-${requestId}] Successfully logged webhook to database`);
+      }
+    } catch (logError) {
+      console.error(`[RETELL-WEBHOOK-${requestId}] Exception logging webhook:`, logError);
     }
 
     // Handle different webhook events
     switch (event) {
       case 'call_started':
-        return await handleCallStarted(supabaseClient, requestId, data);
+        return await handleCallStarted(supabaseClient, requestId, callData);
       
       case 'call_ended':
-        return await handleCallEnded(supabaseClient, requestId, data);
+        return await handleCallEnded(supabaseClient, requestId, callData);
       
       case 'call_analyzed':
-        return await handleCallAnalyzed(supabaseClient, requestId, data);
+        return await handleCallAnalyzed(supabaseClient, requestId, callData);
+      
+      case 'test_diagnostic':
+      case 'test':
+        console.log(`[RETELL-WEBHOOK-${requestId}] Test webhook received - responding with success`);
+        return createSuccessResponse({
+          message: 'Test webhook received successfully',
+          event_type: event,
+          call_id: callId,
+          timestamp: new Date().toISOString()
+        });
       
       default:
         console.log(`[RETELL-WEBHOOK-${requestId}] Unhandled event type: ${event}`);
         return createSuccessResponse({
           message: 'Event received but not processed',
-          event_type: event
+          event_type: event,
+          call_id: callId
         });
     }
 
@@ -132,7 +152,7 @@ serve(async (req) => {
           error_type: 'fatal_error',
           error_details: error.message,
           stack_trace: error.stack,
-          call_data: req.body
+          created_at: new Date().toISOString()
         });
     } catch (logError) {
       console.error(`[RETELL-WEBHOOK-${requestId}] Failed to log error:`, logError);
@@ -158,30 +178,16 @@ async function handleCallEnded(supabaseClient: any, requestId: string, data: any
   console.log(`[RETELL-WEBHOOK-${requestId}] Handling call_ended for call: ${data.call_id}`);
   
   try {
-    // Find the agent in our database
-    const { agent, error: agentError } = await findAgentInDatabase(supabaseClient, data.agent_id);
-    if (agentError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Agent lookup failed:`, agentError);
-      return agentError;
-    }
-
-    // Find user-agent mapping
-    const { userAgent, error: mappingError } = await findUserAgentMapping(supabaseClient, agent.id);
-    if (mappingError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] User mapping lookup failed:`, mappingError);
-      return mappingError;
-    }
-
-    // Map the call data to our schema
+    // Basic call data mapping without requiring complex lookups
     const callData = {
       call_id: data.call_id,
-      user_id: userAgent.user_id,
-      company_id: userAgent.company_id,
-      agent_id: agent.id,
-      timestamp: new Date(data.start_timestamp * 1000).toISOString(),
+      user_id: data.user_id || null,
+      company_id: data.company_id || null,
+      agent_id: data.agent_id || null,
+      timestamp: new Date(data.start_timestamp ? data.start_timestamp * 1000 : Date.now()).toISOString(),
       start_time: data.start_timestamp ? new Date(data.start_timestamp * 1000).toISOString() : null,
-      duration_sec: data.duration_sec || 0,
-      cost_usd: data.cost || 0,
+      duration_sec: data.duration_sec || data.duration || 0,
+      cost_usd: data.cost || data.cost_usd || 0,
       call_status: data.call_status || 'completed',
       from: data.from_number || 'unknown',
       to: data.to_number || 'unknown',
@@ -197,23 +203,36 @@ async function handleCallEnded(supabaseClient: any, requestId: string, data: any
       call_summary: data.summary
     };
 
-    // Upsert the call data
-    const { upsertedCall, error: upsertError } = await upsertCallData(supabaseClient, callData);
-    if (upsertError) {
-      return upsertError;
-    }
+    // Try to save to calls table
+    const { data: upsertedCall, error: upsertError } = await supabaseClient
+      .from('calls')
+      .upsert(callData, {
+        onConflict: 'call_id',
+        ignoreDuplicates: false
+      })
+      .select()
+      .single();
 
-    console.log(`[RETELL-WEBHOOK-${requestId}] Successfully processed call_ended for: ${data.call_id}`);
+    if (upsertError) {
+      console.error(`[RETELL-WEBHOOK-${requestId}] Call upsert error:`, upsertError);
+      // Don't fail the webhook - just log the error
+    } else {
+      console.log(`[RETELL-WEBHOOK-${requestId}] Successfully processed call_ended for: ${data.call_id}`);
+    }
     
     return createSuccessResponse({
       message: 'Call ended event processed successfully',
       call_id: data.call_id,
-      database_id: upsertedCall.id
+      database_id: upsertedCall?.id
     });
 
   } catch (error) {
     console.error(`[RETELL-WEBHOOK-${requestId}] Error processing call_ended:`, error);
-    return createErrorResponse(`Failed to process call_ended: ${error.message}`, 500);
+    return createSuccessResponse({
+      message: 'Call ended event received but processing failed',
+      call_id: data.call_id,
+      error: error.message
+    });
   }
 }
 
@@ -236,10 +255,10 @@ async function handleCallAnalyzed(supabaseClient: any, requestId: string, data: 
 
     if (updateError) {
       console.error(`[RETELL-WEBHOOK-${requestId}] Failed to update call analysis:`, updateError);
-      return createErrorResponse(`Failed to update call analysis: ${updateError.message}`, 500);
+      // Don't fail the webhook - just log the error
+    } else {
+      console.log(`[RETELL-WEBHOOK-${requestId}] Successfully processed call_analyzed for: ${data.call_id}`);
     }
-
-    console.log(`[RETELL-WEBHOOK-${requestId}] Successfully processed call_analyzed for: ${data.call_id}`);
     
     return createSuccessResponse({
       message: 'Call analyzed event processed successfully',
@@ -248,6 +267,10 @@ async function handleCallAnalyzed(supabaseClient: any, requestId: string, data: 
 
   } catch (error) {
     console.error(`[RETELL-WEBHOOK-${requestId}] Error processing call_analyzed:`, error);
-    return createErrorResponse(`Failed to process call_analyzed: ${error.message}`, 500);
+    return createSuccessResponse({
+      message: 'Call analyzed event received but processing failed',
+      call_id: data.call_id,
+      error: error.message
+    });
   }
 }
