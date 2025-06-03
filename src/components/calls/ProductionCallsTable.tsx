@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,7 @@ export const ProductionCallsTable = () => {
   
   const { calls, isLoading, error, syncCallsSecurely } = useSecureCallData();
   
-  // AGREGAR ESTOS LOGS AQUÍ:
+  // LOGS DE DEBUG DETALLADOS - INMEDIATAMENTE DESPUÉS DEL HOOK
   console.log("🔥 DATOS COMPLETOS DEL HOOK:", { 
     calls, 
     callsLength: calls?.length, 
@@ -23,10 +22,14 @@ export const ProductionCallsTable = () => {
     firstCall: calls?.[0]
   });
 
-  calls?.forEach((call, index) => {
-    console.log(`🔥 LLAMADA ${index + 1}:`, call);
-  });
-  
+  if (calls && calls.length > 0) {
+    calls.forEach((call, index) => {
+      console.log(`🔥 LLAMADA ${index + 1}:`, call);
+    });
+  } else {
+    console.log("🔥 NO HAY LLAMADAS - calls es:", calls);
+  }
+
   console.log("🔥 DATOS DEL HOOK:", { 
     calls: calls?.length, 
     isLoading, 
