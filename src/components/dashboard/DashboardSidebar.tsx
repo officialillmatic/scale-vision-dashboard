@@ -1,4 +1,3 @@
-
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -41,7 +40,7 @@ const navigationItems = [
   {
     href: "/calls-simple",
     icon: () => <Phone className="h-5 w-5" />,
-    label: "Mis Llamadas",
+    label: "My Calls",
   },
   {
     href: "/analytics",
