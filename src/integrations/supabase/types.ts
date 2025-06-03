@@ -66,7 +66,7 @@ export type Database = {
           call_status: string
           call_summary: string | null
           call_type: string
-          company_id: string
+          company_id: string | null
           cost_usd: number
           disconnection_reason: string | null
           disposition: string | null
@@ -86,7 +86,7 @@ export type Database = {
           to_number: string | null
           transcript: string | null
           transcript_url: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           agent_id?: string | null
@@ -97,7 +97,7 @@ export type Database = {
           call_status?: string
           call_summary?: string | null
           call_type?: string
-          company_id: string
+          company_id?: string | null
           cost_usd?: number
           disconnection_reason?: string | null
           disposition?: string | null
@@ -117,7 +117,7 @@ export type Database = {
           to_number?: string | null
           transcript?: string | null
           transcript_url?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           agent_id?: string | null
@@ -128,7 +128,7 @@ export type Database = {
           call_status?: string
           call_summary?: string | null
           call_type?: string
-          company_id?: string
+          company_id?: string | null
           cost_usd?: number
           disconnection_reason?: string | null
           disposition?: string | null
@@ -148,28 +148,14 @@ export type Database = {
           to_number?: string | null
           transcript?: string | null
           transcript_url?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "calls_agent_id_fkey"
-            columns: ["agent_id"]
-            isOneToOne: false
-            referencedRelation: "agents"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "calls_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_calls_agent_id"
-            columns: ["agent_id"]
-            isOneToOne: false
-            referencedRelation: "agents"
             referencedColumns: ["id"]
           },
         ]
