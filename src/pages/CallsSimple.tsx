@@ -18,7 +18,9 @@ import {
   TrendingUp,
   Filter,
   Eye,
-  ArrowUpDown
+  ArrowUpDown,
+  Volume2,
+  Download
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
@@ -37,6 +39,7 @@ interface Call {
   transcript?: string;
   call_summary?: string;
   sentiment?: string;
+  recording_url?: string; // Added back for checking
 }
 
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
@@ -79,24 +82,10 @@ export default function CallsSimple() {
 
       console.log("🔍 Fetching calls for user:", USER_ID);
 
+      // First, try to get all available columns
       const { data, error: fetchError } = await supabase
         .from('calls')
-        .select(`
-          id,
-          call_id,
-          user_id,
-          agent_id,
-          company_id,
-          timestamp,
-          duration_sec,
-          cost_usd,
-          call_status,
-          from_number,
-          to_number,
-          transcript,
-          call_summary,
-          sentiment
-        `)
+        .select('*') // Select all columns to see what's available
         .eq('user_id', USER_ID)
         .order('timestamp', { ascending: false });
 
@@ -107,13 +96,14 @@ export default function CallsSimple() {
       }
 
       console.log("✅ Calls fetched successfully:", data?.length || 0);
+      console.log("📊 Sample call data:", data?.[0]); // Log first call to see structure
       setCalls(data || []);
 
-      // Calculate statistics
+      // Calculate statistics with corrected duration calculation
       if (data && data.length > 0) {
         const totalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
         const totalDuration = data.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
-        const avgDuration = totalDuration / data.length;
+        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
         const completedCalls = data.filter(call => call.call_status === 'completed').length;
 
         setStats({
@@ -190,9 +180,11 @@ export default function CallsSimple() {
     setSelectedCall(null);
   };
 
+  // Fixed duration formatting
   const formatDuration = (seconds: number) => {
+    if (!seconds || seconds === 0) return "0:00";
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -223,11 +215,10 @@ export default function CallsSimple() {
     });
   };
 
-  const maskPhoneNumber = (phone: string) => {
+  // Fixed phone number display - show full number without masking
+  const formatPhoneNumber = (phone: string) => {
     if (!phone || phone === 'unknown') return 'Unknown';
-    if (phone.length >= 10) {
-      return `${phone.substring(0, 4)}****${phone.substring(phone.length - 3)}`;
-    }
+    // Return full phone number without masking
     return phone;
   };
 
@@ -475,7 +466,7 @@ export default function CallsSimple() {
                         <td className="px-4 py-4">
                           <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
                             <Phone className="h-3 w-3 text-gray-400" />
-                            {maskPhoneNumber(call.from_number)} → {maskPhoneNumber(call.to_number)}
+                            {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
                           </div>
                           <div className="text-xs text-gray-500 font-mono">
                             ID: {call.call_id.substring(0, 16)}...
@@ -524,6 +515,12 @@ export default function CallsSimple() {
                                 Summary
                               </div>
                             )}
+                            {call.recording_url && (
+                              <div className="flex items-center gap-1 text-xs text-red-600">
+                                <Volume2 className="h-3 w-3" />
+                                Audio
+                              </div>
+                            )}
                           </div>
                           {call.call_summary && (
                             <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
@@ -545,6 +542,22 @@ export default function CallsSimple() {
                             >
                               <Eye className="h-3 w-3" />
                             </Button>
+                            {call.recording_url && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 w-6 p-0"
+                                asChild
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <a
+                                  href={call.recording_url}
+                                  download={`call-${call.call_id}.mp3`}
+                                >
+                                  <Download className="h-3 w-3" />
+                                </a>
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
