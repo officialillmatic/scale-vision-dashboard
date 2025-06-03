@@ -45,12 +45,14 @@ interface CallDetailModalProps {
   call: Call | null;
   isOpen: boolean;
   onClose: () => void;
+  audioDuration?: number;
 }
 
 export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   call,
   isOpen,
   onClose,
+  audioDuration,
 }) => {
   const [copied, setCopied] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -92,28 +94,51 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     }
   };
 
+  // Helper function to get actual duration from call object or audio
+  const getCallDuration = (call: any) => {
+    // First try to get duration from passed audio duration
+    if (audioDuration) {
+      console.log(`🎵 Modal - Using passed audio duration: ${audioDuration}s`);
+      return audioDuration;
+    }
+    
+    // Try different possible duration fields from database
+    const possibleFields = [
+      'duration_sec',
+      'duration', 
+      'call_duration',
+      'length',
+      'time_duration',
+      'total_duration'
+    ];
+    
+    for (const field of possibleFields) {
+      if (call[field] && call[field] > 0) {
+        console.log(`🎵 Modal - Found non-zero duration in field '${field}':`, call[field]);
+        return call[field];
+      }
+    }
+    
+    console.log("🎵 Modal - No duration found, using 0");
+    return 0;
+  };
+
   // Fixed duration formatting - same as in CallsSimple.tsx with debug
   const formatDuration = (seconds: number) => {
-    console.log("🎵 Modal - Formatting duration:", seconds, typeof seconds);
-    
     // Handle null, undefined, or non-numeric values
     if (seconds === null || seconds === undefined || isNaN(seconds)) {
-      console.log("🎵 Modal - Duration is null/undefined/NaN");
       return "0:00";
     }
     
     // Convert to number if it's a string
     const numSeconds = Number(seconds);
     if (numSeconds === 0) {
-      console.log("🎵 Modal - Duration is exactly 0");
       return "0:00";
     }
     
     const mins = Math.floor(numSeconds / 60);
     const secs = Math.floor(numSeconds % 60);
-    const result = `${mins}:${secs.toString().padStart(2, '0')}`;
-    console.log("🎵 Modal - Formatted result:", result);
-    return result;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Audio time formatting
@@ -226,7 +251,10 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">Duration:</span>
-                      <span className="text-sm font-bold text-blue-600">{formatDuration(call.duration_sec)}</span>
+                      <span className="text-sm font-bold text-blue-600">
+                        {formatDuration(getCallDuration(call))}
+                        {audioDuration && <span className="text-xs text-gray-500 ml-1">(from audio)</span>}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-4 w-4 text-gray-500" />
@@ -324,7 +352,7 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                       <Clock className="h-6 w-6 text-blue-600 mx-auto mb-1" />
                       <div className="text-sm font-medium text-blue-800">Duration</div>
                       <div className="text-lg font-bold text-blue-900">
-                        {formatDuration(call.duration_sec)}
+                        {formatDuration(getCallDuration(call))}
                       </div>
                     </div>
                     <div className="p-3 bg-green-50 rounded-lg">
