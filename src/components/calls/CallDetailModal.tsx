@@ -92,12 +92,28 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     }
   };
 
-  // Fixed duration formatting - same as in CallsSimple.tsx
+  // Fixed duration formatting - same as in CallsSimple.tsx with debug
   const formatDuration = (seconds: number) => {
-    if (!seconds || seconds === 0) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    console.log("🎵 Modal - Formatting duration:", seconds, typeof seconds);
+    
+    // Handle null, undefined, or non-numeric values
+    if (seconds === null || seconds === undefined || isNaN(seconds)) {
+      console.log("🎵 Modal - Duration is null/undefined/NaN");
+      return "0:00";
+    }
+    
+    // Convert to number if it's a string
+    const numSeconds = Number(seconds);
+    if (numSeconds === 0) {
+      console.log("🎵 Modal - Duration is exactly 0");
+      return "0:00";
+    }
+    
+    const mins = Math.floor(numSeconds / 60);
+    const secs = Math.floor(numSeconds % 60);
+    const result = `${mins}:${secs.toString().padStart(2, '0')}`;
+    console.log("🎵 Modal - Formatted result:", result);
+    return result;
   };
 
   // Audio time formatting
@@ -166,7 +182,8 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   // Console log for debugging
   console.log("🎵 Call data in modal:", call);
   console.log("🎵 Recording URL:", call.recording_url);
-  console.log("🎵 Duration sec:", call.duration_sec);
+  console.log("🎵 Duration sec:", call.duration_sec, typeof call.duration_sec);
+  console.log("🎵 Raw call object keys:", Object.keys(call));
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
