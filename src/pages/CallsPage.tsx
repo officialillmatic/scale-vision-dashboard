@@ -13,32 +13,53 @@ import { SyncTestPanel } from "@/components/calls/SyncTestPanel";
 import { CallSyncDebugPanel } from "@/components/calls/CallSyncDebugPanel";
 import { CallDataDebugPanel } from "@/components/debug/CallDataDebugPanel";
 import { WebhookDiagnostics } from "@/components/calls/WebhookDiagnostics";
-import { useRetellCalls } from "@/hooks/useRetellCalls";
+// ✅ CAMBIO: Usar useSecureCallData en lugar de useRetellCalls
 import { useSecureCallData } from "@/hooks/useSecureCallData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 export default function CallsPage() {
-  console.log("🔥 CALLS PAGE RENDERIZADA");
+  console.log("🔥 CALLS PAGE RENDERIZADA - USANDO SECURE HOOK");
   
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
-  const { retellCalls, isLoading: retellLoading, error: retellError, refetch } = useRetellCalls();
   
-  // También usar el hook de ProductionCallsTable para comparar
+  // ✅ CAMBIO: Usar useSecureCallData como fuente principal
   const { calls: secureCalls, isLoading: secureLoading, error: secureError } = useSecureCallData();
+  
+  // ✅ MAPEAR secureCalls al formato esperado por RetellCallDataTable
+  const retellCalls = secureCalls.map(call => ({
+    id: call.id,
+    call_id: call.call_id,
+    user_id: call.user_id,
+    agent_id: call.agent_id,
+    company_id: call.company_id,
+    start_timestamp: call.timestamp || call.start_time,
+    end_timestamp: call.start_time,
+    duration_sec: call.duration_sec || 0,
+    cost_usd: call.cost_usd || 0,
+    revenue_amount: call.revenue_amount || 0,
+    call_status: call.call_status || 'unknown',
+    from_number: call.from_number,
+    to_number: call.to_number,
+    transcript: call.transcript,
+    recording_url: call.audio_url,
+    call_summary: call.call_summary,
+    sentiment: call.sentiment,
+    disposition: call.disposition,
+    latency_ms: call.latency_ms,
+    agent: null // Será mapeado si es necesario
+  }));
 
-  console.log("🔥 CALLS PAGE - HOOKS DATA:", {
-    retellCalls: retellCalls?.length || 0,
-    retellLoading,
-    retellError: retellError?.message,
+  console.log("🔥 CALLS PAGE - SECURE HOOK DATA:", {
     secureCalls: secureCalls?.length || 0,
     secureLoading,
-    secureError: secureError?.message
+    secureError: secureError?.message,
+    mappedRetellCalls: retellCalls?.length || 0
   });
 
   const handleSyncComplete = () => {
     console.log('[CALLS_PAGE] Sync completed, refreshing call data...');
-    refetch();
+    // El useSecureCallData debería refrescar automáticamente
   };
 
   const totalCalls = retellCalls.length;
@@ -85,15 +106,16 @@ export default function CallsPage() {
         </div>
 
         {/* Show error alert if there's an error */}
-        <CallTableErrorAlert error={retellError} />
+        <CallTableErrorAlert error={secureError} />
 
-        {/* Debug Info Card */}
-        <Card className="border-2 border-yellow-200 bg-yellow-50">
+        {/* Debug Info Card - ACTUALIZADO */}
+        <Card className="border-2 border-green-200 bg-green-50">
           <CardContent className="p-4">
-            <h3 className="font-medium text-yellow-800 mb-2">🔥 DEBUG INFO</h3>
-            <div className="text-sm text-yellow-700 space-y-1">
-              <p><strong>Retell Calls:</strong> {retellCalls?.length || 0} | Loading: {retellLoading ? 'Yes' : 'No'} | Error: {retellError?.message || 'None'}</p>
-              <p><strong>Secure Calls:</strong> {secureCalls?.length || 0} | Loading: {secureLoading ? 'Yes' : 'No'} | Error: {secureError?.message || 'None'}</p>
+            <h3 className="font-medium text-green-800 mb-2">✅ DEBUG INFO - USANDO SECURE HOOK</h3>
+            <div className="text-sm text-green-700 space-y-1">
+              <p><strong>Secure Calls (Fuente Principal):</strong> {secureCalls?.length || 0} | Loading: {secureLoading ? 'Yes' : 'No'} | Error: {secureError?.message || 'None'}</p>
+              <p><strong>Mapped Retell Calls:</strong> {retellCalls?.length || 0}</p>
+              <p><strong>Hook Usado:</strong> useSecureCallData ✅</p>
             </div>
           </CardContent>
         </Card>
@@ -182,12 +204,12 @@ export default function CallsPage() {
 
           <TabsContent value="calls">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: calls (Call History)");
+              console.log("🔍 RENDERIZANDO TAB: calls (Call History) - CON SECURE HOOK");
               return (
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="border-b border-gray-100">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-xl font-semibold text-gray-900">Recent Calls (Retell Hook)</CardTitle>
+                      <CardTitle className="text-xl font-semibold text-gray-900">Recent Calls (Secure Hook ✅)</CardTitle>
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
@@ -206,14 +228,14 @@ export default function CallsPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
-                    {retellLoading ? (
+                    {secureLoading ? (
                       <div className="flex items-center justify-center py-12">
                         <LoadingSpinner size="lg" />
                       </div>
                     ) : (
                       <RetellCallDataTable
                         calls={retellCalls}
-                        isLoading={retellLoading}
+                        isLoading={secureLoading}
                         searchTerm={searchTerm}
                         date={selectedDate}
                         onSelectCall={(call) => console.log('Selected call:', call)}
