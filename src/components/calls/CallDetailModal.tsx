@@ -16,7 +16,11 @@ import {
   MessageSquare,
   FileText,
   Activity,
-  Info
+  Info,
+  Volume2,
+  Play,
+  Pause,
+  Download
 } from "lucide-react";
 
 interface Call {
@@ -34,6 +38,7 @@ interface Call {
   transcript?: string;
   call_summary?: string;
   sentiment?: string;
+  recording_url?: string;
 }
 
 interface CallDetailModalProps {
@@ -48,11 +53,59 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
+  // Audio setup
+  useEffect(() => {
+    if (call?.recording_url) {
+      const audio = new Audio(call.recording_url);
+      setAudioElement(audio);
+
+      const updateTime = () => setCurrentTime(audio.currentTime);
+      const updateDuration = () => setDuration(audio.duration);
+      const handleEnded = () => setIsPlaying(false);
+
+      audio.addEventListener('timeupdate', updateTime);
+      audio.addEventListener('loadedmetadata', updateDuration);
+      audio.addEventListener('ended', handleEnded);
+
+      return () => {
+        audio.removeEventListener('timeupdate', updateTime);
+        audio.removeEventListener('loadedmetadata', updateDuration);
+        audio.removeEventListener('ended', handleEnded);
+        audio.pause();
+      };
+    }
+  }, [call?.recording_url]);
+
+  const togglePlayPause = () => {
+    if (audioElement) {
+      if (isPlaying) {
+        audioElement.pause();
+      } else {
+        audioElement.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  // Fixed duration formatting - same as in CallsSimple.tsx
   const formatDuration = (seconds: number) => {
+    if (!seconds || seconds === 0) return "0:00";
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Audio time formatting
+  const formatTime = (time: number) => {
+    if (!time || isNaN(time)) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   const formatCurrency = (amount: number) => {
@@ -110,6 +163,11 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
 
   if (!call) return null;
 
+  // Console log for debugging
+  console.log("🎵 Call data in modal:", call);
+  console.log("🎵 Recording URL:", call.recording_url);
+  console.log("🎵 Duration sec:", call.duration_sec);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
@@ -125,10 +183,11 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
 
         <div className="overflow-y-auto">
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="analysis">Analysis</TabsTrigger>
               <TabsTrigger value="transcript">Transcript</TabsTrigger>
+              <TabsTrigger value="audio">Audio</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-4">
@@ -150,7 +209,7 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">Duration:</span>
-                      <span className="text-sm">{formatDuration(call.duration_sec)}</span>
+                      <span className="text-sm font-bold text-blue-600">{formatDuration(call.duration_sec)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-4 w-4 text-gray-500" />
@@ -304,6 +363,98 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                     <div className="text-center py-8 text-gray-500">
                       <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                       <p>No transcript available for this call</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="audio" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Volume2 className="h-5 w-5 text-red-600" />
+                    Audio Recording
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {call.recording_url ? (
+                    <div className="space-y-4">
+                      {/* Custom Audio Player Controls */}
+                      <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={togglePlayPause}
+                          className="flex items-center gap-2"
+                        >
+                          {isPlaying ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                          {isPlaying ? 'Pause' : 'Play'}
+                        </Button>
+                        
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="text-sm text-gray-600 min-w-12">
+                            {formatTime(currentTime)}
+                          </span>
+                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all"
+                              style={{
+                                width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%'
+                              }}
+                            />
+                          </div>
+                          <span className="text-sm text-gray-600 min-w-12">
+                            {formatTime(duration)}
+                          </span>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                        >
+                          <a
+                            href={call.recording_url}
+                            download={`call-${call.call_id}.mp3`}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            Download
+                          </a>
+                        </Button>
+                      </div>
+
+                      {/* Native Audio Element (visible for fallback) */}
+                      <div className="border-t pt-4">
+                        <p className="text-sm text-gray-600 mb-2">Native audio controls:</p>
+                        <audio
+                          src={call.recording_url}
+                          className="w-full"
+                          controls
+                          preload="metadata"
+                        />
+                      </div>
+
+                      {/* Debug info */}
+                      <div className="text-xs text-gray-500 mt-2 p-2 bg-yellow-50 rounded">
+                        <strong>Debug:</strong> Recording URL: {call.recording_url}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Volume2 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-lg font-medium mb-2">No audio recording available</p>
+                      <p className="text-sm">This call does not have a recording URL</p>
+                      
+                      {/* Debug info when no recording */}
+                      <div className="text-xs text-gray-400 mt-4 p-2 bg-gray-50 rounded">
+                        <strong>Debug:</strong> recording_url field is {call.recording_url ? 'present but empty' : 'not present'}
+                      </div>
                     </div>
                   )}
                 </CardContent>
