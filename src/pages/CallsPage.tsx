@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +12,7 @@ import { SyncDebugPanel } from "@/components/calls/SyncDebugPanel";
 import { SyncTestPanel } from "@/components/calls/SyncTestPanel";
 import { CallSyncDebugPanel } from "@/components/calls/CallSyncDebugPanel";
 import { CallDataDebugPanel } from "@/components/debug/CallDataDebugPanel";
+import { WebhookDiagnostics } from "@/components/calls/WebhookDiagnostics";
 import { useRetellCalls } from "@/hooks/useRetellCalls";
 import { useSecureCallData } from "@/hooks/useSecureCallData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -159,7 +159,7 @@ export default function CallsPage() {
 
         {/* Main Content */}
         <Tabs defaultValue="calls" onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="calls">Call History</TabsTrigger>
             <TabsTrigger value="production-calls">Production Table</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -172,6 +172,10 @@ export default function CallsPage() {
             <TabsTrigger value="data-debug" className="text-orange-600">
               <Bug className="w-3 h-3 mr-1" />
               Data Debug
+            </TabsTrigger>
+            <TabsTrigger value="webhook-debug" className="text-purple-600">
+              <Bug className="w-3 h-3 mr-1" />
+              Webhook Debug
             </TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
@@ -285,6 +289,13 @@ export default function CallsPage() {
             {(() => {
               console.log("🔍 RENDERIZANDO TAB: data-debug");
               return <CallDataDebugPanel />;
+            })()}
+          </TabsContent>
+
+          <TabsContent value="webhook-debug">
+            {(() => {
+              console.log("🔍 RENDERIZANDO TAB: webhook-debug");
+              return <WebhookDiagnostics />;
             })()}
           </TabsContent>
 
