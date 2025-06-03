@@ -13,7 +13,6 @@ export const ProductionCallsTable = () => {
   
   const { calls, isLoading, error, syncCallsSecurely } = useSecureCallData();
   
-  // LOGS DE DEBUG DETALLADOS - INMEDIATAMENTE DESPUÉS DEL HOOK
   console.log("🔥 DATOS COMPLETOS DEL HOOK:", { 
     calls, 
     callsLength: calls?.length, 
