@@ -60,6 +60,12 @@ export default function CallsPage() {
     }).format(amount);
   };
 
+  // Debug handler para cambios de pestaña
+  const handleTabChange = (value: string) => {
+    console.log("🔍 PESTAÑA SELECCIONADA:", value);
+    console.log("🔍 TIMESTAMP:", new Date().toISOString());
+  };
+
   return (
     <ProductionDashboardLayout>
       <div className="space-y-6">
@@ -152,7 +158,7 @@ export default function CallsPage() {
         </div>
 
         {/* Main Content */}
-        <Tabs defaultValue="calls" className="space-y-4">
+        <Tabs defaultValue="calls" onValueChange={handleTabChange} className="space-y-4">
           <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="calls">Call History</TabsTrigger>
             <TabsTrigger value="production-calls">Production Table</TabsTrigger>
@@ -171,94 +177,132 @@ export default function CallsPage() {
           </TabsList>
 
           <TabsContent value="calls">
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl font-semibold text-gray-900">Recent Calls (Retell Hook)</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Search calls..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="px-3 py-2 border border-gray-200 rounded-md text-sm"
-                    />
-                    <input
-                      type="date"
-                      value={selectedDate?.toISOString().split('T')[0] || ''}
-                      onChange={(e) => setSelectedDate(e.target.value ? new Date(e.target.value) : undefined)}
-                      className="px-3 py-2 border border-gray-200 rounded-md text-sm"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {retellLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <LoadingSpinner size="lg" />
-                  </div>
-                ) : (
-                  <RetellCallDataTable
-                    calls={retellCalls}
-                    isLoading={retellLoading}
-                    searchTerm={searchTerm}
-                    date={selectedDate}
-                    onSelectCall={(call) => console.log('Selected call:', call)}
-                  />
-                )}
-              </CardContent>
-            </Card>
+            {(() => {
+              console.log("🔍 RENDERIZANDO TAB: calls (Call History)");
+              return (
+                <Card className="border-0 shadow-sm">
+                  <CardHeader className="border-b border-gray-100">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-xl font-semibold text-gray-900">Recent Calls (Retell Hook)</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Search calls..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-md text-sm"
+                        />
+                        <input
+                          type="date"
+                          value={selectedDate?.toISOString().split('T')[0] || ''}
+                          onChange={(e) => setSelectedDate(e.target.value ? new Date(e.target.value) : undefined)}
+                          className="px-3 py-2 border border-gray-200 rounded-md text-sm"
+                        />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {retellLoading ? (
+                      <div className="flex items-center justify-center py-12">
+                        <LoadingSpinner size="lg" />
+                      </div>
+                    ) : (
+                      <RetellCallDataTable
+                        calls={retellCalls}
+                        isLoading={retellLoading}
+                        searchTerm={searchTerm}
+                        date={selectedDate}
+                        onSelectCall={(call) => console.log('Selected call:', call)}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </TabsContent>
 
           <TabsContent value="production-calls">
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="border-b border-gray-100">
-                <CardTitle className="text-xl font-semibold text-gray-900">Production Calls Table (Secure Hook)</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ProductionCallsTable />
-              </CardContent>
-            </Card>
+            {(() => {
+              console.log("🔍 RENDERIZANDO TAB: production-calls");
+              console.log("🔍 A PUNTO DE RENDERIZAR ProductionCallsTable");
+              console.log("🔍 COMPONENTE ProductionCallsTable:", ProductionCallsTable);
+              return (
+                <Card className="border-0 shadow-sm">
+                  <CardHeader className="border-b border-gray-100">
+                    <CardTitle className="text-xl font-semibold text-gray-900">Production Calls Table (Secure Hook)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="p-4 bg-blue-50 border border-blue-200 mb-4">
+                      <p className="text-blue-800 font-medium">🔍 DEBUG: About to render ProductionCallsTable</p>
+                      <p className="text-blue-700 text-sm">If you see this but no ProductionCallsTable logs, there's an import or component issue.</p>
+                    </div>
+                    <ProductionCallsTable />
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </TabsContent>
 
           <TabsContent value="analytics">
-            <Card className="border-0 shadow-sm">
-              <CardContent className="p-6">
-                <div className="text-center py-12 text-gray-500">
-                  <BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-lg font-medium mb-2">Analytics Dashboard</p>
-                  <p className="text-sm">Call analytics and insights will be displayed here.</p>
-                </div>
-              </CardContent>
-            </Card>
+            {(() => {
+              console.log("🔍 RENDERIZANDO TAB: analytics");
+              return (
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="p-6">
+                    <div className="text-center py-12 text-gray-500">
+                      <BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-lg font-medium mb-2">Analytics Dashboard</p>
+                      <p className="text-sm">Call analytics and insights will be displayed here.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </TabsContent>
 
           <TabsContent value="debug">
-            <SyncDebugPanel />
+            {(() => {
+              console.log("🔍 RENDERIZANDO TAB: debug");
+              return <SyncDebugPanel />;
+            })()}
           </TabsContent>
 
           <TabsContent value="test">
-            <SyncTestPanel />
+            {(() => {
+              console.log("🔍 RENDERIZANDO TAB: test");
+              return <SyncTestPanel />;
+            })()}
           </TabsContent>
 
           <TabsContent value="sync-debug">
-            <CallSyncDebugPanel />
+            {(() => {
+              console.log("🔍 RENDERIZANDO TAB: sync-debug");
+              return <CallSyncDebugPanel />;
+            })()}
           </TabsContent>
 
           <TabsContent value="data-debug">
-            <CallDataDebugPanel />
+            {(() => {
+              console.log("🔍 RENDERIZANDO TAB: data-debug");
+              return <CallDataDebugPanel />;
+            })()}
           </TabsContent>
 
           <TabsContent value="settings">
-            <Card className="border-0 shadow-sm">
-              <CardContent className="p-6">
-                <div className="text-center py-12 text-gray-500">
-                  <Settings className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-lg font-medium mb-2">Call Settings</p>
-                  <p className="text-sm">Configuration options for call management.</p>
-                </div>
-              </CardContent>
-            </Card>
+            {(() => {
+              console.log("🔍 RENDERIZANDO TAB: settings");
+              return (
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="p-6">
+                    <div className="text-center py-12 text-gray-500">
+                      <Settings className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-lg font-medium mb-2">Call Settings</p>
+                      <p className="text-sm">Configuration options for call management.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </TabsContent>
         </Tabs>
       </div>
