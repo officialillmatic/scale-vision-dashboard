@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,14 @@ export const ProductionCallsTable = () => {
     totalCost,
     totalDuration,
     callsArray: calls
+  });
+
+  // Debug log just before rendering calls
+  console.log("🔥 RENDER DE LLAMADAS:", {
+    callsLength: calls.length,
+    calls: calls,
+    shouldShowCalls: calls.length > 0,
+    firstCall: calls[0]
   });
 
   return (
