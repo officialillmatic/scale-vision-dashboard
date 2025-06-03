@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -111,8 +110,8 @@ export const ProductionCallsTable = () => {
   console.log("🔍 PASO 5: Antes de calcular totales");
 
   const totalCalls = calls.length;
-  const totalCost = calls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-  const totalDuration = calls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
+  const totalCost = calls.reduce((sum, call) => sum + (call.cost_usd || call.cost || 0), 0);
+  const totalDuration = calls.reduce((sum, call) => sum + (call.duration_sec || call.duration || 0), 0);
 
   console.log("🔍 PASO 6: Después de calcular totales", {
     totalCalls,
