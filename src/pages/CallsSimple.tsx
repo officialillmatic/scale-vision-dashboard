@@ -697,3 +697,207 @@ export default function CallsSimple() {
     </ProductionDashboardLayout>
   );
 }
+{/* Professional Calls Table */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="border-b border-gray-100 pb-4">
+              <CardTitle className="text-xl font-semibold text-gray-900">
+                📋 Call History ({filteredCalls.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size="lg" />
+                  <span className="ml-3 text-gray-600">Loading calls...</span>
+                </div>
+              ) : filteredCalls.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Phone className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-lg font-medium mb-2">No calls found</p>
+                  <p className="text-sm">No calls match your current filters</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('timestamp')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Date & Time {getSortIcon('timestamp')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Call Details
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('duration_sec')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Duration {getSortIcon('duration_sec')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('cost_usd')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Cost {getSortIcon('cost_usd')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('call_status')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Status {getSortIcon('call_status')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Content
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredCalls.map((call, index) => (
+                        <tr 
+                          key={call.id} 
+                          className="hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => handleCallClick(call)}
+                        >
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900 font-medium">
+                              {formatDate(call.timestamp).split(',')[0]}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {formatTime(call.timestamp)}
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
+                              <Phone className="h-3 w-3 text-gray-400" />
+                              {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono">
+                              ID: {call.call_id.substring(0, 16)}...
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatDuration(getCallDuration(call))}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {audioDurations[call.id] ? 
+                                `${getCallDuration(call)}s (from audio)` : 
+                                `${getCallDuration(call)}s`
+                              }
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatCurrency(call.cost_usd)}
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
+                                {call.call_status}
+                              </Badge>
+                              {call.sentiment && (
+                                <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
+                                  {call.sentiment}
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              {call.transcript && (
+                                <div className="flex items-center gap-1 text-xs text-green-600">
+                                  <FileText className="h-3 w-3" />
+                                  Transcript
+                                </div>
+                              )}
+                              {call.call_summary && (
+                                <div className="flex items-center gap-1 text-xs text-blue-600">
+                                  <PlayCircle className="h-3 w-3" />
+                                  Summary
+                                </div>
+                              )}
+                              {call.recording_url && (
+                                <div className="flex items-center gap-1 text-xs text-red-600">
+                                  <Volume2 className="h-3 w-3" />
+                                  Audio
+                                </div>
+                              )}
+                            </div>
+                            {call.call_summary && (
+                              <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
+                                {call.call_summary}
+                              </div>
+                            )}
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCallClick(call);
+                                }}
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              {call.recording_url && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-6 w-6 p-0"
+                                  asChild
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <a
+                                    href={call.recording_url}
+                                    download={`call-${call.call_id}.mp3`}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Call Detail Modal */}
+          <CallDetailModal 
+            call={selectedCall}
+            isOpen={isModalOpen}
+            onClose={handleModalClose}
+            audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
+          />
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+}
