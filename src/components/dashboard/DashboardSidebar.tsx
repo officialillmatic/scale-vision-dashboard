@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Phone } from "lucide-react";
 
 const navigationItems = [
   {
@@ -36,6 +37,11 @@ const navigationItems = [
       </svg>
     ),
     label: "Calls",
+  },
+  {
+    href: "/calls-simple",
+    icon: () => <Phone className="h-5 w-5" />,
+    label: "Mis Llamadas",
   },
   {
     href: "/analytics",

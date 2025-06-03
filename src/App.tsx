@@ -17,6 +17,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import CallsPage from "./pages/CallsPage";
+import CallsSimple from "./pages/CallsSimple";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import TeamPage from "./pages/TeamPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -79,6 +80,14 @@ function App() {
                       element={
                         <ProtectedRoute>
                           <CallsPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/calls-simple"
+                      element={
+                        <ProtectedRoute>
+                          <CallsSimple />
                         </ProtectedRoute>
                       }
                     />
