@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,7 +36,7 @@ export const useRetellCalls = () => {
   const { data: retellCalls = [], isLoading, error, refetch } = useQuery({
     queryKey: ['retell-calls', user?.id],
     queryFn: async (): Promise<RetellCall[]> => {
-      console.log('🔍 [useRetellCalls] === STARTING QUERY WITH CORRECTED LOGIC ===');
+      console.log('🔍 [useRetellCalls] === STARTING CORRECTED QUERY ===');
       console.log('🔍 [useRetellCalls] User context:', {
         userId: user?.id,
         userEmail: user?.email,
@@ -76,11 +75,11 @@ export const useRetellCalls = () => {
         const agentIds = userAgents.map(ua => ua.agent_id);
         console.log('🔍 [useRetellCalls] User assigned agent IDs:', agentIds);
 
-        // STEP 2: Get retell_agents data for matching
+        // STEP 2: Get retell_agents data for matching - CORREGIDO USAR retell_agent_id
         console.log('🔍 [useRetellCalls] === STEP 2: RETELL AGENTS DATA ===');
         const { data: retellAgents, error: retellAgentsError } = await supabase
           .from('retell_agents')
-          .select('agent_id, id, name, description, retell_agent_id')
+          .select('id, name, description, retell_agent_id')
           .in('id', agentIds);
 
         console.log('🔍 [useRetellCalls] Retell agents:', {
@@ -91,13 +90,14 @@ export const useRetellCalls = () => {
 
         if (retellAgentsError) {
           console.error('❌ [useRetellCalls] Error fetching retell agents:', retellAgentsError);
+          throw retellAgentsError;
         }
 
-        // Create a mapping of retell_agent.agent_id to agent details
+        // PASO 2.5: Create a mapping of retell_agent_id to agent details - CORREGIDO
         const agentMap = new Map();
         retellAgents?.forEach(agent => {
-          if (agent.agent_id) {
-            agentMap.set(agent.agent_id, {
+          if (agent.retell_agent_id) { // ✅ USAR retell_agent_id NO agent_id
+            agentMap.set(agent.retell_agent_id, {
               id: agent.id,
               name: agent.name,
               description: agent.description,
@@ -111,11 +111,11 @@ export const useRetellCalls = () => {
           agentKeys: Array.from(agentMap.keys())
         });
 
-        // STEP 3: Get retell_calls using agent_id string matching
-        console.log('🔍 [useRetellCalls] === STEP 3: RETELL CALLS ===');
+        // STEP 3: Get calls using retell_agent_id matching - CORREGIDO TABLA
+        console.log('🔍 [useRetellCalls] === STEP 3: CALLS FROM CORRECT TABLE ===');
         
-        // Get the agent_id values from retell_agents to match against retell_calls
-        const retellAgentIds = retellAgents?.map(a => a.agent_id).filter(Boolean) || [];
+        // Get the retell_agent_id values to match against calls.agent_id
+        const retellAgentIds = retellAgents?.map(a => a.retell_agent_id).filter(Boolean) || [];
         console.log('🔍 [useRetellCalls] Retell agent IDs to match:', retellAgentIds);
 
         if (retellAgentIds.length === 0) {
@@ -123,16 +123,17 @@ export const useRetellCalls = () => {
           return [];
         }
 
+        // ✅ BUSCAR EN LA TABLA CALLS CORRECTA
         const { data: calls, error: callsError } = await supabase
-          .from('retell_calls')
+          .from('calls') // ✅ TABLA CORRECTA: calls NO retell_calls
           .select(`
             id,
             call_id,
             user_id,
             agent_id,
             company_id,
-            start_timestamp,
-            end_timestamp,
+            timestamp,
+            start_time,
             duration_sec,
             cost_usd,
             revenue_amount,
@@ -140,17 +141,17 @@ export const useRetellCalls = () => {
             from_number,
             to_number,
             transcript,
-            recording_url,
+            audio_url,
             call_summary,
             sentiment,
             disposition,
             latency_ms
           `)
-          .in('agent_id', retellAgentIds)
-          .order('start_timestamp', { ascending: false })
+          .in('agent_id', retellAgentIds) // ✅ calls.agent_id = retell_agent_id
+          .order('timestamp', { ascending: false })
           .limit(100);
 
-        console.log('🔍 [useRetellCalls] Retell calls query result:', {
+        console.log('🔍 [useRetellCalls] Calls query result:', {
           data: calls,
           error: callsError,
           count: calls?.length || 0,
@@ -162,11 +163,10 @@ export const useRetellCalls = () => {
           throw callsError;
         }
 
-        // STEP 4: Transform and combine data using string comparison
+        // STEP 4: Transform and combine data - CORREGIDO CAMPOS
         console.log('🔍 [useRetellCalls] === STEP 4: DATA TRANSFORMATION ===');
         
         const transformedCalls = (calls || []).map(call => {
-          // Use string comparison to match agent_id
           const agent = agentMap.get(call.agent_id);
           
           console.log('🔍 [useRetellCalls] Transforming call:', {
@@ -182,8 +182,8 @@ export const useRetellCalls = () => {
             user_id: call.user_id,
             agent_id: call.agent_id,
             company_id: call.company_id,
-            start_timestamp: call.start_timestamp,
-            end_timestamp: call.end_timestamp,
+            start_timestamp: call.timestamp || call.start_time, // ✅ USAR timestamp
+            end_timestamp: call.start_time, // O calcular end_time si existe
             duration_sec: call.duration_sec || 0,
             cost_usd: call.cost_usd || 0,
             revenue_amount: call.revenue_amount || 0,
@@ -191,7 +191,7 @@ export const useRetellCalls = () => {
             from_number: call.from_number,
             to_number: call.to_number,
             transcript: call.transcript,
-            recording_url: call.recording_url,
+            recording_url: call.audio_url, // ✅ CAMPO CORRECTO
             call_summary: call.call_summary,
             sentiment: call.sentiment,
             disposition: call.disposition,
