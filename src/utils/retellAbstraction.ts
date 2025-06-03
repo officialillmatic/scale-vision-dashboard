@@ -207,7 +207,7 @@ export class RetellAbstraction {
       console.log('[RETELL_SERVICE] ✅ Making Supabase query to CALLS table (not retell_calls)...');
       
       // ✅ CAMBIO PRINCIPAL: Buscar en la tabla 'calls' correcta
-      const { data, error } = await supabase
+              const { data, error } = await supabase
         .from('calls') // ✅ TABLA CORRECTA
         .select(`
           id,
@@ -226,8 +226,7 @@ export class RetellAbstraction {
           audio_url,
           transcript,
           sentiment,
-          call_summary,
-          created_at
+          call_summary
         `)
         .eq('user_id', userIdOrCompanyId)
         .order('timestamp', { ascending: false })
