@@ -5,8 +5,10 @@ import { useSecureCallData } from "@/hooks/useSecureCallData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { RoleCheck } from "@/components/auth/RoleCheck";
 import { formatCurrency, formatDuration } from "@/lib/utils";
-import { RefreshCw, Phone, Clock, DollarSign } from "lucide-react";
+import { RefreshCw, Phone, Clock, DollarSign, Bug } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const ProductionCallsTable = () => {
   console.log("🚨 COMPONENTE INICIADO - ProductionCallsTable");
@@ -54,6 +56,7 @@ export const ProductionCallsTable = () => {
   console.log("[COMPONENT] Hook result:", { calls: calls.length, isLoading, error });
   
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
 
   const handleRefresh = async () => {
     setIsSyncing(true);
@@ -61,6 +64,134 @@ export const ProductionCallsTable = () => {
       await syncCallsSecurely();
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const runWebhookDiagnostics = async () => {
+    setIsDiagnosing(true);
+    console.log("🔧 INICIANDO DIAGNÓSTICO DE WEBHOOK");
+    
+    try {
+      // Test 1: Verificar edge function básico
+      console.log("🔧 Test 1: Verificando edge function...");
+      try {
+        const response = await fetch('https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/retell-webhook', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8'}`
+          }
+        });
+        console.log("🔧 Edge function response:", response.status, response.statusText);
+        toast.success(`Edge function responded: ${response.status}`);
+      } catch (error) {
+        console.log("🔧 Edge function error:", error);
+        toast.error(`Edge function failed: ${error.message}`);
+      }
+      
+      // Test 2: Verificar webhook registration function
+      console.log("🔧 Test 2: Verificando webhook registration...");
+      try {
+        const { data, error } = await supabase.functions.invoke('register-retell-webhook', {
+          body: { test: true },
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (error) {
+          console.log("🔧 Webhook registration error:", error);
+          toast.error(`Webhook registration failed: ${error.message}`);
+        } else {
+          console.log("🔧 Webhook registration success:", data);
+          toast.success(`Webhook registration OK: ${data?.webhook_url || 'No URL'}`);
+        }
+      } catch (error) {
+        console.log("🔧 Webhook registration exception:", error);
+        toast.error(`Webhook registration exception: ${error.message}`);
+      }
+      
+      // Test 3: Verificar logs recientes de webhook
+      console.log("🔧 Test 3: Verificando logs de webhook...");
+      try {
+        const { data: logs, error: logsError } = await supabase
+          .from('webhook_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(5);
+          
+        if (logsError) {
+          console.log("🔧 Webhook logs error:", logsError);
+          toast.error(`Cannot access webhook logs: ${logsError.message}`);
+        } else {
+          console.log("🔧 Webhook logs:", logs);
+          toast.info(`Found ${logs?.length || 0} recent webhook logs`);
+        }
+      } catch (error) {
+        console.log("🔧 Webhook logs exception:", error);
+        toast.error(`Webhook logs exception: ${error.message}`);
+      }
+      
+      // Test 4: Verificar llamadas recientes
+      console.log("🔧 Test 4: Verificando llamadas recientes...");
+      try {
+        const { data: recentCalls, error: callsError } = await supabase
+          .from('calls')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(3);
+          
+        if (callsError) {
+          console.log("🔧 Recent calls error:", callsError);
+          toast.error(`Cannot access calls: ${callsError.message}`);
+        } else {
+          console.log("🔧 Recent calls:", recentCalls);
+          toast.info(`Found ${recentCalls?.length || 0} calls in database`);
+        }
+      } catch (error) {
+        console.log("🔧 Recent calls exception:", error);
+        toast.error(`Recent calls exception: ${error.message}`);
+      }
+      
+      // Test 5: Hacer un POST de prueba al webhook
+      console.log("🔧 Test 5: Haciendo POST de prueba al webhook...");
+      try {
+        const testPayload = {
+          event: "test_diagnostic",
+          data: {
+            call_id: "test-call-diagnostic-123",
+            agent_id: "test-agent-123",
+            timestamp: Date.now() / 1000
+          }
+        };
+        
+        const response = await fetch('https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/retell-webhook', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8'}`
+          },
+          body: JSON.stringify(testPayload)
+        });
+        
+        const responseText = await response.text();
+        console.log("🔧 Test POST response:", response.status, responseText);
+        
+        if (response.ok) {
+          toast.success(`Test POST successful: ${response.status}`);
+        } else {
+          toast.error(`Test POST failed: ${response.status} - ${responseText}`);
+        }
+      } catch (error) {
+        console.log("🔧 Test POST exception:", error);
+        toast.error(`Test POST exception: ${error.message}`);
+      }
+      
+      console.log("🔧 DIAGNÓSTICO COMPLETADO");
+      toast.success("Webhook diagnostics completed! Check console for details.");
+      
+    } catch (error) {
+      console.error("🔧 Error general en diagnóstico:", error);
+      toast.error(`Diagnostic failed: ${error.message}`);
+    } finally {
+      setIsDiagnosing(false);
     }
   };
 
@@ -157,6 +288,7 @@ export const ProductionCallsTable = () => {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
+      {/* ... keep existing code (all the summary cards) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
           <CardContent className="p-6">
@@ -310,6 +442,35 @@ export const ProductionCallsTable = () => {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Botón temporal de diagnóstico */}
+      <Card className="border-2 border-blue-200 bg-blue-50">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium text-blue-900 mb-1 flex items-center gap-2">
+                <Bug className="w-4 h-4" />
+                🔧 Diagnóstico de Webhook (Temporal)
+              </h3>
+              <p className="text-sm text-blue-700">
+                Ejecuta diagnósticos completos del sistema de webhooks para identificar problemas
+              </p>
+            </div>
+            <Button 
+              onClick={runWebhookDiagnostics}
+              disabled={isDiagnosing}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isDiagnosing ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <Bug className="w-4 h-4" />
+              )}
+              {isDiagnosing ? 'Diagnosticando...' : '🔧 Run Webhook Diagnostics'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
