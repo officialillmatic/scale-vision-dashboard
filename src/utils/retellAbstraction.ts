@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -197,44 +196,44 @@ export class RetellAbstraction {
   }
 
   /**
-   * Get sanitized call data for frontend consumption
+   * Get sanitized call data for frontend consumption - CORREGIDO
    */
   async getCallData(userIdOrCompanyId: string, limit: number = 100): Promise<any[]> {
-    console.log('[RETELL_SERVICE] Starting getCallData - FETCHING FROM retell_calls');
+    console.log('[RETELL_SERVICE] ✅ FIXED - Starting getCallData - FETCHING FROM calls table');
     console.log('[RETELL_SERVICE] Parameters:', { userIdOrCompanyId, limit });
     console.log('[RETELL_SERVICE] Fetching calls for user/company:', userIdOrCompanyId);
     
     try {
-      console.log('[RETELL_SERVICE] Making Supabase query to retell_calls table...');
+      console.log('[RETELL_SERVICE] ✅ Making Supabase query to CALLS table (not retell_calls)...');
       
+      // ✅ CAMBIO PRINCIPAL: Buscar en la tabla 'calls' correcta
       const { data, error } = await supabase
-        .from('retell_calls')
+        .from('calls') // ✅ TABLA CORRECTA
         .select(`
           id,
           call_id,
-          retell_agent_id,
+          agent_id,
           user_id,
           company_id,
-          start_timestamp,
-          end_timestamp,
+          timestamp,
+          start_time,
           duration_sec,
           cost_usd,
           revenue_amount,
           call_status,
           from_number,
           to_number,
-          recording_url,
+          audio_url,
           transcript,
           sentiment,
           call_summary,
-          created_at,
-          updated_at
+          created_at
         `)
         .eq('user_id', userIdOrCompanyId)
-        .order('start_timestamp', { ascending: false })
+        .order('timestamp', { ascending: false })
         .limit(limit);
 
-      console.log('[RETELL_SERVICE] Supabase query completed');
+      console.log('[RETELL_SERVICE] ✅ Supabase query to CALLS table completed');
       console.log('[RETELL_SERVICE] Query result:', { 
         data: data ? `${data.length} records` : 'null', 
         error, 
@@ -252,16 +251,16 @@ export class RetellAbstraction {
         return [];
       }
 
-      console.log('[RETELL_SERVICE] Raw data from retell_calls:', data);
+      console.log('[RETELL_SERVICE] ✅ Raw data from CALLS table:', data);
 
-      // Transform retell_calls data to match expected frontend format
+      // ✅ Transform calls data to match expected frontend format
       const transformedData = data.map((call, index) => {
         console.log(`[RETELL_SERVICE] Transforming call ${index + 1}:`, call);
         
         return {
           id: call.id,
           callId: call.call_id,
-          timestamp: call.start_timestamp || call.created_at,
+          timestamp: call.timestamp || call.start_time,
           duration: call.duration_sec || 0,
           cost: call.cost_usd || 0,
           sentiment: call.sentiment,
@@ -269,19 +268,19 @@ export class RetellAbstraction {
           status: call.call_status || 'completed',
           fromNumber: this.sanitizePhoneNumber(call.from_number || 'Unknown'),
           toNumber: this.sanitizePhoneNumber(call.to_number || 'Unknown'),
-          hasRecording: !!call.recording_url,
+          hasRecording: !!call.audio_url, // ✅ CAMPO CORRECTO
           hasTranscript: !!call.transcript,
           summary: call.call_summary,
           agent: {
-            id: call.retell_agent_id,
-            name: 'Agent',
+            id: call.agent_id, // ✅ USAR agent_id de calls
+            name: 'Solar Agent', // ✅ NOMBRE CORRECTO
             ratePerMinute: 0.17
           }
         };
       });
 
-      console.log('[RETELL_SERVICE] Transformed data:', transformedData);
-      console.log('[RETELL_SERVICE] Returning', transformedData.length, 'calls from retell_calls');
+      console.log('[RETELL_SERVICE] ✅ Transformed data from CALLS table:', transformedData);
+      console.log('[RETELL_SERVICE] ✅ Returning', transformedData.length, 'calls from CALLS table');
       
       return transformedData;
       
