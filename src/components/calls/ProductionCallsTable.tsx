@@ -111,8 +111,8 @@ export const ProductionCallsTable = () => {
   console.log("🔍 PASO 5: Antes de calcular totales");
 
   const totalCalls = calls.length;
-  const totalCost = calls.reduce((sum, call) => sum + (call.cost || 0), 0);
-  const totalDuration = calls.reduce((sum, call) => sum + (call.duration || 0), 0);
+  const totalCost = calls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+  const totalDuration = calls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
 
   console.log("🔍 PASO 6: Después de calcular totales", {
     totalCalls,
@@ -258,10 +258,10 @@ export const ProductionCallsTable = () => {
                         
                         <div className="flex items-center gap-4 text-sm">
                           <div className="text-gray-600">
-                            <span className="font-medium">{formatDuration(call.duration)}</span>
+                            <span className="font-medium">{formatDuration(call.duration_sec)}</span>
                           </div>
                           <div className="text-gray-600">
-                            <span className="font-medium">{formatCurrency(call.cost)}</span>
+                            <span className="font-medium">{formatCurrency(call.cost_usd)}</span>
                           </div>
                         </div>
                       </div>
