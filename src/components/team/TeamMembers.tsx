@@ -10,9 +10,8 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { TeamInvitations } from './TeamInvitations';
 import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
-import { UserPlus, Users, AlertCircle, Info, RefreshCw } from 'lucide-react';
+import { UserPlus, Users, AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
 
 export function TeamMembers() {
   const { company } = useAuth();
@@ -24,17 +23,8 @@ export function TeamMembers() {
     error,
     isInviting,
     handleInvite,
-    fetchInvitations,
-    members
+    fetchInvitations
   } = useTeamMembers(company?.id);
-
-  console.log("🔍 [TeamMembers] Rendering with data:", {
-    companyId: company?.id,
-    isLoading,
-    error,
-    teamMembersCount: teamMembers?.length,
-    teamMembers: teamMembers
-  });
 
   const openInviteDialog = () => {
     setIsInviteDialogOpen(true);
@@ -48,75 +38,17 @@ export function TeamMembers() {
     if (fetchInvitations) {
       await fetchInvitations();
     }
-    // Force a page refresh to get latest data
     window.location.reload();
   };
 
-  // Triple validation to ensure no invalid users are displayed (already filtered for regular users only)
+  // Filter valid team members
   const validTeamMembers = teamMembers?.filter(member => {
-    // Check for basic member structure
-    if (!member || !member.user_id) {
-      console.warn("🔍 [TeamMembers] Filtering out member without user_id:", member);
-      return false;
-    }
-
-    // Check for user details
-    if (!member.user_details) {
-      console.warn("🔍 [TeamMembers] Filtering out member without user_details:", member);
-      return false;
-    }
-
-    // Check for valid email
-    if (!member.user_details.email || member.user_details.email.trim() === '') {
-      console.warn("🔍 [TeamMembers] Filtering out member with invalid email:", member);
-      return false;
-    }
-
-    return true;
+    return member && 
+           member.user_id && 
+           member.user_details && 
+           member.user_details.email && 
+           member.user_details.email.trim() !== '';
   }) || [];
-
-  console.log("🔍 [TeamMembers] Final valid regular user team members:", validTeamMembers);
-
-  // Expected emails list for verification
-  const expectedEmails = [
-    'alexbuenhombre2012@gmail.com',
-    'nicolebsalento@gmail.com', 
-    'hostingcomotienequesergmail.com',
-    'jmdreamsgerencia@gmail.com',
-    'pedroalexanderbuenhombre@gmail.com',
-    'familiajyn2024@gmail.com',
-    'elbazardelasventas@gmail.com'
-  ];
-
-  const foundEmails = validTeamMembers.map(m => m.user_details?.email).filter(Boolean);
-  const missingEmails = expectedEmails.filter(email => !foundEmails.includes(email));
-
-  // Loading skeleton component
-  const LoadingSkeleton = () => (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-6 w-6 rounded" />
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-6 w-16" />
-      </div>
-      <div className="border rounded-md">
-        <div className="p-4 space-y-3">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-4 w-64" />
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center space-x-4 p-3">
-                <Skeleton className="h-4 w-48" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-4 w-8" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-8">
@@ -144,25 +76,6 @@ export function TeamMembers() {
           </Button>
         </div>
       </div>
-
-      <Alert className="border-blue-200 bg-blue-50">
-        <Info className="h-4 w-4 text-blue-600" />
-        <AlertDescription className="text-blue-800">
-          This section shows regular team members only. Super admins and system administrators are not displayed here.
-        </AlertDescription>
-      </Alert>
-
-      {/* Debug information */}
-      {missingEmails.length > 0 && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Missing expected users ({missingEmails.length}):</strong> {missingEmails.join(', ')}
-            <br />
-            <small>Found {foundEmails.length} of {expectedEmails.length} expected users</small>
-          </AlertDescription>
-        </Alert>
-      )}
       
       <EmailConfigWarning />
       
@@ -171,12 +84,14 @@ export function TeamMembers() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Team Members</h2>
-            <div className="text-sm text-muted-foreground">
-              Showing {validTeamMembers.length} confirmed users
-            </div>
+            {!isLoading && validTeamMembers.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {validTeamMembers.length} team members
+              </div>
+            )}
           </div>
           <p className="text-muted-foreground">
-            Manage your regular team members and their roles.
+            Manage your team members and their roles.
           </p>
           
           <div className="border rounded-md">
@@ -195,7 +110,7 @@ export function TeamMembers() {
             ) : validTeamMembers.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
                 <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No regular team members yet</p>
+                <p className="text-lg font-medium">No team members yet</p>
                 <p className="text-sm">Invite team members to get started.</p>
               </div>
             ) : (
@@ -210,7 +125,7 @@ export function TeamMembers() {
                 </TableHeader>
                 <TableBody>
                   {validTeamMembers.map((member) => {
-                    const userDetails = member.user_details!; // Safe because we filtered above
+                    const userDetails = member.user_details!;
                     return (
                       <TableRow key={member.id}>
                         <TableCell>
@@ -238,7 +153,6 @@ export function TeamMembers() {
                         </TableCell>
                         <TableCell>
                           <div className="text-sm text-muted-foreground">
-                            {/* Future: Add edit/remove actions */}
                             —
                           </div>
                         </TableCell>
