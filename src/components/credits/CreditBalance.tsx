@@ -51,7 +51,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
       if (fetchError) {
         if (fetchError.code === 'PGRST116') {
-          // No se encontraron créditos, crear entrada inicial
+          // No credits found, create initial entry
           const { data: newCredit, error: createError } = await supabase
             .from('user_credits')
             .insert([{
@@ -273,7 +273,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                   variant="ghost" 
                   size="sm"
                   onClick={() => {
-                    // Mostrar modal con información de contacto
+                    // Show modal with contact information
                     alert('Please contact support to recharge your account: support@drscale.com');
                   }}
                 >
