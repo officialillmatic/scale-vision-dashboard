@@ -12,10 +12,12 @@ import {
   CheckCircle, 
   Plus,
   RefreshCw,
-  TrendingDown,
-  TrendingUp
+  Shield,
+  TrendingUp,
+  Info
 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { formatCurrency } from '@/lib/formatters';
 
 interface UserCredit {
   id: string;
@@ -106,58 +108,50 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
     switch (status) {
       case 'empty':
         return {
-          color: 'bg-red-100 text-red-800 border-red-200',
-          icon: AlertCircle,
-          iconColor: 'text-red-600',
-          bgGradient: 'from-red-50 to-red-100/50',
-          message: 'Account blocked - No funds available',
-          priority: 'high'
+          badge: { variant: 'destructive' as const, text: 'Account Blocked' },
+          icon: Shield,
+          iconColor: 'text-red-500',
+          balanceColor: 'text-red-600',
+          message: 'Add funds to reactivate your account',
+          bgAccent: 'border-red-100 bg-red-50/30'
         };
       case 'critical':
         return {
-          color: 'bg-orange-100 text-orange-800 border-orange-200',
+          badge: { variant: 'destructive' as const, text: 'Critical Balance' },
           icon: AlertTriangle,
-          iconColor: 'text-orange-600',
-          bgGradient: 'from-orange-50 to-orange-100/50',
-          message: 'Critical - Low balance!',
-          priority: 'high'
+          iconColor: 'text-orange-500',
+          balanceColor: 'text-orange-600',
+          message: 'Urgent: Add funds to prevent service interruption',
+          bgAccent: 'border-orange-100 bg-orange-50/30'
         };
       case 'warning':
         return {
-          color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-          icon: TrendingDown,
-          iconColor: 'text-yellow-600',
-          bgGradient: 'from-yellow-50 to-yellow-100/50',
-          message: 'Warning - Consider recharging',
-          priority: 'medium'
+          badge: { variant: 'outline' as const, text: 'Low Balance' },
+          icon: AlertCircle,
+          iconColor: 'text-yellow-500',
+          balanceColor: 'text-yellow-700',
+          message: 'Consider adding funds soon',
+          bgAccent: 'border-yellow-100 bg-yellow-50/30'
         };
       case 'healthy':
         return {
-          color: 'bg-green-100 text-green-800 border-green-200',
+          badge: { variant: 'outline' as const, text: 'Good Standing' },
           icon: CheckCircle,
-          iconColor: 'text-green-600',
-          bgGradient: 'from-green-50 to-green-100/50',
-          message: 'Account in good standing',
-          priority: 'low'
+          iconColor: 'text-emerald-500',
+          balanceColor: 'text-emerald-700',
+          message: 'Your account is in good standing',
+          bgAccent: 'border-emerald-100 bg-emerald-50/30'
         };
       default:
         return {
-          color: 'bg-gray-100 text-gray-800 border-gray-200',
+          badge: { variant: 'outline' as const, text: 'Loading...' },
           icon: Wallet,
-          iconColor: 'text-gray-600',
-          bgGradient: 'from-gray-50 to-gray-100/50',
-          message: 'Loading balance...',
-          priority: 'low'
+          iconColor: 'text-gray-500',
+          balanceColor: 'text-gray-700',
+          message: 'Loading balance information...',
+          bgAccent: 'border-gray-100 bg-gray-50/30'
         };
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount);
   };
 
   const handleRefresh = () => {
@@ -170,11 +164,11 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
   if (loading) {
     return (
-      <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+      <Card className="shadow-sm">
         <CardContent className="p-6">
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-center space-x-3">
             <LoadingSpinner size="sm" />
-            <span className="ml-2 text-gray-600">Loading balance...</span>
+            <span className="text-sm text-muted-foreground">Loading balance...</span>
           </div>
         </CardContent>
       </Card>
@@ -183,14 +177,17 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
   if (error) {
     return (
-      <Card className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100/50">
+      <Card className="shadow-sm border-red-200">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-red-600 font-medium">Error loading balance</p>
-              <p className="text-xs text-red-500">{error}</p>
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              <div>
+                <p className="text-sm font-medium text-red-900">Unable to load balance</p>
+                <p className="text-xs text-red-600">{error}</p>
+              </div>
             </div>
-            <Button onClick={handleRefresh} variant="outline" size="sm">
+            <Button onClick={handleRefresh} variant="outline" size="sm" className="shrink-0">
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
@@ -200,106 +197,124 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   }
 
   return (
-    <Card className={`border-0 shadow-sm bg-gradient-to-br ${config.bgGradient} ${credits?.is_blocked ? 'ring-2 ring-red-500' : ''}`}>
-      <CardHeader className="pb-3">
+    <Card className={`shadow-sm transition-all duration-200 ${config.bgAccent}`}>
+      <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-blue-600" />
-            Account Balance
-          </CardTitle>
+          <div className="flex items-center space-x-3">
+            <div className="p-2 rounded-lg bg-white shadow-sm">
+              <Wallet className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <CardTitle className="text-lg font-semibold text-gray-900">
+                Account Balance
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Available for calls
+              </p>
+            </div>
+          </div>
           <Button 
             onClick={handleRefresh} 
             variant="ghost" 
             size="sm"
             disabled={refreshing}
-            className="h-6 w-6 p-0"
+            className="h-8 w-8 p-0 shrink-0"
           >
             {refreshing ? (
               <LoadingSpinner size="sm" />
             ) : (
-              <RefreshCw className="h-3 w-3" />
+              <RefreshCw className="h-4 w-4" />
             )}
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {/* Balance Amount */}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-3xl font-bold text-gray-900">
-                {credits ? formatCurrency(credits.current_balance) : '$0.00'}
-              </p>
-              <p className="text-sm text-gray-500">
-                Available for calls
-              </p>
-            </div>
-            <IconComponent className={`h-10 w-10 ${config.iconColor}`} />
-          </div>
 
+      <CardContent className="space-y-6">
+        {/* Main Balance Display */}
+        <div className="text-center space-y-2">
+          <div className="flex items-center justify-center space-x-3">
+            <p className={`text-4xl font-bold tracking-tight ${config.balanceColor}`}>
+              {credits ? formatCurrency(credits.current_balance) : '$0.00'}
+            </p>
+            <IconComponent className={`h-8 w-8 ${config.iconColor}`} />
+          </div>
+          
           {/* Status Badge */}
-          <div className="flex items-center gap-2">
-            <Badge className={`text-xs ${config.color}`}>
-              {config.message}
+          <div className="flex justify-center">
+            <Badge variant={config.badge.variant} className="text-xs font-medium">
+              {config.badge.text}
             </Badge>
-            {credits?.is_blocked && (
-              <Badge className="text-xs bg-red-100 text-red-800 border-red-200">
-                🚫 BLOCKED
-              </Badge>
+          </div>
+          
+          {/* Status Message */}
+          <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+            {config.message}
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        {showActions && (
+          <div className="flex flex-col space-y-2">
+            {onRequestRecharge && (
+              <Button 
+                onClick={onRequestRecharge}
+                variant={status === 'empty' || status === 'critical' ? 'default' : 'outline'}
+                size="sm"
+                className="w-full"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {status === 'empty' ? 'Add Funds Now' : 'Request Recharge'}
+              </Button>
+            )}
+            
+            {(status === 'warning' || status === 'critical' || status === 'empty') && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  alert('Please contact support to recharge your account: support@drscale.com');
+                }}
+                className="w-full text-xs"
+              >
+                Contact Support
+              </Button>
             )}
           </div>
+        )}
 
-          {/* Thresholds Info */}
-          {credits && (
-            <div className="text-xs text-gray-500 space-y-1">
-              <div className="flex justify-between">
-                <span>Warning at:</span>
-                <span className="font-medium">{formatCurrency(credits.warning_threshold)}</span>
+        {/* Threshold Information */}
+        {credits && (
+          <div className="space-y-3 pt-4 border-t border-gray-100">
+            <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+              <Info className="h-3 w-3" />
+              <span className="font-medium">Account Thresholds</span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Warning:</span>
+                <span className="font-medium text-yellow-700">
+                  {formatCurrency(credits.warning_threshold)}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span>Critical at:</span>
-                <span className="font-medium">{formatCurrency(credits.critical_threshold)}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Critical:</span>
+                <span className="font-medium text-orange-700">
+                  {formatCurrency(credits.critical_threshold)}
+                </span>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Action Buttons */}
-          {showActions && (
-            <div className="flex gap-2 pt-2">
-              {onRequestRecharge && (
-                <Button 
-                  onClick={onRequestRecharge}
-                  variant={status === 'empty' || status === 'critical' ? 'default' : 'outline'}
-                  size="sm"
-                  className="flex-1"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  {status === 'empty' ? 'Add Funds' : 'Request Recharge'}
-                </Button>
-              )}
-              
-              {(status === 'warning' || status === 'critical' || status === 'empty') && (
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => {
-                    // Show modal with contact information
-                    alert('Please contact support to recharge your account: support@drscale.com');
-                  }}
-                >
-                  Contact Support
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Last Updated */}
-          {credits && (
-            <p className="text-xs text-gray-400 text-center">
-              Last updated: {new Date(credits.updated_at).toLocaleString()}
+        {/* Last Updated */}
+        {credits && (
+          <div className="pt-2 border-t border-gray-50">
+            <p className="text-xs text-muted-foreground text-center">
+              Updated {new Date(credits.updated_at).toLocaleString()}
             </p>
-          )}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
