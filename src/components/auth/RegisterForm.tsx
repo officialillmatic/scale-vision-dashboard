@@ -70,9 +70,9 @@ export function RegisterForm() {
     setIsLoading(true);
     
     try {
-      console.log('🚀 Starting registration process...');
-      console.log('📧 Email:', values.email);
-      console.log('🎫 Has invitation token:', Boolean(invitationToken));
+      console.log('🚀 [RegisterForm] Starting registration process...');
+      console.log('📧 [RegisterForm] Email:', values.email);
+      console.log('🎫 [RegisterForm] Has invitation token:', Boolean(invitationToken));
       
       // If we have an invitation but emails don't match
       if (invitation?.valid && invitation.invitation?.email && invitation.invitation.email !== values.email) {
@@ -90,11 +90,11 @@ export function RegisterForm() {
         throw error;
       }
       
-      console.log('✅ User created successfully:', data.user?.id);
+      console.log('✅ [RegisterForm] User created successfully:', data.user?.id);
       
       // If we have a valid invitation token, accept it
       if (invitation?.valid && invitationToken && data.user) {
-        console.log('🎯 Accepting invitation...');
+        console.log('🎯 [RegisterForm] Accepting invitation...');
         const accepted = await acceptInvitation(invitationToken, data.user.id);
         if (accepted) {
           toast.success(`Welcome to ${invitation.company?.name}! Your account is ready.`, {
@@ -104,16 +104,43 @@ export function RegisterForm() {
             }
           });
           
-          // Trigger a refresh of team data by broadcasting an event
-          console.log('🔄 Broadcasting team refresh event...');
+          // CRITICAL: Trigger team list refresh immediately and with delays
+          console.log('🔄 [RegisterForm] Broadcasting team refresh event immediately...');
           
-          // Small delay to ensure the user profile is created
+          // Immediate broadcast
+          window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
+            detail: { 
+              email: values.email, 
+              userId: data.user.id,
+              timestamp: new Date().toISOString(),
+              source: 'registration'
+            }
+          }));
+          
+          // Additional broadcasts with delays to ensure sync
           setTimeout(() => {
-            // Emit a custom event to trigger team list refresh
+            console.log('🔄 [RegisterForm] Broadcasting delayed refresh (2s)...');
             window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
-              detail: { email: values.email, userId: data.user.id }
+              detail: { 
+                email: values.email, 
+                userId: data.user.id,
+                timestamp: new Date().toISOString(),
+                source: 'registration-delayed-2s'
+              }
             }));
           }, 2000);
+          
+          setTimeout(() => {
+            console.log('🔄 [RegisterForm] Broadcasting delayed refresh (5s)...');
+            window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
+              detail: { 
+                email: values.email, 
+                userId: data.user.id,
+                timestamp: new Date().toISOString(),
+                source: 'registration-delayed-5s'
+              }
+            }));
+          }, 5000);
           
         } else {
           toast.error("There was an issue joining the company. Please contact support.");
@@ -132,7 +159,7 @@ export function RegisterForm() {
         navigate("/dashboard");
       }, 3000);
     } catch (error: any) {
-      console.error("💥 Signup error:", error);
+      console.error("💥 [RegisterForm] Signup error:", error);
       toast.error(error.message || "Failed to create account. Please try again.");
     } finally {
       setIsLoading(false);

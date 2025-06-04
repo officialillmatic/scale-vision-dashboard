@@ -59,6 +59,8 @@ export function useTeamMembers(companyId?: string) {
 
           if (profilesError) throw profilesError;
 
+          console.log('👥 [useTeamMembers] Super admin - found confirmed users:', profiles?.length || 0);
+
           return profiles?.map(profile => ({
             id: profile.id,
             email: profile.email || 'No email',
@@ -89,6 +91,11 @@ export function useTeamMembers(companyId?: string) {
 
         if (profilesError) throw profilesError;
 
+        console.log(`👥 [useTeamMembers] Company ${targetCompanyId} - found confirmed users:`, profiles?.length || 0);
+        profiles?.forEach(profile => {
+          console.log(`   - ${profile.email} (confirmed: ${profile.email_confirmed_at})`);
+        });
+
         return profiles?.map(profile => ({
           id: profile.id,
           email: profile.email || 'No email',
@@ -111,7 +118,7 @@ export function useTeamMembers(companyId?: string) {
       }
     },
     enabled: !!targetCompanyId || isSuperAdmin,
-    refetchInterval: 10000, // Auto-refresh every 10 seconds to catch new registrations
+    refetchInterval: 5000, // Auto-refresh every 5 seconds for debugging
   });
 
   // Query for pending invitations (filtered to exclude confirmed users)
@@ -119,17 +126,17 @@ export function useTeamMembers(companyId?: string) {
     queryKey: ['company-invitations', targetCompanyId],
     queryFn: () => targetCompanyId ? fetchCompanyInvitations(targetCompanyId) : Promise.resolve([]),
     enabled: !!targetCompanyId,
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchInterval: 5000, // Auto-refresh every 5 seconds for debugging
   });
 
   // Set up real-time updates for new user registrations
   useEffect(() => {
     if (!targetCompanyId) return;
 
-    console.log('🔔 Setting up real-time updates for team members...');
+    console.log('🔔 [useTeamMembers] Setting up real-time updates for team members...');
     
     const channel = supabase
-      .channel('team-sync')
+      .channel('team-sync-enhanced')
       .on(
         'postgres_changes',
         {
@@ -139,9 +146,22 @@ export function useTeamMembers(companyId?: string) {
           filter: `company_id=eq.${targetCompanyId}`,
         },
         (payload) => {
-          console.log('🔄 Profile updated, refreshing team data:', payload);
+          console.log('🔄 [useTeamMembers] Profile updated, refreshing team data:', payload);
+          console.log('   - Email confirmed at:', payload.new?.email_confirmed_at);
           refetchMembers();
           refetchInvitations();
+          
+          // If email was just confirmed, trigger custom event
+          if (payload.new?.email_confirmed_at && !payload.old?.email_confirmed_at) {
+            console.log('✨ [useTeamMembers] Email confirmed for user:', payload.new.email);
+            window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
+              detail: { 
+                email: payload.new.email, 
+                userId: payload.new.id,
+                confirmedAt: payload.new.email_confirmed_at
+              }
+            }));
+          }
         }
       )
       .on(
@@ -153,7 +173,7 @@ export function useTeamMembers(companyId?: string) {
           filter: `company_id=eq.${targetCompanyId}`,
         },
         (payload) => {
-          console.log('✨ New team member registered:', payload);
+          console.log('✨ [useTeamMembers] New team member profile created:', payload);
           refetchMembers();
           refetchInvitations();
           
@@ -162,13 +182,22 @@ export function useTeamMembers(companyId?: string) {
               title: "New Team Member",
               description: `${payload.new.email} has joined the team!`,
             });
+            
+            // Trigger custom event for synchronization
+            window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
+              detail: { 
+                email: payload.new.email, 
+                userId: payload.new.id,
+                profileCreated: true
+              }
+            }));
           }
         }
       )
       .subscribe();
 
     return () => {
-      console.log('🔌 Cleaning up real-time subscription');
+      console.log('🔌 [useTeamMembers] Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [targetCompanyId, refetchMembers, refetchInvitations, toast]);
@@ -197,6 +226,23 @@ export function useTeamMembers(companyId?: string) {
       toast({
         title: "Invalid Email",
         description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Check if email is already confirmed
+    const { data: existingUser } = await supabase
+      .from('profiles')
+      .select('email, email_confirmed_at')
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
+
+    if (existingUser?.email_confirmed_at) {
+      console.warn('⚠️ [handleInvite] User already confirmed:', email);
+      toast({
+        title: "User Already Registered",
+        description: `${email} is already a registered user`,
         variant: "destructive",
       });
       return false;
@@ -243,7 +289,7 @@ export function useTeamMembers(companyId?: string) {
   };
 
   const fetchInvitations = async () => {
-    console.log('🔄 [fetchInvitations] Refreshing all data...');
+    console.log('🔄 [fetchInvitations] Force refreshing all data...');
     await Promise.all([refetchMembers(), refetchInvitations()]);
   };
 

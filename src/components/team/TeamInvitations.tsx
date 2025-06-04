@@ -24,11 +24,13 @@ import {
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { MoreHorizontal, Loader, RefreshCw, X } from 'lucide-react';
+import { MoreHorizontal, Loader, RefreshCw, X, Bug } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export function TeamInvitations() {
   const { company } = useAuth();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [debugMode, setDebugMode] = useState(false);
 
   const {
     data: invitations,
@@ -39,7 +41,7 @@ export function TeamInvitations() {
     queryKey: ['company-invitations', company?.id],
     queryFn: () => company?.id ? fetchCompanyInvitations(company.id) : Promise.resolve([]),
     enabled: !!company?.id,
-    refetchInterval: 10000, // Auto-refresh every 10 seconds to catch status changes
+    refetchInterval: 5000, // Refrescar cada 5 segundos para debug
     retry: (failureCount, error) => {
       // Don't retry on 403 or 401 errors
       if (error?.message?.includes('403') || error?.message?.includes('401')) {
@@ -52,8 +54,10 @@ export function TeamInvitations() {
   // Listen for new team member registrations to refresh the invitations list
   useEffect(() => {
     const handleTeamMemberRegistered = (event: CustomEvent) => {
-      console.log('🔄 Team member registered, refreshing invitations...', event.detail);
-      refetch();
+      console.log('🔄 [TeamInvitations] Team member registered, refreshing invitations...', event.detail);
+      setTimeout(() => {
+        refetch();
+      }, 2000); // Esperar 2 segundos para que la base de datos se actualice
     };
 
     window.addEventListener('teamMemberRegistered', handleTeamMemberRegistered as EventListener);
@@ -90,6 +94,56 @@ export function TeamInvitations() {
     } catch (error) {
       console.error("Error cancelling invitation:", error);
       toast.error("Failed to cancel invitation");
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
+  const handleForceRefresh = async () => {
+    console.log('🔄 [DEBUG] Force refreshing invitations...');
+    setIsProcessing('force-refresh');
+    
+    try {
+      // Invalidar cache y refrescar
+      await refetch();
+      
+      // También debug de datos directos
+      if (company?.id) {
+        console.log('🔍 [DEBUG] Checking database directly...');
+        
+        // Check invitations raw
+        const { data: rawInvitations } = await supabase
+          .from('company_invitations_raw')
+          .select('*')
+          .eq('company_id', company.id)
+          .eq('status', 'pending');
+        
+        console.log('📋 [DEBUG] Raw pending invitations in DB:', rawInvitations?.length || 0);
+        
+        // Check confirmed users
+        const { data: confirmedUsers } = await supabase
+          .from('profiles')
+          .select('email, email_confirmed_at')
+          .not('email_confirmed_at', 'is', null);
+        
+        console.log('👥 [DEBUG] Confirmed users in DB:', confirmedUsers?.length || 0);
+        
+        // Check overlap
+        const pendingEmails = rawInvitations?.map(inv => inv.email.toLowerCase()) || [];
+        const confirmedEmails = confirmedUsers?.map(user => user.email.toLowerCase()) || [];
+        const overlap = pendingEmails.filter(email => confirmedEmails.includes(email));
+        
+        if (overlap.length > 0) {
+          console.warn('⚠️ [DEBUG] PROBLEM FOUND - Confirmed users still in pending invitations:', overlap);
+          toast.error(`Found ${overlap.length} confirmed users still in pending invitations!`);
+        } else {
+          console.log('✅ [DEBUG] No overlap found - system working correctly');
+          toast.success('No synchronization issues found');
+        }
+      }
+    } catch (error) {
+      console.error('❌ [DEBUG] Error in force refresh:', error);
+      toast.error('Error during force refresh');
     } finally {
       setIsProcessing(null);
     }
@@ -164,12 +218,62 @@ export function TeamInvitations() {
               {pendingInvitations.length} pending
             </Badge>
           )}
+          
+          {/* Debug button */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setDebugMode(!debugMode)}
+            className={debugMode ? 'bg-red-50 border-red-200' : ''}
+          >
+            <Bug className="mr-2 h-4 w-4" />
+            Debug
+          </Button>
+          
+          {/* Force refresh button for debugging */}
+          <Button 
+            variant="outline" 
+            onClick={handleForceRefresh} 
+            size="sm" 
+            disabled={isProcessing === 'force-refresh'}
+            className="bg-blue-50 border-blue-200"
+          >
+            {isProcessing === 'force-refresh' ? (
+              <Loader className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Force Refresh
+          </Button>
+          
           <Button variant="outline" onClick={() => refetch()} size="sm" disabled={isLoading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
       </div>
+      
+      {/* Debug info */}
+      {debugMode && (
+        <Card className="p-4 bg-gray-50 border-gray-200">
+          <h3 className="font-semibold mb-2">🐛 Debug Information</h3>
+          <div className="text-sm space-y-1">
+            <p><strong>Company ID:</strong> {company.id}</p>
+            <p><strong>Total Pending Invitations:</strong> {pendingInvitations.length}</p>
+            <p><strong>Last Refresh:</strong> {new Date().toLocaleTimeString()}</p>
+            <p><strong>Query Status:</strong> {isLoading ? 'Loading...' : 'Loaded'}</p>
+            <p><strong>Auto-refresh:</strong> Every 5 seconds</p>
+          </div>
+          <div className="mt-2">
+            <strong>Pending Emails:</strong>
+            <ul className="ml-4">
+              {pendingInvitations.map(inv => (
+                <li key={inv.id} className="text-xs">• {inv.email}</li>
+              ))}
+            </ul>
+          </div>
+        </Card>
+      )}
       
       <Card>
         <div className="rounded-md border">
@@ -194,7 +298,12 @@ export function TeamInvitations() {
               ) : pendingInvitations.length > 0 ? (
                 pendingInvitations.map((invitation) => (
                   <TableRow key={invitation.id}>
-                    <TableCell className="font-medium">{invitation.email}</TableCell>
+                    <TableCell className="font-medium">
+                      {invitation.email}
+                      {debugMode && (
+                        <div className="text-xs text-gray-500">ID: {invitation.id}</div>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge className={getRoleBadgeColor(invitation.role)}>{invitation.role}</Badge>
                     </TableCell>

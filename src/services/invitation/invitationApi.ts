@@ -5,52 +5,92 @@ import type { CompanyInvitation, InvitationCheckResult } from "./types";
 
 export const fetchCompanyInvitations = async (companyId: string): Promise<CompanyInvitation[]> => {
   try {
-    console.log('🔍 Fetching invitations for company:', companyId);
+    console.log('🔍 [DEBUG] Fetching invitations for company:', companyId);
     
-    const { data, error } = await supabase
+    // STEP 1: Obtener todas las invitaciones pendientes sin filtro
+    const { data: rawInvitations, error: invitationsError } = await supabase
       .from("company_invitations_raw")
       .select(`
         *,
         companies!inner(name)
       `)
       .eq("company_id", companyId)
-      .eq("status", "pending") // Only fetch pending invitations
+      .eq("status", "pending")
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (invitationsError) {
+      console.error('❌ [DEBUG] Error fetching raw invitations:', invitationsError);
+      throw invitationsError;
+    }
 
-    // Filter out invitations where the email already exists in confirmed auth.users
-    // This ensures we only show truly pending invitations
-    const filteredInvitations = [];
+    console.log('📊 [DEBUG] Raw pending invitations found:', rawInvitations?.length || 0);
+    rawInvitations?.forEach(inv => {
+      console.log(`   - ${inv.email} (${inv.id})`);
+    });
+
+    // STEP 2: Obtener todos los usuarios confirmados para debug
+    const { data: confirmedUsers, error: usersError } = await supabase
+      .from('profiles')
+      .select('email, email_confirmed_at, created_at')
+      .not('email_confirmed_at', 'is', null);
+
+    if (usersError) {
+      console.error('❌ [DEBUG] Error fetching confirmed users:', usersError);
+    } else {
+      console.log('👥 [DEBUG] Confirmed users found:', confirmedUsers?.length || 0);
+      confirmedUsers?.forEach(user => {
+        console.log(`   - ${user.email} (confirmed: ${user.email_confirmed_at})`);
+      });
+    }
+
+    // STEP 3: Filtrar invitaciones manualmente
+    const confirmedEmails = new Set(confirmedUsers?.map(u => u.email.toLowerCase()) || []);
+    const filteredInvitations: CompanyInvitation[] = [];
     
-    for (const invitation of data || []) {
-      // Check if this email is already confirmed in profiles (which syncs with auth.users)
-      const { data: existingUser } = await supabase
-        .from('profiles')
-        .select('email, email_confirmed_at')
-        .eq('email', invitation.email)
-        .maybeSingle();
+    for (const invitation of rawInvitations || []) {
+      const invitationEmail = invitation.email.toLowerCase();
+      const isEmailConfirmed = confirmedEmails.has(invitationEmail);
       
-      // Only include invitation if user doesn't exist or isn't confirmed
-      if (!existingUser || !existingUser.email_confirmed_at) {
+      console.log(`🔍 [DEBUG] Checking invitation ${invitation.email}:`);
+      console.log(`   - Email confirmed: ${isEmailConfirmed}`);
+      
+      if (!isEmailConfirmed) {
+        // Email no está confirmado, mantener en pending
         filteredInvitations.push({
           ...invitation,
           company_name: invitation.companies?.name
         });
+        console.log(`   ✅ Keeping in pending list`);
       } else {
-        // User is confirmed, so mark invitation as accepted automatically
-        console.log('🔄 Auto-accepting invitation for confirmed user:', invitation.email);
-        await supabase
+        // Email está confirmado, marcar como accepted
+        console.log(`   🔄 Auto-accepting invitation for confirmed user: ${invitation.email}`);
+        
+        // Marcar como accepted en background (no esperar)
+        supabase
           .from("company_invitations_raw")
-          .update({ status: "accepted" })
-          .eq("id", invitation.id);
+          .update({ 
+            status: "accepted",
+            accepted_at: new Date().toISOString()
+          })
+          .eq("id", invitation.id)
+          .then(({ error }) => {
+            if (error) {
+              console.error(`❌ [DEBUG] Failed to auto-accept invitation ${invitation.id}:`, error);
+            } else {
+              console.log(`✅ [DEBUG] Successfully auto-accepted invitation ${invitation.id}`);
+            }
+          });
       }
     }
 
-    console.log('✅ Filtered invitations:', filteredInvitations.length);
+    console.log('📋 [DEBUG] Final filtered invitations:', filteredInvitations.length);
+    filteredInvitations.forEach(inv => {
+      console.log(`   - ${inv.email} (${inv.id}) - SHOWING IN PENDING`);
+    });
+
     return filteredInvitations;
   } catch (error) {
-    console.error("Error fetching invitations:", error);
+    console.error("💥 [DEBUG] Error in fetchCompanyInvitations:", error);
     handleError(error, {
       fallbackMessage: "Failed to fetch invitations"
     });

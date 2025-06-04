@@ -9,7 +9,7 @@ interface TeamMemberProfile {
   id: string;
   full_name?: string;
   email: string;
-  role: string;
+  role: string; // Hacer role requerido para coincidir con las expectativas
 }
 
 interface Agent {
@@ -23,6 +23,7 @@ interface AgentAssignFormFieldsProps {
   form: UseFormReturn<any>;
   teamMembers: TeamMemberProfile[];
   agents: Agent[];
+  selectedAgent?: Agent | null;
 }
 
 export function AgentAssignFormFields({ form, teamMembers, agents }: AgentAssignFormFieldsProps) {
@@ -46,7 +47,7 @@ export function AgentAssignFormFields({ form, teamMembers, agents }: AgentAssign
                     <div className="flex items-center justify-between w-full">
                       <span>{member.full_name || member.email}</span>
                       <Badge variant="outline" className="ml-2">
-                        {member.role}
+                        {member.role || 'user'}
                       </Badge>
                     </div>
                   </SelectItem>
