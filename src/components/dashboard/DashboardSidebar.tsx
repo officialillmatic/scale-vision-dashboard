@@ -97,18 +97,21 @@ export function DashboardSidebar() {
     <Sidebar 
       collapsible="icon" 
       className={cn(
-        "border-r border-gray-200/60",
-        // Desktop styling - fondo más sólido
-        "bg-white",
-        // Mobile-specific improvements - fondo completamente sólido
-        "data-[mobile=true]:bg-white data-[mobile=true]:shadow-xl",
+        // Fondo completamente sólido sin transparencia
+        "bg-white border-r border-gray-200",
+        // Desktop styling - sombra pronunciada para separación visual
+        "shadow-xl",
+        // Mobile-specific improvements - fondo completamente sólido con sombra más pronunciada
+        "data-[mobile=true]:bg-white data-[mobile=true]:shadow-2xl data-[mobile=true]:border-r data-[mobile=true]:border-gray-200",
         // Width adjustments
         "w-64 sm:w-56"
       )}
     >
       <div className={cn(
-        "flex items-center justify-between border-b border-gray-200/60",
-        "p-4 sm:p-6"
+        "flex items-center justify-between border-b border-gray-200",
+        "p-4 sm:p-6",
+        // Fondo sólido para el header también
+        "bg-white"
       )}>
         {!collapsed && (
           <div className="flex items-center gap-3 px-2">
@@ -155,7 +158,7 @@ export function DashboardSidebar() {
         )} />
       </div>
 
-      <SidebarContent className="overflow-auto px-3 py-4 sm:px-4 sm:py-6">
+      <SidebarContent className="overflow-auto px-3 py-4 sm:px-4 sm:py-6 bg-white">
         <SidebarGroup>
           <SidebarMenu className="space-y-3 sm:space-y-2">
             {allNavigationItems.map((item) => (
@@ -196,7 +199,7 @@ export function DashboardSidebar() {
           </SidebarMenu>
         </SidebarGroup>
 
-        <div className="mt-auto border-t border-gray-200/60 pt-4 sm:pt-6">
+        <div className="mt-auto border-t border-gray-200 pt-4 sm:pt-6 bg-white">
           <Button
             variant="outline"
             size="sm"
