@@ -94,7 +94,7 @@ export function TeamMembers() {
               <Alert variant="destructive" className="m-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Error loading team members: {error}
+                  Error loading team members: {typeof error === 'string' ? error : 'Unknown error'}
                 </AlertDescription>
               </Alert>
             ) : teamMembers.length === 0 ? (

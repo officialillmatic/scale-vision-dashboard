@@ -3,6 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { createInvitation } from "@/services/invitation/invitationActions";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 export interface TeamMember {
   id: string;
@@ -33,11 +36,16 @@ export interface TeamInvitation {
 export function useTeamMembers(companyId?: string) {
   const { company } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
+  const { toast } = useToast();
+  const [isInviting, setIsInviting] = useState(false);
+  
   const targetCompanyId = companyId || company?.id;
 
   const { data: members, isLoading, error, refetch } = useQuery({
     queryKey: ['team-members', targetCompanyId, isSuperAdmin],
     queryFn: async () => {
+      console.log('🔍 [useTeamMembers] Fetching team members...');
+      
       try {
         // For super admins, get all users across all companies
         if (isSuperAdmin) {
@@ -94,21 +102,84 @@ export function useTeamMembers(companyId?: string) {
           }
         })) || [];
       } catch (error) {
-        console.error('Error fetching team members:', error);
+        console.error('❌ [useTeamMembers] Error fetching team members:', error);
         return [];
       }
     },
     enabled: !!targetCompanyId || isSuperAdmin
   });
 
-  // Mock functions for invitation management
-  const handleInvite = async (inviteData: any) => {
-    console.log('Invite functionality not implemented:', inviteData);
-    return false;
+  // Enhanced invitation handling function
+  const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
+    console.log('🚀 [handleInvite] Starting invitation process...');
+    console.log('📧 [handleInvite] Email:', email);
+    console.log('👤 [handleInvite] Role:', role);
+    console.log('🏢 [handleInvite] Company ID:', targetCompanyId);
+
+    if (!targetCompanyId) {
+      console.error('❌ [handleInvite] No company ID available');
+      toast({
+        title: "Error",
+        description: "No company selected for invitation",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      console.error('❌ [handleInvite] Invalid email format:', email);
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    setIsInviting(true);
+
+    try {
+      console.log('📤 [handleInvite] Calling createInvitation...');
+      const success = await createInvitation(targetCompanyId, email, role);
+      
+      if (success) {
+        console.log('✅ [handleInvite] Invitation sent successfully');
+        toast({
+          title: "Invitation Sent",
+          description: `Invitation sent to ${email} successfully`,
+        });
+        
+        // Refresh the team members list
+        await refetch();
+        
+        return true;
+      } else {
+        console.error('❌ [handleInvite] Failed to send invitation');
+        toast({
+          title: "Failed to Send Invitation",
+          description: "Please try again later",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('💥 [handleInvite] Error sending invitation:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send invitation",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsInviting(false);
+    }
   };
 
   const fetchInvitations = async () => {
-    console.log('Fetch invitations not implemented');
+    console.log('🔄 [fetchInvitations] Refreshing data...');
+    await refetch();
   };
 
   return {
@@ -118,7 +189,7 @@ export function useTeamMembers(companyId?: string) {
     isLoading,
     error,
     refetch,
-    isInviting: false,
+    isInviting,
     handleInvite,
     fetchInvitations
   };
