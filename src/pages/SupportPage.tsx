@@ -95,8 +95,8 @@ export default function SupportPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="mb-4 text-sm">support@echowave.com</p>
-              <Button variant="outline" className="w-full" onClick={() => window.location.href = "mailto:support@echowave.com"}>
+              <p className="mb-4 text-sm">support@drscale.com</p>
+              <Button variant="outline" className="w-full" onClick={() => window.location.href = "mailto:support@drscale.com"}>
                 Send Email
               </Button>
             </CardContent>
