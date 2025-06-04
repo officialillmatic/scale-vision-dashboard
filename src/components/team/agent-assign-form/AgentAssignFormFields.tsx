@@ -4,13 +4,7 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { UseFormReturn } from 'react-hook-form';
-
-interface TeamMemberProfile {
-  id: string;
-  full_name?: string;
-  email: string;
-  role: string; // Hacer role requerido para coincidir con las expectativas
-}
+import { TeamMemberProfile } from '@/services/memberService';
 
 interface Agent {
   id: string;
