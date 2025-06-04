@@ -86,8 +86,17 @@ export function RegisterForm() {
         }
       }
       
-      toast.success("Account created! Please check your email to confirm your registration.");
-      navigate("/login");
+      toast.success("Welcome to Dr. Scale! Your account is ready to use.", {
+        action: {
+          label: "Go to Dashboard",
+          onClick: () => navigate("/dashboard")
+        }
+      });
+      
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 2000);
     } catch (error: any) {
       console.error("Signup error:", error);
       toast.error(error.message || "Failed to create account. Please try again.");
