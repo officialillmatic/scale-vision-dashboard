@@ -26,6 +26,16 @@ export function TeamMembers() {
     fetchInvitations
   } = useTeamMembers(company?.id);
 
+  // Debug logging for team members
+  React.useEffect(() => {
+    console.log("🔍 [TeamMembers] Component rendered with:");
+    console.log("🔍 [TeamMembers] - Company ID:", company?.id);
+    console.log("🔍 [TeamMembers] - Team members count:", teamMembers?.length);
+    console.log("🔍 [TeamMembers] - Team members data:", teamMembers);
+    console.log("🔍 [TeamMembers] - Is loading:", isLoading);
+    console.log("🔍 [TeamMembers] - Error:", error);
+  }, [teamMembers, isLoading, error, company?.id]);
+
   const openInviteDialog = () => {
     setIsInviteDialogOpen(true);
   };
@@ -41,14 +51,10 @@ export function TeamMembers() {
     window.location.reload();
   };
 
-  // Filter valid team members
-  const validTeamMembers = teamMembers?.filter(member => {
-    return member && 
-           member.user_id && 
-           member.user_details && 
-           member.user_details.email && 
-           member.user_details.email.trim() !== '';
-  }) || [];
+  // Use teamMembers directly from the hook
+  const validTeamMembers = teamMembers || [];
+
+  console.log("🔍 [TeamMembers] Valid team members for display:", validTeamMembers.length);
 
   return (
     <div className="space-y-8">
@@ -112,6 +118,9 @@ export function TeamMembers() {
                 <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p className="text-lg font-medium">No team members yet</p>
                 <p className="text-sm">Invite team members to get started.</p>
+                <p className="text-xs mt-2 text-gray-400">
+                  Debug: Company ID: {company?.id || 'undefined'}
+                </p>
               </div>
             ) : (
               <Table>

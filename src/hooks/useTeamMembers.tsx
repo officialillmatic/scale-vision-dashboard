@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation, createInvitation } from "@/services/invitation";
 import { handleError } from "@/lib/errorHandling";
@@ -40,7 +39,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     try {
       console.log("🔍 [useTeamMembers] Fetching invitations for company:", companyId);
       
-      // Get confirmed users first
+      // Get confirmed users first to filter out from invitations
       const { data: confirmedUsers } = await supabase.auth.admin.listUsers();
       const confirmedEmails = confirmedUsers?.users
         ?.filter(user => user.email_confirmed_at !== null)
@@ -95,27 +94,12 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
       const companyMembers = await fetchCompanyMembers(companyId);
       console.log("🔍 [useTeamMembers] Raw members data from service:", companyMembers);
       
-      // Additional validation to ensure we only keep valid regular users (no super admins/admins)
-      const validRegularUsers = companyMembers.filter(member => {
-        const isValid = member && 
-          member.user_id && 
-          member.user_details && 
-          member.user_details.email && 
-          member.user_details.email.trim() !== '';
-        
-        if (!isValid) {
-          console.warn("🔍 [useTeamMembers] Filtering out invalid member:", member);
-        }
-        
-        return isValid;
-      });
-      
       console.log("🔍 [useTeamMembers] 👥 TEAM MEMBERS SUMMARY:");
-      console.log("🔍 [useTeamMembers] - Valid regular users after filtering:", validRegularUsers.length);
-      console.log("🔍 [useTeamMembers] - Member emails:", validRegularUsers.map(m => m.user_details?.email));
-      console.log("🔍 [useTeamMembers] - Setting members state with count:", validRegularUsers.length);
+      console.log("🔍 [useTeamMembers] - Members fetched:", companyMembers.length);
+      console.log("🔍 [useTeamMembers] - Member emails:", companyMembers.map(m => m.user_details?.email));
+      console.log("🔍 [useTeamMembers] - Setting members state with count:", companyMembers.length);
       
-      setMembers(validRegularUsers);
+      setMembers(companyMembers);
     } catch (error) {
       console.error("🔍 [useTeamMembers] Error fetching members:", error);
       handleError(error, {
