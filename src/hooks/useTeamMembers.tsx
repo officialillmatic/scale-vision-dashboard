@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation, createInvitation } from "@/services/invitation";
 import { handleError } from "@/lib/errorHandling";
@@ -27,8 +26,8 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   const { isSuperAdmin } = useSuperAdmin();
 
   const fetchInvitations = async () => {
-    // Super admins can operate without a specific company - fetch global invitations
     if (!companyId && !isSuperAdmin) {
+      console.log("🔍 [useTeamMembers] No company ID and not super admin, skipping invitations");
       setInvitations([]);
       return;
     }
@@ -37,9 +36,12 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     setError(null);
 
     try {
+      console.log("🔍 [useTeamMembers] Fetching invitations for company:", companyId);
       const invitations = await fetchCompanyInvitations(companyId);
+      console.log("🔍 [useTeamMembers] Fetched invitations:", invitations);
       setInvitations(invitations);
     } catch (error) {
+      console.error("🔍 [useTeamMembers] Error fetching invitations:", error);
       handleError(error, {
         fallbackMessage: "Failed to fetch invitations",
         logToConsole: true
@@ -52,19 +54,21 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   };
   
   const fetchMembers = async () => {
-    // Super admins can operate without a specific company - fetch all members
     if (!companyId && !isSuperAdmin) {
+      console.log("🔍 [useTeamMembers] No company ID and not super admin, skipping members");
       setMembers([]);
       return;
     }
     
     setIsLoading(true);
+    setError(null);
+    
     try {
       console.log("🔍 [useTeamMembers] Fetching members for company:", companyId);
       const companyMembers = await fetchCompanyMembers(companyId);
-      console.log("🔍 [useTeamMembers] Raw members data:", companyMembers);
+      console.log("🔍 [useTeamMembers] Raw members data from service:", companyMembers);
       
-      // Filter out invalid members and ensure we have proper user details
+      // Additional validation to ensure we only keep valid members
       const validMembers = companyMembers.filter(member => {
         const isValid = member && 
           member.user_id && 
@@ -79,7 +83,9 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
         return isValid;
       });
       
-      console.log("🔍 [useTeamMembers] Valid members after filtering:", validMembers);
+      console.log("🔍 [useTeamMembers] Valid members after final filtering:", validMembers);
+      console.log("🔍 [useTeamMembers] Setting members state with count:", validMembers.length);
+      
       setMembers(validMembers);
     } catch (error) {
       console.error("🔍 [useTeamMembers] Error fetching members:", error);
@@ -88,16 +94,21 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
         logToConsole: true
       });
       setMembers([]);
+      setError("Failed to fetch team members");
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    // Always allow super admins to fetch data, even without a company
+    console.log("🔍 [useTeamMembers] Effect triggered - companyId:", companyId, "isSuperAdmin:", isSuperAdmin);
     if (companyId || isSuperAdmin) {
       fetchInvitations();
       fetchMembers();
+    } else {
+      console.log("🔍 [useTeamMembers] Clearing data - no company access");
+      setMembers([]);
+      setInvitations([]);
     }
   }, [companyId, isSuperAdmin]);
 
@@ -106,7 +117,6 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     try {
       const success = await cancelInvitation(invitationId);
       if (success) {
-        // Refresh invitations list
         fetchInvitations();
       }
     } catch (error) {
@@ -124,7 +134,6 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     try {
       const success = await resendInvitation(invitationId);
       if (success) {
-        // Refresh invitations list
         fetchInvitations();
       }
     } catch (error) {
@@ -137,22 +146,17 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     }
   };
 
-  // Direct implementation of handle invite using createInvitation
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
-    // Super admins can invite to any company or create global invitations
     if (!companyId && !isSuperAdmin) return false;
     
     setIsInviting(true);
     console.log("🎯 [HOOK] useTeamMembers: Inviting", email, "with role", role, "for company", companyId);
     
     try {
-      // Use createInvitation from invitationActions (which calls Edge Function)
       const success = await createInvitation(companyId, email, role);
-      
       console.log("🎯 [HOOK] createInvitation result:", success);
       
       if (success) {
-        // Refresh invitations list on success
         await fetchInvitations();
       }
       return success;
@@ -167,6 +171,8 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
       setIsInviting(false);
     }
   };
+
+  console.log("🔍 [useTeamMembers] Returning data - members count:", members.length, "isLoading:", isLoading);
 
   return {
     invitations,

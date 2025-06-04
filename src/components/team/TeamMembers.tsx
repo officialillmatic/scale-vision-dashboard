@@ -12,6 +12,7 @@ import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
 import { UserPlus, Users, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function TeamMembers() {
   const { company } = useAuth();
@@ -41,20 +42,57 @@ export function TeamMembers() {
     setIsInviteDialogOpen(false);
   };
 
-  // Filter valid team members to ensure no "Unknown User" entries
+  // Triple validation to ensure no invalid users are displayed
   const validTeamMembers = teamMembers?.filter(member => {
-    const hasValidUserDetails = member.user_details && 
-      member.user_details.email && 
-      member.user_details.email.trim() !== '';
-    
-    if (!hasValidUserDetails) {
-      console.warn("🔍 [TeamMembers] Filtering out member with invalid user details:", member);
+    // Check for basic member structure
+    if (!member || !member.user_id) {
+      console.warn("🔍 [TeamMembers] Filtering out member without user_id:", member);
+      return false;
     }
-    
-    return hasValidUserDetails;
+
+    // Check for user details
+    if (!member.user_details) {
+      console.warn("🔍 [TeamMembers] Filtering out member without user_details:", member);
+      return false;
+    }
+
+    // Check for valid email
+    if (!member.user_details.email || member.user_details.email.trim() === '') {
+      console.warn("🔍 [TeamMembers] Filtering out member with invalid email:", member);
+      return false;
+    }
+
+    return true;
   }) || [];
 
-  console.log("🔍 [TeamMembers] Valid team members after filtering:", validTeamMembers);
+  console.log("🔍 [TeamMembers] Final valid team members:", validTeamMembers);
+
+  // Loading skeleton component
+  const LoadingSkeleton = () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-6 w-6 rounded" />
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-6 w-16" />
+      </div>
+      <div className="border rounded-md">
+        <div className="p-4 space-y-3">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-64" />
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center space-x-4 p-3">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-8" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-8">
@@ -64,16 +102,16 @@ export function TeamMembers() {
             <Users className="h-6 w-6" />
             Team Management
           </h1>
-          {validTeamMembers.length > 0 && (
+          {!isLoading && validTeamMembers.length > 0 && (
             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
               {validTeamMembers.length} members
             </Badge>
           )}
         </div>
         
-        <Button onClick={openInviteDialog} disabled={isInviting}>
+        <Button onClick={openInviteDialog} disabled={isInviting || isLoading}>
           <UserPlus className="mr-2 h-4 w-4" />
-          Invite Member
+          {isInviting ? "Inviting..." : "Invite Member"}
         </Button>
       </div>
       
@@ -118,16 +156,16 @@ export function TeamMembers() {
                 </TableHeader>
                 <TableBody>
                   {validTeamMembers.map((member) => {
-                    const userDetails = member.user_details;
+                    const userDetails = member.user_details!; // Safe because we filtered above
                     return (
                       <TableRow key={member.id}>
                         <TableCell>
                           <div>
                             <p className="font-medium">
-                              {userDetails?.name || userDetails?.email?.split('@')[0] || 'Team Member'}
+                              {userDetails.name || userDetails.email.split('@')[0] || 'Team Member'}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {userDetails?.email}
+                              {userDetails.email}
                             </p>
                           </div>
                         </TableCell>

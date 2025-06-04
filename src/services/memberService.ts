@@ -20,9 +20,10 @@ export interface CompanyMember {
 
 export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMember[]> => {
   try {
-    console.log("🔍 [memberService] Fetching members for company:", companyId);
+    console.log("🔍 [memberService] Starting fetch for company:", companyId);
 
-    const { data, error } = await supabase
+    // First, get company members
+    const { data: membersData, error: membersError } = await supabase
       .from("company_members")
       .select(`
         id,
@@ -34,44 +35,54 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
         updated_at
       `)
       .eq("company_id", companyId)
-      .eq("status", "active"); // Only fetch active members
+      .eq("status", "active");
 
-    if (error) {
-      console.error("🔍 [memberService] Error fetching company members:", error);
-      throw error;
+    if (membersError) {
+      console.error("🔍 [memberService] Error fetching company members:", membersError);
+      throw membersError;
     }
 
-    console.log("🔍 [memberService] Raw company members data:", data);
+    console.log("🔍 [memberService] Raw company members data:", membersData);
 
-    if (!data || data.length === 0) {
+    if (!membersData || membersData.length === 0) {
       console.log("🔍 [memberService] No company members found");
       return [];
     }
 
-    // For each company member, fetch the user details using the optimized user service
-    const userIds = data.map(member => member.user_id).filter(Boolean);
+    // Filter out any members without valid user_id
+    const validMembers = membersData.filter(member => {
+      if (!member.user_id) {
+        console.warn("🔍 [memberService] Filtering out member without user_id:", member);
+        return false;
+      }
+      return true;
+    });
+
+    console.log("🔍 [memberService] Valid members after user_id filter:", validMembers);
+
+    // Extract user IDs for batch fetching
+    const userIds = validMembers.map(member => member.user_id);
     console.log("🔍 [memberService] Fetching user profiles for IDs:", userIds);
     
+    // Fetch user profiles in batch
     const userProfiles = await fetchUserProfiles(userIds);
     console.log("🔍 [memberService] Fetched user profiles:", userProfiles);
     
     // Create a map for quick lookup
     const userProfileMap = userProfiles.reduce((map, profile) => {
-      if (profile && profile.id) {
+      if (profile && profile.id && profile.email) {
         map[profile.id] = profile;
+      } else {
+        console.warn("🔍 [memberService] Invalid profile data:", profile);
       }
       return map;
     }, {} as Record<string, any>);
 
     console.log("🔍 [memberService] User profile map:", userProfileMap);
 
-    const membersWithDetails = data
+    // Map members with their user details and filter out invalid ones
+    const membersWithDetails = validMembers
       .map((member) => {
-        if (!member.user_id) {
-          console.warn("🔍 [memberService] Member without user_id:", member);
-          return null;
-        }
-
         const userProfile = userProfileMap[member.user_id];
         
         if (!userProfile) {
@@ -80,7 +91,7 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
         }
 
         if (!userProfile.email || userProfile.email.trim() === '') {
-          console.warn("🔍 [memberService] User profile missing email:", userProfile);
+          console.warn("🔍 [memberService] User profile missing or empty email:", userProfile);
           return null;
         }
 
@@ -94,12 +105,14 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
           }
         };
 
-        console.log("🔍 [memberService] Member with details:", memberWithDetails);
+        console.log("🔍 [memberService] Valid member with details:", memberWithDetails);
         return memberWithDetails;
       })
-      .filter(Boolean); // Remove null entries
+      .filter((member): member is CompanyMember => member !== null);
 
+    console.log("🔍 [memberService] Final valid members count:", membersWithDetails.length);
     console.log("🔍 [memberService] Final members with details:", membersWithDetails);
+    
     return membersWithDetails;
   } catch (error) {
     console.error("🔍 [memberService] Error in fetchCompanyMembers:", error);
