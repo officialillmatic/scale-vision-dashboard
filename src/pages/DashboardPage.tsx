@@ -19,6 +19,8 @@ import {
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { CreditBalance } from "@/components/credits/CreditBalance";
+
 interface Call {
   id: string;
   call_id: string;
@@ -277,8 +279,19 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           )}
-          {/* Key Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Key Metrics - Updated with CreditBalance */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            {/* Credit Balance Widget */}
+            <div className="lg:col-span-1">
+              <CreditBalance 
+                onRequestRecharge={() => {
+                  alert('Please contact support to recharge your account: support@drscale.com');
+                }}
+                showActions={true}
+              />
+            </div>
+
+            {/* Existing metrics cards */}
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">

@@ -355,6 +355,50 @@ export type Database = {
           },
         ]
       }
+      credit_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          call_id: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          call_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          call_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_transactions_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           billing_period_end: string
@@ -953,6 +997,39 @@ export type Database = {
           },
         ]
       }
+      user_credits: {
+        Row: {
+          created_at: string | null
+          critical_threshold: number | null
+          current_balance: number | null
+          id: string
+          is_blocked: boolean | null
+          updated_at: string | null
+          user_id: string
+          warning_threshold: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          critical_threshold?: number | null
+          current_balance?: number | null
+          id?: string
+          is_blocked?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          warning_threshold?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          critical_threshold?: number | null
+          current_balance?: number | null
+          id?: string
+          is_blocked?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          warning_threshold?: number | null
+        }
+        Relationships: []
+      }
       user_preferences: {
         Row: {
           created_at: string | null
@@ -1214,6 +1291,23 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      credit_stats: {
+        Row: {
+          created_at: string | null
+          critical_threshold: number | null
+          current_balance: number | null
+          email: string | null
+          is_blocked: boolean | null
+          status: string | null
+          total_recharged: number | null
+          total_spent: number | null
+          total_transactions: number | null
+          updated_at: string | null
+          user_id: string | null
+          warning_threshold: number | null
+        }
+        Relationships: []
       }
       performance_metrics: {
         Row: {
