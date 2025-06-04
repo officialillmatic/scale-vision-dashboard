@@ -68,15 +68,15 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
     const userProfiles = await fetchUserProfiles(userIds);
     console.log("🔍 [memberService] Fetched user profiles:", userProfiles);
     
-    // Create a map for quick lookup
-    const userProfileMap = userProfiles.reduce((map, profile) => {
+    // Create a map for quick lookup with proper typing
+    const userProfileMap: Record<string, any> = {};
+    userProfiles.forEach(profile => {
       if (profile && profile.id && profile.email) {
-        map[profile.id] = profile;
+        userProfileMap[profile.id] = profile;
       } else {
         console.warn("🔍 [memberService] Invalid profile data:", profile);
       }
-      return map;
-    }, {} as Record<string, any>);
+    });
 
     console.log("🔍 [memberService] User profile map:", userProfileMap);
 
