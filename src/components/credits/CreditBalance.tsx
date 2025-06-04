@@ -57,22 +57,30 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
         if (fetchError.code === '42501' || fetchError.message?.includes('permission')) {
           setError('Unable to access balance information. Please contact support.');
         } else if (fetchError.code === 'PGRST116') {
-          // No credits found, create initial entry using the secure function
-          const { data: newCredit, error: createError } = await supabase.rpc('initialize_user_credits', {
-            p_user_id: user.id
+          // No credits found, try to initialize with default values
+          setCredits({
+            id: '',
+            current_balance: 0,
+            warning_threshold: 10,
+            critical_threshold: 5,
+            is_blocked: false,
+            updated_at: new Date().toISOString()
           });
-
-          if (createError) {
-            console.error('Error initializing user credits:', createError);
-            setError('Unable to initialize balance. Please contact support.');
-          } else {
-            setCredits(newCredit);
-          }
         } else {
           setError(`Error loading balance: ${fetchError.message}`);
         }
+      } else if (data && data.length > 0) {
+        setCredits(data[0]);
       } else {
-        setCredits(data);
+        // No data returned, set default values
+        setCredits({
+          id: '',
+          current_balance: 0,
+          warning_threshold: 10,
+          critical_threshold: 5,
+          is_blocked: false,
+          updated_at: new Date().toISOString()
+        });
       }
     } catch (err: any) {
       console.error('Unexpected error fetching credits:', err);

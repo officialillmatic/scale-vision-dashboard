@@ -1313,7 +1313,6 @@ export type Database = {
           created_at: string | null
           critical_threshold: number | null
           current_balance: number | null
-          email: string | null
           is_blocked: boolean | null
           status: string | null
           total_recharged: number | null
@@ -1322,6 +1321,32 @@ export type Database = {
           updated_at: string | null
           user_id: string | null
           warning_threshold: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          critical_threshold?: number | null
+          current_balance?: number | null
+          is_blocked?: boolean | null
+          status?: never
+          total_recharged?: never
+          total_spent?: never
+          total_transactions?: never
+          updated_at?: string | null
+          user_id?: string | null
+          warning_threshold?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          critical_threshold?: number | null
+          current_balance?: number | null
+          is_blocked?: boolean | null
+          status?: never
+          total_recharged?: never
+          total_spent?: never
+          total_transactions?: never
+          updated_at?: string | null
+          user_id?: string | null
+          warning_threshold?: number | null
         }
         Relationships: []
       }
@@ -1378,6 +1403,10 @@ export type Database = {
           bucket_name: string
           bucket_exists: boolean
         }[]
+      }
+      deduct_call_credits: {
+        Args: { call_cost: number; call_id_ref: string }
+        Returns: boolean
       }
       get_call_metrics_for_period: {
         Args: {
@@ -1576,6 +1605,19 @@ export type Database = {
           balance_after: number
           created_at: string
           created_by_email: string
+        }[]
+      }
+      get_user_credits: {
+        Args: { target_user_id?: string }
+        Returns: {
+          id: string
+          user_id: string
+          current_balance: number
+          warning_threshold: number
+          critical_threshold: number
+          is_blocked: boolean
+          created_at: string
+          updated_at: string
         }[]
       }
       get_user_email: {
