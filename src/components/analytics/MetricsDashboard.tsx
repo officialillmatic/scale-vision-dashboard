@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CallData } from '@/pages/AnalyticsPage';
+import { CallData } from '@/types/analytics';
 import { formatCurrency, formatDuration } from '@/lib/formatters';
 import { Phone, TrendingUp, Clock, DollarSign, CheckCircle2, BarChart3 } from 'lucide-react';
 

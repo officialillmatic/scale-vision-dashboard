@@ -3,7 +3,7 @@ import React from 'react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { formatCurrency, formatDuration } from '@/lib/formatters';
-import { CallData } from '@/pages/AnalyticsPage';
+import { CallData } from '@/types/analytics';
 import { SentimentBadge, DispositionBadge, CallStatusBadge } from './CallDataTableBadges';
 import { CallDataTableActions } from './CallDataTableActions';
 

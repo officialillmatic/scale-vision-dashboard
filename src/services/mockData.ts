@@ -1,5 +1,5 @@
 
-import { CallData } from '@/pages/AnalyticsPage';
+import { CallData } from '@/types/analytics';
 
 // Generate mock call data for demonstration purposes
 export function generateMockCallData(): CallData[] {

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Table, TableBody } from '@/components/ui/table';
-import { CallData } from '@/pages/AnalyticsPage';
+import { CallData } from '@/types/analytics';
 import { CallDataTableHeader } from './CallDataTableHeader';
 import { CallDataTableRow } from './CallDataTableRow';
 import { CallDataTableSkeleton } from './CallDataTableSkeleton';

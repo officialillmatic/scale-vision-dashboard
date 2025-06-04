@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { CallData } from '@/pages/AnalyticsPage';
+import { CallData } from '@/types/analytics';
 import { addDays, format, isEqual, isWithinInterval, parseISO, startOfDay } from 'date-fns';
 
 interface CallChartProps {
