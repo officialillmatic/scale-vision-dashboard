@@ -19,17 +19,12 @@ export interface CompanyMember {
 
 export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMember[]> => {
   try {
-    console.log("🔍 [memberService] Starting fetch for company:", companyId);
-
     // Get all confirmed users from auth.users
     const { data: allUsers, error: authError } = await supabase.auth.admin.listUsers();
     
     if (authError) {
-      console.error("🔍 [memberService] Error fetching auth users:", authError);
       throw authError;
     }
-
-    console.log("🔍 [memberService] All users from auth:", allUsers?.users?.length);
 
     // Filter confirmed users and exclude admin
     const confirmedUsers = allUsers?.users?.filter(user => {
@@ -37,41 +32,19 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
       const isNotAdmin = user.email !== 'aiagentsdevelopers@gmail.com';
       const hasEmail = user.email && user.email.trim() !== '';
       
-      if (!isConfirmed) {
-        console.log("🔍 [memberService] Excluding unconfirmed user:", user.email);
-        return false;
-      }
-      
-      if (!isNotAdmin) {
-        console.log("🔍 [memberService] Excluding admin user:", user.email);
-        return false;
-      }
-      
-      if (!hasEmail) {
-        console.log("🔍 [memberService] Excluding user without email:", user.id);
-        return false;
-      }
-      
-      console.log("🔍 [memberService] ✅ Including confirmed user:", user.email);
-      return true;
+      return isConfirmed && isNotAdmin && hasEmail;
     }) || [];
-
-    console.log("🔍 [memberService] Confirmed users after filtering:", confirmedUsers.length);
-    console.log("🔍 [memberService] Confirmed user emails:", confirmedUsers.map(u => u.email));
 
     // Get user profiles for confirmed users
     const userIds = confirmedUsers.map(user => user.id);
-    console.log("🔍 [memberService] Fetching profiles for user IDs:", userIds);
-    
     const userProfiles = await fetchUserProfiles(userIds);
-    console.log("🔍 [memberService] Fetched user profiles:", userProfiles.length);
 
     // Create member objects
     const members: CompanyMember[] = confirmedUsers.map(user => {
       const profile = userProfiles.find(p => p.id === user.id);
       
       return {
-        id: `member-${user.id}`, // Synthetic ID for members
+        id: `member-${user.id}`,
         company_id: companyId,
         user_id: user.id,
         role: 'member' as const,
@@ -85,14 +58,9 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
       };
     });
 
-    console.log("🔍 [memberService] 📊 FINAL SUMMARY:");
-    console.log("🔍 [memberService] - Total confirmed users:", confirmedUsers.length);
-    console.log("🔍 [memberService] - Final members created:", members.length);
-    console.log("🔍 [memberService] - Member emails:", members.map(m => m.user_details?.email));
-
     return members;
   } catch (error) {
-    console.error("🔍 [memberService] Error in fetchCompanyMembers:", error);
+    console.error("Error in fetchCompanyMembers:", error);
     handleError(error, {
       fallbackMessage: "Failed to fetch company members",
       showToast: false
@@ -117,9 +85,6 @@ export const inviteTeamMember = async (companyId: string, email: string, role: '
       console.error("RESEND_API_KEY is not configured in Supabase Edge Function secrets.");
       return false;
     }
-    
-    // Log detailed info before sending invitation
-    console.log("Sending invitation to:", email, "with role:", role, "for company:", companyId);
     
     // Proceed with invitation
     const { data, error } = await supabase.functions.invoke('send-invitation', {
