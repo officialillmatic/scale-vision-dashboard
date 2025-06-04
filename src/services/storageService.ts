@@ -47,30 +47,29 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
   }
 };
 
-// Upload company logo with enhanced error handling
+// Upload company logo with enhanced error handling using the correct bucket
 export const uploadCompanyLogo = async (companyId: string, file: File): Promise<string | null> => {
   try {
     console.log("Uploading company logo for company:", companyId, "File:", file.name);
     
     // Validate file type and size
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      toast.error("Invalid file type. Please upload a JPEG, PNG, GIF, WebP, or SVG image.");
+      toast.error("Invalid file type. Please upload a JPEG, PNG, SVG, or WebP image.");
       return null;
     }
     
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit for company logos
-      toast.error("File too large. Please upload an image smaller than 10MB.");
+    if (file.size > 6 * 1024 * 1024) { // 6MB limit to match bucket configuration
+      toast.error("File too large. Please upload an image smaller than 6MB.");
       return null;
     }
     
     const fileExt = file.name.split('.').pop();
-    const fileName = `${companyId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const fileName = `logos/${companyId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
-      .from('company-logos')
-      .upload(filePath, file);
+      .from('company-assets')
+      .upload(fileName, file);
 
     if (uploadError) {
       console.error("Company logo upload error:", uploadError);
@@ -79,8 +78,8 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
     }
 
     const { data } = supabase.storage
-      .from('company-logos')
-      .getPublicUrl(filePath);
+      .from('company-assets')
+      .getPublicUrl(fileName);
 
     console.log("Company logo uploaded successfully:", data.publicUrl);
     toast.success("Company logo uploaded successfully!");
@@ -175,7 +174,7 @@ export const validateStorageBuckets = async (): Promise<boolean> => {
       return false;
     }
     
-    const requiredBuckets = ['avatars', 'company-logos', 'recordings'];
+    const requiredBuckets = ['avatars', 'company-assets', 'recordings'];
     const existingBuckets = buckets.map(bucket => bucket.id);
     const missingBuckets = requiredBuckets.filter(bucket => !existingBuckets.includes(bucket));
     
