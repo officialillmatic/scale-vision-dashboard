@@ -22,7 +22,22 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
   try {
     console.log("🔍 [memberService] Starting fetch for company:", companyId);
 
-    // First, get company members
+    // First, get all confirmed users from auth.users for reference
+    const { data: confirmedUsers, error: authError } = await supabase.auth.admin.listUsers();
+    
+    if (authError) {
+      console.warn("🔍 [memberService] Could not fetch auth users data:", authError);
+    }
+
+    const confirmedEmails = confirmedUsers?.users
+      ?.filter(user => user.email_confirmed_at !== null)
+      ?.map(user => user.email)
+      ?.filter(Boolean) || [];
+    
+    console.log("🔍 [memberService] Total confirmed users in auth.users:", confirmedEmails.length);
+    console.log("🔍 [memberService] Confirmed emails:", confirmedEmails);
+
+    // Get company members
     const { data: membersData, error: membersError } = await supabase
       .from("company_members")
       .select(`
@@ -80,24 +95,17 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
 
     console.log("🔍 [memberService] User profile map:", userProfileMap);
 
-    // Get auth.users data to check roles and filter out super admins/admins
-    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-    
-    if (authError) {
-      console.warn("🔍 [memberService] Could not fetch auth users data:", authError);
-    }
-
-    // Create a map of auth users for role checking
-    const authUsersMap = authUsers?.users?.reduce((map, user) => {
+    // Create a map of auth users for role checking and email confirmation
+    const authUsersMap: Record<string, any> = {};
+    confirmedUsers?.users?.forEach(user => {
       if (user.id) {
-        map[user.id] = user;
+        authUsersMap[user.id] = user;
       }
-      return map;
-    }, {} as Record<string, any>) || {};
+    });
 
     console.log("🔍 [memberService] Auth users map:", authUsersMap);
 
-    // Map members with their user details and filter out invalid ones + super admins/admins
+    // Map members with their user details and filter appropriately
     const membersWithDetails = validMembers
       .map((member) => {
         const userProfile = userProfileMap[member.user_id];
@@ -112,8 +120,16 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
           return null;
         }
 
-        // Check if user is super admin or admin via auth.users metadata
+        // Check if user is confirmed in auth.users
         const authUser = authUsersMap[member.user_id];
+        const isConfirmed = authUser && authUser.email_confirmed_at !== null;
+        
+        if (!isConfirmed) {
+          console.log("🔍 [memberService] Filtering out unconfirmed user:", userProfile.email);
+          return null;
+        }
+
+        // Check if user is super admin or admin via auth.users metadata
         const userRole = authUser?.raw_user_meta_data?.role;
         
         // Filter out super admins and admins - only show regular users
@@ -132,13 +148,39 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
           }
         };
 
-        console.log("🔍 [memberService] Valid regular user member:", memberWithDetails);
+        console.log("🔍 [memberService] ✅ Valid confirmed regular user member:", memberWithDetails.user_details?.email);
         return memberWithDetails;
       })
       .filter((member): member is CompanyMember => member !== null);
 
-    console.log("🔍 [memberService] Final regular users (no super admins/admins):", membersWithDetails.length);
-    console.log("🔍 [memberService] Final members with details:", membersWithDetails);
+    console.log("🔍 [memberService] 📊 FINAL SUMMARY:");
+    console.log("🔍 [memberService] - Total confirmed users in system:", confirmedEmails.length);
+    console.log("🔍 [memberService] - Company members found:", membersData.length);
+    console.log("🔍 [memberService] - Valid confirmed regular users:", membersWithDetails.length);
+    console.log("🔍 [memberService] - Final members emails:", membersWithDetails.map(m => m.user_details?.email));
+    
+    // Check for specific missing emails
+    const foundEmails = membersWithDetails.map(m => m.user_details?.email).filter(Boolean);
+    const expectedEmails = [
+      'alexbuenhombre2012@gmail.com',
+      'nicolebsalento@gmail.com', 
+      'hostingcomotienequesergmail.com',
+      'jmdreamsgerencia@gmail.com',
+      'pedroalexanderbuenhombre@gmail.com',
+      'familiajyn2024@gmail.com',
+      'elbazardelasventas@gmail.com'
+    ];
+    
+    const missingEmails = expectedEmails.filter(email => !foundEmails.includes(email));
+    if (missingEmails.length > 0) {
+      console.warn("🔍 [memberService] ⚠️ MISSING EMAILS from Team Members:", missingEmails);
+      
+      // Check if missing emails are in confirmed users
+      missingEmails.forEach(email => {
+        const isConfirmed = confirmedEmails.includes(email);
+        console.log(`🔍 [memberService] ${email} - Confirmed: ${isConfirmed}`);
+      });
+    }
     
     return membersWithDetails;
   } catch (error) {

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
@@ -9,7 +10,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { TeamInvitations } from './TeamInvitations';
 import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
-import { UserPlus, Users, AlertCircle, Info } from 'lucide-react';
+import { UserPlus, Users, AlertCircle, Info, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -22,7 +23,9 @@ export function TeamMembers() {
     isLoading,
     error,
     isInviting,
-    handleInvite
+    handleInvite,
+    fetchInvitations,
+    members
   } = useTeamMembers(company?.id);
 
   console.log("🔍 [TeamMembers] Rendering with data:", {
@@ -39,6 +42,14 @@ export function TeamMembers() {
 
   const closeInviteDialog = () => {
     setIsInviteDialogOpen(false);
+  };
+
+  const handleRefresh = async () => {
+    if (fetchInvitations) {
+      await fetchInvitations();
+    }
+    // Force a page refresh to get latest data
+    window.location.reload();
   };
 
   // Triple validation to ensure no invalid users are displayed (already filtered for regular users only)
@@ -65,6 +76,20 @@ export function TeamMembers() {
   }) || [];
 
   console.log("🔍 [TeamMembers] Final valid regular user team members:", validTeamMembers);
+
+  // Expected emails list for verification
+  const expectedEmails = [
+    'alexbuenhombre2012@gmail.com',
+    'nicolebsalento@gmail.com', 
+    'hostingcomotienequesergmail.com',
+    'jmdreamsgerencia@gmail.com',
+    'pedroalexanderbuenhombre@gmail.com',
+    'familiajyn2024@gmail.com',
+    'elbazardelasventas@gmail.com'
+  ];
+
+  const foundEmails = validTeamMembers.map(m => m.user_details?.email).filter(Boolean);
+  const missingEmails = expectedEmails.filter(email => !foundEmails.includes(email));
 
   // Loading skeleton component
   const LoadingSkeleton = () => (
@@ -108,10 +133,16 @@ export function TeamMembers() {
           )}
         </div>
         
-        <Button onClick={openInviteDialog} disabled={isInviting || isLoading}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          {isInviting ? "Inviting..." : "Invite Member"}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} size="sm">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+          <Button onClick={openInviteDialog} disabled={isInviting || isLoading}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            {isInviting ? "Inviting..." : "Invite Member"}
+          </Button>
+        </div>
       </div>
 
       <Alert className="border-blue-200 bg-blue-50">
@@ -120,13 +151,30 @@ export function TeamMembers() {
           This section shows regular team members only. Super admins and system administrators are not displayed here.
         </AlertDescription>
       </Alert>
+
+      {/* Debug information */}
+      {missingEmails.length > 0 && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Missing expected users ({missingEmails.length}):</strong> {missingEmails.join(', ')}
+            <br />
+            <small>Found {foundEmails.length} of {expectedEmails.length} expected users</small>
+          </AlertDescription>
+        </Alert>
+      )}
       
       <EmailConfigWarning />
       
       {/* Team members list */}
       <Card className="p-6">
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Team Members</h2>
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Team Members</h2>
+            <div className="text-sm text-muted-foreground">
+              Showing {validTeamMembers.length} confirmed users
+            </div>
+          </div>
           <p className="text-muted-foreground">
             Manage your regular team members and their roles.
           </p>
