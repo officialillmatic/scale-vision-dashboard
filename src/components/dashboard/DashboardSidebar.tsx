@@ -1,3 +1,4 @@
+
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -13,7 +14,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone } from "lucide-react";
+import { Phone, CreditCard } from "lucide-react";
+import { useRole } from "@/hooks/useRole";
 
 const navigationItems = [
   {
@@ -70,8 +72,19 @@ const navigationItems = [
 export function DashboardSidebar() {
   const location = useLocation();
   const { state } = useSidebar();
+  const { can } = useRole();
   
   const collapsed = state === "collapsed";
+
+  // Add Admin Credits to navigation for super admins
+  const allNavigationItems = [
+    ...navigationItems,
+    ...(can.superAdminAccess ? [{
+      href: "/admin/credits",
+      icon: () => <CreditCard className="h-5 w-5" />,
+      label: "Admin Credits",
+    }] : [])
+  ];
 
   return (
     <Sidebar collapsible="icon" className="border-r border-gray-200/60 bg-white/80 backdrop-blur-sm">
@@ -119,7 +132,7 @@ export function DashboardSidebar() {
       <SidebarContent className="px-4 py-6">
         <SidebarGroup>
           <SidebarMenu className="space-y-2">
-            {navigationItems.map((item) => (
+            {allNavigationItems.map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild>
                   <Link

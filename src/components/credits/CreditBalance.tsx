@@ -43,36 +43,40 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
     try {
       setRefreshing(true);
-      const { data, error: fetchError } = await supabase
-        .from('user_credits')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      setError(null);
+      
+      // Use the secure database function instead of direct table access
+      const { data, error: fetchError } = await supabase.rpc('get_user_credits', {
+        p_user_id: user.id
+      });
 
       if (fetchError) {
-        if (fetchError.code === 'PGRST116') {
-          // No credits found, create initial entry
-          const { data: newCredit, error: createError } = await supabase
-            .from('user_credits')
-            .insert([{
-              user_id: user.id,
-              current_balance: 0.00,
-              warning_threshold: 10.00,
-              critical_threshold: 5.00
-            }])
-            .select()
-            .single();
+        console.error('Error fetching user credits:', fetchError);
+        
+        // Handle permission errors gracefully
+        if (fetchError.code === '42501' || fetchError.message?.includes('permission')) {
+          setError('Unable to access balance information. Please contact support.');
+        } else if (fetchError.code === 'PGRST116') {
+          // No credits found, create initial entry using the secure function
+          const { data: newCredit, error: createError } = await supabase.rpc('initialize_user_credits', {
+            p_user_id: user.id
+          });
 
-          if (createError) throw createError;
-          setCredits(newCredit);
+          if (createError) {
+            console.error('Error initializing user credits:', createError);
+            setError('Unable to initialize balance. Please contact support.');
+          } else {
+            setCredits(newCredit);
+          }
         } else {
-          throw fetchError;
+          setError(`Error loading balance: ${fetchError.message}`);
         }
       } else {
         setCredits(data);
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error('Unexpected error fetching credits:', err);
+      setError('Unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
