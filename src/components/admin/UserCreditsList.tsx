@@ -95,9 +95,7 @@ export function UserCreditsList({
             <Checkbox
               checked={allSelected}
               onCheckedChange={onSelectAll}
-              ref={(el) => {
-                if (el) el.indeterminate = someSelected;
-              }}
+              className={someSelected ? "data-[state=checked]:bg-primary/50" : ""}
             />
             Users ({users.length})
           </CardTitle>

@@ -26,6 +26,7 @@ import SupportPage from "./pages/SupportPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import AcceptInvitationPage from "./pages/AcceptInvitationPage";
+import SuperAdminCreditPage from "./pages/SuperAdminCreditPage";
 import NotFound from "./pages/NotFound";
 
 import "./App.css";
@@ -128,6 +129,16 @@ function App() {
                       element={
                         <ProtectedRoute>
                           <SupportPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    {/* Super Admin only routes */}
+                    <Route
+                      path="/admin/credits"
+                      element={
+                        <ProtectedRoute superAdminOnly>
+                          <SuperAdminCreditPage />
                         </ProtectedRoute>
                       }
                     />

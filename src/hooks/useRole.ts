@@ -15,7 +15,7 @@ export const useRole = () => {
     throw error; // Re-throw to let parent components handle
   }
   
-  const { company, user, companyMembers, userRole, isCompanyOwner, isCompanyLoading } = authContext;
+  const { company, user, userRole, isCompanyOwner, isCompanyLoading } = authContext;
   
   // Safely get super admin context
   let superAdminContext;
