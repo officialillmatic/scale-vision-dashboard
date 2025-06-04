@@ -16,7 +16,7 @@ export function TeamMembersSection() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   
   const {
-    teamMembers,
+    members,
     invitations,
     isLoading,
     error,
@@ -66,7 +66,7 @@ export function TeamMembersSection() {
             <div className="flex items-center gap-3">
               <CardTitle className="text-xl">Team Members</CardTitle>
               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                {teamMembers.length} members
+                {members.length} members
               </Badge>
             </div>
             <div className="flex gap-2">
@@ -87,7 +87,7 @@ export function TeamMembersSection() {
               <LoadingSpinner size="md" />
               <span className="ml-2 text-muted-foreground">Loading team members...</span>
             </div>
-          ) : teamMembers.length === 0 ? (
+          ) : members.length === 0 ? (
             <div className="text-center py-12">
               <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p className="text-lg font-medium text-muted-foreground">No team members found</p>
@@ -105,20 +105,21 @@ export function TeamMembersSection() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {teamMembers.map((member) => (
+                  {members.map((member) => (
                     <TableRow key={member.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
                             {member.user_details?.name?.charAt(0)?.toUpperCase() || 
-                             member.user_details?.email?.charAt(0)?.toUpperCase() || 'U'}
+                             member.user_details?.email?.charAt(0)?.toUpperCase() || 
+                             member.email?.charAt(0)?.toUpperCase() || 'U'}
                           </div>
                           <div>
                             <p className="font-medium">
-                              {member.user_details?.name || member.user_details?.email?.split('@')[0] || 'Unknown User'}
+                              {member.user_details?.name || member.full_name || member.user_details?.email?.split('@')[0] || member.email?.split('@')[0] || 'Unknown User'}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {member.user_details?.email}
+                              {member.user_details?.email || member.email}
                             </p>
                           </div>
                         </div>

@@ -13,6 +13,9 @@ export interface TeamMemberProfile {
   email_confirmed_at?: string;
 }
 
+// Add the missing CompanyMember type alias
+export type CompanyMember = TeamMemberProfile;
+
 export async function fetchTeamMembers(companyId?: string): Promise<TeamMemberProfile[]> {
   try {
     let query = supabase
