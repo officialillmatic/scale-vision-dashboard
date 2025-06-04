@@ -179,6 +179,7 @@ export function useAgents() {
     handleDeleteAgent,
     handleAssignAgent,
     handleRemoveAgentAssignment,
+    refetchAgents,
     refetchUserAgents,
     isAdmin: isSuperAdmin || isAdmin
   };

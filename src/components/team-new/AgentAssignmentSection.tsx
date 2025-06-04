@@ -34,7 +34,7 @@ export function AgentAssignmentSection() {
   const {
     agents: customAgents,
     isLoadingAgents,
-    refetchAgents: refetchCustomAgents
+    refetchAgents
   } = useAgents();
 
   const {
@@ -53,7 +53,7 @@ export function AgentAssignmentSection() {
 
   const handleRefreshAll = () => {
     refetchRetellAgents();
-    refetchCustomAgents();
+    refetchAgents();
     refetchAssignments();
   };
 
@@ -139,7 +139,7 @@ export function AgentAssignmentSection() {
                   </Badge>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => refetchCustomAgents()} disabled={isLoadingAgents}>
+                  <Button variant="outline" onClick={() => refetchAgents()} disabled={isLoadingAgents}>
                     <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingAgents ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
@@ -154,7 +154,7 @@ export function AgentAssignmentSection() {
               <CustomAgentsTable 
                 agents={customAgents || []} 
                 isLoading={isLoadingAgents}
-                onRefresh={refetchCustomAgents}
+                onRefresh={refetchAgents}
               />
             </CardContent>
           </Card>
@@ -194,7 +194,7 @@ export function AgentAssignmentSection() {
         onClose={() => setIsCreateAgentModalOpen(false)}
         onSuccess={() => {
           setIsCreateAgentModalOpen(false);
-          refetchCustomAgents();
+          refetchAgents();
         }}
       />
     </div>
