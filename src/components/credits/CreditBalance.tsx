@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +13,6 @@ import {
   Plus,
   RefreshCw,
   Shield,
-  TrendingUp,
   Info
 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -49,7 +48,6 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       
       console.log('Fetching credits for user:', user.id);
       
-      // Use the optimized database function with proper parameter name
       const { data, error: fetchError } = await supabase.rpc('get_user_credits', {
         target_user_id: user.id
       });
@@ -60,7 +58,6 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
         console.error('Error fetching user credits:', fetchError);
         setError(`Error loading balance: ${fetchError.message}`);
       } else if (data) {
-        // The function now returns JSON directly instead of a record array
         setCredits({
           id: data.id || '',
           current_balance: data.current_balance || 0,
@@ -71,7 +68,6 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
         });
         console.log('Credits loaded successfully:', data);
       } else {
-        // This shouldn't happen as the function auto-creates records
         console.warn('No credit data returned from function');
         setCredits({
           id: '',
@@ -112,8 +108,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
           icon: Shield,
           iconColor: 'text-red-500',
           balanceColor: 'text-red-600',
-          message: 'Add funds to reactivate your account',
-          bgAccent: 'border-red-100 bg-red-50/30'
+          message: 'Add funds to reactivate your account'
         };
       case 'critical':
         return {
@@ -121,8 +116,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
           icon: AlertTriangle,
           iconColor: 'text-orange-500',
           balanceColor: 'text-orange-600',
-          message: 'Urgent: Add funds to prevent service interruption',
-          bgAccent: 'border-orange-100 bg-orange-50/30'
+          message: 'Urgent: Add funds to prevent service interruption'
         };
       case 'warning':
         return {
@@ -130,8 +124,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
           icon: AlertCircle,
           iconColor: 'text-yellow-500',
           balanceColor: 'text-yellow-700',
-          message: 'Consider adding funds soon',
-          bgAccent: 'border-yellow-100 bg-yellow-50/30'
+          message: 'Consider adding funds soon'
         };
       case 'healthy':
         return {
@@ -139,8 +132,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
           icon: CheckCircle,
           iconColor: 'text-emerald-500',
           balanceColor: 'text-emerald-700',
-          message: 'Your account is in good standing',
-          bgAccent: 'border-emerald-100 bg-emerald-50/30'
+          message: 'Your account is in good standing'
         };
       default:
         return {
@@ -148,8 +140,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
           icon: Wallet,
           iconColor: 'text-gray-500',
           balanceColor: 'text-gray-700',
-          message: 'Loading balance information...',
-          bgAccent: 'border-gray-100 bg-gray-50/30'
+          message: 'Loading balance information...'
         };
     }
   };
@@ -164,7 +155,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
   if (loading) {
     return (
-      <Card className="shadow-sm">
+      <Card className="border border-black">
         <CardContent className="p-6">
           <div className="flex items-center justify-center space-x-3">
             <LoadingSpinner size="sm" />
@@ -177,7 +168,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
   if (error) {
     return (
-      <Card className="shadow-sm border-red-200">
+      <Card className="border border-black">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -197,124 +188,117 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   }
 
   return (
-    <Card className={`shadow-sm transition-all duration-200 ${config.bgAccent}`}>
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-lg bg-white shadow-sm">
+    <Card className="border border-black bg-white">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between space-x-6">
+          {/* 1. Account Balance Title with Icon */}
+          <div className="flex items-center space-x-3 shrink-0">
+            <div className="p-2 rounded-lg bg-white shadow-sm border">
               <Wallet className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <CardTitle className="text-lg font-semibold text-gray-900">
-                Account Balance
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Available for calls
-              </p>
+              <h3 className="text-lg font-semibold text-gray-900">Account Balance</h3>
+              <p className="text-xs text-muted-foreground">Available for calls</p>
             </div>
           </div>
-          <Button 
-            onClick={handleRefresh} 
-            variant="ghost" 
-            size="sm"
-            disabled={refreshing}
-            className="h-8 w-8 p-0 shrink-0"
-          >
-            {refreshing ? (
-              <LoadingSpinner size="sm" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </CardHeader>
 
-      <CardContent className="space-y-6">
-        {/* Main Balance Display */}
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center space-x-3">
-            <p className={`text-4xl font-bold tracking-tight ${config.balanceColor}`}>
-              {credits ? formatCurrency(credits.current_balance) : '$0.00'}
-            </p>
-            <IconComponent className={`h-8 w-8 ${config.iconColor}`} />
-          </div>
-          
-          {/* Status Badge */}
-          <div className="flex justify-center">
+          {/* 2. Balance Amount and Status Badge */}
+          <div className="flex items-center space-x-4 shrink-0">
+            <div className="flex items-center space-x-2">
+              <p className={`text-2xl font-bold ${config.balanceColor}`}>
+                {credits ? formatCurrency(credits.current_balance) : '$0.00'}
+              </p>
+              <IconComponent className={`h-6 w-6 ${config.iconColor}`} />
+            </div>
             <Badge variant={config.badge.variant} className="text-xs font-medium">
               {config.badge.text}
             </Badge>
           </div>
-          
-          {/* Status Message */}
-          <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            {config.message}
-          </p>
-        </div>
 
-        {/* Action Buttons */}
-        {showActions && (
-          <div className="flex flex-col space-y-2">
-            {onRequestRecharge && (
-              <Button 
-                onClick={onRequestRecharge}
-                variant={status === 'empty' || status === 'critical' ? 'default' : 'outline'}
-                size="sm"
-                className="w-full"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                {status === 'empty' ? 'Add Funds Now' : 'Request Recharge'}
-              </Button>
-            )}
-            
-            {(status === 'warning' || status === 'critical' || status === 'empty') && (
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => {
-                  alert('Please contact support to recharge your account: support@drscale.com');
-                }}
-                className="w-full text-xs"
-              >
-                Contact Support
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Threshold Information */}
-        {credits && (
-          <div className="space-y-3 pt-4 border-t border-gray-100">
-            <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-              <Info className="h-3 w-3" />
-              <span className="font-medium">Account Thresholds</span>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Warning:</span>
-                <span className="font-medium text-yellow-700">
-                  {formatCurrency(credits.warning_threshold)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Critical:</span>
-                <span className="font-medium text-orange-700">
-                  {formatCurrency(credits.critical_threshold)}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Last Updated */}
-        {credits && (
-          <div className="pt-2 border-t border-gray-50">
-            <p className="text-xs text-muted-foreground text-center">
-              Updated {new Date(credits.updated_at).toLocaleString()}
+          {/* 3. Status Message */}
+          <div className="flex-1 text-center px-4">
+            <p className="text-sm text-muted-foreground">
+              {config.message}
             </p>
           </div>
-        )}
+
+          {/* 4. Action Buttons */}
+          {showActions && (
+            <div className="flex items-center space-x-2 shrink-0">
+              {onRequestRecharge && (
+                <Button 
+                  onClick={onRequestRecharge}
+                  variant={status === 'empty' || status === 'critical' ? 'default' : 'outline'}
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {status === 'empty' ? 'Add Funds' : 'Request Recharge'}
+                </Button>
+              )}
+              
+              {(status === 'warning' || status === 'critical' || status === 'empty') && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => {
+                    alert('Please contact support to recharge your account: support@drscale.com');
+                  }}
+                >
+                  Contact Support
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* 5. Account Thresholds */}
+          {credits && (
+            <div className="shrink-0 border-l border-gray-200 pl-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <Info className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">Account Thresholds</span>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Warning:</span>
+                  <span className="font-medium text-yellow-700">
+                    {formatCurrency(credits.warning_threshold)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Critical:</span>
+                  <span className="font-medium text-orange-700">
+                    {formatCurrency(credits.critical_threshold)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. Last Updated + Refresh Button */}
+          {credits && (
+            <div className="flex items-center space-x-2 shrink-0 border-l border-gray-200 pl-4">
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground mb-1">Last Updated</p>
+                <p className="text-xs font-medium">
+                  {new Date(credits.updated_at).toLocaleString()}
+                </p>
+              </div>
+              <Button 
+                onClick={handleRefresh} 
+                variant="ghost" 
+                size="sm"
+                disabled={refreshing}
+                className="h-8 w-8 p-0"
+              >
+                {refreshing ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
