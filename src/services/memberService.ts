@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errorHandling";
@@ -151,7 +150,17 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
         console.log("🔍 [memberService] ✅ Valid confirmed regular user member:", memberWithDetails.user_details?.email);
         return memberWithDetails;
       })
-      .filter((member): member is CompanyMember => member !== null);
+      .filter((member): member is CompanyMember => member !== null)
+      // Filter out the specific admin email
+      .filter(member => {
+        const isAdmin = member.user_details?.email === 'aiagentsdevelopers@gmail.com';
+        if (isAdmin) {
+          console.log("🔍 [memberService] 🚫 Filtering out admin user:", member.user_details?.email);
+          return false;
+        }
+        console.log("🔍 [memberService] ✅ Including regular user:", member.user_details?.email);
+        return true;
+      });
 
     console.log("🔍 [memberService] 📊 FINAL SUMMARY:");
     console.log("🔍 [memberService] - Total confirmed users in system:", confirmedEmails.length);
