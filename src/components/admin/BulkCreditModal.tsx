@@ -5,11 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader, Users, AlertTriangle } from 'lucide-react';
+import { Users, Plus, Minus } from 'lucide-react';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 interface BulkCreditModalProps {
   open: boolean;
@@ -18,71 +17,80 @@ interface BulkCreditModalProps {
   onSuccess: () => void;
 }
 
-export function BulkCreditModal({ 
-  open, 
-  onOpenChange, 
-  selectedUserIds, 
-  onSuccess 
+export function BulkCreditModal({
+  open,
+  onOpenChange,
+  selectedUserIds,
+  onSuccess
 }: BulkCreditModalProps) {
-  const { user } = useAuth();
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user?.id || !amount || selectedUserIds.length === 0) return;
-
-    const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount)) {
-      toast.error('Please enter a valid amount');
+  const handleSubmit = async (isPositive: boolean) => {
+    if (selectedUserIds.length === 0 || !amount) {
+      toast.error('Please select users and enter an amount');
       return;
     }
 
-    setLoading(true);
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      toast.error('Please enter a valid positive amount');
+      return;
+    }
+
+    const finalAmount = isPositive ? numericAmount : -numericAmount;
+
+    setIsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('admin_bulk_adjust_credits', {
-        p_user_ids: selectedUserIds,
-        p_amount: numericAmount,
-        p_description: description || `Bulk balance adjustment: ${numericAmount > 0 ? '+' : ''}${numericAmount}`,
-        p_admin_id: user.id
-      });
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
 
-      if (error) throw error;
+      for (const userId of selectedUserIds) {
+        try {
+          const { data, error } = await supabase.rpc('update_user_credits', {
+            target_user_id: userId,
+            amount_change: finalAmount,
+            description_text: description || `Bulk admin ${isPositive ? 'credit' : 'debit'}: ${Math.abs(finalAmount)}`
+          });
 
-      if (data?.success) {
-        toast.success(`Bulk operation completed successfully! Updated ${data.success_count} users.`);
-        onSuccess();
-        onOpenChange(false);
-      } else {
-        const errorMessage = data?.errors?.length > 0 
-          ? `Completed with errors: ${data.success_count} successful, ${data.error_count} failed`
-          : data?.error || 'Failed to complete bulk operation';
-        
-        if (data?.success_count > 0) {
-          toast.warning(errorMessage);
-          onSuccess();
-        } else {
-          toast.error(errorMessage);
+          if (error) {
+            errorCount++;
+            errors.push(`User ${userId}: ${error.message}`);
+          } else if (data && data.length > 0 && data[0].success) {
+            successCount++;
+          } else {
+            errorCount++;
+            errors.push(`User ${userId}: Update failed`);
+          }
+        } catch (err: any) {
+          errorCount++;
+          errors.push(`User ${userId}: ${err.message}`);
         }
       }
+
+      if (errorCount === 0) {
+        toast.success(`Successfully ${isPositive ? 'added' : 'deducted'} credits for ${successCount} users`);
+      } else if (successCount > 0) {
+        toast.warning(`Partially completed: ${successCount} succeeded, ${errorCount} failed`);
+      } else {
+        toast.error(`All updates failed. First error: ${errors[0]}`);
+      }
+
+      if (successCount > 0) {
+        onSuccess();
+        onOpenChange(false);
+        setAmount('');
+        setDescription('');
+      }
     } catch (error: any) {
-      toast.error(`Failed to perform bulk operation: ${error.message}`);
+      console.error('Bulk credit adjustment error:', error);
+      toast.error(`Failed to adjust credits: ${error.message || 'Unknown error'}`);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
-
-  const resetForm = () => {
-    setAmount('');
-    setDescription('');
-  };
-
-  React.useEffect(() => {
-    if (!open) {
-      resetForm();
-    }
-  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -94,74 +102,69 @@ export function BulkCreditModal({
           </DialogTitle>
         </DialogHeader>
         
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            This action will affect {selectedUserIds.length} selected users. Please review carefully before proceeding.
-          </AlertDescription>
-        </Alert>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
+          <div className="p-3 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-700">
+              This will affect <strong>{selectedUserIds.length}</strong> selected users
+            </p>
+          </div>
+          
           <div className="space-y-2">
-            <Label htmlFor="bulk-amount">Amount ($)</Label>
+            <Label htmlFor="amount">Amount per user ($)</Label>
             <Input
-              id="bulk-amount"
+              id="amount"
               type="number"
               step="0.01"
-              placeholder="Enter amount (positive to add, negative to deduct)"
+              placeholder="Enter amount"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              required
             />
-            <p className="text-xs text-gray-500">
-              This amount will be applied to all {selectedUserIds.length} selected users
-            </p>
           </div>
-
+          
           <div className="space-y-2">
-            <Label htmlFor="bulk-description">Description</Label>
+            <Label htmlFor="description">Description (Optional)</Label>
             <Textarea
-              id="bulk-description"
-              placeholder="Reason for bulk balance adjustment..."
+              id="description"
+              placeholder="Reason for bulk adjustment..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              required
             />
           </div>
-
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-sm font-medium mb-1">Summary:</p>
-            <p className="text-sm text-gray-600">
-              • {selectedUserIds.length} users selected
-              {amount && (
-                <>
-                  <br />• {parseFloat(amount) > 0 ? 'Adding' : 'Deducting'} ${Math.abs(parseFloat(amount) || 0).toFixed(2)} {parseFloat(amount) > 0 ? 'to' : 'from'} each account
-                  <br />• Total amount: ${(Math.abs(parseFloat(amount) || 0) * selectedUserIds.length).toFixed(2)}
-                </>
-              )}
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading || !amount || selectedUserIds.length === 0}>
-              {loading ? (
-                <>
-                  <Loader className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
-                </>
+          
+          <div className="flex gap-2">
+            <Button
+              onClick={() => handleSubmit(true)}
+              disabled={isLoading || !amount || selectedUserIds.length === 0}
+              className="flex-1"
+              variant="default"
+            >
+              {isLoading ? (
+                <LoadingSpinner size="sm" />
               ) : (
                 <>
-                  <Users className="h-4 w-4 mr-2" />
-                  Apply to {selectedUserIds.length} Users
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Credits
+                </>
+              )}
+            </Button>
+            
+            <Button
+              onClick={() => handleSubmit(false)}
+              disabled={isLoading || !amount || selectedUserIds.length === 0}
+              className="flex-1"
+              variant="destructive"
+            >
+              {isLoading ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <>
+                  <Minus className="h-4 w-4 mr-2" />
+                  Deduct Credits
                 </>
               )}
             </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

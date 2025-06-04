@@ -34,13 +34,11 @@ export function BillingSettings() {
 
     setIsUpdating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('admin-update-balance', {
-        body: {
-          userId: selectedUserId,
-          companyId: company.id,
-          amount: numericAmount,
-          description: description || `Admin balance adjustment: ${numericAmount > 0 ? '+' : ''}${numericAmount}`
-        }
+      // Usar la función update_user_credits en lugar de admin-update-balance
+      const { data, error } = await supabase.rpc('update_user_credits', {
+        target_user_id: selectedUserId,
+        amount_change: numericAmount,
+        description_text: description || `Admin balance adjustment: ${numericAmount > 0 ? '+' : ''}${numericAmount}`
       });
 
       if (error) {
@@ -49,10 +47,22 @@ export function BillingSettings() {
         return;
       }
 
-      toast.success('Balance updated successfully');
-      setAmount('');
-      setDescription('');
-      setSelectedUserId('');
+      if (data && data.length > 0) {
+        const result = data[0];
+        if (result.success) {
+          toast.success(`Balance updated successfully. New balance: $${result.new_balance}`);
+          setAmount('');
+          setDescription('');
+          setSelectedUserId('');
+        } else {
+          toast.error(`Failed to update balance: ${result.message}`);
+        }
+      } else {
+        toast.success('Balance updated successfully');
+        setAmount('');
+        setDescription('');
+        setSelectedUserId('');
+      }
       
     } catch (error: any) {
       console.error('Unexpected error:', error);
