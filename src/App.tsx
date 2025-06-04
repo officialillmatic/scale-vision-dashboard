@@ -14,7 +14,9 @@ import PasswordResetForm from "@/components/auth/PasswordResetForm";
 import UpdatePasswordForm from "@/components/auth/UpdatePasswordForm";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
+import DashboardPage from '@/pages/DashboardPage';
 import TeamNew from '@/pages/TeamNew';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,20 @@ function RoleCheck({
   return children;
 }
 
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { isSuperAdmin, isLoading } = useSuperAdmin();
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isSuperAdmin) {
+    return <Navigate to="/" />;
+  }
+
+  return children;
+}
+
 function AppRoutes() {
   return (
     <div className="min-h-screen bg-background">
@@ -50,7 +66,15 @@ function AppRoutes() {
           path="/" 
           element={
             <ProtectedRoute>
-              <TeamNew />
+              <DashboardPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
             </ProtectedRoute>
           } 
         />
@@ -58,7 +82,9 @@ function AppRoutes() {
           path="/team-new" 
           element={
             <ProtectedRoute>
-              <TeamNew />
+              <SuperAdminRoute>
+                <TeamNew />
+              </SuperAdminRoute>
             </ProtectedRoute>
           } 
         />
