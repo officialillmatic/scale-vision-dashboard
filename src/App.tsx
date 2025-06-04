@@ -16,6 +16,13 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardPage from '@/pages/DashboardPage';
 import TeamNew from '@/pages/TeamNew';
+import CallsSimple from '@/pages/CallsSimple';
+import AnalyticsPage from '@/pages/AnalyticsPage';
+import SettingsPage from '@/pages/SettingsPage';
+import SuperAdminCreditPage from '@/pages/SuperAdminCreditPage';
+import TeamPage from '@/pages/TeamPage';
+import ProfilePage from '@/pages/ProfilePage';
+import SupportPage from '@/pages/SupportPage';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 const queryClient = new QueryClient();
@@ -79,12 +86,72 @@ function AppRoutes() {
           } 
         />
         <Route 
+          path="/calls-simple" 
+          element={
+            <ProtectedRoute>
+              <CallsSimple />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/analytics" 
+          element={
+            <ProtectedRoute>
+              <AnalyticsPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/settings" 
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/team" 
+          element={
+            <ProtectedRoute>
+              <SuperAdminRoute>
+                <TeamPage />
+              </SuperAdminRoute>
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin/credits" 
+          element={
+            <ProtectedRoute>
+              <SuperAdminRoute>
+                <SuperAdminCreditPage />
+              </SuperAdminRoute>
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
           path="/team-new" 
           element={
             <ProtectedRoute>
               <SuperAdminRoute>
                 <TeamNew />
               </SuperAdminRoute>
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/support" 
+          element={
+            <ProtectedRoute>
+              <SupportPage />
             </ProtectedRoute>
           } 
         />

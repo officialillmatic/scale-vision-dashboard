@@ -1,104 +1,155 @@
 
-import { useEffect } from "react";
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { LifeBuoy, Mail, MessageCircle } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import React from 'react';
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Mail, MessageCircle, Phone, ExternalLink, BookOpen, Users, Zap } from 'lucide-react';
 
-export default function SupportPage() {
-  const { user } = useAuth();
-
-  const handleWhatsAppClick = () => {
-    const phoneNumber = "573107771810";
-    const message = "Hi, I need help with Dr. Scale";
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-  };
-
+const SupportPage = () => {
   return (
     <DashboardLayout>
-      <div className="container py-6">
-        <h1 className="text-3xl font-bold mb-6">Support Center</h1>
-        
-        <div className="grid md:grid-cols-3 gap-6">
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Help & Support</h1>
+          <p className="text-muted-foreground">
+            Get help with Dr. Scale AI and connect with our support team
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {/* Contact Support */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" />
-                <span>Chat Support</span>
+                <MessageCircle className="h-5 w-5 text-blue-500" />
+                Contact Support
               </CardTitle>
-              <CardDescription>
-                Chat with our support team during business hours.
-              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="mb-4 text-sm">Available Mon-Fri, 9am-5pm EST</p>
-              <Button variant="outline" className="w-full">
-                Start Chat
-              </Button>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Get direct help from our support team
+              </p>
+              <div className="space-y-3">
+                <Button variant="outline" className="w-full justify-start">
+                  <Mail className="mr-2 h-4 w-4" />
+                  Email Support
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <Phone className="mr-2 h-4 w-4" />
+                  Schedule Call
+                </Button>
+              </div>
+              <Badge variant="secondary" className="text-xs">
+                Response within 24h
+              </Badge>
             </CardContent>
           </Card>
-          
+
+          {/* Documentation */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                <span>Email Support</span>
+                <BookOpen className="h-5 w-5 text-green-500" />
+                Documentation
               </CardTitle>
-              <CardDescription>
-                Send us an email and we'll respond within 24 hours.
-              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="mb-4 text-sm">support@drscale.com</p>
-              <Button variant="outline" className="w-full" onClick={() => window.location.href = "mailto:support@drscale.com"}>
-                Send Email
-              </Button>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Learn how to use Dr. Scale AI effectively
+              </p>
+              <div className="space-y-3">
+                <Button variant="outline" className="w-full justify-start">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  User Guide
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <Zap className="mr-2 h-4 w-4" />
+                  API Documentation
+                </Button>
+              </div>
+              <Badge variant="secondary" className="text-xs">
+                Always up to date
+              </Badge>
             </CardContent>
           </Card>
-          
+
+          {/* Community */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <LifeBuoy className="h-5 w-5" />
-                <span>Knowledge Base</span>
+                <Users className="h-5 w-5 text-purple-500" />
+                Community
               </CardTitle>
-              <CardDescription>
-                Explore guides and tutorials to get the most out of EchoWave.
-              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="mb-4 text-sm">Find answers to common questions</p>
-              <Button variant="outline" className="w-full">
-                Browse Articles
-              </Button>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Connect with other Dr. Scale users
+              </p>
+              <div className="space-y-3">
+                <Button variant="outline" className="w-full justify-start">
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  Join Discord
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Forum
+                </Button>
+              </div>
+              <Badge variant="secondary" className="text-xs">
+                Active community
+              </Badge>
             </CardContent>
           </Card>
         </div>
-        
-        <Card className="mt-8">
+
+        {/* Quick Help Section */}
+        <Card>
           <CardHeader>
-            <CardTitle>Contact Support</CardTitle>
-            <CardDescription>
-              Need immediate help? Contact us directly on WhatsApp
-            </CardDescription>
+            <CardTitle>Quick Help</CardTitle>
           </CardHeader>
-          <CardContent className="text-center py-8">
-            <Button
-              onClick={handleWhatsAppClick}
-              className="bg-[#25D366] hover:bg-[#20b858] text-white text-lg px-8 py-6 h-auto rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-              size="lg"
-            >
-              <MessageCircle className="h-6 w-6 mr-3" />
-              Contact us on WhatsApp
-            </Button>
-            <p className="text-sm text-muted-foreground mt-4">
-              We'll respond as soon as possible during business hours
-            </p>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <h3 className="font-semibold mb-2">Getting Started</h3>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  <li>• Set up your first AI agent</li>
+                  <li>• Configure call routing</li>
+                  <li>• Understand analytics</li>
+                  <li>• Manage team members</li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-2">Common Issues</h3>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  <li>• Call quality problems</li>
+                  <li>• Agent not responding</li>
+                  <li>• Billing questions</li>
+                  <li>• Integration setup</li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Status */}
+        <Card>
+          <CardHeader>
+            <CardTitle>System Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm">All systems operational</span>
+              <Badge variant="outline" className="ml-auto text-xs">
+                99.9% uptime
+              </Badge>
+            </div>
           </CardContent>
         </Card>
       </div>
     </DashboardLayout>
   );
-}
+};
+
+export default SupportPage;
