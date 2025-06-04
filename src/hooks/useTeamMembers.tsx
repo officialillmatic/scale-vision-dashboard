@@ -1,174 +1,88 @@
 
-import { useState, useEffect } from "react";
-import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation, createInvitation } from "@/services/invitation";
-import { handleError } from "@/lib/errorHandling";
-import { fetchCompanyMembers, CompanyMember } from "@/services/memberService";
-import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 
-interface UseTeamMembersResult {
-  invitations: CompanyInvitation[];
-  members: CompanyMember[];
-  isLoading: boolean;
-  error: string | null;
-  fetchInvitations: () => Promise<void>;
-  handleCancelInvitation: (invitationId: string) => Promise<void>;
-  handleResendInvitation: (invitationId: string) => Promise<void>;
-  teamMembers: CompanyMember[];
-  isInviting: boolean;
-  handleInvite: (email: string, role: 'admin' | 'member' | 'viewer') => Promise<boolean>;
+export interface TeamMember {
+  id: string;
+  email: string;
+  full_name?: string;
+  avatar_url?: string;
+  role: string;
+  status: 'active' | 'invited' | 'inactive';
+  created_at: string;
+  last_sign_in_at?: string;
+  company_id?: string;
+  email_confirmed_at?: string;
 }
 
-export const useTeamMembers = (companyId: string | undefined): UseTeamMembersResult => {
-  const [invitations, setInvitations] = useState<CompanyInvitation[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [members, setMembers] = useState<CompanyMember[]>([]);
-  const [isInviting, setIsInviting] = useState(false);
+export function useTeamMembers() {
+  const { company } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
 
-  const fetchInvitations = async () => {
-    if (!companyId && !isSuperAdmin) {
-      setInvitations([]);
-      return;
-    }
+  const { data: members, isLoading, error, refetch } = useQuery({
+    queryKey: ['team-members', company?.id, isSuperAdmin],
+    queryFn: async () => {
+      try {
+        // For super admins, get all users across all companies
+        if (isSuperAdmin) {
+          const { data: profiles, error: profilesError } = await supabase
+            .from('profiles')
+            .select('*')
+            .order('created_at', { ascending: false });
 
-    setIsLoading(true);
-    setError(null);
+          if (profilesError) throw profilesError;
 
-    try {
-      // Get confirmed users first to filter out from invitations
-      const { data: confirmedUsers } = await supabase.auth.admin.listUsers();
-      const confirmedEmails = confirmedUsers?.users
-        ?.filter(user => user.email_confirmed_at !== null)
-        ?.map(user => user.email)
-        ?.filter(Boolean) || [];
-      
-      const rawInvitations = await fetchCompanyInvitations(companyId);
-      
-      // Filter out invitations for users who are already confirmed
-      const filteredInvitations = rawInvitations.filter(invitation => {
-        return !confirmedEmails.includes(invitation.email);
-      });
-      
-      setInvitations(filteredInvitations);
-    } catch (error) {
-      console.error("Error fetching invitations:", error);
-      handleError(error, {
-        fallbackMessage: "Failed to fetch invitations",
-        logToConsole: true
-      });
-      setError("Failed to fetch invitations");
-      setInvitations([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const fetchMembers = async () => {
-    if (!companyId && !isSuperAdmin) {
-      setMembers([]);
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const companyMembers = await fetchCompanyMembers(companyId);
-      setMembers(companyMembers);
-    } catch (error) {
-      console.error("Error fetching members:", error);
-      handleError(error, {
-        fallbackMessage: "Failed to fetch team members",
-        logToConsole: true
-      });
-      setMembers([]);
-      setError("Failed to fetch team members");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+          return profiles?.map(profile => ({
+            id: profile.id,
+            email: profile.email || 'No email',
+            full_name: profile.full_name,
+            avatar_url: profile.avatar_url,
+            role: profile.role || 'user',
+            status: profile.email_confirmed_at ? 'active' : 'invited' as const,
+            created_at: profile.created_at,
+            last_sign_in_at: profile.last_sign_in_at,
+            company_id: profile.company_id,
+            email_confirmed_at: profile.email_confirmed_at
+          })) || [];
+        }
 
-  useEffect(() => {
-    if (companyId || isSuperAdmin) {
-      fetchMembers();
-      fetchInvitations();
-    } else {
-      setMembers([]);
-      setInvitations([]);
-    }
-  }, [companyId, isSuperAdmin]);
+        // For company users, get only their company's members
+        if (!company?.id) return [];
 
-  const handleCancelInvitation = async (invitationId: string) => {
-    setIsLoading(true);
-    try {
-      const success = await cancelInvitation(invitationId);
-      if (success) {
-        await fetchInvitations();
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('company_id', company.id)
+          .order('created_at', { ascending: false });
+
+        if (profilesError) throw profilesError;
+
+        return profiles?.map(profile => ({
+          id: profile.id,
+          email: profile.email || 'No email',
+          full_name: profile.full_name,
+          avatar_url: profile.avatar_url,
+          role: profile.role || 'user',
+          status: profile.email_confirmed_at ? 'active' : 'invited' as const,
+          created_at: profile.created_at,
+          last_sign_in_at: profile.last_sign_in_at,
+          company_id: profile.company_id,
+          email_confirmed_at: profile.email_confirmed_at
+        })) || [];
+      } catch (error) {
+        console.error('Error fetching team members:', error);
+        return [];
       }
-    } catch (error) {
-      handleError(error, {
-        fallbackMessage: "Failed to cancel invitation",
-        logToConsole: true
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResendInvitation = async (invitationId: string) => {
-    setIsLoading(true);
-    try {
-      const success = await resendInvitation(invitationId);
-      if (success) {
-        await fetchInvitations();
-      }
-    } catch (error) {
-      handleError(error, {
-        fallbackMessage: "Failed to resend invitation",
-        logToConsole: true
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
-    if (!companyId && !isSuperAdmin) return false;
-    
-    setIsInviting(true);
-    
-    try {
-      const success = await createInvitation(companyId, email, role);
-      
-      if (success) {
-        await fetchInvitations();
-        await fetchMembers();
-      }
-      return success;
-    } catch (error) {
-      console.error("Error in handleInvite:", error);
-      handleError(error, {
-        fallbackMessage: "Failed to send invitation",
-        logToConsole: true
-      });
-      return false;
-    } finally {
-      setIsInviting(false);
-    }
-  };
+    },
+    enabled: !!company?.id || isSuperAdmin
+  });
 
   return {
-    invitations,
-    members,
+    members: members || [],
     isLoading,
     error,
-    fetchInvitations,
-    handleCancelInvitation,
-    handleResendInvitation,
-    teamMembers: members,
-    isInviting,
-    handleInvite,
+    refetch
   };
-};
+}

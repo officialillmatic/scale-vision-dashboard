@@ -1,154 +1,87 @@
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { handleError } from "@/lib/errorHandling";
-import { fetchUserProfile, fetchUserProfiles } from "./userService";
 
-export interface CompanyMember {
+import { supabase } from "@/integrations/supabase/client";
+
+export interface TeamMemberProfile {
   id: string;
-  company_id: string;
-  user_id: string;
-  role: 'admin' | 'member' | 'viewer';
-  status: 'active' | 'pending' | 'inactive';
-  created_at: Date;
-  updated_at: Date;
-  user_details?: {
-    email: string;
-    name?: string;
-  };
+  email?: string;
+  full_name?: string;
+  avatar_url?: string;
+  role?: string;
+  company_id?: string;
+  created_at: string;
+  last_sign_in_at?: string;
+  email_confirmed_at?: string;
 }
 
-export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMember[]> => {
+export async function fetchTeamMembers(companyId?: string): Promise<TeamMemberProfile[]> {
   try {
-    // Get all confirmed users from auth.users
-    const { data: allUsers, error: authError } = await supabase.auth.admin.listUsers();
-    
-    if (authError) {
-      throw authError;
+    let query = supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (companyId) {
+      query = query.eq('company_id', companyId);
     }
 
-    // Filter confirmed users and exclude admin
-    const confirmedUsers = allUsers?.users?.filter(user => {
-      const isConfirmed = user.email_confirmed_at !== null;
-      const isNotAdmin = user.email !== 'aiagentsdevelopers@gmail.com';
-      const hasEmail = user.email && user.email.trim() !== '';
-      
-      return isConfirmed && isNotAdmin && hasEmail;
-    }) || [];
+    const { data: profiles, error } = await query;
 
-    // Get user profiles for confirmed users
-    const userIds = confirmedUsers.map(user => user.id);
-    const userProfiles = await fetchUserProfiles(userIds);
-
-    // Create member objects
-    const members: CompanyMember[] = confirmedUsers.map(user => {
-      const profile = userProfiles.find(p => p.id === user.id);
-      
-      return {
-        id: `member-${user.id}`,
-        company_id: companyId,
-        user_id: user.id,
-        role: 'member' as const,
-        status: 'active' as const,
-        created_at: new Date(user.created_at),
-        updated_at: new Date(user.updated_at || user.created_at),
-        user_details: {
-          email: user.email!,
-          name: profile?.name || user.user_metadata?.full_name || user.email?.split('@')[0]
-        }
-      };
-    });
-
-    return members;
-  } catch (error) {
-    console.error("Error in fetchCompanyMembers:", error);
-    handleError(error, {
-      fallbackMessage: "Failed to fetch company members",
-      showToast: false
-    });
-    return []; 
-  }
-};
-
-export const inviteTeamMember = async (companyId: string, email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
-  try {
-    // First check if RESEND_API_KEY is configured in Supabase
-    const { data: configCheck, error: configError } = await supabase.functions.invoke('check-email-config');
-    
-    if (configError) {
-      console.error("Error checking email configuration:", configError);
-      toast.error("Email configuration error. Please contact your administrator.");
-      return false;
-    }
-    
-    if (configCheck && !configCheck.configured) {
-      toast.error("Email service not configured. Please contact your administrator to set up the RESEND_API_KEY.");
-      console.error("RESEND_API_KEY is not configured in Supabase Edge Function secrets.");
-      return false;
-    }
-    
-    // Proceed with invitation
-    const { data, error } = await supabase.functions.invoke('send-invitation', {
-      body: { companyId, email, role }
-    });
-    
     if (error) {
-      console.error("Error sending invitation:", error);
+      console.error('Error fetching team members:', error);
       throw error;
     }
-    
-    if (data && data.error) {
-      console.error("Error in send-invitation function response:", data.error);
-      throw new Error(data.error);
-    }
 
-    toast.success(`Invitation sent to ${email} successfully`);
-    return true;
+    return profiles?.map(profile => ({
+      id: profile.id,
+      email: profile.email || undefined,
+      full_name: profile.full_name || undefined,
+      avatar_url: profile.avatar_url || undefined,
+      role: profile.role || 'user',
+      company_id: profile.company_id || undefined,
+      created_at: profile.created_at,
+      last_sign_in_at: profile.last_sign_in_at || undefined,
+      email_confirmed_at: profile.email_confirmed_at || undefined
+    })) || [];
   } catch (error) {
-    handleError(error, {
-      fallbackMessage: "Failed to invite team member"
-    });
-    return false;
+    console.error('Error in fetchTeamMembers:', error);
+    return [];
   }
-};
+}
 
-export const removeTeamMember = async (memberId: string): Promise<boolean> => {
+export async function updateMemberRole(memberId: string, newRole: string): Promise<boolean> {
   try {
     const { error } = await supabase
-      .from("company_members")
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', memberId);
+
+    if (error) {
+      console.error('Error updating member role:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updateMemberRole:', error);
+    return false;
+  }
+}
+
+export async function removeMember(memberId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('profiles')
       .delete()
-      .eq("id", memberId);
-    
+      .eq('id', memberId);
+
     if (error) {
-      throw error;
+      console.error('Error removing member:', error);
+      return false;
     }
 
-    toast.success("Team member removed successfully");
     return true;
   } catch (error) {
-    handleError(error, {
-      fallbackMessage: "Failed to remove team member"
-    });
+    console.error('Error in removeMember:', error);
     return false;
   }
-};
-
-export const updateTeamMemberRole = async (memberId: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
-  try {
-    const { error } = await supabase
-      .from("company_members")
-      .update({ role, updated_at: new Date().toISOString() })
-      .eq("id", memberId);
-    
-    if (error) {
-      throw error;
-    }
-
-    toast.success("Team member role updated successfully");
-    return true;
-  } catch (error) {
-    handleError(error, {
-      fallbackMessage: "Failed to update team member role"
-    });
-    return false;
-  }
-};
+}

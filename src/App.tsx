@@ -14,6 +14,7 @@ import PasswordResetForm from "@/components/auth/PasswordResetForm";
 import UpdatePasswordForm from "@/components/auth/UpdatePasswordForm";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
+import Index from '@/pages/Index';
 import DashboardPage from '@/pages/DashboardPage';
 import TeamNew from '@/pages/TeamNew';
 import CallsSimple from '@/pages/CallsSimple';
@@ -69,14 +70,16 @@ function AppRoutes() {
   return (
     <div className="min-h-screen bg-background">
       <Routes>
-        <Route 
-          path="/" 
-          element={
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
-          } 
-        />
+        {/* Public landing page - shows for everyone */}
+        <Route path="/" element={<Index />} />
+        
+        {/* Auth routes */}
+        <Route path="/login" element={<LoginForm />} />
+        <Route path="/register" element={<RegisterForm />} />
+        <Route path="/reset-password" element={<PasswordResetForm />} />
+        <Route path="/update-password" element={<UpdatePasswordForm />} />
+        
+        {/* Protected routes - require authentication */}
         <Route 
           path="/dashboard" 
           element={
@@ -155,10 +158,6 @@ function AppRoutes() {
             </ProtectedRoute>
           } 
         />
-        <Route path="/login" element={<LoginForm />} />
-        <Route path="/register" element={<RegisterForm />} />
-        <Route path="/reset-password" element={<PasswordResetForm />} />
-        <Route path="/update-password" element={<UpdatePasswordForm />} />
       </Routes>
     </div>
   );

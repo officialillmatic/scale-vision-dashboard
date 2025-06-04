@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,13 +9,6 @@ const Index = () => {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
 
-  useEffect(() => {
-    // Redirect to dashboard if already logged in
-    if (user && !isLoading) {
-      navigate("/dashboard");
-    }
-  }, [user, isLoading, navigate]);
-
   const handleLoginClick = () => {
     navigate("/login");
   };
@@ -24,8 +17,9 @@ const Index = () => {
     navigate("/register");
   };
 
-  // If loading or user is logged in, don't render the landing page
-  if (isLoading || user) return null;
+  const handleDashboardClick = () => {
+    navigate("/dashboard");
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/80">
@@ -40,12 +34,22 @@ const Index = () => {
             <span className="font-bold text-xl">Dr. Scale</span>
           </div>
           <div>
-            <Button variant="ghost" onClick={handleLoginClick} className="mr-2">
-              Log in
-            </Button>
-            <Button onClick={handleSignUpClick}>
-              Sign up
-            </Button>
+            {!isLoading && user ? (
+              // Show dashboard button for authenticated users
+              <Button onClick={handleDashboardClick}>
+                Go to Dashboard
+              </Button>
+            ) : (
+              // Show login/signup for non-authenticated users
+              <>
+                <Button variant="ghost" onClick={handleLoginClick} className="mr-2">
+                  Log in
+                </Button>
+                <Button onClick={handleSignUpClick}>
+                  Sign up
+                </Button>
+              </>
+            )}
           </div>
         </header>
 
@@ -58,12 +62,20 @@ const Index = () => {
               Gain valuable insights from your customer calls with AI-powered analytics
             </p>
             <div className="flex justify-center gap-4">
-              <Button size="lg" onClick={handleSignUpClick} className="bg-brand-green hover:bg-brand-green/90">
-                Get Started
-              </Button>
-              <Button size="lg" variant="outline" onClick={() => navigate("/support")}>
-                Learn More
-              </Button>
+              {!isLoading && user ? (
+                <Button size="lg" onClick={handleDashboardClick} className="bg-brand-green hover:bg-brand-green/90">
+                  Go to Dashboard
+                </Button>
+              ) : (
+                <>
+                  <Button size="lg" onClick={handleSignUpClick} className="bg-brand-green hover:bg-brand-green/90">
+                    Get Started
+                  </Button>
+                  <Button size="lg" variant="outline" onClick={handleLoginClick}>
+                    Sign In
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
