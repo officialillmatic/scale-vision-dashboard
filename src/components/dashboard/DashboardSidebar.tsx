@@ -71,7 +71,7 @@ const navigationItems = [
 
 export function DashboardSidebar() {
   const location = useLocation();
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const { can } = useRole();
   
   const collapsed = state === "collapsed";
@@ -86,12 +86,23 @@ export function DashboardSidebar() {
     }] : [])
   ];
 
+  // Handle navigation item click on mobile
+  const handleMobileNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   return (
     <Sidebar 
       collapsible="icon" 
       className={cn(
-        "border-r border-gray-200/60 bg-white/80 backdrop-blur-sm",
-        // Mobile-specific width adjustments
+        "border-r border-gray-200/60",
+        // Desktop styling
+        "bg-white/95 backdrop-blur-sm",
+        // Mobile-specific improvements
+        "data-[mobile=true]:bg-white data-[mobile=true]:shadow-xl data-[mobile=true]:backdrop-blur-none",
+        // Width adjustments
         "w-64 sm:w-56"
       )}
     >
@@ -152,6 +163,7 @@ export function DashboardSidebar() {
                 <SidebarMenuButton asChild>
                   <Link
                     to={item.href}
+                    onClick={handleMobileNavClick}
                     className={cn(
                       "flex items-center rounded-xl w-full transition-all duration-200 group relative overflow-hidden font-medium",
                       // Mobile-friendly sizing and spacing
@@ -195,7 +207,7 @@ export function DashboardSidebar() {
             )}
             asChild
           >
-            <Link to="/support" className="flex items-center">
+            <Link to="/support" onClick={handleMobileNavClick} className="flex items-center">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 sm:h-4 sm:w-4">
                 <circle cx="12" cy="12" r="3" />
                 <path d="M12 1v6m0 6v6" />
