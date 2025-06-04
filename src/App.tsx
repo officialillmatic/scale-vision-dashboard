@@ -1,157 +1,76 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { ThemeProvider } from "@/components/theme/ThemeProvider";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { CompanyDataLoader } from "@/components/auth/components/CompanyDataLoader";
-import { GlobalErrorBoundary } from "@/components/common/GlobalErrorBoundary";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { LoginForm } from "@/components/auth/LoginForm";
+import { RegisterForm } from "@/components/auth/RegisterForm";
+import { Dashboard } from "@/pages/Dashboard";
+import { CallData } from "@/pages/CallData";
+import { CallAnalysis } from "@/pages/CallAnalysis";
+import { UserBalance } from "@/pages/UserBalance";
+import { TeamMembers } from "@/pages/TeamMembers";
+import { TeamAgents } from "@/pages/TeamAgents";
+import { Settings } from "@/pages/Settings";
+import { PasswordResetForm } from "@/components/auth/PasswordResetForm";
+import { UpdatePasswordForm } from "@/components/auth/UpdatePasswordForm";
+import { AcceptInvitation } from "@/pages/AcceptInvitation";
+import { AdminDashboard } from "@/pages/AdminDashboard";
+import { useAuth } from "@/contexts/AuthContext";
+import TeamNew from '@/pages/TeamNew';
 
-// Pages
-import Index from "./pages/Index";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import DashboardPage from "./pages/DashboardPage";
-import CallsPage from "./pages/CallsPage";
-import CallsSimple from "./pages/CallsSimple";
-import AnalyticsPage from "./pages/AnalyticsPage";
-import TeamPage from "./pages/TeamPage";
-import SettingsPage from "./pages/SettingsPage";
-import ProfilePage from "./pages/ProfilePage";
-import SupportPage from "./pages/SupportPage";
-import TermsOfServicePage from "./pages/TermsOfServicePage";
-import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
-import AcceptInvitationPage from "./pages/AcceptInvitationPage";
-import SuperAdminCreditPage from "./pages/SuperAdminCreditPage";
-import NotFound from "./pages/NotFound";
+function RoleCheck({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
+  allowedRoles: string[];
+}) {
+  const { user, isLoading } = useAuth();
 
-import "./App.css";
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: (failureCount, error: any) => {
-        // Don't retry on 4xx errors
-        if (error?.status >= 400 && error?.status < 500) {
-          return false;
-        }
-        return failureCount < 3;
-      },
-    },
-  },
-});
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    return <div>Unauthorized</div>;
+  }
+
+  return children;
+}
 
 function App() {
   return (
-    <GlobalErrorBoundary>
-      <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Toaster />
-            <BrowserRouter>
-              <AuthProvider>
-                <CompanyDataLoader>
-                  <Routes>
-                    {/* Public routes */}
-                    <Route path="/" element={<Index />} />
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/register" element={<RegisterPage />} />
-                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                    <Route path="/reset-password" element={<ResetPasswordPage />} />
-                    <Route path="/terms" element={<TermsOfServicePage />} />
-                    <Route path="/privacy" element={<PrivacyPolicyPage />} />
-                    <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
-                    
-                    {/* Protected routes */}
-                    <Route
-                      path="/dashboard"
-                      element={
-                        <ProtectedRoute>
-                          <DashboardPage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/calls"
-                      element={
-                        <ProtectedRoute>
-                          <CallsPage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/calls-simple"
-                      element={
-                        <ProtectedRoute>
-                          <CallsSimple />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/analytics"
-                      element={
-                        <ProtectedRoute>
-                          <AnalyticsPage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/team"
-                      element={
-                        <ProtectedRoute requiredAction="manageTeam">
-                          <TeamPage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/settings"
-                      element={
-                        <ProtectedRoute>
-                          <SettingsPage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/profile"
-                      element={
-                        <ProtectedRoute>
-                          <ProfilePage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/support"
-                      element={
-                        <ProtectedRoute>
-                          <SupportPage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    
-                    {/* Super Admin only routes */}
-                    <Route
-                      path="/admin/credits"
-                      element={
-                        <ProtectedRoute superAdminOnly>
-                          <SuperAdminCreditPage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    
-                    {/* 404 route */}
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </CompanyDataLoader>
-              </AuthProvider>
-            </BrowserRouter>
-          </TooltipProvider>
-        </QueryClientProvider>
-      </ThemeProvider>
-    </GlobalErrorBoundary>
+    <Router>
+      <div className="min-h-screen bg-background">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/calls" element={<CallData />} />
+          <Route path="/calls/:callId" element={<CallData />} />
+          <Route path="/analytics" element={<CallAnalysis />} />
+          <Route path="/balance" element={<UserBalance />} />
+          <Route path="/agents" element={<TeamAgents />} />
+          <Route path="/team" element={<TeamMembers />} />
+          <Route path="/team-new" element={<TeamNew />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/login" element={<LoginForm />} />
+          <Route path="/register" element={<RegisterForm />} />
+          <Route path="/reset-password" element={<PasswordResetForm />} />
+          <Route path="/update-password" element={<UpdatePasswordForm />} />
+          <Route path="/accept-invitation" element={<AcceptInvitation />} />
+          <Route path="/admin" element={
+            <RoleCheck allowedRoles={['super_admin']}>
+              <AdminDashboard />
+            </RoleCheck>
+          } />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
