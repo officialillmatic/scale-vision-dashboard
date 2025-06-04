@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation, createInvitation } from "@/services/invitation";
 import { handleError } from "@/lib/errorHandling";
@@ -28,7 +29,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
 
   const fetchInvitations = async () => {
     if (!companyId && !isSuperAdmin) {
-      console.log("🔍 [useTeamMembers] No company ID and not super admin, skipping invitations");
+      console.log("🚨 [useTeamMembers] No company ID and not super admin, skipping invitations");
       setInvitations([]);
       return;
     }
@@ -37,7 +38,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     setError(null);
 
     try {
-      console.log("🔍 [useTeamMembers] Fetching invitations for company:", companyId);
+      console.log("🚨 [useTeamMembers] Fetching invitations for company:", companyId);
       
       // Get confirmed users first to filter out from invitations
       const { data: confirmedUsers } = await supabase.auth.admin.listUsers();
@@ -46,28 +47,28 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
         ?.map(user => user.email)
         ?.filter(Boolean) || [];
       
-      console.log("🔍 [useTeamMembers] Confirmed user emails:", confirmedEmails);
+      console.log("🚨 [useTeamMembers] Confirmed user emails:", confirmedEmails);
       
       const rawInvitations = await fetchCompanyInvitations(companyId);
-      console.log("🔍 [useTeamMembers] Raw invitations fetched:", rawInvitations);
+      console.log("🚨 [useTeamMembers] Raw invitations fetched:", rawInvitations);
       
       // Filter out invitations for users who are already confirmed
       const filteredInvitations = rawInvitations.filter(invitation => {
         const isAlreadyConfirmed = confirmedEmails.includes(invitation.email);
         if (isAlreadyConfirmed) {
-          console.log("🔍 [useTeamMembers] Filtering out invitation for confirmed user:", invitation.email);
+          console.log("🚨 [useTeamMembers] Filtering out invitation for confirmed user:", invitation.email);
         }
         return !isAlreadyConfirmed;
       });
       
-      console.log("🔍 [useTeamMembers] 📧 INVITATION SUMMARY:");
-      console.log("🔍 [useTeamMembers] - Raw invitations:", rawInvitations.length);
-      console.log("🔍 [useTeamMembers] - Filtered invitations (excluding confirmed users):", filteredInvitations.length);
-      console.log("🔍 [useTeamMembers] - Pending invitation emails:", filteredInvitations.map(inv => inv.email));
+      console.log("🚨 [useTeamMembers] 📧 INVITATION SUMMARY:");
+      console.log("🚨 [useTeamMembers] - Raw invitations:", rawInvitations.length);
+      console.log("🚨 [useTeamMembers] - Filtered invitations (excluding confirmed users):", filteredInvitations.length);
+      console.log("🚨 [useTeamMembers] - Pending invitation emails:", filteredInvitations.map(inv => inv.email));
       
       setInvitations(filteredInvitations);
     } catch (error) {
-      console.error("🔍 [useTeamMembers] Error fetching invitations:", error);
+      console.error("🚨 [useTeamMembers] Error fetching invitations:", error);
       handleError(error, {
         fallbackMessage: "Failed to fetch invitations",
         logToConsole: true
@@ -81,7 +82,7 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   
   const fetchMembers = async () => {
     if (!companyId && !isSuperAdmin) {
-      console.log("🔍 [useTeamMembers] No company ID and not super admin, skipping members");
+      console.log("🚨 [useTeamMembers] No company ID and not super admin, skipping members");
       setMembers([]);
       return;
     }
@@ -90,18 +91,33 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     setError(null);
     
     try {
-      console.log("🔍 [useTeamMembers] Fetching members for company:", companyId);
+      console.log("🚨 [useTeamMembers] ⚡ INICIANDO FETCH DE MIEMBROS");
+      console.log("🚨 [useTeamMembers] - Company ID:", companyId);
+      console.log("🚨 [useTeamMembers] - Is Super Admin:", isSuperAdmin);
+      
       const companyMembers = await fetchCompanyMembers(companyId);
-      console.log("🔍 [useTeamMembers] Raw members data from service:", companyMembers);
       
-      console.log("🔍 [useTeamMembers] 👥 TEAM MEMBERS SUMMARY:");
-      console.log("🔍 [useTeamMembers] - Members fetched:", companyMembers.length);
-      console.log("🔍 [useTeamMembers] - Member emails:", companyMembers.map(m => m.user_details?.email));
-      console.log("🔍 [useTeamMembers] - Setting members state with count:", companyMembers.length);
+      console.log("🚨 [useTeamMembers] ⚡ RESULTADO FETCH:");
+      console.log("🚨 [useTeamMembers] - Miembros recibidos:", companyMembers.length);
+      console.log("🚨 [useTeamMembers] - Datos completos:", companyMembers);
       
+      if (companyMembers.length === 0) {
+        console.log("🚨 [useTeamMembers] ❌ NO SE RECIBIERON MIEMBROS!");
+        console.log("🚨 [useTeamMembers] ❌ Esto debería mostrar 7 usuarios confirmados");
+      } else {
+        console.log("🚨 [useTeamMembers] ✅ MIEMBROS RECIBIDOS CORRECTAMENTE");
+        companyMembers.forEach((member, index) => {
+          console.log(`🚨 [useTeamMembers] - Miembro ${index + 1}: ${member.user_details?.email} (${member.user_details?.name || 'Sin nombre'})`);
+        });
+      }
+      
+      console.log("🚨 [useTeamMembers] 👥 ESTABLECIENDO ESTADO DE MIEMBROS...");
       setMembers(companyMembers);
+      
+      console.log("🚨 [useTeamMembers] ✅ ESTADO ESTABLECIDO");
+      
     } catch (error) {
-      console.error("🔍 [useTeamMembers] Error fetching members:", error);
+      console.error("🚨 [useTeamMembers] ❌ ERROR FATAL EN FETCH:", error);
       handleError(error, {
         fallbackMessage: "Failed to fetch team members",
         logToConsole: true
@@ -114,20 +130,37 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
   };
 
   useEffect(() => {
-    console.log("🔍 [useTeamMembers] Effect triggered - companyId:", companyId, "isSuperAdmin:", isSuperAdmin);
+    console.log("🚨 [useTeamMembers] 🔄 EFFECT TRIGGERED");
+    console.log("🚨 [useTeamMembers] - companyId:", companyId);
+    console.log("🚨 [useTeamMembers] - isSuperAdmin:", isSuperAdmin);
+    
     if (companyId || isSuperAdmin) {
+      console.log("🚨 [useTeamMembers] 🚀 EJECUTANDO FETCH DE DATOS");
       // Fetch both in sequence for better debugging
       const fetchData = async () => {
+        console.log("🚨 [useTeamMembers] 1️⃣ Iniciando fetchMembers...");
         await fetchMembers();
+        console.log("🚨 [useTeamMembers] 2️⃣ Iniciando fetchInvitations...");
         await fetchInvitations();
+        console.log("🚨 [useTeamMembers] ✅ Fetch completo");
       };
       fetchData();
     } else {
-      console.log("🔍 [useTeamMembers] Clearing data - no company access");
+      console.log("🚨 [useTeamMembers] ❌ Clearing data - no company access");
       setMembers([]);
       setInvitations([]);
     }
   }, [companyId, isSuperAdmin]);
+
+  // Log final state
+  useEffect(() => {
+    console.log("🚨 [useTeamMembers] 📊 ESTADO FINAL DEL HOOK:");
+    console.log("🚨 [useTeamMembers] - Members count:", members.length);
+    console.log("🚨 [useTeamMembers] - Members data:", members);
+    console.log("🚨 [useTeamMembers] - Invitations count:", invitations.length);
+    console.log("🚨 [useTeamMembers] - IsLoading:", isLoading);
+    console.log("🚨 [useTeamMembers] - Error:", error);
+  }, [members, invitations, isLoading, error]);
 
   const handleCancelInvitation = async (invitationId: string) => {
     setIsLoading(true);
@@ -190,11 +223,6 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
       setIsInviting(false);
     }
   };
-
-  console.log("🔍 [useTeamMembers] 📊 FINAL HOOK STATE:");
-  console.log("🔍 [useTeamMembers] - Members count:", members.length);
-  console.log("🔍 [useTeamMembers] - Invitations count:", invitations.length);
-  console.log("🔍 [useTeamMembers] - IsLoading:", isLoading);
 
   return {
     invitations,

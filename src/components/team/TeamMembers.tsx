@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,14 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { TeamInvitations } from './TeamInvitations';
 import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
-import { UserPlus, Users, AlertCircle, RefreshCw } from 'lucide-react';
+import { UserPlus, Users, AlertCircle, RefreshCw, Bug } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export function TeamMembers() {
   const { company } = useAuth();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [forceRefreshKey, setForceRefreshKey] = useState(0);
+  const [debugMode, setDebugMode] = useState(true); // Activar debug por defecto
   
   const { 
     teamMembers,
@@ -26,15 +28,46 @@ export function TeamMembers() {
     fetchInvitations
   } = useTeamMembers(company?.id);
 
-  // Debug logging for team members
+  // Logging intensivo para debugging
   React.useEffect(() => {
-    console.log("🔍 [TeamMembers] Component rendered with:");
-    console.log("🔍 [TeamMembers] - Company ID:", company?.id);
-    console.log("🔍 [TeamMembers] - Team members count:", teamMembers?.length);
-    console.log("🔍 [TeamMembers] - Team members data:", teamMembers);
-    console.log("🔍 [TeamMembers] - Is loading:", isLoading);
-    console.log("🔍 [TeamMembers] - Error:", error);
-  }, [teamMembers, isLoading, error, company?.id]);
+    console.log("🚨 [DEBUG] TeamMembers - ESTADO ACTUAL:");
+    console.log("🚨 [DEBUG] - Company ID:", company?.id);
+    console.log("🚨 [DEBUG] - Team members recibidos:", teamMembers);
+    console.log("🚨 [DEBUG] - Team members count:", teamMembers?.length);
+    console.log("🚨 [DEBUG] - Is loading:", isLoading);
+    console.log("🚨 [DEBUG] - Error:", error);
+    console.log("🚨 [DEBUG] - Force refresh key:", forceRefreshKey);
+    
+    if (teamMembers && teamMembers.length > 0) {
+      console.log("🚨 [DEBUG] - MIEMBROS DETALLE:");
+      teamMembers.forEach((member, index) => {
+        console.log(`🚨 [DEBUG] - Miembro ${index + 1}:`, {
+          id: member.id,
+          email: member.user_details?.email,
+          name: member.user_details?.name,
+          role: member.role,
+          status: member.status
+        });
+      });
+    } else {
+      console.log("🚨 [DEBUG] - ❌ NO HAY MIEMBROS - Esto es el problema!");
+    }
+  }, [teamMembers, isLoading, error, company?.id, forceRefreshKey]);
+
+  const forceRefresh = useCallback(() => {
+    console.log("🔄 [DEBUG] FORZANDO REFRESH MANUAL");
+    setForceRefreshKey(prev => prev + 1);
+    if (fetchInvitations) {
+      fetchInvitations();
+    }
+    // Forzar reload completo de la página si es necesario
+    setTimeout(() => {
+      if (!teamMembers || teamMembers.length === 0) {
+        console.log("🔄 [DEBUG] Reload completo de página como último recurso");
+        window.location.reload();
+      }
+    }, 2000);
+  }, [fetchInvitations, teamMembers]);
 
   const openInviteDialog = () => {
     setIsInviteDialogOpen(true);
@@ -45,19 +78,20 @@ export function TeamMembers() {
   };
 
   const handleRefresh = async () => {
+    console.log("🔄 [DEBUG] Refresh normal iniciado");
     if (fetchInvitations) {
       await fetchInvitations();
     }
-    window.location.reload();
+    setForceRefreshKey(prev => prev + 1);
   };
 
-  // Use teamMembers directly from the hook
+  // Usar teamMembers directamente del hook
   const validTeamMembers = teamMembers || [];
 
-  console.log("🔍 [TeamMembers] Valid team members for display:", validTeamMembers.length);
+  console.log("🚨 [DEBUG] RENDER - Valid team members para mostrar:", validTeamMembers.length);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" key={`team-members-${forceRefreshKey}`}>
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -69,9 +103,24 @@ export function TeamMembers() {
               {validTeamMembers.length} members
             </Badge>
           )}
+          {debugMode && (
+            <Badge variant="destructive" className="bg-red-50 text-red-700 border-red-200">
+              <Bug className="h-3 w-3 mr-1" />
+              DEBUG: {validTeamMembers.length} miembros
+            </Badge>
+          )}
         </div>
         
         <div className="flex gap-2">
+          <Button 
+            variant="destructive" 
+            onClick={forceRefresh} 
+            size="sm"
+            className="bg-red-600 hover:bg-red-700"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            FORCE REFRESH
+          </Button>
           <Button variant="outline" onClick={handleRefresh} size="sm">
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
@@ -84,6 +133,26 @@ export function TeamMembers() {
       </div>
       
       <EmailConfigWarning />
+      
+      {/* Debug panel temporal */}
+      {debugMode && (
+        <Alert className="border-orange-200 bg-orange-50">
+          <Bug className="h-4 w-4" />
+          <AlertDescription>
+            <strong>DEBUG INFO:</strong><br />
+            Company ID: {company?.id || 'undefined'}<br />
+            Team Members Count: {validTeamMembers.length}<br />
+            Is Loading: {isLoading ? 'YES' : 'NO'}<br />
+            Error: {error || 'None'}<br />
+            Force Key: {forceRefreshKey}
+            {validTeamMembers.length > 0 && (
+              <>
+                <br />Emails: {validTeamMembers.map(m => m.user_details?.email).join(', ')}
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       
       {/* Team members list */}
       <Card className="p-6">
@@ -111,16 +180,34 @@ export function TeamMembers() {
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   Error loading team members: {error}
+                  <br />
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={forceRefresh}
+                    className="mt-2"
+                  >
+                    Try Force Refresh
+                  </Button>
                 </AlertDescription>
               </Alert>
             ) : validTeamMembers.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
                 <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No team members yet</p>
-                <p className="text-sm">Invite team members to get started.</p>
-                <p className="text-xs mt-2 text-gray-400">
-                  Debug: Company ID: {company?.id || 'undefined'}
-                </p>
+                <p className="text-lg font-medium">No team members found</p>
+                <p className="text-sm">This should show 7 confirmed users!</p>
+                <div className="mt-4 space-y-2">
+                  <Button 
+                    variant="destructive" 
+                    onClick={forceRefresh}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    🚨 FORCE LOAD MEMBERS
+                  </Button>
+                  <p className="text-xs text-gray-400">
+                    Debug: Company ID: {company?.id || 'undefined'} | Key: {forceRefreshKey}
+                  </p>
+                </div>
               </div>
             ) : (
               <Table>
