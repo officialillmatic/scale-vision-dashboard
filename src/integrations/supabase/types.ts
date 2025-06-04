@@ -1608,7 +1608,7 @@ export type Database = {
         }[]
       }
       get_user_credits: {
-        Args: { p_user_id?: string }
+        Args: { target_user_id?: string }
         Returns: {
           id: string
           user_id: string
@@ -1674,6 +1674,18 @@ export type Database = {
       update_user_balance: {
         Args: { p_user_id: string; p_company_id: string; p_amount: number }
         Returns: undefined
+      }
+      update_user_credits: {
+        Args: {
+          target_user_id: string
+          amount_change: number
+          description_text?: string
+        }
+        Returns: {
+          success: boolean
+          new_balance: number
+          message: string
+        }[]
       }
       user_has_company_access: {
         Args: { p_company_id: string }

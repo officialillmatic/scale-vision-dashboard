@@ -47,7 +47,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       
       console.log('Fetching credits for user:', user.id);
       
-      // Use the new secure database function
+      // Use the corrected secure database function with proper parameter name
       const { data, error: fetchError } = await supabase.rpc('get_user_credits', {
         target_user_id: user.id
       });
@@ -64,12 +64,12 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
           current_balance: creditData.current_balance,
           warning_threshold: creditData.warning_threshold,
           critical_threshold: creditData.critical_threshold,
-          is_blocked: creditData.is_blocked,
+          is_blocked: creditData.is_blocked || false,
           updated_at: creditData.updated_at
         });
         console.log('Credits loaded successfully:', creditData);
       } else {
-        // No data returned, this should not happen with the new function as it auto-creates records
+        // The function should auto-create records, but handle edge case
         console.warn('No credit data returned from function');
         setCredits({
           id: '',

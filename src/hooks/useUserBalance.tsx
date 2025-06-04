@@ -30,7 +30,7 @@ export function useUserBalance() {
       
       console.log('Fetching user balance for:', { userId, companyId });
       
-      // First get the credit balance using the secure function
+      // Use the corrected secure database function with proper parameter name
       const { data: creditData, error: creditError } = await supabase.rpc('get_user_credits', {
         target_user_id: userId
       });
