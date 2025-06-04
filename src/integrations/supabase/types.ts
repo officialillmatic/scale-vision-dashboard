@@ -1608,14 +1608,13 @@ export type Database = {
         }[]
       }
       get_user_credits: {
-        Args: { target_user_id?: string }
+        Args: { p_user_id?: string }
         Returns: {
           id: string
           user_id: string
           current_balance: number
           warning_threshold: number
           critical_threshold: number
-          is_blocked: boolean
           created_at: string
           updated_at: string
         }[]

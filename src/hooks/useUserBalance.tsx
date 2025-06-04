@@ -28,19 +28,48 @@ export function useUserBalance() {
     queryFn: async () => {
       if (!userId || !companyId) return null;
       
-      // Use optimized security definer function
-      const { data, error } = await supabase
+      console.log('Fetching user balance for:', { userId, companyId });
+      
+      // First get the credit balance using the secure function
+      const { data: creditData, error: creditError } = await supabase.rpc('get_user_credits', {
+        target_user_id: userId
+      });
+
+      if (creditError) {
+        console.error("Error fetching user credits:", creditError);
+        throw creditError;
+      }
+
+      console.log('Credit data fetched:', creditData);
+
+      // Then get recent transactions using the user_balances based function
+      const { data: detailedData, error: detailedError } = await supabase
         .rpc('get_user_balance_detailed', {
           p_user_id: userId,
           p_company_id: companyId
         });
 
-      if (error) {
-        console.error("Error fetching user balance:", error);
-        throw error;
+      if (detailedError) {
+        console.warn("Error fetching detailed balance data:", detailedError);
+        // Continue with just credit data if detailed data fails
       }
 
-      return data?.[0] || null;
+      console.log('Detailed data fetched:', detailedData);
+
+      // Combine the data from both sources
+      const credit = creditData?.[0];
+      const detailed = detailedData?.[0];
+
+      if (credit) {
+        return {
+          balance: credit.current_balance,
+          warning_threshold: credit.warning_threshold,
+          recent_transactions: detailed?.recent_transactions || [],
+          remaining_minutes: detailed?.remaining_minutes || 0
+        };
+      }
+
+      return null;
     },
     enabled: !!userId && !!companyId,
     staleTime: 1000 * 60 * 5, // 5 minutes

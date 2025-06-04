@@ -45,34 +45,32 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       setRefreshing(true);
       setError(null);
       
-      // Use the secure database function instead of direct table access
+      console.log('Fetching credits for user:', user.id);
+      
+      // Use the new secure database function
       const { data, error: fetchError } = await supabase.rpc('get_user_credits', {
-        p_user_id: user.id
+        target_user_id: user.id
       });
+
+      console.log('Credits fetch result:', { data, fetchError });
 
       if (fetchError) {
         console.error('Error fetching user credits:', fetchError);
-        
-        // Handle permission errors gracefully
-        if (fetchError.code === '42501' || fetchError.message?.includes('permission')) {
-          setError('Unable to access balance information. Please contact support.');
-        } else if (fetchError.code === 'PGRST116') {
-          // No credits found, try to initialize with default values
-          setCredits({
-            id: '',
-            current_balance: 0,
-            warning_threshold: 10,
-            critical_threshold: 5,
-            is_blocked: false,
-            updated_at: new Date().toISOString()
-          });
-        } else {
-          setError(`Error loading balance: ${fetchError.message}`);
-        }
+        setError(`Error loading balance: ${fetchError.message}`);
       } else if (data && data.length > 0) {
-        setCredits(data[0]);
+        const creditData = data[0];
+        setCredits({
+          id: creditData.id,
+          current_balance: creditData.current_balance,
+          warning_threshold: creditData.warning_threshold,
+          critical_threshold: creditData.critical_threshold,
+          is_blocked: creditData.is_blocked,
+          updated_at: creditData.updated_at
+        });
+        console.log('Credits loaded successfully:', creditData);
       } else {
-        // No data returned, set default values
+        // No data returned, this should not happen with the new function as it auto-creates records
+        console.warn('No credit data returned from function');
         setCredits({
           id: '',
           current_balance: 0,
