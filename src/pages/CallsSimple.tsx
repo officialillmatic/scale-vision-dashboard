@@ -23,6 +23,7 @@ import {
   Download
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { useAuth } from "@/contexts/AuthContext";
 interface Call {
   id: string;
   call_id: string;
@@ -45,6 +46,7 @@ type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 
 export default function CallsSimple() {
+  const { user } = useAuth(); // 🔒 CAMBIO DE SEGURIDAD: Usar usuario autenticado
   const [calls, setCalls] = useState<Call[]>([]);
   const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,12 +66,12 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // User ID for alexbuenhombre2012@gmail.com
-  const USER_ID = "efe4f9c1-8322-4ce7-8193-69bd8c982d03";
-
+  // 🔒 CAMBIO DE SEGURIDAD: Solo cargar datos si hay usuario autenticado
   useEffect(() => {
-    fetchCalls();
-  }, []);
+    if (user?.id) {
+      fetchCalls();
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     applyFiltersAndSort();
@@ -154,17 +156,24 @@ export default function CallsSimple() {
     return 0;
   };
   const fetchCalls = async () => {
+    // 🔒 CAMBIO DE SEGURIDAD: Verificar que el usuario esté autenticado
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      console.log("🔍 Fetching calls for user:", USER_ID);
+      console.log("🔍 Fetching calls for user:", user.id);
 
-      // First, try to get all available columns
+      // 🔒 CAMBIO DE SEGURIDAD: Usar user.id en lugar del ID hardcodeado
       const { data, error: fetchError } = await supabase
         .from('calls')
         .select('*') // Select all columns to see what's available
-        .eq('user_id', USER_ID)
+        .eq('user_id', user.id) // ⬅️ CAMBIO AQUÍ
         .order('timestamp', { ascending: false });
 
       if (fetchError) {
@@ -357,6 +366,19 @@ export default function CallsSimple() {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
+  // 🔒 CAMBIO DE SEGURIDAD: Verificar autenticación antes de mostrar contenido
+  if (!user) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <p className="text-red-600 font-medium">Please log in to view your calls</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
@@ -365,7 +387,7 @@ export default function CallsSimple() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
-              <p className="text-gray-600">Comprehensive call data for alexbuenhombre2012@gmail.com</p>
+              <p className="text-gray-600">Comprehensive call data for your account</p>
             </div>
             <div className="flex items-center gap-3">
               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
@@ -597,7 +619,6 @@ export default function CallsSimple() {
                               {formatCurrency(call.cost_usd)}
                             </div>
                           </td>
-                          
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex flex-col gap-1">
                               <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
