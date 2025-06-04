@@ -27,8 +27,8 @@ export function DashboardLayout({ children, isLoading }: DashboardLayoutProps) {
         <DashboardSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
-          <main className="flex-1 p-6 lg:p-8 overflow-auto">
-            <div className="w-full max-w-7xl mx-auto space-y-8">
+          <main className="flex-1 px-2 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 overflow-auto">
+            <div className="w-full space-y-6 sm:space-y-8">
               {children}
             </div>
           </main>

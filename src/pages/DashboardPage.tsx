@@ -248,243 +248,249 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-4">
-        <div className="p-6 space-y-6">
-          {/* Independent Account Balance Section - Above Everything */}
-          <div className="mb-8">
-            <CreditBalance 
-              onRequestRecharge={() => {
-                alert('Please contact support to recharge your account: support@drscale.com');
-              }}
-              showActions={true}
-            />
+      <div className="w-full space-y-4 sm:space-y-6">
+        {/* Independent Account Balance Section - Full Width */}
+        <div className="w-full">
+          <CreditBalance 
+            onRequestRecharge={() => {
+              alert('Please contact support to recharge your account: support@drscale.com');
+            }}
+            showActions={true}
+          />
+        </div>
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">📊 Dashboard</h1>
+            <p className="text-gray-600 text-sm sm:text-base">Real-time analytics for your AI call system</p>
           </div>
-
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">📊 Dashboard</h1>
-              <p className="text-gray-600">Real-time analytics for your AI call system</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                <Activity className="w-3 h-3 mr-1" />
-                Live Data
-              </Badge>
-              <Button
-                onClick={fetchCallsData}
-                disabled={loading}
-                variant="outline"
-                size="sm"
-              >
-                {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
-              </Button>
-            </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs sm:text-sm">
+              <Activity className="w-3 h-3 mr-1" />
+              Live Data
+            </Badge>
+            <Button
+              onClick={fetchCallsData}
+              disabled={loading}
+              variant="outline"
+              size="sm"
+              className="text-xs sm:text-sm"
+            >
+              {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
+            </Button>
           </div>
+        </div>
 
-          {/* Error Alert */}
-          {error && (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="p-4">
-                <p className="text-red-800 font-medium">❌ {error}</p>
-              </CardContent>
-            </Card>
-          )}
-          {/* Key Metrics - Now only 4 widgets without CreditBalance */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 font-medium">Total Calls</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.totalCalls}</p>
-                    <div className="flex items-center mt-2">
-                      <span className="text-xs text-green-600 font-medium">+{stats.callsToday} today</span>
-                    </div>
+        {/* Error Alert */}
+        {error && (
+          <Card className="border-red-200 bg-red-50 w-full">
+            <CardContent className="p-3 sm:p-4">
+              <p className="text-red-800 font-medium text-sm sm:text-base">❌ {error}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Key Metrics - Full Width Responsive Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6 w-full">
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-600 font-medium">Total Calls</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalCalls}</p>
+                  <div className="flex items-center mt-1 sm:mt-2">
+                    <span className="text-xs text-green-600 font-medium">+{stats.callsToday} today</span>
                   </div>
-                  <Phone className="h-12 w-12 text-blue-600" />
                 </div>
-              </CardContent>
-            </Card>
+                <Phone className="h-8 w-8 sm:h-12 sm:w-12 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 font-medium">Success Rate</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.successRate.toFixed(1)}%</p>
-                    <div className="flex items-center mt-2">
-                      {stats.successRate >= 80 ? (
-                        <TrendingUp className="w-4 h-4 text-green-600 mr-1" />
-                      ) : (
-                        <TrendingDown className="w-4 h-4 text-red-600 mr-1" />
-                      )}
-                      <span className="text-xs text-gray-600">Call completion</span>
-                    </div>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-600 font-medium">Success Rate</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.successRate.toFixed(1)}%</p>
+                  <div className="flex items-center mt-1 sm:mt-2">
+                    {stats.successRate >= 80 ? (
+                      <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 mr-1" />
+                    ) : (
+                      <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4 text-red-600 mr-1" />
+                    )}
+                    <span className="text-xs text-gray-600">Call completion</span>
                   </div>
-                  <TrendingUp className="h-12 w-12 text-green-600" />
                 </div>
-              </CardContent>
-            </Card>
+                <TrendingUp className="h-8 w-8 sm:h-12 sm:w-12 text-green-600" />
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 font-medium">Total Cost</p>
-                    <p className="text-3xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
-                    <div className="flex items-center mt-2">
-                      <span className="text-xs text-purple-600 font-medium">{formatCurrency(stats.costToday)} today</span>
-                    </div>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-600 font-medium">Total Cost</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
+                  <div className="flex items-center mt-1 sm:mt-2">
+                    <span className="text-xs text-purple-600 font-medium">{formatCurrency(stats.costToday)} today</span>
                   </div>
-                  <DollarSign className="h-12 w-12 text-purple-600" />
                 </div>
-              </CardContent>
-            </Card>
+                <DollarSign className="h-8 w-8 sm:h-12 sm:w-12 text-purple-600" />
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 font-medium">Avg Duration</p>
-                    <p className="text-3xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
-                    <div className="flex items-center mt-2">
-                      <Clock className="w-4 h-4 text-orange-600 mr-1" />
-                      <span className="text-xs text-gray-600">Per call</span>
-                    </div>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-600 font-medium">Avg Duration</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
+                  <div className="flex items-center mt-1 sm:mt-2">
+                    <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-orange-600 mr-1" />
+                    <span className="text-xs text-gray-600">Per call</span>
                   </div>
-                  <Clock className="h-12 w-12 text-orange-600" />
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Call Trend Chart */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-blue-600" />
-                  Call Activity (Last 7 Days)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
-                    <YAxis stroke="#64748b" fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="calls" 
-                      stroke="#3b82f6" 
-                      strokeWidth={3}
-                      dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+                <Clock className="h-8 w-8 sm:h-12 sm:w-12 text-orange-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-            {/* Sentiment Analysis */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-purple-600" />
-                  Sentiment Analysis
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={sentimentData}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      >
-                        {sentimentData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-4 text-center">
-                  <p className="text-lg font-bold text-green-600">
-                    {stats.positiveRatio.toFixed(1)}% Positive Sentiment
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          {/* Cost Analysis */}
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-green-600" />
-                Cost Analysis (Last 7 Days)
+        {/* Charts Row - Full Width Responsive */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full">
+          {/* Call Trend Chart */}
+          <Card className="border-0 shadow-sm w-full">
+            <CardHeader className="pb-2 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                Call Activity (Last 7 Days)
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData}>
+            <CardContent className="p-2 sm:p-6">
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
-                  <YAxis stroke="#64748b" fontSize={12} />
+                  <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
+                  <YAxis stroke="#64748b" fontSize={10} />
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#fff', 
                       border: '1px solid #e2e8f0',
-                      borderRadius: '8px'
+                      borderRadius: '8px',
+                      fontSize: '12px'
                     }}
-                    formatter={(value) => [formatCurrency(Number(value)), 'Cost']}
                   />
-                  <Bar dataKey="cost" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                  <Line 
+                    type="monotone" 
+                    dataKey="calls" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    dot={{ fill: '#3b82f6', strokeWidth: 2, r: 3 }}
+                  />
+                </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
-          {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-indigo-100/50">
-              <CardContent className="p-6 text-center">
-                <Users className="h-10 w-10 text-indigo-600 mx-auto mb-3" />
-                <p className="text-2xl font-bold text-gray-900">{stats.totalCalls}</p>
-                <p className="text-sm text-gray-600">Total Conversations</p>
-              </CardContent>
-            </Card>
 
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-pink-50 to-pink-100/50">
-              <CardContent className="p-6 text-center">
-                <Target className="h-10 w-10 text-pink-600 mx-auto mb-3" />
-                <p className="text-2xl font-bold text-gray-900">{formatDuration(stats.totalDuration)}</p>
-                <p className="text-sm text-gray-600">Total Talk Time</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-teal-50 to-teal-100/50">
-              <CardContent className="p-6 text-center">
-                <Activity className="h-10 w-10 text-teal-600 mx-auto mb-3" />
-                <p className="text-2xl font-bold text-gray-900">
-                  {calls.filter(call => call.recording_url).length}
+          {/* Sentiment Analysis */}
+          <Card className="border-0 shadow-sm w-full">
+            <CardHeader className="pb-2 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
+                Sentiment Analysis
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 sm:p-6">
+              <div className="flex items-center justify-center">
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={sentimentData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      labelStyle={{ fontSize: '10px' }}
+                    >
+                      {sentimentData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-2 sm:mt-4 text-center">
+                <p className="text-base sm:text-lg font-bold text-green-600">
+                  {stats.positiveRatio.toFixed(1)}% Positive Sentiment
                 </p>
-                <p className="text-sm text-gray-600">Recorded Calls</p>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Cost Analysis - Full Width */}
+        <Card className="border-0 shadow-sm w-full">
+          <CardHeader className="pb-2 sm:pb-4">
+            <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+              Cost Analysis (Last 7 Days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-2 sm:p-6">
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
+                <YAxis stroke="#64748b" fontSize={10} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#fff', 
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                  }}
+                  formatter={(value) => [formatCurrency(Number(value)), 'Cost']}
+                />
+                <Bar dataKey="cost" fill="#10b981" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Quick Stats - Full Width Responsive Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 w-full">
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-indigo-100/50">
+            <CardContent className="p-4 sm:p-6 text-center">
+              <Users className="h-8 w-8 sm:h-10 sm:w-10 text-indigo-600 mx-auto mb-2 sm:mb-3" />
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.totalCalls}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Total Conversations</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-pink-50 to-pink-100/50">
+            <CardContent className="p-4 sm:p-6 text-center">
+              <Target className="h-8 w-8 sm:h-10 sm:w-10 text-pink-600 mx-auto mb-2 sm:mb-3" />
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{formatDuration(stats.totalDuration)}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Total Talk Time</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-teal-50 to-teal-100/50">
+            <CardContent className="p-4 sm:p-6 text-center">
+              <Activity className="h-8 w-8 sm:h-10 sm:w-10 text-teal-600 mx-auto mb-2 sm:mb-3" />
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                {calls.filter(call => call.recording_url).length}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600">Recorded Calls</p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </DashboardLayout>
