@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -189,115 +188,141 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
   return (
     <Card className="border border-black bg-white">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between space-x-6">
-          {/* 1. Account Balance Title with Icon */}
-          <div className="flex items-center space-x-3 shrink-0">
-            <div className="p-2 rounded-lg bg-white shadow-sm border">
-              <Wallet className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Account Balance</h3>
-              <p className="text-xs text-muted-foreground">Available for calls</p>
-            </div>
-          </div>
-
-          {/* 2. Balance Amount and Status Badge */}
-          <div className="flex items-center space-x-4 shrink-0">
-            <div className="flex items-center space-x-2">
-              <p className={`text-2xl font-bold ${config.balanceColor}`}>
-                {credits ? formatCurrency(credits.current_balance) : '$0.00'}
-              </p>
-              <IconComponent className={`h-6 w-6 ${config.iconColor}`} />
-            </div>
-            <Badge variant={config.badge.variant} className="text-xs font-medium">
-              {config.badge.text}
-            </Badge>
-          </div>
-
-          {/* 3. Status Message */}
-          <div className="flex-1 text-center px-4">
-            <p className="text-sm text-muted-foreground">
-              {config.message}
-            </p>
-          </div>
-
-          {/* 4. Action Buttons */}
-          {showActions && (
-            <div className="flex items-center space-x-2 shrink-0">
-              {onRequestRecharge && (
-                <Button 
-                  onClick={onRequestRecharge}
-                  variant={status === 'empty' || status === 'critical' ? 'default' : 'outline'}
-                  size="sm"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  {status === 'empty' ? 'Add Funds' : 'Request Recharge'}
-                </Button>
-              )}
+      <CardContent className="p-8">
+        <div className="space-y-6">
+          {/* TOP ROW - Main Elements */}
+          <div className="flex items-center justify-between">
+            {/* Left: Account Balance Title + Amount + Badge */}
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-lg bg-white shadow-sm border">
+                  <Wallet className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Account Balance</h3>
+                </div>
+              </div>
               
-              {(status === 'warning' || status === 'critical' || status === 'empty') && (
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => {
-                    alert('Please contact support to recharge your account: support@drscale.com');
-                  }}
-                >
-                  Contact Support
-                </Button>
+              <div className="flex items-center space-x-3">
+                <p className={`text-3xl font-bold ${config.balanceColor}`}>
+                  {credits ? formatCurrency(credits.current_balance) : '$0.00'}
+                </p>
+                <IconComponent className={`h-7 w-7 ${config.iconColor}`} />
+                <Badge variant={config.badge.variant} className="text-sm font-medium px-3 py-1">
+                  {config.badge.text}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Center: Action Buttons */}
+            {showActions && (
+              <div className="flex items-center space-x-3">
+                {onRequestRecharge && (
+                  <Button 
+                    onClick={onRequestRecharge}
+                    variant={status === 'empty' || status === 'critical' ? 'default' : 'outline'}
+                    size="sm"
+                    className="px-4 py-2"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    {status === 'empty' ? 'Add Funds' : 'Request Recharge'}
+                  </Button>
+                )}
+                
+                {(status === 'warning' || status === 'critical' || status === 'empty') && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => {
+                      alert('Please contact support to recharge your account: support@drscale.com');
+                    }}
+                    className="px-4 py-2"
+                  >
+                    Contact Support
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Right: Account Thresholds + Timestamp + Refresh */}
+            <div className="flex items-center space-x-6">
+              {/* Account Thresholds */}
+              {credits && (
+                <div className="border-l border-gray-200 pl-6">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Account Thresholds</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Warning:</span>
+                      <span className="font-medium text-yellow-700 ml-3">
+                        {formatCurrency(credits.warning_threshold)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Critical:</span>
+                      <span className="font-medium text-orange-700 ml-3">
+                        {formatCurrency(credits.critical_threshold)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Last Updated + Refresh Button */}
+              {credits && (
+                <div className="flex items-center space-x-3 border-l border-gray-200 pl-6">
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground mb-1">Last Updated</p>
+                    <p className="text-xs font-medium">
+                      {new Date(credits.updated_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handleRefresh} 
+                    variant="ghost" 
+                    size="sm"
+                    disabled={refreshing}
+                    className="h-8 w-8 p-0"
+                  >
+                    {refreshing ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
-          )}
+          </div>
 
-          {/* 5. Account Thresholds */}
-          {credits && (
-            <div className="shrink-0 border-l border-gray-200 pl-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <Info className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">Account Thresholds</span>
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-muted-foreground">Warning:</span>
-                  <span className="font-medium text-yellow-700">
-                    {formatCurrency(credits.warning_threshold)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-muted-foreground">Critical:</span>
-                  <span className="font-medium text-orange-700">
-                    {formatCurrency(credits.critical_threshold)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 6. Last Updated + Refresh Button */}
-          {credits && (
-            <div className="flex items-center space-x-2 shrink-0 border-l border-gray-200 pl-4">
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground mb-1">Last Updated</p>
-                <p className="text-xs font-medium">
-                  {new Date(credits.updated_at).toLocaleString()}
+          {/* BOTTOM ROW - Secondary Information */}
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-center space-x-8 text-center">
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">
+                  {config.message}
                 </p>
               </div>
-              <Button 
-                onClick={handleRefresh} 
-                variant="ghost" 
-                size="sm"
-                disabled={refreshing}
-                className="h-8 w-8 p-0"
-              >
-                {refreshing ? (
-                  <LoadingSpinner size="sm" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-              </Button>
+              <div className="flex items-center space-x-2">
+                <div className="h-1 w-1 bg-gray-300 rounded-full"></div>
+                <p className="text-xs text-muted-foreground">
+                  Available for calls
+                </p>
+              </div>
+              {credits && credits.current_balance > 0 && (
+                <>
+                  <div className="flex items-center space-x-2">
+                    <div className="h-1 w-1 bg-gray-300 rounded-full"></div>
+                    <p className="text-xs text-muted-foreground">
+                      Estimated {Math.floor(credits.current_balance / 0.02)} minutes remaining
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </CardContent>
     </Card>
