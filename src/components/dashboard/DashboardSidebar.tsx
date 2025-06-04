@@ -98,10 +98,10 @@ export function DashboardSidebar() {
       collapsible="icon" 
       className={cn(
         "border-r border-gray-200/60",
-        // Desktop styling
-        "bg-white/95 backdrop-blur-sm",
-        // Mobile-specific improvements
-        "data-[mobile=true]:bg-white data-[mobile=true]:shadow-xl data-[mobile=true]:backdrop-blur-none",
+        // Desktop styling - fondo más sólido
+        "bg-white",
+        // Mobile-specific improvements - fondo completamente sólido
+        "data-[mobile=true]:bg-white data-[mobile=true]:shadow-xl",
         // Width adjustments
         "w-64 sm:w-56"
       )}
