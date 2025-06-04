@@ -1383,6 +1383,18 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_update_user_credits: {
+        Args: {
+          target_user_id: string
+          amount_change: number
+          description_text?: string
+        }
+        Returns: {
+          success: boolean
+          new_balance: number
+          message: string
+        }[]
+      }
       can_access_company: {
         Args: { p_company_id: string }
         Returns: boolean
@@ -1403,6 +1415,10 @@ export type Database = {
           bucket_name: string
           bucket_exists: boolean
         }[]
+      }
+      check_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       deduct_call_credits: {
         Args: { call_cost: number; call_id_ref: string }

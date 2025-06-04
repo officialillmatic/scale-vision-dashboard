@@ -43,11 +43,19 @@ export function CreditAdjustmentModal({
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('update_user_credits', {
+      console.log('Calling admin_update_user_credits with:', {
         target_user_id: userId,
         amount_change: finalAmount,
         description_text: description || `Admin balance ${isPositive ? 'credit' : 'debit'}: ${Math.abs(finalAmount)}`
       });
+
+      const { data, error } = await supabase.rpc('admin_update_user_credits', {
+        target_user_id: userId,
+        amount_change: finalAmount,
+        description_text: description || `Admin balance ${isPositive ? 'credit' : 'debit'}: ${Math.abs(finalAmount)}`
+      });
+
+      console.log('admin_update_user_credits response:', { data, error });
 
       if (error) {
         console.error('Credit adjustment error:', error);
@@ -57,6 +65,8 @@ export function CreditAdjustmentModal({
 
       if (data && data.length > 0) {
         const result = data[0];
+        console.log('Result from function:', result);
+        
         if (result.success) {
           toast.success(`Credits ${isPositive ? 'added' : 'deducted'} successfully. New balance: $${result.new_balance}`);
           onSuccess();
@@ -87,7 +97,7 @@ export function CreditAdjustmentModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
-            Adjust User Credits
+            Adjust User Credits (Temporary Function)
           </DialogTitle>
         </DialogHeader>
         

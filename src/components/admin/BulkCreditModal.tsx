@@ -49,11 +49,15 @@ export function BulkCreditModal({
 
       for (const userId of selectedUserIds) {
         try {
-          const { data, error } = await supabase.rpc('update_user_credits', {
+          console.log(`Processing user ${userId} with amount ${finalAmount}`);
+          
+          const { data, error } = await supabase.rpc('admin_update_user_credits', {
             target_user_id: userId,
             amount_change: finalAmount,
             description_text: description || `Bulk admin ${isPositive ? 'credit' : 'debit'}: ${Math.abs(finalAmount)}`
           });
+
+          console.log(`User ${userId} result:`, { data, error });
 
           if (error) {
             errorCount++;
@@ -70,12 +74,16 @@ export function BulkCreditModal({
         }
       }
 
+      console.log(`Bulk operation completed: ${successCount} success, ${errorCount} errors`);
+
       if (errorCount === 0) {
         toast.success(`Successfully ${isPositive ? 'added' : 'deducted'} credits for ${successCount} users`);
       } else if (successCount > 0) {
         toast.warning(`Partially completed: ${successCount} succeeded, ${errorCount} failed`);
+        console.log('Errors:', errors);
       } else {
         toast.error(`All updates failed. First error: ${errors[0]}`);
+        console.log('All errors:', errors);
       }
 
       if (successCount > 0) {
@@ -98,7 +106,7 @@ export function BulkCreditModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Bulk Credit Adjustment
+            Bulk Credit Adjustment (Temporary Function)
           </DialogTitle>
         </DialogHeader>
         

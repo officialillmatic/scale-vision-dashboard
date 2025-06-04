@@ -34,12 +34,20 @@ export function BillingSettings() {
 
     setIsUpdating(true);
     try {
-      // Usar la función update_user_credits en lugar de admin-update-balance
-      const { data, error } = await supabase.rpc('update_user_credits', {
+      console.log('Calling admin_update_user_credits from BillingSettings:', {
         target_user_id: selectedUserId,
         amount_change: numericAmount,
         description_text: description || `Admin balance adjustment: ${numericAmount > 0 ? '+' : ''}${numericAmount}`
       });
+
+      // Usar la función temporal admin_update_user_credits
+      const { data, error } = await supabase.rpc('admin_update_user_credits', {
+        target_user_id: selectedUserId,
+        amount_change: numericAmount,
+        description_text: description || `Admin balance adjustment: ${numericAmount > 0 ? '+' : ''}${numericAmount}`
+      });
+
+      console.log('admin_update_user_credits response:', { data, error });
 
       if (error) {
         console.error('Balance update error:', error);
@@ -96,7 +104,7 @@ export function BillingSettings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
-            Admin Balance Management
+            Admin Balance Management (Temporary Function)
             <Badge variant="destructive" className="ml-2">
               ADMIN ONLY
             </Badge>
@@ -161,9 +169,9 @@ export function BillingSettings() {
         <CardContent>
           <div className="space-y-4">
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="font-medium text-blue-900 mb-2">Super Admin Privileges</h4>
+              <h4 className="font-medium text-blue-900 mb-2">Super Admin Privileges (Temporary)</h4>
               <p className="text-sm text-blue-700">
-                As a super administrator, you have full access to:
+                Using temporary function for testing. As a super administrator, you have access to:
               </p>
               <ul className="list-disc list-inside text-sm text-blue-700 mt-2">
                 <li>Adjust user balances across all companies</li>
