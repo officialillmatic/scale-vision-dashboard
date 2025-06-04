@@ -17,8 +17,13 @@ interface AuthContextType {
   session: Session | null;
   company: Company | null;
   loading: boolean;
+  isLoading: boolean;
+  isCompanyLoading: boolean;
+  isCompanyOwner: boolean;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  refreshCompany: () => Promise<void>;
+  updateUserProfile: (data: { name?: string; avatar_url?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,6 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isCompanyLoading, setIsCompanyLoading] = useState(false);
 
   useEffect(() => {
     // Get initial session
@@ -59,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserCompany = async (userId: string) => {
     try {
+      setIsCompanyLoading(true);
       // First try to find company where user is owner
       let { data: company, error } = await supabase
         .from('companies')
@@ -76,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single();
 
         if (!memberError && membership) {
-          company = membership.companies as Company;
+          company = Array.isArray(membership.companies) ? membership.companies[0] : membership.companies;
         }
       }
 
@@ -85,6 +92,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Error fetching user company:', error);
+    } finally {
+      setIsCompanyLoading(false);
+    }
+  };
+
+  const refreshCompany = async () => {
+    if (user?.id) {
+      await fetchUserCompany(user.id);
     }
   };
 
@@ -98,13 +113,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(session?.user ?? null);
   };
 
+  const updateUserProfile = async (data: { name?: string; avatar_url?: string }) => {
+    if (!user) throw new Error('No user logged in');
+    
+    const { error } = await supabase.auth.updateUser({
+      data: data
+    });
+    
+    if (error) throw error;
+  };
+
+  const isCompanyOwner = company?.owner_id === user?.id;
+
   const value = {
     user,
     session,
     company,
     loading,
+    isLoading: loading,
+    isCompanyLoading,
+    isCompanyOwner,
     signOut,
     refreshSession,
+    refreshCompany,
+    updateUserProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -6,6 +6,8 @@ export interface Company {
   name: string;
   owner_id: string;
   logo_url?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CompanyMember {
