@@ -68,8 +68,8 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
       const companyMembers = await fetchCompanyMembers(companyId);
       console.log("🔍 [useTeamMembers] Raw members data from service:", companyMembers);
       
-      // Additional validation to ensure we only keep valid members
-      const validMembers = companyMembers.filter(member => {
+      // Additional validation to ensure we only keep valid regular users (no super admins/admins)
+      const validRegularUsers = companyMembers.filter(member => {
         const isValid = member && 
           member.user_id && 
           member.user_details && 
@@ -83,10 +83,10 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
         return isValid;
       });
       
-      console.log("🔍 [useTeamMembers] Valid members after final filtering:", validMembers);
-      console.log("🔍 [useTeamMembers] Setting members state with count:", validMembers.length);
+      console.log("🔍 [useTeamMembers] Valid regular users after filtering (excluding super admins/admins):", validRegularUsers);
+      console.log("🔍 [useTeamMembers] Setting members state with count:", validRegularUsers.length);
       
-      setMembers(validMembers);
+      setMembers(validRegularUsers);
     } catch (error) {
       console.error("🔍 [useTeamMembers] Error fetching members:", error);
       handleError(error, {

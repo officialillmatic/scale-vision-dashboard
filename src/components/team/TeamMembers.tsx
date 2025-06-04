@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
@@ -10,7 +9,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { TeamInvitations } from './TeamInvitations';
 import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
-import { UserPlus, Users, AlertCircle } from 'lucide-react';
+import { UserPlus, Users, AlertCircle, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -42,7 +41,7 @@ export function TeamMembers() {
     setIsInviteDialogOpen(false);
   };
 
-  // Triple validation to ensure no invalid users are displayed
+  // Triple validation to ensure no invalid users are displayed (already filtered for regular users only)
   const validTeamMembers = teamMembers?.filter(member => {
     // Check for basic member structure
     if (!member || !member.user_id) {
@@ -65,7 +64,7 @@ export function TeamMembers() {
     return true;
   }) || [];
 
-  console.log("🔍 [TeamMembers] Final valid team members:", validTeamMembers);
+  console.log("🔍 [TeamMembers] Final valid regular user team members:", validTeamMembers);
 
   // Loading skeleton component
   const LoadingSkeleton = () => (
@@ -114,6 +113,13 @@ export function TeamMembers() {
           {isInviting ? "Inviting..." : "Invite Member"}
         </Button>
       </div>
+
+      <Alert className="border-blue-200 bg-blue-50">
+        <Info className="h-4 w-4 text-blue-600" />
+        <AlertDescription className="text-blue-800">
+          This section shows regular team members only. Super admins and system administrators are not displayed here.
+        </AlertDescription>
+      </Alert>
       
       <EmailConfigWarning />
       
@@ -122,7 +128,7 @@ export function TeamMembers() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Team Members</h2>
           <p className="text-muted-foreground">
-            Manage your team members and their roles.
+            Manage your regular team members and their roles.
           </p>
           
           <div className="border rounded-md">
@@ -141,7 +147,7 @@ export function TeamMembers() {
             ) : validTeamMembers.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
                 <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No team members yet</p>
+                <p className="text-lg font-medium">No regular team members yet</p>
                 <p className="text-sm">Invite team members to get started.</p>
               </div>
             ) : (

@@ -80,7 +80,24 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
 
     console.log("🔍 [memberService] User profile map:", userProfileMap);
 
-    // Map members with their user details and filter out invalid ones
+    // Get auth.users data to check roles and filter out super admins/admins
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+    
+    if (authError) {
+      console.warn("🔍 [memberService] Could not fetch auth users data:", authError);
+    }
+
+    // Create a map of auth users for role checking
+    const authUsersMap = authUsers?.users?.reduce((map, user) => {
+      if (user.id) {
+        map[user.id] = user;
+      }
+      return map;
+    }, {} as Record<string, any>) || {};
+
+    console.log("🔍 [memberService] Auth users map:", authUsersMap);
+
+    // Map members with their user details and filter out invalid ones + super admins/admins
     const membersWithDetails = validMembers
       .map((member) => {
         const userProfile = userProfileMap[member.user_id];
@@ -95,7 +112,17 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
           return null;
         }
 
-        const memberWithDetails = {
+        // Check if user is super admin or admin via auth.users metadata
+        const authUser = authUsersMap[member.user_id];
+        const userRole = authUser?.raw_user_meta_data?.role;
+        
+        // Filter out super admins and admins - only show regular users
+        if (userRole === 'super_admin' || userRole === 'admin') {
+          console.log(`🔍 [memberService] Filtering out ${userRole} user:`, userProfile.email);
+          return null;
+        }
+
+        const memberWithDetails: CompanyMember = {
           ...member,
           created_at: new Date(member.created_at),
           updated_at: new Date(member.updated_at),
@@ -105,12 +132,12 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
           }
         };
 
-        console.log("🔍 [memberService] Valid member with details:", memberWithDetails);
+        console.log("🔍 [memberService] Valid regular user member:", memberWithDetails);
         return memberWithDetails;
       })
       .filter((member): member is CompanyMember => member !== null);
 
-    console.log("🔍 [memberService] Final valid members count:", membersWithDetails.length);
+    console.log("🔍 [memberService] Final regular users (no super admins/admins):", membersWithDetails.length);
     console.log("🔍 [memberService] Final members with details:", membersWithDetails);
     
     return membersWithDetails;
