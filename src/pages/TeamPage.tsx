@@ -3,10 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { TeamMembers } from '@/components/team/TeamMembers';
 import { TeamAgents } from '@/components/team/TeamAgents';
-import { UserManagementDashboard } from '@/components/team/UserManagementDashboard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Users, Bot, Crown, Building2, UserCog } from 'lucide-react';
+import { AlertTriangle, Users, Bot, Crown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRole } from '@/hooks/useRole';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
@@ -15,7 +14,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 
 const TeamPage = () => {
-  const [activeTab, setActiveTab] = useState('agents');
+  const [activeTab, setActiveTab] = useState('members');
   const { user } = useAuth();
   const { isCompanyOwner, can } = useRole();
   const { isSuperAdmin } = useSuperAdmin();
@@ -58,11 +57,11 @@ const TeamPage = () => {
               </Badge>
             )}
             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-              Enterprise Suite
+              Team Suite
             </Badge>
           </div>
           <p className="text-lg text-gray-600 font-medium">
-            Manage your team members, AI agents, and user assignments in one centralized location
+            Manage your team members and AI agent assignments
           </p>
         </div>
         
@@ -70,14 +69,7 @@ const TeamPage = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
             <div className="border-b border-gray-200/60 px-6 py-4">
-              <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-gray-100/80 p-1 rounded-lg">
-                <TabsTrigger 
-                  value="agents" 
-                  className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
-                >
-                  <Bot className="h-4 w-4" />
-                  Agent Assignment
-                </TabsTrigger>
+              <TabsList className="grid w-full max-w-md grid-cols-2 bg-gray-100/80 p-1 rounded-lg">
                 <TabsTrigger 
                   value="members" 
                   className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
@@ -86,43 +78,22 @@ const TeamPage = () => {
                   Team Members
                 </TabsTrigger>
                 <TabsTrigger 
-                  value="hr" 
+                  value="agents" 
                   className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
                 >
-                  <Building2 className="h-4 w-4" />
-                  HR Management
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="advanced"
-                  className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
-                >
-                  <UserCog className="h-4 w-4" />
-                  Advanced
+                  <Bot className="h-4 w-4" />
+                  Agent Assignment
                 </TabsTrigger>
               </TabsList>
             </div>
             
             <div className="p-6">
-              <TabsContent value="agents" className="space-y-6 mt-0">
-                <TeamAgents />
-              </TabsContent>
-              
               <TabsContent value="members" className="space-y-6 mt-0">
                 <TeamMembers />
               </TabsContent>
               
-              <TabsContent value="hr" className="space-y-6 mt-0">
-                <UserManagementDashboard />
-              </TabsContent>
-              
-              <TabsContent value="advanced" className="space-y-6 mt-0">
-                <div className="text-center py-8">
-                  <UserCog className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Advanced Team Settings</h3>
-                  <p className="text-gray-600 mb-4">
-                    Advanced configuration options and bulk operations will be available here.
-                  </p>
-                </div>
+              <TabsContent value="agents" className="space-y-6 mt-0">
+                <TeamAgents />
               </TabsContent>
             </div>
           </Tabs>
