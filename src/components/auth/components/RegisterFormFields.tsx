@@ -4,7 +4,7 @@ import { z } from "zod";
 import { UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { InvitationCheckResult } from "@/services/invitationService";
+import { InvitationCheckResult } from "@/services/invitation";
 
 export const registerSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -20,9 +20,13 @@ export type RegisterFormValues = z.infer<typeof registerSchema>;
 interface RegisterFormFieldsProps {
   form: UseFormReturn<RegisterFormValues>;
   invitation: InvitationCheckResult | null;
+  invitedEmail?: string;
 }
 
-export const RegisterFormFields = ({ form, invitation }: RegisterFormFieldsProps) => {
+export const RegisterFormFields = ({ form, invitation, invitedEmail }: RegisterFormFieldsProps) => {
+  const isInvitedUser = Boolean(invitation?.valid || invitedEmail);
+  const displayEmail = invitation?.invitation?.email || invitedEmail || form.getValues('email');
+
   return (
     <div className="space-y-4">
       <FormField
@@ -35,11 +39,17 @@ export const RegisterFormFields = ({ form, invitation }: RegisterFormFieldsProps
               <Input
                 type="email"
                 placeholder="email@example.com"
-                disabled={invitation?.valid && !!invitation.invitation?.email}
-                className="p-3 h-12 rounded-md"
+                readOnly={isInvitedUser}
+                className={`p-3 h-12 rounded-md ${isInvitedUser ? 'bg-gray-50 text-gray-700' : ''}`}
                 {...field}
+                value={displayEmail}
               />
             </FormControl>
+            {isInvitedUser && (
+              <p className="text-sm text-muted-foreground">
+                This email was provided with your invitation
+              </p>
+            )}
             <FormMessage />
           </FormItem>
         )}
@@ -55,6 +65,7 @@ export const RegisterFormFields = ({ form, invitation }: RegisterFormFieldsProps
                 type="password"
                 placeholder="********"
                 className="p-3 h-12 rounded-md"
+                autoFocus={isInvitedUser}
                 {...field}
               />
             </FormControl>

@@ -4,7 +4,13 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { UseFormReturn } from 'react-hook-form';
-import type { CompanyMember } from '@/services/memberService';
+
+interface TeamMemberProfile {
+  id: string;
+  full_name?: string;
+  email: string;
+  role: string;
+}
 
 interface Agent {
   id: string;
@@ -15,16 +21,16 @@ interface Agent {
 
 interface AgentAssignFormFieldsProps {
   form: UseFormReturn<any>;
-  members: CompanyMember[];
+  teamMembers: TeamMemberProfile[];
   agents: Agent[];
 }
 
-export function AgentAssignFormFields({ form, members, agents }: AgentAssignFormFieldsProps) {
+export function AgentAssignFormFields({ form, teamMembers, agents }: AgentAssignFormFieldsProps) {
   return (
     <div className="space-y-4">
       <FormField
         control={form.control}
-        name="userId"
+        name="user_id"
         render={({ field }) => (
           <FormItem>
             <FormLabel>Team Member</FormLabel>
@@ -35,7 +41,7 @@ export function AgentAssignFormFields({ form, members, agents }: AgentAssignForm
                 </SelectTrigger>
               </FormControl>
               <SelectContent>
-                {members.map((member) => (
+                {teamMembers.map((member) => (
                   <SelectItem key={member.id} value={member.id}>
                     <div className="flex items-center justify-between w-full">
                       <span>{member.full_name || member.email}</span>
@@ -54,7 +60,7 @@ export function AgentAssignFormFields({ form, members, agents }: AgentAssignForm
 
       <FormField
         control={form.control}
-        name="agentId"
+        name="agent_id"
         render={({ field }) => (
           <FormItem>
             <FormLabel>Agent</FormLabel>
