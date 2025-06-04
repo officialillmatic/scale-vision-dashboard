@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface TeamMemberProfile {
   id: string;
-  email?: string;
+  email: string; // Make this required to match the expected interface
   full_name?: string;
   avatar_url?: string;
   role?: string;
@@ -36,7 +36,7 @@ export async function fetchTeamMembers(companyId?: string): Promise<TeamMemberPr
 
     return profiles?.map(profile => ({
       id: profile.id,
-      email: profile.email || undefined,
+      email: profile.email || 'unknown@example.com', // Provide fallback to ensure email is always present
       full_name: profile.full_name || undefined,
       avatar_url: profile.avatar_url || undefined,
       role: profile.role || 'user',

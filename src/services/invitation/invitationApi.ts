@@ -5,6 +5,8 @@ import type { CompanyInvitation, InvitationCheckResult } from "./types";
 
 export const fetchCompanyInvitations = async (companyId: string): Promise<CompanyInvitation[]> => {
   try {
+    console.log('🔍 Fetching invitations for company:', companyId);
+    
     const { data, error } = await supabase
       .from("company_invitations_raw")
       .select(`
@@ -12,14 +14,41 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
         companies!inner(name)
       `)
       .eq("company_id", companyId)
+      .eq("status", "pending") // Only fetch pending invitations
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    return data?.map(invitation => ({
-      ...invitation,
-      company_name: invitation.companies?.name
-    })) || [];
+    // Filter out invitations where the email already exists in confirmed auth.users
+    // This ensures we only show truly pending invitations
+    const filteredInvitations = [];
+    
+    for (const invitation of data || []) {
+      // Check if this email is already confirmed in profiles (which syncs with auth.users)
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('email, email_confirmed_at')
+        .eq('email', invitation.email)
+        .maybeSingle();
+      
+      // Only include invitation if user doesn't exist or isn't confirmed
+      if (!existingUser || !existingUser.email_confirmed_at) {
+        filteredInvitations.push({
+          ...invitation,
+          company_name: invitation.companies?.name
+        });
+      } else {
+        // User is confirmed, so mark invitation as accepted automatically
+        console.log('🔄 Auto-accepting invitation for confirmed user:', invitation.email);
+        await supabase
+          .from("company_invitations_raw")
+          .update({ status: "accepted" })
+          .eq("id", invitation.id);
+      }
+    }
+
+    console.log('✅ Filtered invitations:', filteredInvitations.length);
+    return filteredInvitations;
   } catch (error) {
     console.error("Error fetching invitations:", error);
     handleError(error, {
@@ -102,10 +131,13 @@ export const acceptInvitation = async (token: string, userId: string): Promise<b
 
     if (existingMember) {
       console.log("ℹ️ User is already a member, just updating invitation status");
-      // Update invitation status
+      // Update invitation status to accepted
       await supabase
         .from("company_invitations_raw")
-        .update({ status: "accepted" })
+        .update({ 
+          status: "accepted",
+          accepted_at: new Date().toISOString()
+        })
         .eq("token", token);
       
       return true;
@@ -127,10 +159,13 @@ export const acceptInvitation = async (token: string, userId: string): Promise<b
       return false;
     }
 
-    // Update invitation status
+    // Update invitation status to accepted
     const { error: updateError } = await supabase
       .from("company_invitations_raw")
-      .update({ status: "accepted" })
+      .update({ 
+        status: "accepted",
+        accepted_at: new Date().toISOString()
+      })
       .eq("token", token);
 
     if (updateError) {

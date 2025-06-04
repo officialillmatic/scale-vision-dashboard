@@ -4,8 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { createInvitation } from "@/services/invitation/invitationActions";
+import { fetchCompanyInvitations } from "@/services/invitation";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export interface TeamMember {
   id: string;
@@ -41,10 +42,11 @@ export function useTeamMembers(companyId?: string) {
   
   const targetCompanyId = companyId || company?.id;
 
-  const { data: members, isLoading, error, refetch } = useQuery({
+  // Query for team members (confirmed users)
+  const { data: members, isLoading: membersLoading, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['team-members', targetCompanyId, isSuperAdmin],
     queryFn: async () => {
-      console.log('🔍 [useTeamMembers] Fetching team members...');
+      console.log('🔍 [useTeamMembers] Fetching confirmed team members...');
       
       try {
         // For super admins, get all users across all companies
@@ -52,6 +54,7 @@ export function useTeamMembers(companyId?: string) {
           const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('*')
+            .not('email_confirmed_at', 'is', null) // Only confirmed users
             .order('created_at', { ascending: false });
 
           if (profilesError) throw profilesError;
@@ -62,7 +65,7 @@ export function useTeamMembers(companyId?: string) {
             full_name: profile.full_name,
             avatar_url: profile.avatar_url,
             role: profile.role || 'user',
-            status: profile.email_confirmed_at ? 'active' : 'invited' as const,
+            status: 'active' as const,
             created_at: profile.created_at,
             last_sign_in_at: profile.last_sign_in_at,
             company_id: profile.company_id,
@@ -74,13 +77,14 @@ export function useTeamMembers(companyId?: string) {
           })) || [];
         }
 
-        // For company users, get only their company's members
+        // For company users, get only their company's confirmed members
         if (!targetCompanyId) return [];
 
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
           .select('*')
           .eq('company_id', targetCompanyId)
+          .not('email_confirmed_at', 'is', null) // Only confirmed users
           .order('created_at', { ascending: false });
 
         if (profilesError) throw profilesError;
@@ -91,7 +95,7 @@ export function useTeamMembers(companyId?: string) {
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,
           role: profile.role || 'user',
-          status: profile.email_confirmed_at ? 'active' : 'invited' as const,
+          status: 'active' as const,
           created_at: profile.created_at,
           last_sign_in_at: profile.last_sign_in_at,
           company_id: profile.company_id,
@@ -106,8 +110,68 @@ export function useTeamMembers(companyId?: string) {
         return [];
       }
     },
-    enabled: !!targetCompanyId || isSuperAdmin
+    enabled: !!targetCompanyId || isSuperAdmin,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds to catch new registrations
   });
+
+  // Query for pending invitations (filtered to exclude confirmed users)
+  const { data: invitations, isLoading: invitationsLoading, refetch: refetchInvitations } = useQuery({
+    queryKey: ['company-invitations', targetCompanyId],
+    queryFn: () => targetCompanyId ? fetchCompanyInvitations(targetCompanyId) : Promise.resolve([]),
+    enabled: !!targetCompanyId,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
+  });
+
+  // Set up real-time updates for new user registrations
+  useEffect(() => {
+    if (!targetCompanyId) return;
+
+    console.log('🔔 Setting up real-time updates for team members...');
+    
+    const channel = supabase
+      .channel('team-sync')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `company_id=eq.${targetCompanyId}`,
+        },
+        (payload) => {
+          console.log('🔄 Profile updated, refreshing team data:', payload);
+          refetchMembers();
+          refetchInvitations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'profiles',
+          filter: `company_id=eq.${targetCompanyId}`,
+        },
+        (payload) => {
+          console.log('✨ New team member registered:', payload);
+          refetchMembers();
+          refetchInvitations();
+          
+          if (payload.new?.email) {
+            toast({
+              title: "New Team Member",
+              description: `${payload.new.email} has joined the team!`,
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔌 Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [targetCompanyId, refetchMembers, refetchInvitations, toast]);
 
   // Enhanced invitation handling function
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
@@ -151,8 +215,9 @@ export function useTeamMembers(companyId?: string) {
           description: `Invitation sent to ${email} successfully`,
         });
         
-        // Refresh the team members list
-        await refetch();
+        // Refresh both members and invitations lists
+        await refetchMembers();
+        await refetchInvitations();
         
         return true;
       } else {
@@ -178,17 +243,17 @@ export function useTeamMembers(companyId?: string) {
   };
 
   const fetchInvitations = async () => {
-    console.log('🔄 [fetchInvitations] Refreshing data...');
-    await refetch();
+    console.log('🔄 [fetchInvitations] Refreshing all data...');
+    await Promise.all([refetchMembers(), refetchInvitations()]);
   };
 
   return {
     members: members || [],
     teamMembers: members || [], // Backward compatibility alias
-    invitations: [] as TeamInvitation[], // Mock empty array
-    isLoading,
-    error,
-    refetch,
+    invitations: invitations || [],
+    isLoading: membersLoading || invitationsLoading,
+    error: membersError,
+    refetch: refetchMembers,
     isInviting,
     handleInvite,
     fetchInvitations

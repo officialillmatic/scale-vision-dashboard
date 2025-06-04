@@ -103,6 +103,18 @@ export function RegisterForm() {
               onClick: () => navigate("/dashboard")
             }
           });
+          
+          // Trigger a refresh of team data by broadcasting an event
+          console.log('🔄 Broadcasting team refresh event...');
+          
+          // Small delay to ensure the user profile is created
+          setTimeout(() => {
+            // Emit a custom event to trigger team list refresh
+            window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
+              detail: { email: values.email, userId: data.user.id }
+            }));
+          }, 2000);
+          
         } else {
           toast.error("There was an issue joining the company. Please contact support.");
         }
@@ -118,7 +130,7 @@ export function RegisterForm() {
       // Redirect to dashboard after a short delay
       setTimeout(() => {
         navigate("/dashboard");
-      }, 2000);
+      }, 3000);
     } catch (error: any) {
       console.error("💥 Signup error:", error);
       toast.error(error.message || "Failed to create account. Please try again.");

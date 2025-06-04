@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchCompanyInvitations } from '@/services/invitation';
@@ -39,6 +39,7 @@ export function TeamInvitations() {
     queryKey: ['company-invitations', company?.id],
     queryFn: () => company?.id ? fetchCompanyInvitations(company.id) : Promise.resolve([]),
     enabled: !!company?.id,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds to catch status changes
     retry: (failureCount, error) => {
       // Don't retry on 403 or 401 errors
       if (error?.message?.includes('403') || error?.message?.includes('401')) {
@@ -47,6 +48,20 @@ export function TeamInvitations() {
       return failureCount < 3;
     }
   });
+
+  // Listen for new team member registrations to refresh the invitations list
+  useEffect(() => {
+    const handleTeamMemberRegistered = (event: CustomEvent) => {
+      console.log('🔄 Team member registered, refreshing invitations...', event.detail);
+      refetch();
+    };
+
+    window.addEventListener('teamMemberRegistered', handleTeamMemberRegistered as EventListener);
+    
+    return () => {
+      window.removeEventListener('teamMemberRegistered', handleTeamMemberRegistered as EventListener);
+    };
+  }, [refetch]);
 
   const handleResend = async (invitationId: string) => {
     if (!company) return;
@@ -65,20 +80,20 @@ export function TeamInvitations() {
   };
 
   const handleCancel = async (invitationId: string) => {
-  if (!company) return;
-  
-  setIsProcessing(invitationId);
-  try {
-    await cancelInvitation(invitationId);
-    await refetch(); // Cambia refetch() por await refetch()
-    toast.success("Invitation cancelled successfully");
-  } catch (error) {
-    console.error("Error cancelling invitation:", error);
-    toast.error("Failed to cancel invitation");
-  } finally {
-    setIsProcessing(null);
-  }
-};
+    if (!company) return;
+    
+    setIsProcessing(invitationId);
+    try {
+      await cancelInvitation(invitationId);
+      await refetch();
+      toast.success("Invitation cancelled successfully");
+    } catch (error) {
+      console.error("Error cancelling invitation:", error);
+      toast.error("Failed to cancel invitation");
+    } finally {
+      setIsProcessing(null);
+    }
+  };
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -119,8 +134,8 @@ export function TeamInvitations() {
     }
   };
 
-  // Filter to only show pending invitations
-  const pendingInvitations = invitations?.filter(inv => inv.status === 'pending') || [];
+  // All invitations are already filtered by the API to only show truly pending ones
+  const pendingInvitations = invitations || [];
   
   if (!company) {
     return null;
@@ -141,7 +156,20 @@ export function TeamInvitations() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Pending Invitations</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Pending Invitations</h2>
+        <div className="flex items-center gap-2">
+          {pendingInvitations.length > 0 && (
+            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+              {pendingInvitations.length} pending
+            </Badge>
+          )}
+          <Button variant="outline" onClick={() => refetch()} size="sm" disabled={isLoading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
       
       <Card>
         <div className="rounded-md border">
@@ -210,7 +238,12 @@ export function TeamInvitations() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center">
-                    No pending invitations found.
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-muted-foreground">No pending invitations found.</span>
+                      <span className="text-sm text-muted-foreground">
+                        Invitations automatically move to Team Members when accepted.
+                      </span>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
