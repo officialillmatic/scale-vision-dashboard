@@ -1,276 +1,170 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
-
-// Enhanced CORS headers specifically for Retell AI
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-retell-signature, accept',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
-  'Access-Control-Max-Age': '86400',
-};
-
-function createSuccessResponse(data: any): Response {
-  return new Response(JSON.stringify(data), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-function createErrorResponse(message: string, status: number = 500): Response {
-  return new Response(JSON.stringify({ error: message }), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-// Use environment helper for secure env var access
-function env(key: string): string {
-  const val = Deno?.env?.get?.(key);
-  if (!val) throw new Error(`⚠️  Missing required env var: ${key}`);
-  return val;
-}
-
-const supabaseUrl = env('SUPABASE_URL');
-const supabaseServiceKey = env('SUPABASE_SERVICE_ROLE_KEY');
-const retellSecret = env('RETELL_SECRET');
+import { corsHeaders } from "../_shared/cors.ts";
+import { processWebhookEvent, handleTransactionAndBalance, logWebhookResult } from "../_shared/retellEventProcessor.ts";
+import { processCallCredits } from "../_shared/creditProcessor.ts";
 
 serve(async (req) => {
-  // Handle CORS preflight requests FIRST
+  const startTime = Date.now();
+  
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { 
-      status: 200,
-      headers: corsHeaders 
-    });
+    return new Response('ok', { headers: corsHeaders });
   }
 
-  const requestId = crypto.randomUUID().substring(0, 8);
-  console.log(`[RETELL-WEBHOOK-${requestId}] ${new Date().toISOString()} - ${req.method} request received`);
-  console.log(`[RETELL-WEBHOOK-${requestId}] Headers:`, Object.fromEntries(req.headers.entries()));
-
   try {
-    // Allow GET requests for health checks
-    if (req.method === 'GET') {
-      console.log(`[RETELL-WEBHOOK-${requestId}] Health check request`);
-      return createSuccessResponse({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        message: 'Retell webhook endpoint is operational'
+    console.log(`[WEBHOOK] Received ${req.method} request`);
+    
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    if (req.method !== 'POST') {
+      return new Response('Method not allowed', { 
+        status: 405, 
+        headers: corsHeaders 
       });
     }
 
-    if (req.method !== 'POST') {
-      return createErrorResponse('Method not allowed - only POST and OPTIONS requests supported', 405);
+    const body = await req.json();
+    console.log(`[WEBHOOK] Processing event: ${body.event}`);
+
+    const { event, call } = body;
+    const callId = call?.call_id;
+
+    if (!callId) {
+      console.error('[WEBHOOK] No call_id found in webhook payload');
+      return new Response('Bad request: missing call_id', { 
+        status: 400, 
+        headers: corsHeaders 
+      });
     }
 
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    // Process the webhook event
+    const processedData = processWebhookEvent(event, call);
     
-    // Get the webhook payload
-    const payload = await req.json();
-    console.log(`[RETELL-WEBHOOK-${requestId}] Webhook payload:`, JSON.stringify(payload, null, 2));
-
-    // Verify webhook signature if available
-    const signature = req.headers.get('x-retell-signature');
-    if (signature && retellSecret) {
-      // TODO: Implement signature verification
-      console.log(`[RETELL-WEBHOOK-${requestId}] Signature verification enabled`);
-    }
-
-    // Extract event and data - handle both formats
-    const event = payload.event;
-    const callData = payload.data || payload.call;
-    const callId = callData?.call_id || `unknown_${Date.now()}`;
-    
-    if (!event) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Invalid webhook payload - missing event`);
-      return createErrorResponse('Invalid webhook payload - missing event', 400);
-    }
-
-    console.log(`[RETELL-WEBHOOK-${requestId}] Processing webhook event: ${event} for call: ${callId}`);
-
-    // ALWAYS log the webhook for audit purposes - regardless of processing success
-    try {
-      const { error: logError } = await supabaseClient
-        .from('webhook_logs')
-        .insert({
-          event_type: event,
-          call_id: callId,
-          status: 'received',
-          cost_usd: callData?.cost || callData?.cost_usd || 0,
-          duration_sec: callData?.duration_sec || callData?.duration || 0,
-          created_at: new Date().toISOString()
-        });
-
-      if (logError) {
-        console.warn(`[RETELL-WEBHOOK-${requestId}] Failed to log webhook:`, logError);
-      } else {
-        console.log(`[RETELL-WEBHOOK-${requestId}] Successfully logged webhook to database`);
-      }
-    } catch (logError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Exception logging webhook:`, logError);
-    }
-
-    // Handle different webhook events
-    switch (event) {
-      case 'call_started':
-        return await handleCallStarted(supabaseClient, requestId, callData);
-      
-      case 'call_ended':
-        return await handleCallEnded(supabaseClient, requestId, callData);
-      
-      case 'call_analyzed':
-        return await handleCallAnalyzed(supabaseClient, requestId, callData);
-      
-      case 'test_diagnostic':
-      case 'test':
-        console.log(`[RETELL-WEBHOOK-${requestId}] Test webhook received - responding with success`);
-        return createSuccessResponse({
-          message: 'Test webhook received successfully',
-          event_type: event,
-          call_id: callId,
-          timestamp: new Date().toISOString()
-        });
-      
-      default:
-        console.log(`[RETELL-WEBHOOK-${requestId}] Unhandled event type: ${event}`);
-        return createSuccessResponse({
-          message: 'Event received but not processed',
-          event_type: event,
-          call_id: callId
-        });
-    }
-
-  } catch (error) {
-    console.error(`[RETELL-WEBHOOK-${requestId}] Fatal error:`, error);
-    
-    // Log the error to database
-    try {
-      const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
-      await supabaseClient
-        .from('webhook_errors')
-        .insert({
-          error_type: 'fatal_error',
-          error_details: error.message,
-          stack_trace: error.stack,
-          created_at: new Date().toISOString()
-        });
-    } catch (logError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Failed to log error:`, logError);
-    }
-    
-    return createErrorResponse(`Webhook processing failed: ${error.message}`, 500);
-  }
-});
-
-async function handleCallStarted(supabaseClient: any, requestId: string, data: any) {
-  console.log(`[RETELL-WEBHOOK-${requestId}] Handling call_started for call: ${data.call_id}`);
-  
-  // For call_started, we mainly just want to log that the call has begun
-  // The actual call data will be processed when the call ends
-  
-  return createSuccessResponse({
-    message: 'Call started event processed',
-    call_id: data.call_id
-  });
-}
-
-async function handleCallEnded(supabaseClient: any, requestId: string, data: any) {
-  console.log(`[RETELL-WEBHOOK-${requestId}] Handling call_ended for call: ${data.call_id}`);
-  
-  try {
-    // Basic call data mapping without requiring complex lookups
-    const callData = {
-      call_id: data.call_id,
-      user_id: data.user_id || null,
-      company_id: data.company_id || null,
-      agent_id: data.agent_id || null,
-      timestamp: new Date(data.start_timestamp ? data.start_timestamp * 1000 : Date.now()).toISOString(),
-      start_time: data.start_timestamp ? new Date(data.start_timestamp * 1000).toISOString() : null,
-      duration_sec: data.duration_sec || data.duration || 0,
-      cost_usd: data.cost || data.cost_usd || 0,
-      call_status: data.call_status || 'completed',
-      from: data.from_number || 'unknown',
-      to: data.to_number || 'unknown',
-      from_number: data.from_number,
-      to_number: data.to_number,
-      disconnection_reason: data.disconnection_reason,
-      recording_url: data.recording_url,
-      transcript: data.transcript,
-      transcript_url: data.transcript_url,
-      call_type: 'phone_call',
-      disposition: data.disposition,
-      latency_ms: data.latency_ms,
-      call_summary: data.summary
-    };
-
-    // Try to save to calls table
-    const { data: upsertedCall, error: upsertError } = await supabaseClient
-      .from('calls')
-      .upsert(callData, {
-        onConflict: 'call_id',
-        ignoreDuplicates: false
-      })
-      .select()
+    // Find the agent mapping
+    const { data: agent, error: agentError } = await supabase
+      .from('retell_agents')
+      .select('*')
+      .eq('agent_id', call.agent_id)
       .single();
 
+    if (agentError || !agent) {
+      console.error(`[WEBHOOK] Agent not found for agent_id: ${call.agent_id}`);
+      return new Response('Agent not found', { 
+        status: 404, 
+        headers: corsHeaders 
+      });
+    }
+
+    // Find user assignment
+    const { data: userAgent, error: userAgentError } = await supabase
+      .from('user_agent_assignments')
+      .select('user_id, company_id')
+      .eq('agent_id', agent.id)
+      .eq('is_primary', true)
+      .single();
+
+    if (userAgentError || !userAgent) {
+      console.error(`[WEBHOOK] User assignment not found for agent: ${agent.id}`);
+      return new Response('User assignment not found', { 
+        status: 404, 
+        headers: corsHeaders 
+      });
+    }
+
+    // Store/update call data
+    const callData = {
+      call_id: callId,
+      user_id: userAgent.user_id,
+      company_id: userAgent.company_id,
+      agent_id: agent.id,
+      timestamp: call.start_timestamp || new Date().toISOString(),
+      duration_sec: call.duration_sec || 0,
+      cost_usd: call.cost_usd || 0,
+      call_status: processedData.call_status,
+      from: call.from_number || 'unknown',
+      to: call.to_number || 'unknown',
+      disconnection_reason: call.disconnection_reason,
+      transcript: call.transcript,
+      sentiment: call.sentiment,
+      recording_url: call.recording_url
+    };
+
+    const { error: upsertError } = await supabase
+      .from('retell_calls')
+      .upsert(callData, { onConflict: 'call_id' });
+
     if (upsertError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Call upsert error:`, upsertError);
-      // Don't fail the webhook - just log the error
-    } else {
-      console.log(`[RETELL-WEBHOOK-${requestId}] Successfully processed call_ended for: ${data.call_id}`);
+      console.error('[WEBHOOK] Error upserting call data:', upsertError);
+      await logWebhookResult(supabase, event, callId, agent, userAgent, callData, 'failed', startTime);
+      return new Response('Database error', { 
+        status: 500, 
+        headers: corsHeaders 
+      });
     }
+
+    // Process credits for completed calls
+    if (event === 'call_ended' && call.cost_usd > 0) {
+      console.log(`[WEBHOOK] Processing credits for completed call: ${callId}`);
+      
+      const creditResult = await processCallCredits(
+        supabase,
+        call,
+        userAgent.user_id
+      );
+
+      if (creditResult.error) {
+        console.error(`[WEBHOOK] Credit processing failed:`, creditResult.error);
+        // Don't fail the webhook if credit processing fails
+      } else if (creditResult.success) {
+        console.log(`[WEBHOOK] Credits processed successfully. New balance: $${creditResult.newBalance}`);
+        
+        // Log balance warnings
+        if (creditResult.wasBlocked) {
+          console.warn(`[WEBHOOK] User account blocked due to insufficient funds: ${userAgent.user_id}`);
+        } else if (creditResult.isCritical) {
+          console.warn(`[WEBHOOK] User has critical low balance: ${userAgent.user_id}`);
+        } else if (creditResult.isLow) {
+          console.warn(`[WEBHOOK] User has low balance: ${userAgent.user_id}`);
+        }
+      }
+    }
+
+    // Handle transaction and balance (existing logic)
+    await handleTransactionAndBalance(supabase, event, call, userAgent);
+
+    // Log successful webhook processing
+    await logWebhookResult(supabase, event, callId, agent, userAgent, callData, 'success', startTime);
+
+    console.log(`[WEBHOOK] Successfully processed ${event} for call ${callId}`);
     
-    return createSuccessResponse({
-      message: 'Call ended event processed successfully',
-      call_id: data.call_id,
-      database_id: upsertedCall?.id
+    return new Response(JSON.stringify({ 
+      success: true, 
+      event, 
+      call_id: callId 
+    }), {
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json' 
+      }
     });
 
   } catch (error) {
-    console.error(`[RETELL-WEBHOOK-${requestId}] Error processing call_ended:`, error);
-    return createSuccessResponse({
-      message: 'Call ended event received but processing failed',
-      call_id: data.call_id,
-      error: error.message
-    });
-  }
-}
-
-async function handleCallAnalyzed(supabaseClient: any, requestId: string, data: any) {
-  console.log(`[RETELL-WEBHOOK-${requestId}] Handling call_analyzed for call: ${data.call_id}`);
-  
-  try {
-    // Update the existing call with analysis data
-    const { error: updateError } = await supabaseClient
-      .from('calls')
-      .update({
-        sentiment: data.sentiment?.overall_sentiment,
-        sentiment_score: data.sentiment?.score,
-        result_sentiment: data.sentiment,
-        call_summary: data.summary,
-        transcript: data.transcript,
-        transcript_url: data.transcript_url
-      })
-      .eq('call_id', data.call_id);
-
-    if (updateError) {
-      console.error(`[RETELL-WEBHOOK-${requestId}] Failed to update call analysis:`, updateError);
-      // Don't fail the webhook - just log the error
-    } else {
-      console.log(`[RETELL-WEBHOOK-${requestId}] Successfully processed call_analyzed for: ${data.call_id}`);
-    }
+    console.error('[WEBHOOK] Unexpected error:', error);
     
-    return createSuccessResponse({
-      message: 'Call analyzed event processed successfully',
-      call_id: data.call_id
-    });
-
-  } catch (error) {
-    console.error(`[RETELL-WEBHOOK-${requestId}] Error processing call_analyzed:`, error);
-    return createSuccessResponse({
-      message: 'Call analyzed event received but processing failed',
-      call_id: data.call_id,
-      error: error.message
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json' 
+      }
     });
   }
-}
+});
