@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -416,7 +417,6 @@ export default function DashboardPage() {
                       fill="#8884d8"
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      labelStyle={{ fontSize: '10px' }}
                     >
                       {sentimentData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
