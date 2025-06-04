@@ -1268,6 +1268,22 @@ export type Database = {
       }
     }
     Views: {
+      admin_user_credits_view: {
+        Row: {
+          balance_status: string | null
+          balance_updated_at: string | null
+          critical_threshold: number | null
+          current_balance: number | null
+          email: string | null
+          is_blocked: boolean | null
+          name: string | null
+          recent_transactions_count: number | null
+          user_created_at: string | null
+          user_id: string | null
+          warning_threshold: number | null
+        }
+        Relationships: []
+      }
       company_invitations: {
         Row: {
           company_id: string | null
@@ -1323,6 +1339,24 @@ export type Database = {
       accept_invitation: {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean
+      }
+      admin_adjust_user_credits: {
+        Args: {
+          p_user_id: string
+          p_amount: number
+          p_description: string
+          p_admin_id: string
+        }
+        Returns: Json
+      }
+      admin_bulk_adjust_credits: {
+        Args: {
+          p_user_ids: string[]
+          p_amount: number
+          p_description: string
+          p_admin_id: string
+        }
+        Returns: Json
       }
       can_access_company: {
         Args: { p_company_id: string }
@@ -1531,6 +1565,18 @@ export type Database = {
       get_user_company_simple: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_user_credit_transactions: {
+        Args: { p_user_id: string; p_limit?: number }
+        Returns: {
+          id: string
+          amount: number
+          transaction_type: string
+          description: string
+          balance_after: number
+          created_at: string
+          created_by_email: string
+        }[]
       }
       get_user_email: {
         Args: Record<PropertyKey, never>
