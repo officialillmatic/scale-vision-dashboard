@@ -24,6 +24,7 @@ import SuperAdminCreditPage from '@/pages/SuperAdminCreditPage';
 import TeamPage from '@/pages/TeamPage';
 import ProfilePage from '@/pages/ProfilePage';
 import SupportPage from '@/pages/SupportPage';
+import AcceptInvitationPage from '@/pages/AcceptInvitationPage';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 const queryClient = new QueryClient();
@@ -78,6 +79,7 @@ function AppRoutes() {
         <Route path="/register" element={<RegisterForm />} />
         <Route path="/reset-password" element={<PasswordResetForm />} />
         <Route path="/update-password" element={<UpdatePasswordForm />} />
+        <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
         
         {/* Protected routes - require authentication */}
         <Route 

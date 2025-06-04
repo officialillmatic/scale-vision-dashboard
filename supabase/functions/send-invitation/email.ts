@@ -1,3 +1,4 @@
+
 export async function sendInvitationEmail(invitation: any) {
   console.log("Sending invitation email - temporary simulation...");
   
@@ -7,7 +8,10 @@ export async function sendInvitationEmail(invitation: any) {
     console.log("Company ID:", invitation.company_id);
     console.log("Role:", invitation.role);
     console.log("Token:", invitation.token);
-    console.log("Invitation URL would be: https://drscaleai.com/accept-invitation?token=" + invitation.token);
+    
+    // Use the correct URL that matches our React Router setup
+    const invitationUrl = `https://drscaleai.com/accept-invitation?token=${invitation.token}`;
+    console.log("Invitation URL:", invitationUrl);
     console.log("=== EMAIL SENT (SIMULATED) ===");
     
     // Simular éxito

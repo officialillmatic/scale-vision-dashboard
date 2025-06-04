@@ -3,7 +3,7 @@ import React from 'react';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { useFormContext } from 'react-hook-form';
+import { UseFormReturn } from 'react-hook-form';
 import type { CompanyMember } from '@/services/memberService';
 
 interface Agent {
@@ -14,13 +14,12 @@ interface Agent {
 }
 
 interface AgentAssignFormFieldsProps {
+  form: UseFormReturn<any>;
   members: CompanyMember[];
   agents: Agent[];
 }
 
-export function AgentAssignFormFields({ members, agents }: AgentAssignFormFieldsProps) {
-  const form = useFormContext();
-
+export function AgentAssignFormFields({ form, members, agents }: AgentAssignFormFieldsProps) {
   return (
     <div className="space-y-4">
       <FormField
