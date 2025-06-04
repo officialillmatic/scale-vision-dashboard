@@ -154,7 +154,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
   if (loading) {
     return (
-      <Card className="border border-black">
+      <Card className="border border-black rounded-xl">
         <CardContent className="p-6">
           <div className="flex items-center justify-center space-x-3">
             <LoadingSpinner size="sm" />
@@ -167,7 +167,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
   if (error) {
     return (
-      <Card className="border border-black">
+      <Card className="border border-black rounded-xl">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -187,140 +187,125 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   }
 
   return (
-    <Card className="border border-black bg-white">
+    <Card className="border border-black bg-white rounded-xl shadow-sm">
       <CardContent className="p-8">
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* TOP ROW - Main Elements */}
           <div className="flex items-center justify-between">
-            {/* Left: Account Balance Title + Amount + Badge */}
-            <div className="flex items-center space-x-6">
+            {/* Left: Account Balance + Icon + Amount */}
+            <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-lg bg-white shadow-sm border">
-                  <Wallet className="h-5 w-5 text-blue-600" />
+                <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">
+                  <Wallet className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Account Balance</h3>
+                  <h3 className="text-xl font-bold text-gray-900">Account Balance</h3>
+                  <p className={`text-4xl font-bold ${config.balanceColor} mt-1`}>
+                    {credits ? formatCurrency(credits.current_balance) : '$0.00'}
+                  </p>
                 </div>
               </div>
-              
+            </div>
+
+            {/* Center: Status Badge */}
+            <div className="flex items-center justify-center">
               <div className="flex items-center space-x-3">
-                <p className={`text-3xl font-bold ${config.balanceColor}`}>
-                  {credits ? formatCurrency(credits.current_balance) : '$0.00'}
-                </p>
-                <IconComponent className={`h-7 w-7 ${config.iconColor}`} />
-                <Badge variant={config.badge.variant} className="text-sm font-medium px-3 py-1">
+                <IconComponent className={`h-8 w-8 ${config.iconColor}`} />
+                <Badge 
+                  variant={config.badge.variant} 
+                  className="text-base font-semibold px-4 py-2 rounded-lg"
+                >
                   {config.badge.text}
                 </Badge>
               </div>
             </div>
 
-            {/* Center: Action Buttons */}
+            {/* Right: Action Buttons */}
             {showActions && (
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-4">
                 {onRequestRecharge && (
                   <Button 
                     onClick={onRequestRecharge}
                     variant={status === 'empty' || status === 'critical' ? 'default' : 'outline'}
-                    size="sm"
-                    className="px-4 py-2"
+                    size="lg"
+                    className="px-6 py-3 rounded-lg font-semibold"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="h-5 w-5 mr-2" />
                     {status === 'empty' ? 'Add Funds' : 'Request Recharge'}
                   </Button>
                 )}
                 
                 {(status === 'warning' || status === 'critical' || status === 'empty') && (
                   <Button 
-                    variant="ghost" 
-                    size="sm"
+                    variant="outline" 
+                    size="lg"
                     onClick={() => {
                       alert('Please contact support to recharge your account: support@drscale.com');
                     }}
-                    className="px-4 py-2"
+                    className="px-6 py-3 rounded-lg font-semibold"
                   >
                     Contact Support
                   </Button>
                 )}
               </div>
             )}
-
-            {/* Right: Account Thresholds + Timestamp + Refresh */}
-            <div className="flex items-center space-x-6">
-              {/* Account Thresholds */}
-              {credits && (
-                <div className="border-l border-gray-200 pl-6">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <Info className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Account Thresholds</span>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Warning:</span>
-                      <span className="font-medium text-yellow-700 ml-3">
-                        {formatCurrency(credits.warning_threshold)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Critical:</span>
-                      <span className="font-medium text-orange-700 ml-3">
-                        {formatCurrency(credits.critical_threshold)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Last Updated + Refresh Button */}
-              {credits && (
-                <div className="flex items-center space-x-3 border-l border-gray-200 pl-6">
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground mb-1">Last Updated</p>
-                    <p className="text-xs font-medium">
-                      {new Date(credits.updated_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <Button 
-                    onClick={handleRefresh} 
-                    variant="ghost" 
-                    size="sm"
-                    disabled={refreshing}
-                    className="h-8 w-8 p-0"
-                  >
-                    {refreshing ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* BOTTOM ROW - Secondary Information */}
-          <div className="border-t border-gray-100 pt-4">
-            <div className="flex items-center justify-center space-x-8 text-center">
-              <div>
-                <p className="text-sm text-muted-foreground font-medium">
+          <div className="border-t border-gray-100 pt-6">
+            <div className="flex items-center justify-between">
+              {/* Left: Availability Status */}
+              <div className="flex items-center space-x-2">
+                <div className={`h-3 w-3 rounded-full ${credits && credits.current_balance > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <p className="text-base font-medium text-gray-700">
+                  {credits && credits.current_balance > 0 ? 'Available for calls' : 'Service unavailable'}
+                </p>
+              </div>
+
+              {/* Center: Status Message */}
+              <div className="flex-1 text-center">
+                <p className="text-base font-medium text-gray-600">
                   {config.message}
                 </p>
+                {credits && credits.current_balance > 0 && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Estimated {Math.floor(credits.current_balance / 0.02)} minutes remaining
+                  </p>
+                )}
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="h-1 w-1 bg-gray-300 rounded-full"></div>
-                <p className="text-xs text-muted-foreground">
-                  Available for calls
-                </p>
-              </div>
-              {credits && credits.current_balance > 0 && (
-                <>
-                  <div className="flex items-center space-x-2">
-                    <div className="h-1 w-1 bg-gray-300 rounded-full"></div>
-                    <p className="text-xs text-muted-foreground">
-                      Estimated {Math.floor(credits.current_balance / 0.02)} minutes remaining
+
+              {/* Right: Thresholds + Last Updated */}
+              <div className="flex items-center space-x-6">
+                {credits && (
+                  <div className="text-right">
+                    <div className="flex items-center space-x-4 text-sm font-medium">
+                      <span className="text-yellow-700">
+                        Warning: {formatCurrency(credits.warning_threshold)}
+                      </span>
+                      <span className="text-orange-700">
+                        Critical: {formatCurrency(credits.critical_threshold)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Updated {new Date(credits.updated_at).toLocaleDateString()}
                     </p>
                   </div>
-                </>
-              )}
+                )}
+                
+                <Button 
+                  onClick={handleRefresh} 
+                  variant="ghost" 
+                  size="sm"
+                  disabled={refreshing}
+                  className="h-10 w-10 p-0 rounded-lg"
+                >
+                  {refreshing ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <RefreshCw className="h-5 w-5" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
