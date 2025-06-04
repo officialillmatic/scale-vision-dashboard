@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -20,23 +21,23 @@ const AcceptInvitationPage = () => {
 
   useEffect(() => {
     if (!token) {
-      setError('Token de invitación no válido');
+      setError('Invalid invitation token');
       setLoading(false);
       return;
     }
 
-    // Verificar la invitación
+    // Verify the invitation
     const verifyInvitation = async () => {
       try {
         const result = await checkInvitation(token);
         if (result.valid) {
           setInvitation(result.invitation);
         } else {
-          setError(result.error || 'Invitación no válida o expirada');
+          setError(result.error || 'Invalid or expired invitation');
         }
       } catch (err) {
         console.error('Error verifying invitation:', err);
-        setError('Error al verificar la invitación');
+        setError('Error verifying invitation');
       } finally {
         setLoading(false);
       }
@@ -52,17 +53,17 @@ const AcceptInvitationPage = () => {
     try {
       console.log('Redirecting to registration with token:', token);
       
-      // No marcar como accepted aquí, dejar que RegisterForm maneje todo
+      // Don't mark as accepted here, let RegisterForm handle everything
       setSuccess(true);
       
-      // Redirigir al registro con token y email
+      // Redirect to registration with token and email
       setTimeout(() => {
         navigate('/register?token=' + token + '&email=' + encodeURIComponent(invitation?.email || ''));
       }, 2000);
 
     } catch (err) {
       console.error("Error accepting invitation:", err);
-      setError('Error al procesar la invitación: ' + (err.message || 'Error desconocido'));
+      setError('Error processing invitation: ' + (err.message || 'Unknown error'));
     } finally {
       setAccepting(false);
     }
@@ -86,9 +87,9 @@ const AcceptInvitationPage = () => {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <CardTitle className="text-2xl text-green-700">¡Perfecto!</CardTitle>
+            <CardTitle className="text-2xl text-green-700">Perfect!</CardTitle>
             <CardDescription>
-              Serás redirigido al registro para completar tu cuenta en unos segundos.
+              You'll be redirected to registration to complete your account in a few seconds.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -111,7 +112,7 @@ const AcceptInvitationPage = () => {
               className="w-full"
               variant="outline"
             >
-              Volver al inicio
+              Back to Home
             </Button>
           </CardContent>
         </Card>
@@ -126,9 +127,9 @@ const AcceptInvitationPage = () => {
           <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertTriangle className="h-8 w-8 text-blue-600" />
           </div>
-          <CardTitle className="text-2xl">Invitación a Dr. Scale AI</CardTitle>
+          <CardTitle className="text-2xl">Dr. Scale AI Invitation</CardTitle>
           <CardDescription>
-            Has sido invitado a unirte al equipo
+            You've been invited to join the team
           </CardDescription>
         </CardHeader>
         
@@ -140,13 +141,13 @@ const AcceptInvitationPage = () => {
                   <span className="font-medium">Email:</span> {invitation.email}
                 </div>
                 <div>
-                  <span className="font-medium">Rol:</span> 
+                  <span className="font-medium">Role:</span> 
                   <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm capitalize">
                     {invitation.role}
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium">Empresa:</span> {invitation.company_name}
+                  <span className="font-medium">Company:</span> {invitation.company_name}
                 </div>
               </div>
             </div>
@@ -155,7 +156,7 @@ const AcceptInvitationPage = () => {
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Al aceptar esta invitación, tendrás acceso a Dr. Scale AI con el rol de {invitation?.role}.
+              By accepting this invitation, you'll have access to Dr. Scale AI with the role of {invitation?.role}.
             </AlertDescription>
           </Alert>
 
@@ -168,10 +169,10 @@ const AcceptInvitationPage = () => {
               {accepting ? (
                 <>
                   <LoadingSpinner size="sm" className="mr-2" />
-                  Redirigiendo...
+                  Redirecting...
                 </>
               ) : (
-                'Aceptar Invitación'
+                'Accept Invitation'
               )}
             </Button>
             
@@ -181,7 +182,7 @@ const AcceptInvitationPage = () => {
               disabled={accepting}
               className="flex-1"
             >
-              Rechazar
+              Decline
             </Button>
           </div>
         </CardContent>

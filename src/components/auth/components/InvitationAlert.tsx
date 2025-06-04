@@ -1,3 +1,4 @@
+
 import React from "react";
 import { InvitationCheckResult } from "@/services/invitation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
