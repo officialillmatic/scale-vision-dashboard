@@ -47,7 +47,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       
       console.log('Fetching credits for user:', user.id);
       
-      // Use the corrected secure database function with proper parameter name
+      // Use the optimized database function with proper parameter name
       const { data, error: fetchError } = await supabase.rpc('get_user_credits', {
         target_user_id: user.id
       });
@@ -57,19 +57,19 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       if (fetchError) {
         console.error('Error fetching user credits:', fetchError);
         setError(`Error loading balance: ${fetchError.message}`);
-      } else if (data && data.length > 0) {
-        const creditData = data[0];
+      } else if (data) {
+        // The function now returns JSON directly instead of a record array
         setCredits({
-          id: creditData.id,
-          current_balance: creditData.current_balance,
-          warning_threshold: creditData.warning_threshold,
-          critical_threshold: creditData.critical_threshold,
-          is_blocked: creditData.is_blocked || false,
-          updated_at: creditData.updated_at
+          id: data.id || '',
+          current_balance: data.current_balance || 0,
+          warning_threshold: data.warning_threshold || 10,
+          critical_threshold: data.critical_threshold || 5,
+          is_blocked: data.is_blocked || false,
+          updated_at: data.updated_at || new Date().toISOString()
         });
-        console.log('Credits loaded successfully:', creditData);
+        console.log('Credits loaded successfully:', data);
       } else {
-        // The function should auto-create records, but handle edge case
+        // This shouldn't happen as the function auto-creates records
         console.warn('No credit data returned from function');
         setCredits({
           id: '',

@@ -30,7 +30,7 @@ export function useUserBalance() {
       
       console.log('Fetching user balance for:', { userId, companyId });
       
-      // Use the corrected secure database function with proper parameter name
+      // First get the credit balance using the optimized secure function
       const { data: creditData, error: creditError } = await supabase.rpc('get_user_credits', {
         target_user_id: userId
       });
@@ -57,15 +57,12 @@ export function useUserBalance() {
       console.log('Detailed data fetched:', detailedData);
 
       // Combine the data from both sources
-      const credit = creditData?.[0];
-      const detailed = detailedData?.[0];
-
-      if (credit) {
+      if (creditData) {
         return {
-          balance: credit.current_balance,
-          warning_threshold: credit.warning_threshold,
-          recent_transactions: detailed?.recent_transactions || [],
-          remaining_minutes: detailed?.remaining_minutes || 0
+          balance: creditData.current_balance,
+          warning_threshold: creditData.warning_threshold,
+          recent_transactions: detailedData?.[0]?.recent_transactions || [],
+          remaining_minutes: detailedData?.[0]?.remaining_minutes || 0
         };
       }
 

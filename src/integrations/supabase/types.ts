@@ -1559,8 +1559,8 @@ export type Database = {
         }[]
       }
       get_user_balance: {
-        Args: { p_user_id: string }
-        Returns: number
+        Args: { user_id_param?: string }
+        Returns: Json
       }
       get_user_balance_detailed: {
         Args: { p_user_id: string; p_company_id: string }
@@ -1609,15 +1609,7 @@ export type Database = {
       }
       get_user_credits: {
         Args: { target_user_id?: string }
-        Returns: {
-          id: string
-          user_id: string
-          current_balance: number
-          warning_threshold: number
-          critical_threshold: number
-          created_at: string
-          updated_at: string
-        }[]
+        Returns: Json
       }
       get_user_email: {
         Args: Record<PropertyKey, never>
