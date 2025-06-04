@@ -20,6 +20,8 @@ export interface CompanyMember {
 
 export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMember[]> => {
   try {
+    console.log("🔍 [memberService] Fetching members for company:", companyId);
+
     const { data, error } = await supabase
       .from("company_members")
       .select(`
@@ -31,37 +33,76 @@ export const fetchCompanyMembers = async (companyId: string): Promise<CompanyMem
         created_at,
         updated_at
       `)
-      .eq("company_id", companyId);
+      .eq("company_id", companyId)
+      .eq("status", "active"); // Only fetch active members
 
     if (error) {
+      console.error("🔍 [memberService] Error fetching company members:", error);
       throw error;
     }
 
+    console.log("🔍 [memberService] Raw company members data:", data);
+
+    if (!data || data.length === 0) {
+      console.log("🔍 [memberService] No company members found");
+      return [];
+    }
+
     // For each company member, fetch the user details using the optimized user service
-    const userIds = data.map(member => member.user_id);
+    const userIds = data.map(member => member.user_id).filter(Boolean);
+    console.log("🔍 [memberService] Fetching user profiles for IDs:", userIds);
+    
     const userProfiles = await fetchUserProfiles(userIds);
+    console.log("🔍 [memberService] Fetched user profiles:", userProfiles);
     
     // Create a map for quick lookup
     const userProfileMap = userProfiles.reduce((map, profile) => {
-      map[profile.id] = profile;
+      if (profile && profile.id) {
+        map[profile.id] = profile;
+      }
       return map;
     }, {} as Record<string, any>);
 
-    const membersWithDetails = data.map((member) => {
-      const userProfile = userProfileMap[member.user_id];
-      
-      return {
-        ...member,
-        created_at: new Date(member.created_at),
-        updated_at: new Date(member.updated_at),
-        user_details: userProfile 
-          ? { email: userProfile.email, name: userProfile.name }
-          : { email: "Unknown" }
-      };
-    });
+    console.log("🔍 [memberService] User profile map:", userProfileMap);
 
+    const membersWithDetails = data
+      .map((member) => {
+        if (!member.user_id) {
+          console.warn("🔍 [memberService] Member without user_id:", member);
+          return null;
+        }
+
+        const userProfile = userProfileMap[member.user_id];
+        
+        if (!userProfile) {
+          console.warn("🔍 [memberService] No user profile found for user_id:", member.user_id);
+          return null;
+        }
+
+        if (!userProfile.email || userProfile.email.trim() === '') {
+          console.warn("🔍 [memberService] User profile missing email:", userProfile);
+          return null;
+        }
+
+        const memberWithDetails = {
+          ...member,
+          created_at: new Date(member.created_at),
+          updated_at: new Date(member.updated_at),
+          user_details: { 
+            email: userProfile.email, 
+            name: userProfile.name 
+          }
+        };
+
+        console.log("🔍 [memberService] Member with details:", memberWithDetails);
+        return memberWithDetails;
+      })
+      .filter(Boolean); // Remove null entries
+
+    console.log("🔍 [memberService] Final members with details:", membersWithDetails);
     return membersWithDetails;
   } catch (error) {
+    console.error("🔍 [memberService] Error in fetchCompanyMembers:", error);
     handleError(error, {
       fallbackMessage: "Failed to fetch company members",
       showToast: false

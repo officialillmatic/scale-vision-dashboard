@@ -10,7 +10,8 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { TeamInvitations } from './TeamInvitations';
 import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Users, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export function TeamMembers() {
   const { company } = useAuth();
@@ -24,6 +25,14 @@ export function TeamMembers() {
     handleInvite
   } = useTeamMembers(company?.id);
 
+  console.log("🔍 [TeamMembers] Rendering with data:", {
+    companyId: company?.id,
+    isLoading,
+    error,
+    teamMembersCount: teamMembers?.length,
+    teamMembers: teamMembers
+  });
+
   const openInviteDialog = () => {
     setIsInviteDialogOpen(true);
   };
@@ -32,12 +41,37 @@ export function TeamMembers() {
     setIsInviteDialogOpen(false);
   };
 
+  // Filter valid team members to ensure no "Unknown User" entries
+  const validTeamMembers = teamMembers?.filter(member => {
+    const hasValidUserDetails = member.user_details && 
+      member.user_details.email && 
+      member.user_details.email.trim() !== '';
+    
+    if (!hasValidUserDetails) {
+      console.warn("🔍 [TeamMembers] Filtering out member with invalid user details:", member);
+    }
+    
+    return hasValidUserDetails;
+  }) || [];
+
+  console.log("🔍 [TeamMembers] Valid team members after filtering:", validTeamMembers);
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Team Management</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Users className="h-6 w-6" />
+            Team Management
+          </h1>
+          {validTeamMembers.length > 0 && (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              {validTeamMembers.length} members
+            </Badge>
+          )}
+        </div>
         
-        <Button onClick={openInviteDialog}>
+        <Button onClick={openInviteDialog} disabled={isInviting}>
           <UserPlus className="mr-2 h-4 w-4" />
           Invite Member
         </Button>
@@ -60,11 +94,15 @@ export function TeamMembers() {
                 <span className="ml-2 text-muted-foreground">Loading team members...</span>
               </div>
             ) : error ? (
-              <div className="p-4 text-center text-destructive">
-                Error loading team members: {error}
-              </div>
-            ) : teamMembers.length === 0 ? (
+              <Alert variant="destructive" className="m-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Error loading team members: {error}
+                </AlertDescription>
+              </Alert>
+            ) : validTeamMembers.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p className="text-lg font-medium">No team members yet</p>
                 <p className="text-sm">Invite team members to get started.</p>
               </div>
@@ -79,39 +117,42 @@ export function TeamMembers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {teamMembers.map((member) => (
-                    <TableRow key={member.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">
-                            {member.user_details?.name || 'Unknown User'}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {member.user_details?.email || 'No email'}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="capitalize">
-                          {member.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={member.status === 'active' ? 'default' : 'outline'}
-                          className="capitalize"
-                        >
-                          {member.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground">
-                          {/* Future: Add edit/remove actions */}
-                          —
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {validTeamMembers.map((member) => {
+                    const userDetails = member.user_details;
+                    return (
+                      <TableRow key={member.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">
+                              {userDetails?.name || userDetails?.email?.split('@')[0] || 'Team Member'}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {userDetails?.email}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="capitalize">
+                            {member.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={member.status === 'active' ? 'default' : 'outline'}
+                            className="capitalize"
+                          >
+                            {member.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">
+                            {/* Future: Add edit/remove actions */}
+                            —
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

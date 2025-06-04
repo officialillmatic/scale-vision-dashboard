@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { fetchCompanyInvitations, cancelInvitation, resendInvitation, CompanyInvitation, createInvitation } from "@/services/invitation";
 import { handleError } from "@/lib/errorHandling";
@@ -59,9 +60,29 @@ export const useTeamMembers = (companyId: string | undefined): UseTeamMembersRes
     
     setIsLoading(true);
     try {
+      console.log("🔍 [useTeamMembers] Fetching members for company:", companyId);
       const companyMembers = await fetchCompanyMembers(companyId);
-      setMembers(companyMembers);
+      console.log("🔍 [useTeamMembers] Raw members data:", companyMembers);
+      
+      // Filter out invalid members and ensure we have proper user details
+      const validMembers = companyMembers.filter(member => {
+        const isValid = member && 
+          member.user_id && 
+          member.user_details && 
+          member.user_details.email && 
+          member.user_details.email.trim() !== '';
+        
+        if (!isValid) {
+          console.warn("🔍 [useTeamMembers] Filtering out invalid member:", member);
+        }
+        
+        return isValid;
+      });
+      
+      console.log("🔍 [useTeamMembers] Valid members after filtering:", validMembers);
+      setMembers(validMembers);
     } catch (error) {
+      console.error("🔍 [useTeamMembers] Error fetching members:", error);
       handleError(error, {
         fallbackMessage: "Failed to fetch team members",
         logToConsole: true
