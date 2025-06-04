@@ -12,25 +12,25 @@ import { BillingSettings } from '@/components/settings/BillingSettings';
 import { useRole } from '@/hooks/useRole';
 import { RoleCheck } from '@/components/auth/RoleCheck';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('company');
   const { can, isCompanyOwner, checkRole } = useRole();
+  const { isSuperAdmin } = useSuperAdmin();
   const isAdmin = isCompanyOwner || checkRole('admin');
-  const navigate = useNavigate();
   
-  // Prevent accessing admin tabs if not an admin
+  // Prevent accessing super admin tabs if not a super admin
   useEffect(() => {
-    if ((activeTab === 'billing' || activeTab === 'pricing' || activeTab === 'white-label') && !can.accessBillingSettings) {
-      toast.error('You need administrator permissions to access this section');
+    if ((activeTab === 'billing' || activeTab === 'pricing' || activeTab === 'white-label' || activeTab === 'notifications' || activeTab === 'display') && !isSuperAdmin) {
+      toast.error('You need super administrator permissions to access this section');
       setActiveTab('company');
     }
-  }, [activeTab, can.accessBillingSettings]);
+  }, [activeTab, isSuperAdmin]);
   
   const handleTabChange = (value: string) => {
-    if ((value === 'billing' || value === 'pricing' || value === 'white-label') && !isAdmin) {
-      toast.error('You need administrator privileges to access this section');
+    if ((value === 'billing' || value === 'pricing' || value === 'white-label' || value === 'notifications' || value === 'display') && !isSuperAdmin) {
+      toast.error('You need super administrator privileges to access this section');
       return;
     }
     setActiveTab(value);
@@ -44,50 +44,17 @@ const SettingsPage = () => {
         <Tabs defaultValue={activeTab} value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="company">Company</TabsTrigger>
-            {isAdmin && <TabsTrigger value="pricing">Pricing</TabsTrigger>}
-            {isAdmin && <TabsTrigger value="white-label">White Label</TabsTrigger>}
-            {isAdmin && <TabsTrigger value="billing">Billing</TabsTrigger>}
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="display">Display</TabsTrigger>
+            {isSuperAdmin && <TabsTrigger value="pricing">Pricing</TabsTrigger>}
+            {isSuperAdmin && <TabsTrigger value="white-label">White Label</TabsTrigger>}
+            {isSuperAdmin && <TabsTrigger value="billing">Billing</TabsTrigger>}
+            {isSuperAdmin && <TabsTrigger value="notifications">Notifications</TabsTrigger>}
+            {isSuperAdmin && <TabsTrigger value="display">Display</TabsTrigger>}
           </TabsList>
           
           <TabsContent value="company">
             <div className="space-y-6">
               <CompanySettings />
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="pricing">
-            <div className="space-y-6">
-              <RoleCheck 
-                adminOnly
-                fallback={<div className="text-muted-foreground">You don't have permission to access pricing settings.</div>}
-              >
-                <CompanyPricingSettings />
-              </RoleCheck>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="white-label">
-            <div className="space-y-6">
-              <RoleCheck 
-                adminOnly
-                fallback={<div className="text-muted-foreground">You don't have permission to access white label settings.</div>}
-              >
-                <WhiteLabelSettings />
-              </RoleCheck>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="billing">
-            <div className="space-y-6">
-              <RoleCheck 
-                adminOnly
-                fallback={<div className="text-muted-foreground">You don't have permission to access billing settings.</div>}
-              >
-                <BillingSettings />
-              </RoleCheck>
             </div>
           </TabsContent>
           
@@ -97,17 +64,70 @@ const SettingsPage = () => {
             </div>
           </TabsContent>
           
-          <TabsContent value="notifications">
-            <div className="space-y-6">
-              <NotificationsSettings />
-            </div>
-          </TabsContent>
+          {isSuperAdmin && (
+            <TabsContent value="pricing">
+              <div className="space-y-6">
+                <RoleCheck 
+                  superAdminOnly
+                  fallback={<div className="text-muted-foreground">You don't have permission to access pricing settings.</div>}
+                >
+                  <CompanyPricingSettings />
+                </RoleCheck>
+              </div>
+            </TabsContent>
+          )}
           
-          <TabsContent value="display">
-            <div className="space-y-6">
-              <DisplaySettings />
-            </div>
-          </TabsContent>
+          {isSuperAdmin && (
+            <TabsContent value="white-label">
+              <div className="space-y-6">
+                <RoleCheck 
+                  superAdminOnly
+                  fallback={<div className="text-muted-foreground">You don't have permission to access white label settings.</div>}
+                >
+                  <WhiteLabelSettings />
+                </RoleCheck>
+              </div>
+            </TabsContent>
+          )}
+          
+          {isSuperAdmin && (
+            <TabsContent value="billing">
+              <div className="space-y-6">
+                <RoleCheck 
+                  superAdminOnly
+                  fallback={<div className="text-muted-foreground">You don't have permission to access billing settings.</div>}
+                >
+                  <BillingSettings />
+                </RoleCheck>
+              </div>
+            </TabsContent>
+          )}
+          
+          {isSuperAdmin && (
+            <TabsContent value="notifications">
+              <div className="space-y-6">
+                <RoleCheck 
+                  superAdminOnly
+                  fallback={<div className="text-muted-foreground">You don't have permission to access notifications settings.</div>}
+                >
+                  <NotificationsSettings />
+                </RoleCheck>
+              </div>
+            </TabsContent>
+          )}
+          
+          {isSuperAdmin && (
+            <TabsContent value="display">
+              <div className="space-y-6">
+                <RoleCheck 
+                  superAdminOnly
+                  fallback={<div className="text-muted-foreground">You don't have permission to access display settings.</div>}
+                >
+                  <DisplaySettings />
+                </RoleCheck>
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>
