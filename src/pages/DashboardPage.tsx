@@ -245,10 +245,21 @@ export default function DashboardPage() {
       </DashboardLayout>
     );
   }
+
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
         <div className="p-6 space-y-6">
+          {/* Independent Account Balance Section - Above Everything */}
+          <div className="mb-8">
+            <CreditBalance 
+              onRequestRecharge={() => {
+                alert('Please contact support to recharge your account: support@drscale.com');
+              }}
+              showActions={true}
+            />
+          </div>
+
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
@@ -279,19 +290,8 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           )}
-          {/* Key Metrics - Updated with CreditBalance */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-            {/* Credit Balance Widget */}
-            <div className="lg:col-span-1">
-              <CreditBalance 
-                onRequestRecharge={() => {
-                  alert('Please contact support to recharge your account: support@drscale.com');
-                }}
-                showActions={true}
-              />
-            </div>
-
-            {/* Existing metrics cards */}
+          {/* Key Metrics - Now only 4 widgets without CreditBalance */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
