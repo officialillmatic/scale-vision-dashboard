@@ -49,22 +49,22 @@ export function TeamMembers() {
   const handleRemoveUser = async (member: any) => {
     // Security confirmation
     const confirmed = window.confirm(
-      `Are you sure you want to COMPLETELY delete ${member.email}?\n\nThis action will:\n- Delete their authentication account\n- Remove their profile\n- Revoke their access\n- CANNOT be undone`
+      `Are you sure you want to remove ${member.email} from the team?\n\nThis action will:\n- Remove their profile\n- Remove from company members\n- Delete their invitations\n- Allow them to be re-invited`
     );
     
     if (!confirmed) return;
     
     try {
-      console.log('🗑️ Completely removing user:', member.email);
+      console.log('🗑️ Cleaning user for re-invite:', member.email);
       console.log('🗑️ Member ID:', member.id);
       
-      // Use enhanced function that deletes EVERYTHING
-      const { data, error } = await supabase.rpc('delete_user_completely', {
-        user_id_to_delete: member.id
+      // Use cleanup function that preserves auth account
+      const { data, error } = await supabase.rpc('cleanup_user_for_reinvite', {
+        user_id_to_clean: member.id
       });
       
-      console.log('🗑️ Complete deletion result:', data);
-      console.log('🗑️ Complete deletion error:', error);
+      console.log('🗑️ Cleanup result:', data);
+      console.log('🗑️ Cleanup error:', error);
       
       if (error) {
         console.error('❌ RPC Error:', error);
@@ -72,20 +72,20 @@ export function TeamMembers() {
       }
       
       if (data && data.success) {
-        toast.success(`${member.email} completely removed from the system`);
-        console.log('✅ User completely deleted, refreshing page...');
-        // Force refresh after successful deletion
+        toast.success(`${member.email} removed from team (can be re-invited)`);
+        console.log('✅ User cleaned successfully, refreshing page...');
+        // Force refresh after successful cleanup
         setTimeout(() => {
           window.location.reload();
         }, 1000);
       } else {
-        console.error('❌ Complete deletion failed:', data);
-        toast.error(`Error: ${data?.message || 'Could not completely delete user'}`);
+        console.error('❌ Cleanup failed:', data);
+        toast.error(`Error: ${data?.message || 'Could not remove user'}`);
       }
       
     } catch (error: any) {
-      console.error('❌ Error completely removing user:', error);
-      toast.error(`Error deleting user: ${error.message}`);
+      console.error('❌ Error cleaning user:', error);
+      toast.error(`Error removing user: ${error.message}`);
     }
   };
 
