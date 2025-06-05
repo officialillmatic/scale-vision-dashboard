@@ -29,26 +29,32 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
   try {
     console.log("🔍 Checking invitation with token:", token);
     
-    // First, get the invitation without complex JOIN
-    const { data: invitation, error: invitationError } = await supabase
+    // Get invitation with company info in a single query using LEFT JOIN
+    const { data: result, error: queryError } = await supabase
       .from("company_invitations_raw")
-      .select("*")
+      .select(`
+        *,
+        companies (
+          id,
+          name
+        )
+      `)
       .eq("token", token)
       .eq("status", "pending")
       .single();
 
-    if (invitationError || !invitation) {
-      console.error("❌ Invitation not found:", invitationError);
+    if (queryError || !result) {
+      console.error("❌ Invitation not found:", queryError);
       return {
         valid: false,
         error: "Invitation not found or expired"
       };
     }
 
-    console.log("✅ Invitation found:", invitation);
+    console.log("✅ Invitation found:", result);
 
     // Check if invitation has expired
-    if (new Date(invitation.expires_at) < new Date()) {
+    if (new Date(result.expires_at) < new Date()) {
       console.log("⏰ Invitation has expired");
       return {
         valid: false,
@@ -56,30 +62,18 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
       };
     }
 
-    // Separately get company information
-    const { data: company, error: companyError } = await supabase
-      .from("companies")
-      .select("id, name")
-      .eq("id", invitation.company_id)
-      .single();
+    // If company info is not available due to RLS, use fallback
+    const companyName = result.companies?.name || "Dr. Scale AI";
 
-    if (companyError || !company) {
-      console.error("❌ Company not found:", companyError);
-      return {
-        valid: false,
-        error: "Company not found"
-      };
-    }
-
-    console.log("✅ Valid invitation found with company:", company.name);
+    console.log("✅ Valid invitation found with company:", companyName);
     
     return {
       valid: true,
       invitation: {
-        ...invitation,
-        company_name: company.name
+        ...result,
+        company_name: companyName
       },
-      company: company
+      company: result.companies || { id: result.company_id, name: companyName }
     };
   } catch (error) {
     console.error("💥 Error checking invitation:", error);
