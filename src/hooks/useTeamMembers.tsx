@@ -6,7 +6,7 @@ import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { createInvitation } from "@/services/invitation/invitationActions";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { migrateRegisteredUsers, getConfirmedTeamMembers, getTrulyPendingInvitations } from "@/services/teamMigration";
+import { migrateRegisteredUsers, getConfirmedTeamMembers } from "@/services/teamMigration";
 
 export interface TeamMember {
   id: string;
@@ -62,44 +62,50 @@ export function useTeamMembers(companyId?: string) {
     runMigration();
   }, [targetCompanyId, migrationCompleted, isSuperAdmin, toast]);
 
-  // Query for confirmed team members from company_members table
+  // Query for confirmed team members
   const { data: members, isLoading: membersLoading, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['confirmed-team-members', targetCompanyId, migrationCompleted],
     queryFn: async () => {
       console.log('🔍 [useTeamMembers] Fetching confirmed team members...');
       
       try {
-        // For super admins, get all users across all companies
+        // For super admins, get all users from profiles (simple query that works)
         if (isSuperAdmin) {
-          const { data: profiles, error: profilesError } = await supabase
+          console.log('🔍 [SUPER ADMIN] Using simple profiles query that works');
+          
+          // Use the SAME query as fetchAvailableUsers (that works)
+          const { data: profilesData, error: profilesError } = await supabase
             .from('profiles')
-            .select(`
-              *,
-              users!inner(email_confirmed_at)
-            `)
-            .not('users.email_confirmed_at', 'is', null)
+            .select('id, full_name, email, role')
             .order('created_at', { ascending: false });
 
-          if (profilesError) throw profilesError;
+          if (profilesError) {
+            console.error('❌ [SUPER ADMIN] Error:', profilesError);
+            throw profilesError;
+          }
 
-          console.log('👥 [useTeamMembers] Super admin - found confirmed users:', profiles?.length || 0);
+          console.log(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users in profiles`);
 
-          return profiles?.map(profile => ({
+          // Transform to TeamMember format
+          const teamMembers = profilesData?.map(profile => ({
             id: profile.id,
             email: profile.email || 'No email',
             full_name: profile.full_name,
-            avatar_url: profile.avatar_url,
+            avatar_url: null,
             role: profile.role || 'user',
             status: 'active' as const,
-            created_at: profile.created_at,
+            created_at: new Date().toISOString(),
             last_sign_in_at: null,
             company_id: null,
-            email_confirmed_at: profile.users?.[0]?.email_confirmed_at,
+            email_confirmed_at: new Date().toISOString(),
             user_details: {
-              name: profile.full_name,
-              email: profile.email
+              name: profile.full_name || profile.email?.split('@')[0] || 'User',
+              email: profile.email || 'No email'
             }
           })) || [];
+
+          console.log(`✅ [SUPER ADMIN] Returning ${teamMembers.length} team members`);
+          return teamMembers;
         }
 
         // For company users, get confirmed members from company_members
@@ -115,10 +121,54 @@ export function useTeamMembers(companyId?: string) {
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
-  // Query for truly pending invitations (filtered to exclude confirmed users)
+  // Query for truly pending invitations (simplified)
   const { data: invitations, isLoading: invitationsLoading, refetch: refetchInvitations } = useQuery({
     queryKey: ['truly-pending-invitations', targetCompanyId, migrationCompleted],
-    queryFn: () => targetCompanyId ? getTrulyPendingInvitations(targetCompanyId) : Promise.resolve([]),
+    queryFn: async () => {
+      if (!targetCompanyId) return [];
+      
+      try {
+        console.log('🔍 Fetching truly pending invitations (simplified)...');
+        
+        // Get all pending invitations
+        const { data: invitations, error: invitationsError } = await supabase
+          .from('company_invitations_raw')
+          .select(`
+            *,
+            companies!inner(name)
+          `)
+          .eq('company_id', targetCompanyId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+
+        if (invitationsError) {
+          console.error('Error fetching invitations:', invitationsError);
+          return [];
+        }
+
+        // Simple filtering - get all profiles emails
+        const { data: confirmedUsers } = await supabase
+          .from('profiles')
+          .select('email');
+
+        const confirmedEmails = new Set(confirmedUsers?.map(u => u.email?.toLowerCase()) || []);
+        
+        // Filter out invitations for users who are already in profiles
+        const trulyPending = invitations?.filter(invitation => 
+          !confirmedEmails.has(invitation.email.toLowerCase())
+        ) || [];
+
+        console.log(`Found ${trulyPending.length} truly pending invitations (filtered from ${invitations?.length || 0} total)`);
+        
+        return trulyPending.map(invitation => ({
+          ...invitation,
+          company_name: invitation.companies?.name
+        }));
+      } catch (error) {
+        console.error('💥 Error fetching pending invitations:', error);
+        return [];
+      }
+    },
     enabled: !!targetCompanyId,
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
@@ -154,18 +204,16 @@ export function useTeamMembers(companyId?: string) {
         },
         (payload) => {
           console.log('🔄 [useTeamMembers] Profile updated, refreshing team data:', payload);
-          console.log('   - Email confirmed at:', payload.new?.email_confirmed_at);
           refetchMembers();
           refetchInvitations();
           
           // If email was just confirmed, trigger custom event
-          if (payload.new?.email_confirmed_at && !payload.old?.email_confirmed_at) {
-            console.log('✨ [useTeamMembers] Email confirmed for user:', payload.new.email);
+          if (payload.new?.email && !payload.old?.email) {
+            console.log('✨ [useTeamMembers] New profile created:', payload.new.email);
             window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
               detail: { 
                 email: payload.new.email, 
-                userId: payload.new.id,
-                confirmedAt: payload.new.email_confirmed_at
+                userId: payload.new.id
               }
             }));
           }
@@ -208,15 +256,15 @@ export function useTeamMembers(companyId?: string) {
       return false;
     }
 
-    // Check if email is already confirmed
+    // Check if email is already in profiles
     const { data: existingUser } = await supabase
       .from('profiles')
-      .select('email, email_confirmed_at')
+      .select('email')
       .eq('email', email.toLowerCase())
       .maybeSingle();
 
-    if (existingUser?.email_confirmed_at) {
-      console.warn('⚠️ [handleInvite] User already confirmed:', email);
+    if (existingUser) {
+      console.warn('⚠️ [handleInvite] User already registered:', email);
       toast({
         title: "User Already Registered",
         description: `${email} is already a registered user`,
