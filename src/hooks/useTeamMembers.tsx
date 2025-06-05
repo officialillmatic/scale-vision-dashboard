@@ -4,9 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { createInvitation } from "@/services/invitation/invitationActions";
-import { fetchCompanyInvitations } from "@/services/invitation";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import { migrateRegisteredUsers, getConfirmedTeamMembers, getTrulyPendingInvitations } from "@/services/teamMigration";
 
 export interface TeamMember {
   id: string;
@@ -39,12 +39,32 @@ export function useTeamMembers(companyId?: string) {
   const { isSuperAdmin } = useSuperAdmin();
   const { toast } = useToast();
   const [isInviting, setIsInviting] = useState(false);
+  const [migrationCompleted, setMigrationCompleted] = useState(false);
   
   const targetCompanyId = companyId || company?.id;
 
-  // Query for team members (confirmed users)
+  // Run migration when component loads
+  useEffect(() => {
+    const runMigration = async () => {
+      if (targetCompanyId && !migrationCompleted && !isSuperAdmin) {
+        console.log('🚀 Starting automatic user migration...');
+        const success = await migrateRegisteredUsers(targetCompanyId);
+        if (success) {
+          setMigrationCompleted(true);
+          toast({
+            title: "Migration Complete",
+            description: "Registered users have been added to the team",
+          });
+        }
+      }
+    };
+
+    runMigration();
+  }, [targetCompanyId, migrationCompleted, isSuperAdmin, toast]);
+
+  // Query for confirmed team members from company_members table
   const { data: members, isLoading: membersLoading, error: membersError, refetch: refetchMembers } = useQuery({
-    queryKey: ['team-members', targetCompanyId, isSuperAdmin],
+    queryKey: ['confirmed-team-members', targetCompanyId, migrationCompleted],
     queryFn: async () => {
       console.log('🔍 [useTeamMembers] Fetching confirmed team members...');
       
@@ -54,7 +74,7 @@ export function useTeamMembers(companyId?: string) {
           const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('*')
-            .not('email_confirmed_at', 'is', null) // Only confirmed users
+            .not('email_confirmed_at', 'is', null)
             .order('created_at', { ascending: false });
 
           if (profilesError) throw profilesError;
@@ -69,8 +89,8 @@ export function useTeamMembers(companyId?: string) {
             role: profile.role || 'user',
             status: 'active' as const,
             created_at: profile.created_at,
-            last_sign_in_at: profile.last_sign_in_at,
-            company_id: profile.company_id,
+            last_sign_in_at: null,
+            company_id: null,
             email_confirmed_at: profile.email_confirmed_at,
             user_details: {
               name: profile.full_name,
@@ -79,54 +99,25 @@ export function useTeamMembers(companyId?: string) {
           })) || [];
         }
 
-        // For company users, get only their company's confirmed members
+        // For company users, get confirmed members from company_members
         if (!targetCompanyId) return [];
 
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('company_id', targetCompanyId)
-          .not('email_confirmed_at', 'is', null) // Only confirmed users
-          .order('created_at', { ascending: false });
-
-        if (profilesError) throw profilesError;
-
-        console.log(`👥 [useTeamMembers] Company ${targetCompanyId} - found confirmed users:`, profiles?.length || 0);
-        profiles?.forEach(profile => {
-          console.log(`   - ${profile.email} (confirmed: ${profile.email_confirmed_at})`);
-        });
-
-        return profiles?.map(profile => ({
-          id: profile.id,
-          email: profile.email || 'No email',
-          full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-          role: profile.role || 'user',
-          status: 'active' as const,
-          created_at: profile.created_at,
-          last_sign_in_at: profile.last_sign_in_at,
-          company_id: profile.company_id,
-          email_confirmed_at: profile.email_confirmed_at,
-          user_details: {
-            name: profile.full_name,
-            email: profile.email
-          }
-        })) || [];
+        return await getConfirmedTeamMembers(targetCompanyId);
       } catch (error) {
         console.error('❌ [useTeamMembers] Error fetching team members:', error);
         return [];
       }
     },
     enabled: !!targetCompanyId || isSuperAdmin,
-    refetchInterval: 5000, // Auto-refresh every 5 seconds for debugging
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
-  // Query for pending invitations (filtered to exclude confirmed users)
+  // Query for truly pending invitations (filtered to exclude confirmed users)
   const { data: invitations, isLoading: invitationsLoading, refetch: refetchInvitations } = useQuery({
-    queryKey: ['company-invitations', targetCompanyId],
-    queryFn: () => targetCompanyId ? fetchCompanyInvitations(targetCompanyId) : Promise.resolve([]),
+    queryKey: ['truly-pending-invitations', targetCompanyId, migrationCompleted],
+    queryFn: () => targetCompanyId ? getTrulyPendingInvitations(targetCompanyId) : Promise.resolve([]),
     enabled: !!targetCompanyId,
-    refetchInterval: 5000, // Auto-refresh every 5 seconds for debugging
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
   // Set up real-time updates for new user registrations
@@ -140,10 +131,23 @@ export function useTeamMembers(companyId?: string) {
       .on(
         'postgres_changes',
         {
+          event: '*',
+          schema: 'public',
+          table: 'company_members',
+          filter: `company_id=eq.${targetCompanyId}`,
+        },
+        (payload) => {
+          console.log('🔄 [useTeamMembers] Company member changed, refreshing:', payload);
+          refetchMembers();
+          refetchInvitations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
           event: 'UPDATE',
           schema: 'public',
           table: 'profiles',
-          filter: `company_id=eq.${targetCompanyId}`,
         },
         (payload) => {
           console.log('🔄 [useTeamMembers] Profile updated, refreshing team data:', payload);
@@ -164,43 +168,13 @@ export function useTeamMembers(companyId?: string) {
           }
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'profiles',
-          filter: `company_id=eq.${targetCompanyId}`,
-        },
-        (payload) => {
-          console.log('✨ [useTeamMembers] New team member profile created:', payload);
-          refetchMembers();
-          refetchInvitations();
-          
-          if (payload.new?.email) {
-            toast({
-              title: "New Team Member",
-              description: `${payload.new.email} has joined the team!`,
-            });
-            
-            // Trigger custom event for synchronization
-            window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
-              detail: { 
-                email: payload.new.email, 
-                userId: payload.new.id,
-                profileCreated: true
-              }
-            }));
-          }
-        }
-      )
       .subscribe();
 
     return () => {
       console.log('🔌 [useTeamMembers] Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [targetCompanyId, refetchMembers, refetchInvitations, toast]);
+  }, [targetCompanyId, refetchMembers, refetchInvitations]);
 
   // Enhanced invitation handling function
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
@@ -302,6 +276,7 @@ export function useTeamMembers(companyId?: string) {
     refetch: refetchMembers,
     isInviting,
     handleInvite,
-    fetchInvitations
+    fetchInvitations,
+    migrationCompleted
   };
 }
