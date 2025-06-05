@@ -40,6 +40,16 @@ export function TeamMembers() {
     }
   };
 
+  const handleEditRole = (member: any) => {
+    console.log('Edit role for:', member.email);
+    // TODO: Implement role editing functionality
+  };
+
+  const handleRemoveUser = (member: any) => {
+    console.log('Remove user:', member.email);
+    // TODO: Implement user removal functionality
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
@@ -142,8 +152,22 @@ export function TeamMembers() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm text-muted-foreground">
-                            —
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleEditRole(member)}
+                            >
+                              Edit Role
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleRemoveUser(member)}
+                            >
+                              Remove
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>

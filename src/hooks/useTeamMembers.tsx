@@ -6,7 +6,7 @@ import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { createInvitation } from "@/services/invitation/invitationActions";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { migrateRegisteredUsers, getConfirmedTeamMembers } from "@/services/teamMigration";
+import { migrateRegisteredUsers, getConfirmedTeamMembers, getTrulyPendingInvitations } from "@/services/teamMigration";
 
 export interface TeamMember {
   id: string;
@@ -121,49 +121,14 @@ export function useTeamMembers(companyId?: string) {
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
-  // Query for truly pending invitations (simplified)
+  // Query for truly pending invitations (using the fixed function)
   const { data: invitations, isLoading: invitationsLoading, refetch: refetchInvitations } = useQuery({
     queryKey: ['truly-pending-invitations', targetCompanyId, migrationCompleted],
     queryFn: async () => {
       if (!targetCompanyId) return [];
       
       try {
-        console.log('🔍 Fetching truly pending invitations (simplified)...');
-        
-        // Get all pending invitations
-        const { data: invitations, error: invitationsError } = await supabase
-          .from('company_invitations_raw')
-          .select(`
-            *,
-            companies!inner(name)
-          `)
-          .eq('company_id', targetCompanyId)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });
-
-        if (invitationsError) {
-          console.error('Error fetching invitations:', invitationsError);
-          return [];
-        }
-
-        // Simple filtering - get all profiles emails
-        const { data: confirmedUsers } = await supabase
-          .from('profiles')
-          .select('email');
-
-        const confirmedEmails = new Set(confirmedUsers?.map(u => u.email?.toLowerCase()) || []);
-        
-        // Filter out invitations for users who are already in profiles
-        const trulyPending = invitations?.filter(invitation => 
-          !confirmedEmails.has(invitation.email.toLowerCase())
-        ) || [];
-
-        console.log(`Found ${trulyPending.length} truly pending invitations (filtered from ${invitations?.length || 0} total)`);
-        
-        return trulyPending.map(invitation => ({
-          ...invitation,
-          company_name: invitation.companies?.name
-        }));
+        return await getTrulyPendingInvitations(targetCompanyId);
       } catch (error) {
         console.error('💥 Error fetching pending invitations:', error);
         return [];

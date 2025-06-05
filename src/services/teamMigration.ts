@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export const migrateRegisteredUsers = async (companyId: string) => {
@@ -168,7 +167,7 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
 
 export const getTrulyPendingInvitations = async (companyId: string) => {
   try {
-    console.log('🔍 Fetching truly pending invitations (simplified)...');
+    console.log('🔍 Fetching truly pending invitations (fixed)...');
     
     // Get all pending invitations
     const { data: invitations, error: invitationsError } = await supabase
@@ -186,19 +185,20 @@ export const getTrulyPendingInvitations = async (companyId: string) => {
       return [];
     }
 
-    // Simple filtering - get all profiles emails
-    const { data: confirmedUsers } = await supabase
+    // ✅ FIXED: Use the same simple query that works for profiles
+    const { data: allProfiles } = await supabase
       .from('profiles')
       .select('email');
 
-    const confirmedEmails = new Set(confirmedUsers?.map(u => u.email?.toLowerCase()) || []);
+    const profileEmails = new Set(allProfiles?.map(p => p.email?.toLowerCase()) || []);
     
     // Filter out invitations for users who are already in profiles
     const trulyPending = invitations?.filter(invitation => 
-      !confirmedEmails.has(invitation.email.toLowerCase())
+      !profileEmails.has(invitation.email.toLowerCase())
     ) || [];
 
     console.log(`Found ${trulyPending.length} truly pending invitations (filtered from ${invitations?.length || 0} total)`);
+    console.log('Existing profile emails:', Array.from(profileEmails));
     
     return trulyPending.map(invitation => ({
       ...invitation,
