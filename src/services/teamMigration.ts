@@ -76,38 +76,81 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
   try {
     console.log('🔍 Fetching confirmed team members from company_members...');
     
-    const { data: members, error } = await supabase
+    // First, try to get members with user_id JOIN
+    const { data: membersWithUserId, error: joinError } = await supabase
       .from('company_members')
       .select(`
         *,
-        profiles!inner(
-          id,
-          email,
-          full_name,
-          avatar_url,
-          email_confirmed_at
-        )
+        profiles!inner(id, email, full_name, avatar_url, email_confirmed_at)
       `)
       .eq('company_id', companyId)
       .eq('status', 'active')
+      .not('user_id', 'is', null)
       .not('profiles.email_confirmed_at', 'is', null)
       .order('joined_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching team members:', error);
-      return [];
+    if (joinError) {
+      console.error('Error fetching members with user_id:', joinError);
     }
 
-    console.log(`Found ${members?.length || 0} confirmed team members`);
+    // Second, get members with email only (legacy data)
+    const { data: membersWithEmail, error: emailError } = await supabase
+      .from('company_members')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('status', 'active')
+      .is('user_id', null); // These have email but no user_id
+
+    if (emailError) {
+      console.error('Error fetching members with email only:', emailError);
+    }
+
+    // For email-only members, get their profile data
+    const emailOnlyResults = [];
+    if (membersWithEmail?.length) {
+      console.log(`Processing ${membersWithEmail.length} email-only members...`);
+      for (const member of membersWithEmail) {
+        if (member.email) {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, email, full_name, avatar_url, email_confirmed_at')
+            .eq('email', member.email)
+            .not('email_confirmed_at', 'is', null)
+            .maybeSingle();
+          
+          if (profileError) {
+            console.error(`Error fetching profile for ${member.email}:`, profileError);
+            continue;
+          }
+          
+          if (profile) {
+            emailOnlyResults.push({
+              ...member,
+              profiles: profile
+            });
+            console.log(`   - Found profile for: ${member.email}`);
+          } else {
+            console.log(`   - No confirmed profile found for: ${member.email}`);
+          }
+        }
+      }
+    }
+
+    // Combine both results
+    const allMembers = [...(membersWithUserId || []), ...emailOnlyResults];
     
-    return members?.map(member => ({
+    console.log(`Found ${allMembers.length} confirmed team members total`);
+    console.log(`- With user_id: ${membersWithUserId?.length || 0}`);
+    console.log(`- Email-only: ${emailOnlyResults.length}`);
+    
+    return allMembers.map(member => ({
       id: member.profiles.id,
       email: member.profiles.email,
       full_name: member.profiles.full_name,
       avatar_url: member.profiles.avatar_url,
       role: member.role,
       status: member.status,
-      created_at: member.joined_at,
+      created_at: member.joined_at || member.created_at,
       last_sign_in_at: null,
       email_confirmed_at: member.profiles.email_confirmed_at,
       user_details: {
