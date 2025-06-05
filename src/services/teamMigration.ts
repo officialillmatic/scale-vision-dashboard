@@ -140,12 +140,12 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
             continue;
           }
           
-          if (profile) {
+          if (profile && profile.users && profile.users.length > 0) {
             emailOnlyResults.push({
               ...member,
               profiles: {
                 ...profile,
-                email_confirmed_at: profile.users.email_confirmed_at
+                email_confirmed_at: profile.users[0].email_confirmed_at
               }
             });
             console.log(`   - Found profile for: ${member.email}`);
@@ -172,7 +172,7 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
       status: member.status,
       created_at: member.joined_at || member.created_at,
       last_sign_in_at: null,
-      email_confirmed_at: member.profiles.email_confirmed_at || member.profiles.users?.email_confirmed_at,
+      email_confirmed_at: member.profiles.email_confirmed_at || (member.profiles.users?.[0]?.email_confirmed_at),
       user_details: {
         name: member.profiles.full_name,
         email: member.profiles.email
