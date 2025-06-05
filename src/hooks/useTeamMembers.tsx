@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,135 +43,146 @@ export function useTeamMembers(companyId?: string) {
   
   const targetCompanyId = companyId || company?.id;
 
-  // 🔧 Function to create missing profiles for registered users
-  const createMissingProfiles = async () => {
-    console.log('🔧 [createMissingProfiles] Creating missing profiles for registered users...');
-    
-    try {
-      // First get all company members with their user_ids
-      const { data: companyMembers, error: membersError } = await supabase
-        .from('company_members')
-        .select('user_id, role, email')
-        .eq('status', 'active');
-
-      if (membersError) {
-        console.error('❌ Error fetching company members:', membersError);
-        return false;
-      }
-
-      console.log('🔍 Found company members:', companyMembers?.length || 0);
-
-      // Get all existing profiles
-      const { data: existingProfiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id');
-
-      if (profilesError) {
-        console.error('❌ Error fetching profiles:', profilesError);
-        return false;
-      }
-
-      const existingProfileIds = new Set(existingProfiles?.map(p => p.id) || []);
-      console.log('🔍 Existing profiles count:', existingProfileIds.size);
-
-      // Find members without profiles
-      const membersWithoutProfiles = companyMembers?.filter(member => 
-        member.user_id && !existingProfileIds.has(member.user_id)
-      ) || [];
-
-      console.log('🔍 Members without profiles:', membersWithoutProfiles.length);
-      membersWithoutProfiles.forEach(member => {
-        console.log(`   - Missing profile for user_id: ${member.user_id}, email: ${member.email}`);
-      });
-
-      if (membersWithoutProfiles.length === 0) {
-        console.log('✅ All members already have profiles');
-        return true;
-      }
-
-      // For users without profiles, get their auth data
-      const userIds = membersWithoutProfiles.map(m => m.user_id).filter(Boolean);
-      
-      // Get auth user data from user_profiles if it exists, or use email from company_members
-      const profilesToCreate = membersWithoutProfiles.map(member => ({
-        id: member.user_id,
-        email: member.email || 'unknown@example.com',
-        full_name: member.email ? member.email.split('@')[0] : 'User',
-        role: member.role || 'member',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
-
-      console.log('🔧 Creating profiles for:', profilesToCreate.map(p => p.email));
-
-      // Insert missing profiles
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert(profilesToCreate);
-
-      if (insertError) {
-        console.error('❌ Error creating profiles:', insertError);
-        return false;
-      }
-
-      console.log(`✅ Successfully created ${profilesToCreate.length} missing profiles`);
-      profilesToCreate.forEach(profile => {
-        console.log(`   - Created profile for: ${profile.email}`);
-      });
-
-      return true;
-    } catch (error) {
-      console.error('💥 Error in createMissingProfiles:', error);
-      return false;
-    }
-  };
-
-  // Run migration and profile creation when component loads
+  // 🚨 FORCE MIGRATION on page load - Create profiles + migrate immediately
   useEffect(() => {
-    const runInitialSetup = async () => {
+    const forceMigrationOnLoad = async () => {
       if (!isSuperAdmin) return;
 
-      console.log('🚀 Starting initial setup for super admin...');
+      console.log('🚨 [FORCE MIGRATION] Starting immediate migration...');
       
-      // First, create any missing profiles
-      const profilesCreated = await createMissingProfiles();
-      
-      if (profilesCreated) {
-        console.log('✅ Profile creation completed, proceeding with migration...');
+      try {
+        // Step 1: Get all auth users and existing profiles
+        console.log('🔍 [FORCE MIGRATION] Fetching auth users and profiles...');
         
-        // Then run the regular migration if we have a target company
-        if (targetCompanyId && !migrationCompleted) {
-          console.log('🚀 Starting automatic user migration...');
-          const success = await migrateRegisteredUsers(targetCompanyId);
-          if (success) {
-            setMigrationCompleted(true);
-            toast({
-              title: "Setup Complete",
-              description: "Missing profiles created and users migrated successfully",
+        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+        if (authError) {
+          console.error('❌ Error fetching auth users:', authError);
+          return;
+        }
+
+        const { data: profiles, error: profilesError } = await supabase.from('profiles').select('id, email');
+        if (profilesError) {
+          console.error('❌ Error fetching profiles:', profilesError);
+          return;
+        }
+
+        const profileIds = new Set(profiles?.map(p => p.id) || []);
+        const usersWithoutProfile = authUsers.users.filter(u => !profileIds.has(u.id));
+        
+        console.log(`🔍 [FORCE MIGRATION] Auth users: ${authUsers.users.length}, Profiles: ${profiles?.length || 0}`);
+        console.log(`🔍 [FORCE MIGRATION] Users without profile: ${usersWithoutProfile.length}`);
+
+        // Step 2: Create missing profiles for auth users
+        if (usersWithoutProfile.length > 0) {
+          const newProfiles = usersWithoutProfile.map(user => ({
+            id: user.id,
+            email: user.email || 'no-email@example.com',
+            full_name: user.email?.split('@')[0] || 'User',
+            role: 'member',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+          
+          const { error: insertError } = await supabase.from('profiles').upsert(newProfiles);
+          if (insertError) {
+            console.error('❌ Error creating profiles:', insertError);
+          } else {
+            console.log(`✅ [FORCE MIGRATION] Created ${newProfiles.length} missing profiles`);
+            newProfiles.forEach(profile => {
+              console.log(`   - Created profile for: ${profile.email}`);
             });
           }
         }
+
+        // Step 3: Get pending invitations that now have profiles and migrate them
+        if (targetCompanyId) {
+          console.log('🔄 [FORCE MIGRATION] Checking for pending users to migrate...');
+          
+          const { data: pendingInvitations } = await supabase
+            .from('company_invitations_raw')
+            .select('email')
+            .eq('company_id', targetCompanyId)
+            .eq('status', 'pending');
+
+          const { data: allProfiles } = await supabase.from('profiles').select('id, email');
+          
+          const profileEmailMap = new Map(allProfiles?.map(p => [p.email?.toLowerCase(), p.id]) || []);
+          const toMigrate = pendingInvitations?.filter(inv => 
+            profileEmailMap.has(inv.email.toLowerCase())
+          ) || [];
+
+          console.log(`🔍 [FORCE MIGRATION] Found ${toMigrate.length} users to migrate:`, toMigrate.map(u => u.email));
+
+          if (toMigrate.length > 0) {
+            // Add to company_members
+            const memberInserts = toMigrate.map(inv => {
+              const profileId = profileEmailMap.get(inv.email.toLowerCase());
+              return {
+                user_id: profileId,
+                company_id: targetCompanyId,
+                role: 'member',
+                status: 'active',
+                joined_at: new Date().toISOString()
+              };
+            }).filter(insert => insert.user_id);
+
+            if (memberInserts.length > 0) {
+              const { error: insertError } = await supabase
+                .from('company_members')
+                .insert(memberInserts);
+              
+              if (!insertError) {
+                // Mark invitations as accepted
+                const { error: updateError } = await supabase
+                  .from('company_invitations_raw')
+                  .update({ status: 'accepted' })
+                  .eq('company_id', targetCompanyId)
+                  .in('email', toMigrate.map(u => u.email));
+                
+                if (!updateError) {
+                  console.log(`✅ [FORCE MIGRATION] Successfully migrated ${memberInserts.length} users to company_members`);
+                  setMigrationCompleted(true);
+                  
+                  toast({
+                    title: "Migration Complete",
+                    description: `Successfully migrated ${memberInserts.length} users to team members`,
+                  });
+                }
+              }
+            }
+          }
+        }
+
+      } catch (error) {
+        console.error('💥 [FORCE MIGRATION] Error during forced migration:', error);
       }
     };
 
-    runInitialSetup();
-  }, [targetCompanyId, migrationCompleted, isSuperAdmin, toast]);
+    forceMigrationOnLoad();
+  }, [targetCompanyId, isSuperAdmin, toast]);
 
-  // Query for confirmed team members
+  // Query for confirmed team members with REAL ROLES
   const { data: members, isLoading: membersLoading, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['confirmed-team-members', targetCompanyId, migrationCompleted],
     queryFn: async () => {
-      console.log('🔍 [useTeamMembers] Fetching confirmed team members...');
+      console.log('🔍 [useTeamMembers] Fetching confirmed team members with REAL ROLES...');
       
       try {
-        // For super admins, get all users from profiles with REAL ROLES
+        // For super admins, get all users from profiles with REAL ROLES from company_members
         if (isSuperAdmin) {
-          console.log('🔍 [SUPER ADMIN] Using enhanced profiles query with real roles');
+          console.log('🔍 [SUPER ADMIN] Using enhanced profiles query with REAL ROLES from company_members');
           
-          // ✅ FIXED: Get real roles from database including created_at
+          // ✅ FIXED: Get real roles from company_members table
           const { data: profilesData, error: profilesError } = await supabase
             .from('profiles')
-            .select('id, full_name, email, role, created_at')  // ← Added created_at
+            .select(`
+              id, 
+              full_name, 
+              email, 
+              role,
+              created_at,
+              company_members!left(role, company_id)
+            `)
             .order('created_at', { ascending: false });
 
           if (profilesError) {
@@ -178,28 +190,36 @@ export function useTeamMembers(companyId?: string) {
             throw profilesError;
           }
 
-          console.log(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users in profiles`);
-          console.log('🔍 [SUPER ADMIN] Sample user roles:', profilesData?.slice(0, 3).map(p => ({ email: p.email, role: p.role })));
+          console.log(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users in profiles with company_members data`);
+          
+          // Transform to TeamMember format with REAL ROLES from company_members
+          const teamMembers = profilesData?.map(profile => {
+            // Use role from company_members if available, otherwise use profile role
+            const realRole = profile.company_members && profile.company_members.length > 0 
+              ? profile.company_members[0].role 
+              : profile.role || 'member';
+            
+            console.log(`🔍 [ROLE DEBUG] ${profile.email}: Profile role: ${profile.role}, Company role: ${profile.company_members?.[0]?.role}, Final role: ${realRole}`);
+            
+            return {
+              id: profile.id,
+              email: profile.email || 'No email',
+              full_name: profile.full_name,
+              avatar_url: null,
+              role: realRole, // ✅ FIXED: Use REAL role from company_members
+              status: 'active' as const,
+              created_at: profile.created_at || new Date().toISOString(),
+              last_sign_in_at: null,
+              company_id: profile.company_members?.[0]?.company_id || null,
+              email_confirmed_at: new Date().toISOString(),
+              user_details: {
+                name: profile.full_name || profile.email?.split('@')[0] || 'User',
+                email: profile.email || 'No email'
+              }
+            };
+          }) || [];
 
-          // Transform to TeamMember format with REAL ROLES
-          const teamMembers = profilesData?.map(profile => ({
-            id: profile.id,
-            email: profile.email || 'No email',
-            full_name: profile.full_name,
-            avatar_url: null,
-            role: profile.role || 'member', // ✅ FIXED: Use REAL role from DB
-            status: 'active' as const,
-            created_at: profile.created_at || new Date().toISOString(),
-            last_sign_in_at: null,
-            company_id: null,
-            email_confirmed_at: new Date().toISOString(),
-            user_details: {
-              name: profile.full_name || profile.email?.split('@')[0] || 'User',
-              email: profile.email || 'No email'
-            }
-          })) || [];
-
-          console.log(`✅ [SUPER ADMIN] Returning ${teamMembers.length} team members with real roles`);
+          console.log(`✅ [SUPER ADMIN] Returning ${teamMembers.length} team members with REAL ROLES`);
           console.log('🔍 [SUPER ADMIN] Role distribution:', teamMembers.reduce((acc, member) => {
             acc[member.role] = (acc[member.role] || 0) + 1;
             return acc;
@@ -393,7 +413,6 @@ export function useTeamMembers(companyId?: string) {
     isInviting,
     handleInvite,
     fetchInvitations,
-    migrationCompleted,
-    createMissingProfiles // Expose for manual triggering if needed
+    migrationCompleted
   };
 }
