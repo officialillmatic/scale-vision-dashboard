@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,23 +42,118 @@ export function useTeamMembers(companyId?: string) {
   
   const targetCompanyId = companyId || company?.id;
 
-  // Run migration when component loads
+  // 🔧 Function to create missing profiles for registered users
+  const createMissingProfiles = async () => {
+    console.log('🔧 [createMissingProfiles] Creating missing profiles for registered users...');
+    
+    try {
+      // First get all company members with their user_ids
+      const { data: companyMembers, error: membersError } = await supabase
+        .from('company_members')
+        .select('user_id, role, email')
+        .eq('status', 'active');
+
+      if (membersError) {
+        console.error('❌ Error fetching company members:', membersError);
+        return false;
+      }
+
+      console.log('🔍 Found company members:', companyMembers?.length || 0);
+
+      // Get all existing profiles
+      const { data: existingProfiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id');
+
+      if (profilesError) {
+        console.error('❌ Error fetching profiles:', profilesError);
+        return false;
+      }
+
+      const existingProfileIds = new Set(existingProfiles?.map(p => p.id) || []);
+      console.log('🔍 Existing profiles count:', existingProfileIds.size);
+
+      // Find members without profiles
+      const membersWithoutProfiles = companyMembers?.filter(member => 
+        member.user_id && !existingProfileIds.has(member.user_id)
+      ) || [];
+
+      console.log('🔍 Members without profiles:', membersWithoutProfiles.length);
+      membersWithoutProfiles.forEach(member => {
+        console.log(`   - Missing profile for user_id: ${member.user_id}, email: ${member.email}`);
+      });
+
+      if (membersWithoutProfiles.length === 0) {
+        console.log('✅ All members already have profiles');
+        return true;
+      }
+
+      // For users without profiles, get their auth data
+      const userIds = membersWithoutProfiles.map(m => m.user_id).filter(Boolean);
+      
+      // Get auth user data from user_profiles if it exists, or use email from company_members
+      const profilesToCreate = membersWithoutProfiles.map(member => ({
+        id: member.user_id,
+        email: member.email || 'unknown@example.com',
+        full_name: member.email ? member.email.split('@')[0] : 'User',
+        role: member.role || 'member',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+
+      console.log('🔧 Creating profiles for:', profilesToCreate.map(p => p.email));
+
+      // Insert missing profiles
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert(profilesToCreate);
+
+      if (insertError) {
+        console.error('❌ Error creating profiles:', insertError);
+        return false;
+      }
+
+      console.log(`✅ Successfully created ${profilesToCreate.length} missing profiles`);
+      profilesToCreate.forEach(profile => {
+        console.log(`   - Created profile for: ${profile.email}`);
+      });
+
+      return true;
+    } catch (error) {
+      console.error('💥 Error in createMissingProfiles:', error);
+      return false;
+    }
+  };
+
+  // Run migration and profile creation when component loads
   useEffect(() => {
-    const runMigration = async () => {
-      if (targetCompanyId && !migrationCompleted && !isSuperAdmin) {
-        console.log('🚀 Starting automatic user migration...');
-        const success = await migrateRegisteredUsers(targetCompanyId);
-        if (success) {
-          setMigrationCompleted(true);
-          toast({
-            title: "Migration Complete",
-            description: "Registered users have been added to the team",
-          });
+    const runInitialSetup = async () => {
+      if (!isSuperAdmin) return;
+
+      console.log('🚀 Starting initial setup for super admin...');
+      
+      // First, create any missing profiles
+      const profilesCreated = await createMissingProfiles();
+      
+      if (profilesCreated) {
+        console.log('✅ Profile creation completed, proceeding with migration...');
+        
+        // Then run the regular migration if we have a target company
+        if (targetCompanyId && !migrationCompleted) {
+          console.log('🚀 Starting automatic user migration...');
+          const success = await migrateRegisteredUsers(targetCompanyId);
+          if (success) {
+            setMigrationCompleted(true);
+            toast({
+              title: "Setup Complete",
+              description: "Missing profiles created and users migrated successfully",
+            });
+          }
         }
       }
     };
 
-    runMigration();
+    runInitialSetup();
   }, [targetCompanyId, migrationCompleted, isSuperAdmin, toast]);
 
   // Query for confirmed team members
@@ -299,6 +393,7 @@ export function useTeamMembers(companyId?: string) {
     isInviting,
     handleInvite,
     fetchInvitations,
-    migrationCompleted
+    migrationCompleted,
+    createMissingProfiles // Expose for manual triggering if needed
   };
 }
