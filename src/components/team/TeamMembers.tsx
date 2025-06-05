@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
@@ -12,6 +11,8 @@ import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
 import { UserPlus, Users, AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export function TeamMembers() {
   const { company } = useAuth();
@@ -45,9 +46,42 @@ export function TeamMembers() {
     alert(`Edit role for ${member.email}\nCurrent role: ${member.role}`);
   };
 
-  const handleRemoveUser = (member: any) => {
-    console.log('Remove user:', member.email);
-    // TODO: Implement user removal functionality
+  const handleRemoveUser = async (member: any) => {
+    // Confirmación de seguridad
+    const confirmed = window.confirm(
+      `¿Estás seguro de que quieres eliminar a ${member.email} del equipo?\n\nEsta acción:\n- Eliminará su perfil\n- Revocará su acceso\n- No se puede deshacer`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      console.log('🗑️ Removing user:', member.email);
+      
+      // 1. Eliminar de profiles
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', member.id);
+      
+      if (profileError) throw profileError;
+      
+      // 2. Eliminar de company_members si existe
+      await supabase
+        .from('company_members')
+        .delete()
+        .eq('user_id', member.id);
+      
+      toast.success(`${member.email} eliminado del equipo exitosamente`);
+      
+      // 3. Refrescar la lista
+      if (fetchInvitations) {
+        await fetchInvitations();
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error removing user:', error);
+      toast.error(`Error eliminando usuario: ${error.message}`);
+    }
   };
 
   return (
