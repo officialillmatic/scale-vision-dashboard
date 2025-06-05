@@ -55,62 +55,32 @@ export function TeamMembers() {
     if (!confirmed) return;
     
     try {
-      console.log('🗑️ Starting removal process for:', member);
+      console.log('🗑️ Calling delete function for:', member.email);
       console.log('🗑️ Member ID:', member.id);
-      console.log('🗑️ Member email:', member.email);
       
-      // 1. Verificar si existe en profiles ANTES de eliminar
-      const { data: beforeCheck, error: beforeError } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .eq('id', member.id);
+      // Usar función de base de datos
+      const { data, error } = await supabase.rpc('delete_team_member', {
+        user_id_to_delete: member.id
+      });
       
-      console.log('🔍 Profile before deletion:', beforeCheck);
-      console.log('🔍 Before check error:', beforeError);
+      console.log('🗑️ Function result:', data);
+      console.log('🗑️ Function error:', error);
       
-      // 2. Eliminar de profiles
-      console.log('🗑️ Attempting to delete from profiles...');
-      const { data: deleteData, error: profileError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', member.id)
-        .select(); // Esto retorna los registros eliminados
-      
-      console.log('🗑️ Delete result:', deleteData);
-      console.log('🗑️ Delete error:', profileError);
-      
-      if (profileError) {
-        console.error('❌ Profile deletion error:', profileError);
-        throw profileError;
+      if (error) {
+        console.error('❌ RPC Error:', error);
+        throw error;
       }
       
-      // 3. Verificar si se eliminó realmente
-      const { data: afterCheck, error: afterError } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .eq('id', member.id);
-      
-      console.log('🔍 Profile after deletion:', afterCheck);
-      console.log('🔍 After check error:', afterError);
-      
-      // 4. Eliminar de company_members si existe
-      console.log('🗑️ Attempting to delete from company_members...');
-      const { data: cmDeleteData, error: cmError } = await supabase
-        .from('company_members')
-        .delete()
-        .eq('user_id', member.id)
-        .select();
-      
-      console.log('🗑️ Company members delete result:', cmDeleteData);
-      console.log('🗑️ Company members error:', cmError);
-      
-      if (deleteData && deleteData.length > 0) {
+      if (data && data.success) {
         toast.success(`${member.email} eliminado del equipo exitosamente`);
-        console.log('✅ User successfully deleted, refreshing page...');
-        window.location.reload();
+        console.log('✅ User deleted successfully, refreshing page...');
+        // Forzar refresh inmediato
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000); // Dar tiempo para mostrar el toast
       } else {
-        toast.error('No se pudo eliminar el usuario - no se encontró en la base de datos');
-        console.log('❌ No rows were deleted');
+        console.error('❌ Deletion failed:', data);
+        toast.error(`Error: ${data?.message || 'No se pudo eliminar el usuario'}`);
       }
       
     } catch (error: any) {
