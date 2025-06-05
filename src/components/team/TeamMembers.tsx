@@ -73,10 +73,9 @@ export function TeamMembers() {
       
       toast.success(`${member.email} eliminado del equipo exitosamente`);
       
-      // 3. Refrescar la lista
-      if (fetchInvitations) {
-        await fetchInvitations();
-      }
+      // 3. FORZAR REFRESH COMPLETO
+      console.log('🔄 Forcing complete page refresh...');
+      window.location.reload();
       
     } catch (error: any) {
       console.error('❌ Error removing user:', error);
