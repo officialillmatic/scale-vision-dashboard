@@ -92,7 +92,7 @@ export function useTeamMembers(companyId?: string) {
             email: profile.email || 'No email',
             full_name: profile.full_name,
             avatar_url: null,
-            role: profile.role || 'user',
+            role: profile.role || 'member', // ✅ FIXED: Use 'member' instead of 'user'
             status: 'active' as const,
             created_at: new Date().toISOString(),
             last_sign_in_at: null,

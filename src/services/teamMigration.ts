@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export const migrateRegisteredUsers = async (companyId: string) => {
@@ -167,7 +168,7 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
 
 export const getTrulyPendingInvitations = async (companyId: string) => {
   try {
-    console.log('🔍 Fetching truly pending invitations (fixed)...');
+    console.log('🔍 Fetching truly pending invitations (with enhanced debugging)...');
     
     // Get all pending invitations
     const { data: invitations, error: invitationsError } = await supabase
@@ -185,20 +186,41 @@ export const getTrulyPendingInvitations = async (companyId: string) => {
       return [];
     }
 
-    // ✅ FIXED: Use the same simple query that works for profiles
+    console.log(`📧 Found ${invitations?.length || 0} total pending invitations`);
+
+    // ✅ ENHANCED: Use the same simple query that works for profiles
     const { data: allProfiles } = await supabase
       .from('profiles')
       .select('email');
 
     const profileEmails = new Set(allProfiles?.map(p => p.email?.toLowerCase()) || []);
     
+    console.log('🔍 Checking pending invitations against profiles:');
+    console.log('📝 Profile emails found:', Array.from(profileEmails));
+    
+    // ✅ ENHANCED DEBUG: Log each invitation check
+    invitations?.forEach(inv => {
+      const hasProfile = profileEmails.has(inv.email.toLowerCase());
+      console.log(`  - ${inv.email}: ${hasProfile ? 'HAS PROFILE (should migrate)' : 'NO PROFILE (truly pending)'}`);
+    });
+    
     // Filter out invitations for users who are already in profiles
     const trulyPending = invitations?.filter(invitation => 
       !profileEmails.has(invitation.email.toLowerCase())
     ) || [];
 
-    console.log(`Found ${trulyPending.length} truly pending invitations (filtered from ${invitations?.length || 0} total)`);
-    console.log('Existing profile emails:', Array.from(profileEmails));
+    console.log(`🎯 RESULT: ${trulyPending.length} truly pending invitations (filtered from ${invitations?.length || 0} total)`);
+    
+    // ✅ Log specific users mentioned by user
+    const problemUsers = ['elbazardelasventas@gmail.com', 'familiajyn2024@gmail.com'];
+    problemUsers.forEach(email => {
+      const isInPending = trulyPending.some(inv => inv.email.toLowerCase() === email.toLowerCase());
+      const hasProfile = profileEmails.has(email.toLowerCase());
+      console.log(`🔍 Problem user ${email}:`);
+      console.log(`   - In pending list: ${isInPending}`);
+      console.log(`   - Has profile: ${hasProfile}`);
+      console.log(`   - Should be migrated: ${hasProfile && isInPending}`);
+    });
     
     return trulyPending.map(invitation => ({
       ...invitation,
