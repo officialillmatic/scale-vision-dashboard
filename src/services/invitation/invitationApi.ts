@@ -29,23 +29,23 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
   try {
     console.log("🔍 Checking invitation with token:", token);
     
-    const { data: invitation, error } = await supabase
+    // First, get the invitation without complex JOIN
+    const { data: invitation, error: invitationError } = await supabase
       .from("company_invitations_raw")
-      .select(`
-        *,
-        companies!inner(id, name)
-      `)
+      .select("*")
       .eq("token", token)
       .eq("status", "pending")
       .single();
 
-    if (error) {
-      console.error("❌ Database error:", error);
+    if (invitationError || !invitation) {
+      console.error("❌ Invitation not found:", invitationError);
       return {
         valid: false,
         error: "Invitation not found or expired"
       };
     }
+
+    console.log("✅ Invitation found:", invitation);
 
     // Check if invitation has expired
     if (new Date(invitation.expires_at) < new Date()) {
@@ -56,15 +56,30 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
       };
     }
 
-    console.log("✅ Valid invitation found:", invitation);
+    // Separately get company information
+    const { data: company, error: companyError } = await supabase
+      .from("companies")
+      .select("id, name")
+      .eq("id", invitation.company_id)
+      .single();
+
+    if (companyError || !company) {
+      console.error("❌ Company not found:", companyError);
+      return {
+        valid: false,
+        error: "Company not found"
+      };
+    }
+
+    console.log("✅ Valid invitation found with company:", company.name);
     
     return {
       valid: true,
       invitation: {
         ...invitation,
-        company_name: invitation.companies?.name
+        company_name: company.name
       },
-      company: invitation.companies
+      company: company
     };
   } catch (error) {
     console.error("💥 Error checking invitation:", error);
