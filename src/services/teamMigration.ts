@@ -5,11 +5,16 @@ export const migrateRegisteredUsers = async (companyId: string) => {
   try {
     console.log('🔄 Starting migration of registered users to company_members...');
     
-    // Get all confirmed users (registered users)
+    // Get all confirmed users (registered users) from auth.users via profiles
     const { data: confirmedUsers, error: usersError } = await supabase
       .from('profiles')
-      .select('id, email, full_name')
-      .not('email_confirmed_at', 'is', null);
+      .select(`
+        id, 
+        email, 
+        full_name,
+        users!inner(email_confirmed_at)
+      `)
+      .not('users.email_confirmed_at', 'is', null);
 
     if (usersError) {
       console.error('Error fetching confirmed users:', usersError);
@@ -81,12 +86,18 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
       .from('company_members')
       .select(`
         *,
-        profiles!inner(id, email, full_name, avatar_url, email_confirmed_at)
+        profiles!inner(
+          id, 
+          email, 
+          full_name, 
+          avatar_url,
+          users!inner(email_confirmed_at)
+        )
       `)
       .eq('company_id', companyId)
       .eq('status', 'active')
       .not('user_id', 'is', null)
-      .not('profiles.email_confirmed_at', 'is', null)
+      .not('profiles.users.email_confirmed_at', 'is', null)
       .order('joined_at', { ascending: false });
 
     if (joinError) {
@@ -113,9 +124,15 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
         if (member.email) {
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .select('id, email, full_name, avatar_url, email_confirmed_at')
+            .select(`
+              id, 
+              email, 
+              full_name, 
+              avatar_url,
+              users!inner(email_confirmed_at)
+            `)
             .eq('email', member.email)
-            .not('email_confirmed_at', 'is', null)
+            .not('users.email_confirmed_at', 'is', null)
             .maybeSingle();
           
           if (profileError) {
@@ -126,7 +143,10 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
           if (profile) {
             emailOnlyResults.push({
               ...member,
-              profiles: profile
+              profiles: {
+                ...profile,
+                email_confirmed_at: profile.users.email_confirmed_at
+              }
             });
             console.log(`   - Found profile for: ${member.email}`);
           } else {
@@ -152,7 +172,7 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
       status: member.status,
       created_at: member.joined_at || member.created_at,
       last_sign_in_at: null,
-      email_confirmed_at: member.profiles.email_confirmed_at,
+      email_confirmed_at: member.profiles.email_confirmed_at || member.profiles.users?.email_confirmed_at,
       user_details: {
         name: member.profiles.full_name,
         email: member.profiles.email
@@ -184,11 +204,14 @@ export const getTrulyPendingInvitations = async (companyId: string) => {
       return [];
     }
 
-    // Get all confirmed users
+    // Get all confirmed users from users table (corrected)
     const { data: confirmedUsers } = await supabase
       .from('profiles')
-      .select('email')
-      .not('email_confirmed_at', 'is', null);
+      .select(`
+        email,
+        users!inner(email_confirmed_at)
+      `)
+      .not('users.email_confirmed_at', 'is', null);
 
     const confirmedEmails = new Set(confirmedUsers?.map(u => u.email.toLowerCase()) || []);
     
