@@ -73,8 +73,11 @@ export function useTeamMembers(companyId?: string) {
         if (isSuperAdmin) {
           const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
-            .select('*')
-            .not('email_confirmed_at', 'is', null)
+            .select(`
+              *,
+              users!inner(email_confirmed_at)
+            `)
+            .not('users.email_confirmed_at', 'is', null)
             .order('created_at', { ascending: false });
 
           if (profilesError) throw profilesError;
@@ -91,7 +94,7 @@ export function useTeamMembers(companyId?: string) {
             created_at: profile.created_at,
             last_sign_in_at: null,
             company_id: null,
-            email_confirmed_at: profile.email_confirmed_at,
+            email_confirmed_at: profile.users?.[0]?.email_confirmed_at,
             user_details: {
               name: profile.full_name,
               email: profile.email
