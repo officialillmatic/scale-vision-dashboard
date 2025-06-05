@@ -55,27 +55,63 @@ export function TeamMembers() {
     if (!confirmed) return;
     
     try {
-      console.log('🗑️ Removing user:', member.email);
+      console.log('🗑️ Starting removal process for:', member);
+      console.log('🗑️ Member ID:', member.id);
+      console.log('🗑️ Member email:', member.email);
       
-      // 1. Eliminar de profiles
-      const { error: profileError } = await supabase
+      // 1. Verificar si existe en profiles ANTES de eliminar
+      const { data: beforeCheck, error: beforeError } = await supabase
         .from('profiles')
-        .delete()
+        .select('id, email')
         .eq('id', member.id);
       
-      if (profileError) throw profileError;
+      console.log('🔍 Profile before deletion:', beforeCheck);
+      console.log('🔍 Before check error:', beforeError);
       
-      // 2. Eliminar de company_members si existe
-      await supabase
+      // 2. Eliminar de profiles
+      console.log('🗑️ Attempting to delete from profiles...');
+      const { data: deleteData, error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', member.id)
+        .select(); // Esto retorna los registros eliminados
+      
+      console.log('🗑️ Delete result:', deleteData);
+      console.log('🗑️ Delete error:', profileError);
+      
+      if (profileError) {
+        console.error('❌ Profile deletion error:', profileError);
+        throw profileError;
+      }
+      
+      // 3. Verificar si se eliminó realmente
+      const { data: afterCheck, error: afterError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .eq('id', member.id);
+      
+      console.log('🔍 Profile after deletion:', afterCheck);
+      console.log('🔍 After check error:', afterError);
+      
+      // 4. Eliminar de company_members si existe
+      console.log('🗑️ Attempting to delete from company_members...');
+      const { data: cmDeleteData, error: cmError } = await supabase
         .from('company_members')
         .delete()
-        .eq('user_id', member.id);
+        .eq('user_id', member.id)
+        .select();
       
-      toast.success(`${member.email} eliminado del equipo exitosamente`);
+      console.log('🗑️ Company members delete result:', cmDeleteData);
+      console.log('🗑️ Company members error:', cmError);
       
-      // 3. FORZAR REFRESH COMPLETO
-      console.log('🔄 Forcing complete page refresh...');
-      window.location.reload();
+      if (deleteData && deleteData.length > 0) {
+        toast.success(`${member.email} eliminado del equipo exitosamente`);
+        console.log('✅ User successfully deleted, refreshing page...');
+        window.location.reload();
+      } else {
+        toast.error('No se pudo eliminar el usuario - no se encontró en la base de datos');
+        console.log('❌ No rows were deleted');
+      }
       
     } catch (error: any) {
       console.error('❌ Error removing user:', error);
