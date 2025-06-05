@@ -12,10 +12,13 @@ import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
 import { UserPlus, Users, AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
+import { manualMigratePendingUsers } from '@/services/teamMigration';
 
 export function TeamMembers() {
   const { company } = useAuth();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
   
   const { 
     teamMembers,
@@ -40,7 +43,6 @@ export function TeamMembers() {
     }
   };
 
-  // ✅ FIXED: Implement Edit Role functionality
   const handleEditRole = (member: any) => {
     console.log('Edit role for:', member.email);
     alert(`Edit role for ${member.email}\nCurrent role: ${member.role}`);
@@ -51,10 +53,54 @@ export function TeamMembers() {
     // TODO: Implement user removal functionality
   };
 
-  // ✅ NEW: Force migration function
   const handleForceMigration = () => {
     console.log('🔄 Force refresh clicked');
     window.location.reload();
+  };
+
+  // ✅ NEW: Manual migration function
+  const handleManualMigration = async () => {
+    if (!company?.id) {
+      alert('No company ID available');
+      return;
+    }
+
+    setIsMigrating(true);
+    console.log('🚀 MANUAL MIGRATION: Moving pending users to team members');
+    
+    try {
+      // Get users pending that have profile
+      const { data: profiles } = await supabase.from('profiles').select('email');
+      const { data: pending } = await supabase
+        .from('company_invitations_raw')
+        .select('email')
+        .eq('company_id', company.id)
+        .eq('status', 'pending');
+      
+      const profileEmails = new Set(profiles?.map(p => p.email?.toLowerCase()));
+      const toMigrate = pending?.filter(p => profileEmails.has(p.email.toLowerCase()));
+      
+      console.log('Users to migrate:', toMigrate?.map(u => u.email));
+      
+      if (toMigrate && toMigrate.length > 0) {
+        const result = await manualMigratePendingUsers(company.id);
+        
+        if (result.success) {
+          alert(`✅ Success! Migrated ${result.count} users: ${result.users?.join(', ')}`);
+          // Force refresh after successful migration
+          window.location.reload();
+        } else {
+          alert(`❌ Migration failed: ${result.message}`);
+        }
+      } else {
+        alert('No users found to migrate');
+      }
+    } catch (error) {
+      console.error('Migration error:', error);
+      alert('Migration failed with error');
+    } finally {
+      setIsMigrating(false);
+    }
   };
 
   return (
@@ -77,7 +123,6 @@ export function TeamMembers() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-          {/* ✅ NEW: Manual migration button */}
           <Button 
             variant="outline" 
             onClick={handleForceMigration}
@@ -85,6 +130,15 @@ export function TeamMembers() {
             className="bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100"
           >
             🔄 Force Migrate Users
+          </Button>
+          {/* ✅ NEW: Manual migration button */}
+          <Button 
+            variant="destructive" 
+            onClick={handleManualMigration}
+            disabled={isMigrating}
+            size="sm"
+          >
+            {isMigrating ? '⏳ Migrating...' : '🔧 MANUAL MIGRATE'}
           </Button>
           <Button onClick={openInviteDialog} disabled={isInviting || isLoading}>
             <UserPlus className="mr-2 h-4 w-4" />
@@ -169,7 +223,6 @@ export function TeamMembers() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            {/* ✅ FIXED: Edit Role button with proper functionality */}
                             <Button 
                               variant="outline" 
                               size="sm"

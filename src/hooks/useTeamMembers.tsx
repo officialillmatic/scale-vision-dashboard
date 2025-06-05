@@ -69,14 +69,14 @@ export function useTeamMembers(companyId?: string) {
       console.log('🔍 [useTeamMembers] Fetching confirmed team members...');
       
       try {
-        // For super admins, get all users from profiles (simple query that works)
+        // For super admins, get all users from profiles with REAL ROLES
         if (isSuperAdmin) {
-          console.log('🔍 [SUPER ADMIN] Using simple profiles query that works');
+          console.log('🔍 [SUPER ADMIN] Using enhanced profiles query with real roles');
           
-          // Use the SAME query as fetchAvailableUsers (that works)
+          // ✅ FIXED: Get real roles from database including created_at
           const { data: profilesData, error: profilesError } = await supabase
             .from('profiles')
-            .select('id, full_name, email, role')
+            .select('id, full_name, email, role, created_at')  // ← Added created_at
             .order('created_at', { ascending: false });
 
           if (profilesError) {
@@ -85,16 +85,17 @@ export function useTeamMembers(companyId?: string) {
           }
 
           console.log(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users in profiles`);
+          console.log('🔍 [SUPER ADMIN] Sample user roles:', profilesData?.slice(0, 3).map(p => ({ email: p.email, role: p.role })));
 
-          // Transform to TeamMember format
+          // Transform to TeamMember format with REAL ROLES
           const teamMembers = profilesData?.map(profile => ({
             id: profile.id,
             email: profile.email || 'No email',
             full_name: profile.full_name,
             avatar_url: null,
-            role: profile.role || 'member', // ✅ FIXED: Use 'member' instead of 'user'
+            role: profile.role || 'member', // ✅ FIXED: Use REAL role from DB
             status: 'active' as const,
-            created_at: new Date().toISOString(),
+            created_at: profile.created_at || new Date().toISOString(),
             last_sign_in_at: null,
             company_id: null,
             email_confirmed_at: new Date().toISOString(),
@@ -104,7 +105,12 @@ export function useTeamMembers(companyId?: string) {
             }
           })) || [];
 
-          console.log(`✅ [SUPER ADMIN] Returning ${teamMembers.length} team members`);
+          console.log(`✅ [SUPER ADMIN] Returning ${teamMembers.length} team members with real roles`);
+          console.log('🔍 [SUPER ADMIN] Role distribution:', teamMembers.reduce((acc, member) => {
+            acc[member.role] = (acc[member.role] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>));
+          
           return teamMembers;
         }
 

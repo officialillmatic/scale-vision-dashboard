@@ -168,7 +168,7 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
 
 export const getTrulyPendingInvitations = async (companyId: string) => {
   try {
-    console.log('🔍 Fetching truly pending invitations (with enhanced debugging)...');
+    console.log('🔍 Fetching truly pending invitations (ENHANCED DEBUG)...');
     
     // Get all pending invitations
     const { data: invitations, error: invitationsError } = await supabase
@@ -186,40 +186,40 @@ export const getTrulyPendingInvitations = async (companyId: string) => {
       return [];
     }
 
-    console.log(`📧 Found ${invitations?.length || 0} total pending invitations`);
+    console.log('🔍 [DEBUG] All invitations:', invitations?.map(i => i.email));
 
-    // ✅ ENHANCED: Use the same simple query that works for profiles
+    // Get all profiles
     const { data: allProfiles } = await supabase
       .from('profiles')
       .select('email');
 
+    console.log('🔍 [DEBUG] All profile emails:', allProfiles?.map(p => p.email));
+
     const profileEmails = new Set(allProfiles?.map(p => p.email?.toLowerCase()) || []);
     
-    console.log('🔍 Checking pending invitations against profiles:');
-    console.log('📝 Profile emails found:', Array.from(profileEmails));
+    console.log('🔍 [DEBUG] Checking each invitation:');
     
-    // ✅ ENHANCED DEBUG: Log each invitation check
-    invitations?.forEach(inv => {
-      const hasProfile = profileEmails.has(inv.email.toLowerCase());
-      console.log(`  - ${inv.email}: ${hasProfile ? 'HAS PROFILE (should migrate)' : 'NO PROFILE (truly pending)'}`);
-    });
-    
-    // Filter out invitations for users who are already in profiles
-    const trulyPending = invitations?.filter(invitation => 
-      !profileEmails.has(invitation.email.toLowerCase())
-    ) || [];
+    const trulyPending = invitations?.filter(invitation => {
+      const hasProfile = profileEmails.has(invitation.email.toLowerCase());
+      console.log(`  📧 ${invitation.email}: ${hasProfile ? '❌ HAS PROFILE (should be removed)' : '✅ NO PROFILE (truly pending)'}`);
+      return !hasProfile;
+    }) || [];
+
+    console.log('🔍 [DEBUG] Final truly pending:', trulyPending.map(tp => tp.email));
 
     console.log(`🎯 RESULT: ${trulyPending.length} truly pending invitations (filtered from ${invitations?.length || 0} total)`);
     
-    // ✅ Log specific users mentioned by user
+    // Debug specific users
     const problemUsers = ['elbazardelasventas@gmail.com', 'familiajyn2024@gmail.com'];
     problemUsers.forEach(email => {
       const isInPending = trulyPending.some(inv => inv.email.toLowerCase() === email.toLowerCase());
       const hasProfile = profileEmails.has(email.toLowerCase());
+      const wasInOriginal = invitations?.some(inv => inv.email.toLowerCase() === email.toLowerCase());
       console.log(`🔍 Problem user ${email}:`);
-      console.log(`   - In pending list: ${isInPending}`);
+      console.log(`   - Was in original invitations: ${wasInOriginal}`);
       console.log(`   - Has profile: ${hasProfile}`);
-      console.log(`   - Should be migrated: ${hasProfile && isInPending}`);
+      console.log(`   - In final pending list: ${isInPending}`);
+      console.log(`   - Should be migrated: ${hasProfile && wasInOriginal && !isInPending}`);
     });
     
     return trulyPending.map(invitation => ({
@@ -229,5 +229,84 @@ export const getTrulyPendingInvitations = async (companyId: string) => {
   } catch (error) {
     console.error('💥 Error fetching pending invitations:', error);
     return [];
+  }
+};
+
+// New function for manual migration
+export const manualMigratePendingUsers = async (companyId: string) => {
+  try {
+    console.log('🚀 MANUAL MIGRATION: Starting...');
+    
+    // Get all profiles
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('email, id');
+    
+    // Get pending invitations
+    const { data: pending } = await supabase
+      .from('company_invitations_raw')
+      .select('email')
+      .eq('company_id', companyId)
+      .eq('status', 'pending');
+    
+    if (!profiles || !pending) {
+      console.log('❌ Could not fetch data for migration');
+      return { success: false, message: 'Could not fetch data' };
+    }
+    
+    const profileEmails = new Set(profiles.map(p => p.email?.toLowerCase()));
+    const toMigrate = pending.filter(p => profileEmails.has(p.email.toLowerCase()));
+    
+    console.log('🔍 Users to migrate:', toMigrate.map(u => u.email));
+    
+    if (toMigrate.length === 0) {
+      return { success: true, message: 'No users need migration', count: 0 };
+    }
+    
+    // Add users to company_members
+    const memberInserts = toMigrate.map(pendingUser => {
+      const profile = profiles.find(p => p.email?.toLowerCase() === pendingUser.email.toLowerCase());
+      return {
+        user_id: profile?.id,
+        company_id: companyId,
+        role: 'member',
+        status: 'active',
+        joined_at: new Date().toISOString()
+      };
+    }).filter(insert => insert.user_id); // Only include users with valid profile IDs
+    
+    if (memberInserts.length > 0) {
+      const { error: insertError } = await supabase
+        .from('company_members')
+        .insert(memberInserts);
+      
+      if (insertError) {
+        console.error('❌ Error inserting members:', insertError);
+        return { success: false, message: 'Error inserting members', error: insertError };
+      }
+    }
+    
+    // Update invitation status to accepted
+    const { error: updateError } = await supabase
+      .from('company_invitations_raw')
+      .update({ status: 'accepted' })
+      .eq('company_id', companyId)
+      .in('email', toMigrate.map(u => u.email));
+    
+    if (updateError) {
+      console.error('❌ Error updating invitations:', updateError);
+    }
+    
+    console.log(`✅ Successfully migrated ${memberInserts.length} users`);
+    return { 
+      success: true, 
+      message: `Migrated ${memberInserts.length} users`, 
+      count: memberInserts.length,
+      users: toMigrate.map(u => u.email)
+    };
+    
+  } catch (error) {
+    console.error('💥 Error in manual migration:', error);
+    return { success: false, message: 'Migration failed', error };
   }
 };
