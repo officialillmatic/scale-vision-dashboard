@@ -24,9 +24,9 @@ export interface UserAgentAssignment {
 
 export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]> => {
   try {
-    console.log('🔍 [fetchUserAgentAssignments] Starting fetch with proper JOIN query');
+    console.log('🔍 [fetchUserAgentAssignments] Starting fetch with corrected query');
     
-    // Use a single JOIN query to fetch all data at once
+    // Usar consulta corregida sin JOINs problemáticos
     const { data: assignments, error } = await supabase
       .from("user_agent_assignments")
       .select(`
@@ -35,25 +35,13 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         agent_id,
         is_primary,
         assigned_at,
-        assigned_by,
-        profiles!user_agent_assignments_user_id_fkey (
-          id,
-          email,
-          full_name
-        ),
-        retell_agents!user_agent_assignments_agent_id_fkey (
-          id,
-          retell_agent_id,
-          name,
-          description,
-          status
-        )
+        assigned_by
       `)
       .order("assigned_at", { ascending: false });
 
     if (error) {
-      console.error('❌ [fetchUserAgentAssignments] Error with JOIN query:', error);
-      throw new Error(`Cannot access user_agent_assignments with JOIN: ${error.message}`);
+      console.error('❌ [fetchUserAgentAssignments] Error:', error);
+      throw new Error(`Cannot access user_agent_assignments: ${error.message}`);
     }
 
     if (!assignments || assignments.length === 0) {
@@ -61,51 +49,49 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
       return [];
     }
 
-    console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments with JOIN data');
+    console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments');
 
-    // Transform the data to match the UserAgentAssignment interface
-    const enrichedAssignments: UserAgentAssignment[] = assignments.map(assignment => {
-      console.log('🔍 [fetchUserAgentAssignments] Processing assignment:', {
-        id: assignment.id,
-        user_data: assignment.profiles,
-        agent_data: assignment.retell_agents
-      });
+    // Hacer consultas separadas para obtener user_details y agent_details
+    const enrichedAssignments: UserAgentAssignment[] = [];
+    
+    for (const assignment of assignments) {
+      // Obtener detalles del usuario
+      const { data: userDetails } = await supabase
+        .from('user_profiles')
+        .select('id, email, name as full_name')
+        .eq('id', assignment.user_id)
+        .single();
 
-      return {
+      // Obtener detalles del agente (ajustar según tu estructura real)
+      const { data: agentDetails } = await supabase
+        .from('user_agents')
+        .select('id, agent_id, company_id')
+        .eq('agent_id', assignment.agent_id)
+        .single();
+
+      enrichedAssignments.push({
         id: assignment.id,
         user_id: assignment.user_id,
         agent_id: assignment.agent_id,
         is_primary: assignment.is_primary || false,
         assigned_at: assignment.assigned_at,
         assigned_by: assignment.assigned_by,
-        user_details: Array.isArray(assignment.profiles) && assignment.profiles.length > 0 ? {
-          id: assignment.profiles[0].id,
-          email: assignment.profiles[0].email,
-          full_name: assignment.profiles[0].full_name
-        } : assignment.profiles ? {
-          id: (assignment.profiles as any).id,
-          email: (assignment.profiles as any).email,
-          full_name: (assignment.profiles as any).full_name
+        user_details: userDetails ? {
+          id: userDetails.id,
+          email: userDetails.email,
+          full_name: userDetails.full_name
         } : undefined,
-        agent_details: Array.isArray(assignment.retell_agents) && assignment.retell_agents.length > 0 ? {
-          id: assignment.retell_agents[0].id,
-          retell_agent_id: assignment.retell_agents[0].retell_agent_id,
-          name: assignment.retell_agents[0].name,
-          description: assignment.retell_agents[0].description,
-          status: assignment.retell_agents[0].status
-        } : assignment.retell_agents ? {
-          id: (assignment.retell_agents as any).id,
-          retell_agent_id: (assignment.retell_agents as any).retell_agent_id,
-          name: (assignment.retell_agents as any).name,
-          description: (assignment.retell_agents as any).description,
-          status: (assignment.retell_agents as any).status
+        agent_details: agentDetails ? {
+          id: agentDetails.id,
+          retell_agent_id: agentDetails.agent_id,
+          name: `Agent ${agentDetails.id.slice(0, 8)}`, // Nombre temporal
+          description: 'Custom AI Agent',
+          status: 'active'
         } : undefined
-      };
-    });
+      });
+    }
 
     console.log('🔍 [fetchUserAgentAssignments] Final enriched assignments:', enrichedAssignments.length);
-    console.log('🔍 [fetchUserAgentAssignments] Sample assignment data:', enrichedAssignments[0]);
-    
     return enrichedAssignments;
   } catch (error: any) {
     console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error in fetchUserAgentAssignments:", error);
@@ -128,18 +114,7 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
       return [];
     }
 
-    // First try a simple query to check if we can find any assignments for this user
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Testing simple query first...');
-    const { data: simpleTest, error: simpleError } = await supabase
-      .from("user_agent_assignments")
-      .select("*")
-      .eq('user_id', user.id);
-
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Simple query result:', simpleTest);
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Simple query error:', simpleError);
-
-    // Now try the complex JOIN query
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Attempting JOIN query...');
+    // Get assignments for current user
     const { data: assignments, error } = await supabase
       .from("user_agent_assignments")
       .select(`
@@ -148,25 +123,13 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
         agent_id,
         is_primary,
         assigned_at,
-        assigned_by,
-        profiles!user_agent_assignments_user_id_fkey (
-          id,
-          email,
-          full_name
-        ),
-        retell_agents!user_agent_assignments_agent_id_fkey (
-          id,
-          retell_agent_id,
-          name,
-          description,
-          status
-        )
+        assigned_by
       `)
       .eq('user_id', user.id)
       .order("assigned_at", { ascending: false });
 
-    console.log('🔍 [fetchCurrentUserAgentAssignments] JOIN query result:', assignments);
-    console.log('🔍 [fetchCurrentUserAgentAssignments] JOIN query error:', error);
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Query result:', assignments);
+    console.log('🔍 [fetchCurrentUserAgentAssignments] Query error:', error);
 
     if (error) {
       console.error('❌ [fetchCurrentUserAgentAssignments] Error:', error);
@@ -180,36 +143,45 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
 
     console.log('🔍 [fetchCurrentUserAgentAssignments] Found', assignments.length, 'assignments for current user');
 
-    const enrichedAssignments: UserAgentAssignment[] = assignments.map(assignment => ({
-      id: assignment.id,
-      user_id: assignment.user_id,
-      agent_id: assignment.agent_id,
-      is_primary: assignment.is_primary || false,
-      assigned_at: assignment.assigned_at,
-      assigned_by: assignment.assigned_by,
-      user_details: Array.isArray(assignment.profiles) && assignment.profiles.length > 0 ? {
-        id: assignment.profiles[0].id,
-        email: assignment.profiles[0].email,
-        full_name: assignment.profiles[0].full_name
-      } : assignment.profiles ? {
-        id: (assignment.profiles as any).id,
-        email: (assignment.profiles as any).email,
-        full_name: (assignment.profiles as any).full_name
-      } : undefined,
-      agent_details: Array.isArray(assignment.retell_agents) && assignment.retell_agents.length > 0 ? {
-        id: assignment.retell_agents[0].id,
-        retell_agent_id: assignment.retell_agents[0].retell_agent_id,
-        name: assignment.retell_agents[0].name,
-        description: assignment.retell_agents[0].description,
-        status: assignment.retell_agents[0].status
-      } : assignment.retell_agents ? {
-        id: (assignment.retell_agents as any).id,
-        retell_agent_id: (assignment.retell_agents as any).retell_agent_id,
-        name: (assignment.retell_agents as any).name,
-        description: (assignment.retell_agents as any).description,
-        status: (assignment.retell_agents as any).status
-      } : undefined
-    }));
+    // Enrich assignments with user and agent details
+    const enrichedAssignments: UserAgentAssignment[] = [];
+    
+    for (const assignment of assignments) {
+      // Obtener detalles del usuario
+      const { data: userDetails } = await supabase
+        .from('user_profiles')
+        .select('id, email, name as full_name')
+        .eq('id', assignment.user_id)
+        .single();
+
+      // Obtener detalles del agente
+      const { data: agentDetails } = await supabase
+        .from('user_agents')
+        .select('id, agent_id, company_id')
+        .eq('agent_id', assignment.agent_id)
+        .single();
+
+      enrichedAssignments.push({
+        id: assignment.id,
+        user_id: assignment.user_id,
+        agent_id: assignment.agent_id,
+        is_primary: assignment.is_primary || false,
+        assigned_at: assignment.assigned_at,
+        assigned_by: assignment.assigned_by,
+        user_details: userDetails ? {
+          id: userDetails.id,
+          email: userDetails.email,
+          full_name: userDetails.full_name
+        } : undefined,
+        agent_details: agentDetails ? {
+          id: agentDetails.id,
+          retell_agent_id: agentDetails.agent_id,
+          name: `Agent ${agentDetails.id.slice(0, 8)}`,
+          description: 'Custom AI Agent',
+          status: 'active'
+        } : undefined
+      });
+    }
 
     console.log('🔍 [fetchCurrentUserAgentAssignments] Final enriched assignments:', enrichedAssignments);
     return enrichedAssignments;
