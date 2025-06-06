@@ -57,16 +57,16 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
     for (const assignment of assignments) {
       console.log('🔍 [fetchUserAgentAssignments] Processing assignment:', assignment);
       
-      // Obtener detalles del usuario con manejo de errores
+      // 🔧 CORRECCIÓN: Usar 'profiles' table como en Team Members (que funciona)
       const { data: userDetails, error: userError } = await supabase
-        .from('user_profiles')
-        .select('id, email, name as full_name')
+        .from('profiles')
+        .select('id, email, full_name')
         .eq('id', assignment.user_id)
         .single();
 
       let fallbackUser = null;
       if (userError) {
-        console.error('❌ [fetchUserAgentAssignments] Error fetching user details:', userError);
+        console.error('❌ [fetchUserAgentAssignments] Error fetching user details from profiles:', userError);
         // Fallback: intentar desde users table
         const { data: fallbackUserData } = await supabase
           .from('users')
@@ -74,7 +74,7 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
           .eq('id', assignment.user_id)
           .single();
         fallbackUser = fallbackUserData;
-        console.log('🔍 [fetchUserAgentAssignments] Fallback user:', fallbackUser);
+        console.log('🔍 [fetchUserAgentAssignments] Fallback user from users table:', fallbackUser);
       }
 
       // 🔧 CORRECCIÓN: Obtener detalles del agente desde custom_ai_agents
@@ -174,16 +174,16 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
     for (const assignment of assignments) {
       console.log('🔍 [fetchCurrentUserAgentAssignments] Processing assignment:', assignment);
       
-      // Obtener detalles del usuario con manejo de errores
+      // 🔧 CORRECCIÓN: Usar 'profiles' table como en Team Members (que funciona)
       const { data: userDetails, error: userError } = await supabase
-        .from('user_profiles')
-        .select('id, email, name as full_name')
+        .from('profiles')
+        .select('id, email, full_name')
         .eq('id', assignment.user_id)
         .single();
 
       let fallbackUser = null;
       if (userError) {
-        console.error('❌ [fetchCurrentUserAgentAssignments] Error fetching user details:', userError);
+        console.error('❌ [fetchCurrentUserAgentAssignments] Error fetching user details from profiles:', userError);
         // Fallback: intentar desde users table
         const { data: fallbackUserData } = await supabase
           .from('users')
@@ -191,7 +191,7 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
           .eq('id', assignment.user_id)
           .single();
         fallbackUser = fallbackUserData;
-        console.log('🔍 [fetchCurrentUserAgentAssignments] Fallback user:', fallbackUser);
+        console.log('🔍 [fetchCurrentUserAgentAssignments] Fallback user from users table:', fallbackUser);
       }
 
       // 🔧 CORRECCIÓN: Obtener detalles del agente desde custom_ai_agents
