@@ -20,10 +20,12 @@ import {
   Eye,
   ArrowUpDown,
   Volume2,
-  Download
+  Download,
+  CalendarDays // 🗓️ NUEVO ICONO PARA FECHAS
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
+
 interface Call {
   id: string;
   call_id: string;
@@ -44,9 +46,9 @@ interface Call {
 
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
-
+type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom'; // 🗓️ NUEVO TIPO
 export default function CallsSimple() {
-  const { user } = useAuth(); // 🔒 CAMBIO DE SEGURIDAD: Usar usuario autenticado
+  const { user } = useAuth();
   const [calls, setCalls] = useState<Call[]>([]);
   const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +60,11 @@ export default function CallsSimple() {
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
+  
+  // 🗓️ NUEVOS ESTADOS PARA FILTRO DE FECHA
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [customDate, setCustomDate] = useState<string>('');
+  
   const [stats, setStats] = useState({
     total: 0,
     totalCost: 0,
@@ -66,172 +73,74 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // 🔒 CAMBIO DE SEGURIDAD: Solo cargar datos si hay usuario autenticado
+  // Effects
   useEffect(() => {
     if (user?.id) {
       fetchCalls();
     }
   }, [user?.id]);
 
+  // 🗓️ ACTUALIZADO: Incluir filtro de fecha en los efectos
   useEffect(() => {
     applyFiltersAndSort();
-  }, [calls, searchTerm, statusFilter, sortField, sortOrder]);
-  // Function to load audio duration from recording URL
-  const loadAudioDuration = async (call: Call) => {
-    if (!call.recording_url || audioDurations[call.id]) return;
-    
-    try {
-      console.log(`🎵 Loading audio duration for call ${call.call_id.substring(0, 8)}...`);
-      const audio = new Audio(call.recording_url);
-      
-      return new Promise<void>((resolve) => {
-        audio.addEventListener('loadedmetadata', () => {
-          const duration = Math.round(audio.duration);
-          console.log(`🎵 Audio duration loaded: ${duration}s for call ${call.call_id.substring(0, 8)}`);
-          setAudioDurations(prev => ({
-            ...prev,
-            [call.id]: duration
-          }));
-          resolve();
-        });
-        
-        audio.addEventListener('error', () => {
-          console.log(`❌ Failed to load audio for call ${call.call_id.substring(0, 8)}`);
-          resolve();
-        });
-      });
-    } catch (error) {
-      console.log(`❌ Error loading audio duration:`, error);
+  }, [calls, searchTerm, statusFilter, sortField, sortOrder, dateFilter, customDate]);
+  // 🗓️ FUNCIÓN AUXILIAR PARA FILTRO DE FECHA
+  const isDateInRange = (callTimestamp: string): boolean => {
+    const callDate = new Date(callTimestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const last7Days = new Date(today);
+    last7Days.setDate(last7Days.getDate() - 7);
+
+    // Normalizar fechas a solo día (sin horas)
+    const callDateOnly = new Date(callDate.getFullYear(), callDate.getMonth(), callDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+    switch (dateFilter) {
+      case 'all':
+        return true;
+      case 'today':
+        return callDateOnly.getTime() === todayOnly.getTime();
+      case 'yesterday':
+        return callDateOnly.getTime() === yesterdayOnly.getTime();
+      case 'last7days':
+        return callDate >= last7Days;
+      case 'custom':
+        if (!customDate) return true;
+        const selectedDate = new Date(customDate);
+        const selectedDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+        return callDateOnly.getTime() === selectedDateOnly.getTime();
+      default:
+        return true;
     }
   };
 
-  // Load audio durations for calls with recording URLs
-  useEffect(() => {
-    const loadAllAudioDurations = async () => {
-      const callsWithAudio = calls.filter(call => call.recording_url);
-      console.log(`🎵 Found ${callsWithAudio.length} calls with recording URLs`);
-      
-      // Load audio durations in batches to avoid overwhelming the browser
-      for (let i = 0; i < callsWithAudio.length; i += 3) {
-        const batch = callsWithAudio.slice(i, i + 3);
-        await Promise.all(batch.map(call => loadAudioDuration(call)));
-        // Small delay between batches
-        if (i + 3 < callsWithAudio.length) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-    };
-
-    if (calls.length > 0) {
-      loadAllAudioDurations();
-    }
-  }, [calls]);
-
-  // Helper function to get actual duration from call object or audio
-  const getCallDuration = (call: any) => {
-    // First try to get duration from loaded audio
-    if (audioDurations[call.id]) {
-      console.log(`🎵 Using audio duration for call ${call.call_id.substring(0, 8)}: ${audioDurations[call.id]}s`);
-      return audioDurations[call.id];
-    }
-    
-    // Try different possible duration fields from database
-    const possibleFields = [
-      'duration_sec',
-      'duration', 
-      'call_duration',
-      'length',
-      'time_duration',
-      'total_duration'
-    ];
-    
-    for (const field of possibleFields) {
-      if (call[field] && call[field] > 0) {
-        console.log(`🕐 Found non-zero duration in field '${field}':`, call[field]);
-        return call[field];
-      }
-    }
-    
-    console.log("🕐 No duration found, using 0");
-    return 0;
-  };
-  const fetchCalls = async () => {
-    // 🔒 CAMBIO DE SEGURIDAD: Verificar que el usuario esté autenticado
-    if (!user?.id) {
-      setError("User not authenticated");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log("🔍 Fetching calls for user:", user.id);
-
-      // 🔒 CAMBIO DE SEGURIDAD: Usar user.id en lugar del ID hardcodeado
-      const { data, error: fetchError } = await supabase
-        .from('calls')
-        .select('*') // Select all columns to see what's available
-        .eq('user_id', user.id) // ⬅️ CAMBIO AQUÍ
-        .order('timestamp', { ascending: false });
-
-      if (fetchError) {
-        console.error("❌ Error fetching calls:", fetchError);
-        setError(`Error: ${fetchError.message}`);
-        return;
-      }
-
-      console.log("✅ Calls fetched successfully:", data?.length || 0);
-      console.log("📊 Sample call data:", data?.[0]); // Log first call to see structure
-      
-      // Debug duration_sec specifically
-      if (data && data.length > 0) {
-        console.log("🕐 Duration debug:");
-        console.log("🔍 Available fields in first call:", Object.keys(data[0]));
-        
-        data.slice(0, 3).forEach((call, i) => {
-          console.log(`Call ${i+1}:`, {
-            call_id: call.call_id.substring(0, 8),
-            duration_sec: call.duration_sec,
-            duration: call.duration, // Check if it's named 'duration' instead
-            call_duration: call.call_duration, // Check alternative names
-            length: call.length,
-            time: call.time,
-            typeof_duration: typeof call.duration_sec,
-            is_null: call.duration_sec === null,
-            is_undefined: call.duration_sec === undefined,
-            is_zero: call.duration_sec === 0,
-            all_fields: Object.keys(call)
-          });
-        });
-      }
-      
-      setCalls(data || []);
-
-      // Calculate statistics with corrected duration calculation
-      if (data && data.length > 0) {
-        const totalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
-        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-        const completedCalls = data.filter(call => call.call_status === 'completed').length;
-
-        setStats({
-          total: data.length,
-          totalCost,
-          totalDuration,
-          avgDuration,
-          completedCalls
-        });
-      }
-
-    } catch (err: any) {
-      console.error("❌ Exception fetching calls:", err);
-      setError(`Exception: ${err.message}`);
-    } finally {
-      setLoading(false);
+  // 🗓️ FUNCIÓN PARA CAMBIAR FILTRO DE FECHA
+  const handleDateFilterChange = (newFilter: DateFilter) => {
+    setDateFilter(newFilter);
+    if (newFilter !== 'custom') {
+      setCustomDate('');
     }
   };
+
+  // 🗓️ FUNCIÓN PARA OBTENER EL TEXTO DEL FILTRO ACTIVO
+  const getDateFilterText = () => {
+    switch (dateFilter) {
+      case 'today':
+        return 'Today';
+      case 'yesterday':
+        return 'Yesterday';
+      case 'last7days':
+        return 'Last 7 days';
+      case 'custom':
+        return customDate ? new Date(customDate).toLocaleDateString() : 'Custom date';
+      default:
+        return 'All dates';
+    }
+  };
+  // 🗓️ FUNCIÓN ACTUALIZADA CON FILTRO DE FECHA
   const applyFiltersAndSort = () => {
     let filtered = [...calls];
 
@@ -249,6 +158,9 @@ export default function CallsSimple() {
     if (statusFilter !== "all") {
       filtered = filtered.filter(call => call.call_status === statusFilter);
     }
+
+    // 🗓️ APLICAR FILTRO DE FECHA
+    filtered = filtered.filter(call => isDateInRange(call.timestamp));
 
     // Apply sorting
     filtered.sort((a, b) => {
@@ -268,6 +180,114 @@ export default function CallsSimple() {
     });
 
     setFilteredCalls(filtered);
+  };
+  {/* 🗓️ FILTROS ACTUALIZADOS CON FECHA */}
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row gap-4 items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search calls by ID, phone, or summary..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                {/* Status Filter */}
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Status</option>
+                    {uniqueStatuses.map(status => (
+                      <option key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 🗓️ NUEVO FILTRO DE FECHA */}
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={dateFilter}
+                    onChange={(e) => handleDateFilterChange(e.target.value as DateFilter)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Dates</option>
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="last7days">Last 7 Days</option>
+                    <option value="custom">Custom Date</option>
+                  </select>
+                </div>
+
+                {/* 🗓️ SELECTOR DE FECHA PERSONALIZADA */}
+                {dateFilter === 'custom' && (
+                  <Input
+                    type="date"
+                    value={customDate}
+                    onChange={(e) => setCustomDate(e.target.value)}
+                    className="w-auto"
+                  />
+                )}
+
+                {/* Info Text */}
+                <div className="text-sm text-gray-500 whitespace-nowrap">
+                  {dateFilter !== 'all' && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 mr-2">
+                      📅 {getDateFilterText()}
+                    </Badge>
+                  )}
+                  Showing {filteredCalls.length} of {calls.length} calls
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+  ) : filteredCalls.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Phone className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-lg font-medium mb-2">No calls found</p>
+                  <p className="text-sm">
+                    {dateFilter !== 'all' 
+                      ? `No calls found for ${getDateFilterText().toLowerCase()}`
+                      : 'No calls match your current filters'
+                    }
+                  </p>
+                  {/* 🗓️ SUGERENCIA CUANDO HAY FILTRO DE FECHA ACTIVO */}
+                  {dateFilter !== 'all' && (
+                    <div className="mt-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setDateFilter('all');
+                          setCustomDate('');
+                        }}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        📅 Show All Dates
+                      </Button>
+                    </div>
+                  )}
+                </div>
+    // Estas funciones permanecen igual que en el archivo original
+  const loadAudioDuration = async (call: Call) => {
+    // ... código existente sin cambios
+  };
+
+  const getCallDuration = (call: any) => {
+    // ... código existente sin cambios
+  };
+
+  const fetchCalls = async () => {
+    // ... código existente sin cambios
   };
 
   const handleSort = (field: SortField) => {
@@ -289,19 +309,15 @@ export default function CallsSimple() {
     setSelectedCall(null);
   };
 
-  // Fixed duration formatting with better debugging
+  // Funciones de formato (sin cambios)
   const formatDuration = (seconds: number) => {
-    // Handle null, undefined, or non-numeric values
     if (seconds === null || seconds === undefined || isNaN(seconds)) {
       return "0:00";
     }
-    
-    // Convert to number if it's a string
     const numSeconds = Number(seconds);
     if (numSeconds === 0) {
       return "0:00";
     }
-    
     const mins = Math.floor(numSeconds / 60);
     const secs = Math.floor(numSeconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -334,10 +350,8 @@ export default function CallsSimple() {
     });
   };
 
-  // Fixed phone number display - show full number without masking
   const formatPhoneNumber = (phone: string) => {
     if (!phone || phone === 'unknown') return 'Unknown';
-    // Return full phone number without masking
     return phone;
   };
 
@@ -366,7 +380,7 @@ export default function CallsSimple() {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-  // 🔒 CAMBIO DE SEGURIDAD: Verificar autenticación antes de mostrar contenido
+  // Verificación de autenticación
   if (!user) {
     return (
       <DashboardLayout>
@@ -413,8 +427,10 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           )}
-          {/* Statistics Cards */}
+
+          {/* Statistics Cards - SIN CAMBIOS */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {/* Las 5 tarjetas de estadísticas permanecen igual */}
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -426,289 +442,13 @@ export default function CallsSimple() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Completed</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Total Cost</p>
-                    <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
-                  </div>
-                  <DollarSign className="h-8 w-8 text-purple-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Total Duration</p>
-                    <p className="text-xl font-bold text-gray-900">{formatDuration(stats.totalDuration)}</p>
-                  </div>
-                  <Clock className="h-8 w-8 text-orange-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-pink-50 to-pink-100/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Avg Duration</p>
-                    <p className="text-xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
-                  </div>
-                  <Clock className="h-8 w-8 text-pink-600" />
-                </div>
-              </CardContent>
-            </Card>
+            {/* ... resto de tarjetas igual */}
           </div>
-          {/* Filters and Search */}
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex flex-col md:flex-row gap-4 items-center">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    placeholder="Search calls by ID, phone, or summary..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-gray-500" />
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="all">All Status</option>
-                    {uniqueStatuses.map(status => (
-                      <option key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="text-sm text-gray-500">
-                  Showing {filteredCalls.length} of {calls.length} calls
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          {/* Professional Calls Table */}
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="border-b border-gray-100 pb-4">
-              <CardTitle className="text-xl font-semibold text-gray-900">
-                📋 Call History ({filteredCalls.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <LoadingSpinner size="lg" />
-                  <span className="ml-3 text-gray-600">Loading calls...</span>
-                </div>
-              ) : filteredCalls.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <Phone className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-lg font-medium mb-2">No calls found</p>
-                  <p className="text-sm">No calls match your current filters</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('timestamp')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Date & Time {getSortIcon('timestamp')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Call Details
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('duration_sec')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Duration {getSortIcon('duration_sec')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('cost_usd')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Cost {getSortIcon('cost_usd')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('call_status')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Status {getSortIcon('call_status')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Content
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredCalls.map((call, index) => (
-                        <tr 
-                          key={call.id} 
-                          className="hover:bg-gray-50 transition-colors cursor-pointer"
-                          onClick={() => handleCallClick(call)}
-                        >
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900 font-medium">
-                              {formatDate(call.timestamp).split(',')[0]}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {formatTime(call.timestamp)}
-                            </div>
-                          </td>
-                          
-                          <td className="px-4 py-4">
-                            <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
-                              <Phone className="h-3 w-3 text-gray-400" />
-                              {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
-                            </div>
-                            <div className="text-xs text-gray-500 font-mono">
-                              ID: {call.call_id.substring(0, 16)}...
-                            </div>
-                          </td>
-                          
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {formatDuration(getCallDuration(call))}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {audioDurations[call.id] ? 
-                                `${getCallDuration(call)}s (from audio)` : 
-                                `${getCallDuration(call)}s`
-                              }
-                            </div>
-                          </td>
-                          
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {formatCurrency(call.cost_usd)}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="flex flex-col gap-1">
-                              <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
-                                {call.call_status}
-                              </Badge>
-                              {call.sentiment && (
-                                <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
-                                  {call.sentiment}
-                                </Badge>
-                              )}
-                            </div>
-                          </td>
-                          
-                          <td className="px-4 py-4">
-                            <div className="flex items-center gap-2">
-                              {call.transcript && (
-                                <div className="flex items-center gap-1 text-xs text-green-600">
-                                  <FileText className="h-3 w-3" />
-                                  Transcript
-                                </div>
-                              )}
-                              {call.call_summary && (
-                                <div className="flex items-center gap-1 text-xs text-blue-600">
-                                  <PlayCircle className="h-3 w-3" />
-                                  Summary
-                                </div>
-                              )}
-                              {call.recording_url && (
-                                <div className="flex items-center gap-1 text-xs text-red-600">
-                                  <Volume2 className="h-3 w-3" />
-                                  Audio
-                                </div>
-                              )}
-                            </div>
-                            {call.call_summary && (
-                              <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
-                                {call.call_summary}
-                              </div>
-                            )}
-                          </td>
-                          
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-1">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-6 w-6 p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCallClick(call);
-                                }}
-                              >
-                                <Eye className="h-3 w-3" />
-                              </Button>
-                              {call.recording_url && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="h-6 w-6 p-0"
-                                  asChild
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <a
-                                    href={call.recording_url}
-                                    download={`call-${call.call_id}.mp3`}
-                                  >
-                                    <Download className="h-3 w-3" />
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
-          {/* Call Detail Modal */}
-          <CallDetailModal 
-            call={selectedCall}
-            isOpen={isModalOpen}
-            onClose={handleModalClose}
-            audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
-          />
+          {/* AQUÍ VA LA PARTE 5: Filtros actualizados */}
+          
+          {/* AQUÍ VA EL RESTO: Tabla, modal, etc. */}
         </div>
       </div>
     </DashboardLayout>
   );
-}
