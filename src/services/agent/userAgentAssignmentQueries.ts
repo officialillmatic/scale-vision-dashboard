@@ -62,12 +62,15 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         .eq('id', assignment.user_id)
         .single();
 
-      // Obtener detalles del agente (ajustar según tu estructura real)
+      // 🔧 CORRECCIÓN: Obtener detalles del agente desde custom_ai_agents
       const { data: agentDetails } = await supabase
-        .from('user_agents')
-        .select('id, agent_id, company_id')
-        .eq('agent_id', assignment.agent_id)
+        .from('custom_ai_agents')
+        .select('id, retell_agent_id, name, description, status')
+        .eq('id', assignment.agent_id)
         .single();
+
+      console.log('🔍 [fetchUserAgentAssignments] User details:', userDetails);
+      console.log('🔍 [fetchUserAgentAssignments] Agent details:', agentDetails);
 
       enrichedAssignments.push({
         id: assignment.id,
@@ -83,10 +86,10 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         } : undefined,
         agent_details: agentDetails ? {
           id: agentDetails.id,
-          retell_agent_id: agentDetails.agent_id,
-          name: `Agent ${agentDetails.id.slice(0, 8)}`, // Nombre temporal
-          description: 'Custom AI Agent',
-          status: 'active'
+          retell_agent_id: agentDetails.retell_agent_id,
+          name: agentDetails.name, // 🔧 CORRECCIÓN: Usar el nombre real del agente
+          description: agentDetails.description || 'Custom AI Agent',
+          status: agentDetails.status || 'active'
         } : undefined
       });
     }
@@ -154,12 +157,15 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
         .eq('id', assignment.user_id)
         .single();
 
-      // Obtener detalles del agente
+      // 🔧 CORRECCIÓN: Obtener detalles del agente desde custom_ai_agents
       const { data: agentDetails } = await supabase
-        .from('user_agents')
-        .select('id, agent_id, company_id')
-        .eq('agent_id', assignment.agent_id)
+        .from('custom_ai_agents')
+        .select('id, retell_agent_id, name, description, status')
+        .eq('id', assignment.agent_id)
         .single();
+
+      console.log('🔍 [fetchCurrentUserAgentAssignments] User details:', userDetails);
+      console.log('🔍 [fetchCurrentUserAgentAssignments] Agent details:', agentDetails);
 
       enrichedAssignments.push({
         id: assignment.id,
@@ -175,10 +181,10 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
         } : undefined,
         agent_details: agentDetails ? {
           id: agentDetails.id,
-          retell_agent_id: agentDetails.agent_id,
-          name: `Agent ${agentDetails.id.slice(0, 8)}`,
-          description: 'Custom AI Agent',
-          status: 'active'
+          retell_agent_id: agentDetails.retell_agent_id,
+          name: agentDetails.name, // 🔧 CORRECCIÓN: Usar el nombre real del agente
+          description: agentDetails.description || 'Custom AI Agent',
+          status: agentDetails.status || 'active'
         } : undefined
       });
     }
