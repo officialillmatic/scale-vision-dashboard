@@ -22,9 +22,34 @@ export interface UserAgentAssignment {
   };
 }
 
+import { supabase } from "@/integrations/supabase/client";
+import { fetchAgents } from "./agentQueries"; // Importar la función que SÍ funciona
+
+export interface UserAgentAssignment {
+  id: string;
+  user_id: string;
+  agent_id: string;
+  is_primary: boolean;
+  assigned_at: string;
+  assigned_by?: string;
+  // Populated data
+  user_details?: {
+    id: string;
+    email: string;
+    full_name?: string;
+  };
+  agent_details?: {
+    id: string;
+    retell_agent_id?: string;
+    name: string;
+    description?: string;
+    status: string;
+  };
+}
+
 export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]> => {
   try {
-    console.log('🔍 [fetchUserAgentAssignments] Starting fetch - using basic queries without JOINs');
+    console.log('🔍 [fetchUserAgentAssignments] Starting fetch - using successful agent queries');
     
     // Usar consulta básica sin JOINs para evitar errores de relación
     const { data: assignments, error } = await supabase
@@ -49,9 +74,18 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
       return [];
     }
 
-    console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments, enriching with separate queries...');
+    console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments, enriching...');
 
-    // Enriquecer datos con consultas separadas (método que funciona)
+    // 🔧 USAR fetchAgents (que SÍ funciona) para obtener todos los agentes
+    const allAgents = await fetchAgents(); // La función que funciona en Available Agents
+    console.log('🔍 [fetchUserAgentAssignments] Fetched agents using working function:', allAgents.length, 'agents');
+    console.log('🔍 [fetchUserAgentAssignments] Agent details:', allAgents);
+
+    // Crear un mapa de agentes para lookup rápido
+    const agentsMap = new Map(allAgents.map(agent => [agent.id, agent]));
+    console.log('🔍 [fetchUserAgentAssignments] Agents map keys:', Array.from(agentsMap.keys()));
+
+    // Enriquecer datos con consultas separadas para usuarios y usar el mapa para agentes
     const enrichedAssignments: UserAgentAssignment[] = [];
     
     for (const assignment of assignments) {
@@ -68,19 +102,15 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         console.error('❌ [fetchUserAgentAssignments] Error fetching user:', userError);
       }
 
-      // Intentar obtener agente desde agents (primero intentar match directo)
-      const { data: agentDetails, error: agentError } = await supabase
-        .from('agents')
-        .select('id, name, description, status')
-        .eq('id', assignment.agent_id)
-        .single();
-
+      // 🔧 USAR EL MAPA DE AGENTES (de la función que funciona)
+      const agentDetails = agentsMap.get(assignment.agent_id);
+      
       console.log('🔍 [fetchUserAgentAssignments] User details for', assignment.user_id, ':', userDetails);
       console.log('🔍 [fetchUserAgentAssignments] Agent details for', assignment.agent_id, ':', agentDetails);
       
-      if (agentError) {
-        console.log('⚠️ [fetchUserAgentAssignments] No direct agent match, agent_id:', assignment.agent_id);
-        console.log('⚠️ [fetchUserAgentAssignments] Error:', agentError);
+      if (!agentDetails) {
+        console.log('⚠️ [fetchUserAgentAssignments] No agent found for agent_id:', assignment.agent_id);
+        console.log('⚠️ [fetchUserAgentAssignments] Available agent IDs:', Array.from(agentsMap.keys()));
       }
 
       enrichedAssignments.push({
@@ -98,7 +128,7 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         agent_details: agentDetails ? {
           id: agentDetails.id,
           retell_agent_id: agentDetails.id,
-          name: agentDetails.name,
+          name: agentDetails.name, // 🔧 NOMBRE REAL del agente que funciona
           description: agentDetails.description || 'Custom AI Agent',
           status: agentDetails.status || 'active'
         } : undefined
