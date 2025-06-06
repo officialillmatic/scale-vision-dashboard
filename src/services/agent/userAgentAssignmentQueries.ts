@@ -55,23 +55,45 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
     const enrichedAssignments: UserAgentAssignment[] = [];
     
     for (const assignment of assignments) {
-      // Obtener detalles del usuario
-      const { data: userDetails } = await supabase
+      console.log('🔍 [fetchUserAgentAssignments] Processing assignment:', assignment);
+      
+      // Obtener detalles del usuario con manejo de errores
+      const { data: userDetails, error: userError } = await supabase
         .from('user_profiles')
         .select('id, email, name as full_name')
         .eq('id', assignment.user_id)
         .single();
 
+      let fallbackUser = null;
+      if (userError) {
+        console.error('❌ [fetchUserAgentAssignments] Error fetching user details:', userError);
+        // Fallback: intentar desde users table
+        const { data: fallbackUserData } = await supabase
+          .from('users')
+          .select('id, email')
+          .eq('id', assignment.user_id)
+          .single();
+        fallbackUser = fallbackUserData;
+        console.log('🔍 [fetchUserAgentAssignments] Fallback user:', fallbackUser);
+      }
+
       // 🔧 CORRECCIÓN: Obtener detalles del agente desde custom_ai_agents
-      const { data: agentDetails } = await supabase
+      const { data: agentDetails, error: agentError } = await supabase
         .from('custom_ai_agents')
         .select('id, retell_agent_id, name, description, status')
         .eq('id', assignment.agent_id)
         .single();
 
+      if (agentError) {
+        console.error('❌ [fetchUserAgentAssignments] Error fetching agent details:', agentError);
+      }
+
       console.log('🔍 [fetchUserAgentAssignments] User details:', userDetails);
       console.log('🔍 [fetchUserAgentAssignments] Agent details:', agentDetails);
 
+      // Preparar user_details con fallback
+      const finalUserDetails = userDetails || fallbackUser;
+      
       enrichedAssignments.push({
         id: assignment.id,
         user_id: assignment.user_id,
@@ -79,10 +101,10 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         is_primary: assignment.is_primary || false,
         assigned_at: assignment.assigned_at,
         assigned_by: assignment.assigned_by,
-        user_details: userDetails ? {
-          id: userDetails.id,
-          email: userDetails.email,
-          full_name: userDetails.full_name
+        user_details: finalUserDetails ? {
+          id: finalUserDetails.id,
+          email: finalUserDetails.email,
+          full_name: finalUserDetails.full_name || null
         } : undefined,
         agent_details: agentDetails ? {
           id: agentDetails.id,
@@ -150,22 +172,44 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
     const enrichedAssignments: UserAgentAssignment[] = [];
     
     for (const assignment of assignments) {
-      // Obtener detalles del usuario
-      const { data: userDetails } = await supabase
+      console.log('🔍 [fetchCurrentUserAgentAssignments] Processing assignment:', assignment);
+      
+      // Obtener detalles del usuario con manejo de errores
+      const { data: userDetails, error: userError } = await supabase
         .from('user_profiles')
         .select('id, email, name as full_name')
         .eq('id', assignment.user_id)
         .single();
 
+      let fallbackUser = null;
+      if (userError) {
+        console.error('❌ [fetchCurrentUserAgentAssignments] Error fetching user details:', userError);
+        // Fallback: intentar desde users table
+        const { data: fallbackUserData } = await supabase
+          .from('users')
+          .select('id, email')
+          .eq('id', assignment.user_id)
+          .single();
+        fallbackUser = fallbackUserData;
+        console.log('🔍 [fetchCurrentUserAgentAssignments] Fallback user:', fallbackUser);
+      }
+
       // 🔧 CORRECCIÓN: Obtener detalles del agente desde custom_ai_agents
-      const { data: agentDetails } = await supabase
+      const { data: agentDetails, error: agentError } = await supabase
         .from('custom_ai_agents')
         .select('id, retell_agent_id, name, description, status')
         .eq('id', assignment.agent_id)
         .single();
 
+      if (agentError) {
+        console.error('❌ [fetchCurrentUserAgentAssignments] Error fetching agent details:', agentError);
+      }
+
       console.log('🔍 [fetchCurrentUserAgentAssignments] User details:', userDetails);
       console.log('🔍 [fetchCurrentUserAgentAssignments] Agent details:', agentDetails);
+
+      // Preparar user_details con fallback
+      const finalUserDetails = userDetails || fallbackUser;
 
       enrichedAssignments.push({
         id: assignment.id,
@@ -174,10 +218,10 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
         is_primary: assignment.is_primary || false,
         assigned_at: assignment.assigned_at,
         assigned_by: assignment.assigned_by,
-        user_details: userDetails ? {
-          id: userDetails.id,
-          email: userDetails.email,
-          full_name: userDetails.full_name
+        user_details: finalUserDetails ? {
+          id: finalUserDetails.id,
+          email: finalUserDetails.email,
+          full_name: finalUserDetails.full_name || null
         } : undefined,
         agent_details: agentDetails ? {
           id: agentDetails.id,
