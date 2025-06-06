@@ -47,6 +47,7 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
+
 export default function CallsSimple() {
   const { user } = useAuth();
   const [calls, setCalls] = useState<Call[]>([]);
@@ -79,10 +80,10 @@ export default function CallsSimple() {
     }
   }, [user?.id]);
 
-  // 🗓️ ACTUALIZADO: Incluir filtro de fecha en los efectos
   useEffect(() => {
     applyFiltersAndSort();
   }, [calls, searchTerm, statusFilter, sortField, sortOrder, dateFilter, customDate]);
+
   // 🗓️ FUNCIÓN AUXILIAR PARA FILTRO DE FECHA
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
@@ -92,7 +93,6 @@ export default function CallsSimple() {
     const last7Days = new Date(today);
     last7Days.setDate(last7Days.getDate() - 7);
 
-    // Normalizar fechas a solo día (sin horas)
     const callDateOnly = new Date(callDate.getFullYear(), callDate.getMonth(), callDate.getDate());
     const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
@@ -116,7 +116,6 @@ export default function CallsSimple() {
     }
   };
 
-  // 🗓️ FUNCIÓN PARA CAMBIAR FILTRO DE FECHA
   const handleDateFilterChange = (newFilter: DateFilter) => {
     setDateFilter(newFilter);
     if (newFilter !== 'custom') {
@@ -124,7 +123,6 @@ export default function CallsSimple() {
     }
   };
 
-  // 🗓️ FUNCIÓN PARA OBTENER EL TEXTO DEL FILTRO ACTIVO
   const getDateFilterText = () => {
     switch (dateFilter) {
       case 'today':
@@ -139,49 +137,7 @@ export default function CallsSimple() {
         return 'All dates';
     }
   };
-  // 🗓️ FUNCIÓN ACTUALIZADA CON FILTRO DE FECHA
-  const applyFiltersAndSort = () => {
-    let filtered = [...calls];
 
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(call => 
-        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.from_number.includes(searchTerm) ||
-        call.to_number.includes(searchTerm) ||
-        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(call => call.call_status === statusFilter);
-    }
-
-    // 🗓️ APLICAR FILTRO DE FECHA
-    filtered = filtered.filter(call => isDateInRange(call.timestamp));
-
-    // Apply sorting
-    filtered.sort((a, b) => {
-      let aValue: any = a[sortField];
-      let bValue: any = b[sortField];
-
-      if (sortField === 'timestamp') {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
-    setFilteredCalls(filtered);
-  };
-  // TODAS ESTAS FUNCIONES PERMANECEN IGUAL QUE EN TU ARCHIVO ORIGINAL
-  
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
     
@@ -254,10 +210,116 @@ export default function CallsSimple() {
     console.log("🕐 No duration found, using 0");
     return 0;
   };
-
-  // COPIA EXACTAMENTE tu función fetchCalls() existente aquí
   const fetchCalls = async () => {
-    // ... (tu código existente completo)
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log("🔍 Fetching calls for user:", user.id);
+
+      const { data, error: fetchError } = await supabase
+        .from('calls')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('timestamp', { ascending: false });
+
+      if (fetchError) {
+        console.error("❌ Error fetching calls:", fetchError);
+        setError(`Error: ${fetchError.message}`);
+        return;
+      }
+
+      console.log("✅ Calls fetched successfully:", data?.length || 0);
+      console.log("📊 Sample call data:", data?.[0]);
+      
+      if (data && data.length > 0) {
+        console.log("🕐 Duration debug:");
+        console.log("🔍 Available fields in first call:", Object.keys(data[0]));
+        
+        data.slice(0, 3).forEach((call, i) => {
+          console.log(`Call ${i+1}:`, {
+            call_id: call.call_id.substring(0, 8),
+            duration_sec: call.duration_sec,
+            duration: call.duration,
+            call_duration: call.call_duration,
+            length: call.length,
+            time: call.time,
+            typeof_duration: typeof call.duration_sec,
+            is_null: call.duration_sec === null,
+            is_undefined: call.duration_sec === undefined,
+            is_zero: call.duration_sec === 0,
+            all_fields: Object.keys(call)
+          });
+        });
+      }
+      
+      setCalls(data || []);
+
+      if (data && data.length > 0) {
+        const totalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
+        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
+        const completedCalls = data.filter(call => call.call_status === 'completed').length;
+
+        setStats({
+          total: data.length,
+          totalCost,
+          totalDuration,
+          avgDuration,
+          completedCalls
+        });
+      }
+
+    } catch (err: any) {
+      console.error("❌ Exception fetching calls:", err);
+      setError(`Exception: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyFiltersAndSort = () => {
+    let filtered = [...calls];
+
+    if (searchTerm) {
+      filtered = filtered.filter(call => 
+        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        call.from_number.includes(searchTerm) ||
+        call.to_number.includes(searchTerm) ||
+        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(call => call.call_status === statusFilter);
+    }
+
+    // 🗓️ APLICAR FILTRO DE FECHA
+    filtered = filtered.filter(call => isDateInRange(call.timestamp));
+
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
+
+      if (sortField === 'timestamp') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    setFilteredCalls(filtered);
   };
 
   const handleSort = (field: SortField) => {
@@ -278,7 +340,7 @@ export default function CallsSimple() {
     setIsModalOpen(false);
     setSelectedCall(null);
   };
-  // FUNCIONES DE FORMATO - SIN CAMBIOS
+
   const formatDuration = (seconds: number) => {
     if (seconds === null || seconds === undefined || isNaN(seconds)) {
       return "0:00";
@@ -351,7 +413,6 @@ export default function CallsSimple() {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-  // VERIFICACIÓN DE AUTENTICACIÓN
   if (!user) {
     return (
       <DashboardLayout>
@@ -398,6 +459,7 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           )}
+
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -460,6 +522,7 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           </div>
+
           {/* 🗓️ FILTROS ACTUALIZADOS CON FECHA */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
@@ -734,8 +797,8 @@ export default function CallsSimple() {
                             </div>
                           </td>
                         </tr>
-                      ))
-                        </tbody>
+                      ))}
+                    </tbody>
                   </table>
                 </div>
               )}
