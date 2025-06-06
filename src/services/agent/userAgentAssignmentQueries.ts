@@ -26,24 +26,92 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
   try {
     console.log('🔍 [fetchUserAgentAssignments] Starting fetch with corrected query');
     
-    // 🔧 CORRECCIÓN: Usar user_agents con JOINs como en agentQueries (que funciona)
+    // Volver a user_agent_assignments pero intentar JOIN directo primero
     const { data: assignments, error } = await supabase
-      .from("user_agents")
+      .from("user_agent_assignments")
       .select(`
         id,
         user_id,
         agent_id,
         is_primary,
-        created_at as assigned_at,
+        assigned_at,
         assigned_by,
-        agent:agents!inner(*),
-        user_details:profiles!inner(id, email, full_name)
+        agent:agents(id, name, description, status),
+        user_details:profiles(id, email, full_name)
       `)
-      .order("created_at", { ascending: false });
+      .order("assigned_at", { ascending: false });
 
     if (error) {
-      console.error('❌ [fetchUserAgentAssignments] Error:', error);
-      throw new Error(`Cannot access user_agents: ${error.message}`);
+      console.error('❌ [fetchUserAgentAssignments] Error with JOIN:', error);
+      
+      // Si el JOIN falla, usar consultas separadas
+      const { data: basicAssignments, error: basicError } = await supabase
+        .from("user_agent_assignments")
+        .select(`
+          id,
+          user_id,
+          agent_id,
+          is_primary,
+          assigned_at,
+          assigned_by
+        `)
+        .order("assigned_at", { ascending: false });
+
+      if (basicError) {
+        throw new Error(`Cannot access user_agent_assignments: ${basicError.message}`);
+      }
+
+      if (!basicAssignments || basicAssignments.length === 0) {
+        console.log('🔍 [fetchUserAgentAssignments] No assignments found');
+        return [];
+      }
+
+      console.log('🔍 [fetchUserAgentAssignments] Found', basicAssignments.length, 'assignments, enriching...');
+
+      // Enriquecer datos con consultas separadas
+      const enrichedAssignments: UserAgentAssignment[] = [];
+      
+      for (const assignment of basicAssignments) {
+        // Obtener usuario desde profiles
+        const { data: userDetails } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .eq('id', assignment.user_id)
+          .single();
+
+        // Intentar obtener agente desde agents
+        const { data: agentDetails } = await supabase
+          .from('agents')
+          .select('id, name, description, status')
+          .eq('id', assignment.agent_id)
+          .single();
+
+        console.log('🔍 [fetchUserAgentAssignments] User details:', userDetails);
+        console.log('🔍 [fetchUserAgentAssignments] Agent details for ID', assignment.agent_id, ':', agentDetails);
+
+        enrichedAssignments.push({
+          id: assignment.id,
+          user_id: assignment.user_id,
+          agent_id: assignment.agent_id,
+          is_primary: assignment.is_primary || false,
+          assigned_at: assignment.assigned_at,
+          assigned_by: assignment.assigned_by,
+          user_details: userDetails ? {
+            id: userDetails.id,
+            email: userDetails.email,
+            full_name: userDetails.full_name
+          } : undefined,
+          agent_details: agentDetails ? {
+            id: agentDetails.id,
+            retell_agent_id: agentDetails.id,
+            name: agentDetails.name,
+            description: agentDetails.description || 'Custom AI Agent',
+            status: agentDetails.status || 'active'
+          } : undefined
+        });
+      }
+
+      return enrichedAssignments;
     }
 
     if (!assignments || assignments.length === 0) {
@@ -51,36 +119,32 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
       return [];
     }
 
-    console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments');
+    console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments with JOINs');
     console.log('🔍 [fetchUserAgentAssignments] Raw data:', assignments);
 
-    // Transformar los datos al formato esperado
-    const enrichedAssignments: UserAgentAssignment[] = assignments.map((assignment: any) => {
-      console.log('🔍 [fetchUserAgentAssignments] Processing assignment:', assignment);
-      
-      return {
-        id: assignment.id,
-        user_id: assignment.user_id,
-        agent_id: assignment.agent_id,
-        is_primary: assignment.is_primary || false,
-        assigned_at: assignment.assigned_at,
-        assigned_by: assignment.assigned_by,
-        user_details: assignment.user_details ? {
-          id: assignment.user_details.id,
-          email: assignment.user_details.email,
-          full_name: assignment.user_details.full_name
-        } : undefined,
-        agent_details: assignment.agent ? {
-          id: assignment.agent.id,
-          retell_agent_id: assignment.agent.id,
-          name: assignment.agent.name, // 🔧 CORRECCIÓN: Usar el nombre real del agente
-          description: assignment.agent.description || 'Custom AI Agent',
-          status: assignment.agent.status || 'active'
-        } : undefined
-      };
-    });
+    // Transformar datos del JOIN exitoso
+    const enrichedAssignments: UserAgentAssignment[] = assignments.map((assignment: any) => ({
+      id: assignment.id,
+      user_id: assignment.user_id,
+      agent_id: assignment.agent_id,
+      is_primary: assignment.is_primary || false,
+      assigned_at: assignment.assigned_at,
+      assigned_by: assignment.assigned_by,
+      user_details: assignment.user_details ? {
+        id: assignment.user_details.id,
+        email: assignment.user_details.email,
+        full_name: assignment.user_details.full_name
+      } : undefined,
+      agent_details: assignment.agent ? {
+        id: assignment.agent.id,
+        retell_agent_id: assignment.agent.id,
+        name: assignment.agent.name,
+        description: assignment.agent.description || 'Custom AI Agent',
+        status: assignment.agent.status || 'active'
+      } : undefined
+    }));
 
-    console.log('🔍 [fetchUserAgentAssignments] Final enriched assignments:', enrichedAssignments.length);
+    console.log('🔍 [fetchUserAgentAssignments] Final enriched assignments:', enrichedAssignments);
     return enrichedAssignments;
   } catch (error: any) {
     console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error in fetchUserAgentAssignments:", error);
