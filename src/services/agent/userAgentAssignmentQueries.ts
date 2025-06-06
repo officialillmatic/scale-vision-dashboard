@@ -26,22 +26,24 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
   try {
     console.log('🔍 [fetchUserAgentAssignments] Starting fetch with corrected query');
     
-    // Usar consulta corregida sin JOINs problemáticos
+    // 🔧 CORRECCIÓN: Usar user_agents con JOINs como en agentQueries (que funciona)
     const { data: assignments, error } = await supabase
-      .from("user_agent_assignments")
+      .from("user_agents")
       .select(`
         id,
         user_id,
         agent_id,
         is_primary,
-        assigned_at,
-        assigned_by
+        created_at as assigned_at,
+        assigned_by,
+        agent:agents!inner(*),
+        user_details:profiles!inner(id, email, full_name)
       `)
-      .order("assigned_at", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error('❌ [fetchUserAgentAssignments] Error:', error);
-      throw new Error(`Cannot access user_agent_assignments: ${error.message}`);
+      throw new Error(`Cannot access user_agents: ${error.message}`);
     }
 
     if (!assignments || assignments.length === 0) {
@@ -50,71 +52,33 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
     }
 
     console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments');
+    console.log('🔍 [fetchUserAgentAssignments] Raw data:', assignments);
 
-    // Hacer consultas separadas para obtener user_details y agent_details
-    const enrichedAssignments: UserAgentAssignment[] = [];
-    
-    for (const assignment of assignments) {
+    // Transformar los datos al formato esperado
+    const enrichedAssignments: UserAgentAssignment[] = assignments.map((assignment: any) => {
       console.log('🔍 [fetchUserAgentAssignments] Processing assignment:', assignment);
       
-      // 🔧 CORRECCIÓN: Usar 'profiles' table como en Team Members (que funciona)
-      const { data: userDetails, error: userError } = await supabase
-        .from('profiles')
-        .select('id, email, full_name')
-        .eq('id', assignment.user_id)
-        .single();
-
-      let fallbackUser = null;
-      if (userError) {
-        console.error('❌ [fetchUserAgentAssignments] Error fetching user details from profiles:', userError);
-        // Fallback: intentar desde users table
-        const { data: fallbackUserData } = await supabase
-          .from('users')
-          .select('id, email')
-          .eq('id', assignment.user_id)
-          .single();
-        fallbackUser = fallbackUserData;
-        console.log('🔍 [fetchUserAgentAssignments] Fallback user from users table:', fallbackUser);
-      }
-
-      // 🔧 CORRECCIÓN: Obtener detalles del agente desde 'agents' table (tabla correcta)
-      const { data: agentDetails, error: agentError } = await supabase
-        .from('agents')
-        .select('id, name, description, status')
-        .eq('id', assignment.agent_id)
-        .single();
-
-      if (agentError) {
-        console.error('❌ [fetchUserAgentAssignments] Error fetching agent details:', agentError);
-      }
-
-      console.log('🔍 [fetchUserAgentAssignments] User details:', userDetails);
-      console.log('🔍 [fetchUserAgentAssignments] Agent details:', agentDetails);
-
-      // Preparar user_details con fallback
-      const finalUserDetails = userDetails || fallbackUser;
-      
-      enrichedAssignments.push({
+      return {
         id: assignment.id,
         user_id: assignment.user_id,
         agent_id: assignment.agent_id,
         is_primary: assignment.is_primary || false,
         assigned_at: assignment.assigned_at,
         assigned_by: assignment.assigned_by,
-        user_details: finalUserDetails ? {
-          id: finalUserDetails.id,
-          email: finalUserDetails.email,
-          full_name: finalUserDetails.full_name || null
+        user_details: assignment.user_details ? {
+          id: assignment.user_details.id,
+          email: assignment.user_details.email,
+          full_name: assignment.user_details.full_name
         } : undefined,
-        agent_details: agentDetails ? {
-          id: agentDetails.id,
-          retell_agent_id: agentDetails.id, // Usar el mismo ID
-          name: agentDetails.name, // 🔧 CORRECCIÓN: Usar el nombre real del agente
-          description: agentDetails.description || 'Custom AI Agent',
-          status: agentDetails.status || 'active'
+        agent_details: assignment.agent ? {
+          id: assignment.agent.id,
+          retell_agent_id: assignment.agent.id,
+          name: assignment.agent.name, // 🔧 CORRECCIÓN: Usar el nombre real del agente
+          description: assignment.agent.description || 'Custom AI Agent',
+          status: assignment.agent.status || 'active'
         } : undefined
-      });
-    }
+      };
+    });
 
     console.log('🔍 [fetchUserAgentAssignments] Final enriched assignments:', enrichedAssignments.length);
     return enrichedAssignments;
