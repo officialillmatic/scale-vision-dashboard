@@ -23,7 +23,6 @@ export interface UserAgentAssignment {
 }
 
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAgents } from "./agentQueries"; // Importar la función que SÍ funciona
 
 export interface UserAgentAssignment {
   id: string;
@@ -46,6 +45,32 @@ export interface UserAgentAssignment {
     status: string;
   };
 }
+
+// 🔧 FUNCIÓN LOCAL que replica fetchAgents (que funciona)
+const fetchAgentsLocal = async (companyId?: string) => {
+  try {
+    let query = supabase
+      .from("agents")
+      .select("*")
+      .eq("status", "active");
+    
+    if (companyId) {
+      query = query.eq("company_id", companyId);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error("[LOCAL_FETCH_AGENTS] Error fetching agents:", error);
+      throw error;
+    }
+    
+    return data || [];
+  } catch (error: any) {
+    console.error("[LOCAL_FETCH_AGENTS] Error:", error);
+    throw new Error(`Failed to fetch agents: ${error.message}`);
+  }
+};
 
 export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]> => {
   try {
@@ -76,8 +101,8 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
 
     console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments, enriching...');
 
-    // 🔧 USAR fetchAgents (que SÍ funciona) para obtener todos los agentes
-    const allAgents = await fetchAgents(); // La función que funciona en Available Agents
+    // 🔧 USAR fetchAgentsLocal (replica de la función que funciona)
+    const allAgents = await fetchAgentsLocal(); // Función local que replica la exitosa
     console.log('🔍 [fetchUserAgentAssignments] Fetched agents using working function:', allAgents.length, 'agents');
     console.log('🔍 [fetchUserAgentAssignments] Agent details:', allAgents);
 
