@@ -22,13 +22,12 @@ export interface UserAgentAssignment {
   };
 }
 
-// 🔧 FUNCIÓN LOCAL que replica fetchAgents (que funciona)
-const fetchAgentsLocal = async (companyId?: string) => {
+// 🔧 FUNCIÓN LOCAL que consulta retell_agents (la tabla correcta)
+const fetchRetellAgentsLocal = async (companyId?: string) => {
   try {
     let query = supabase
-      .from("agents")
-      .select("*")
-      .eq("status", "active");
+      .from("retell_agents")
+      .select("*");
     
     if (companyId) {
       query = query.eq("company_id", companyId);
@@ -37,14 +36,14 @@ const fetchAgentsLocal = async (companyId?: string) => {
     const { data, error } = await query;
     
     if (error) {
-      console.error("[LOCAL_FETCH_AGENTS] Error fetching agents:", error);
+      console.error("[LOCAL_FETCH_RETELL_AGENTS] Error fetching retell agents:", error);
       throw error;
     }
     
     return data || [];
   } catch (error: any) {
-    console.error("[LOCAL_FETCH_AGENTS] Error:", error);
-    throw new Error(`Failed to fetch agents: ${error.message}`);
+    console.error("[LOCAL_FETCH_RETELL_AGENTS] Error:", error);
+    throw new Error(`Failed to fetch retell agents: ${error.message}`);
   }
 };
 
@@ -77,10 +76,10 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
 
     console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments, enriching...');
 
-    // 🔧 USAR fetchAgentsLocal (replica de la función que funciona)
-    const allAgents = await fetchAgentsLocal(); // Función local que replica la exitosa
-    console.log('🔍 [fetchUserAgentAssignments] Fetched agents using working function:', allAgents.length, 'agents');
-    console.log('🔍 [fetchUserAgentAssignments] Agent details:', allAgents);
+    // 🔧 USAR fetchRetellAgentsLocal (la tabla correcta donde están los IDs)
+    const allAgents = await fetchRetellAgentsLocal(); // Función que consulta retell_agents
+    console.log('🔍 [fetchUserAgentAssignments] Fetched retell agents:', allAgents.length, 'agents');
+    console.log('🔍 [fetchUserAgentAssignments] Retell agent details:', allAgents);
 
     // Crear un mapa de agentes para lookup rápido
     const agentsMap = new Map(allAgents.map((agent: any) => [agent.id, agent]));
@@ -189,8 +188,8 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
 
     console.log('🔍 [fetchCurrentUserAgentAssignments] Found', assignments.length, 'assignments for current user');
 
-    // 🔧 USAR fetchAgentsLocal también aquí
-    const allAgents = await fetchAgentsLocal();
+    // 🔧 USAR fetchRetellAgentsLocal también aquí
+    const allAgents = await fetchRetellAgentsLocal();
     const agentsMap = new Map(allAgents.map((agent: any) => [agent.id, agent]));
 
     // Enrich assignments with user and agent details
