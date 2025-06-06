@@ -77,10 +77,10 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         console.log('🔍 [fetchUserAgentAssignments] Fallback user from users table:', fallbackUser);
       }
 
-      // 🔧 CORRECCIÓN: Obtener detalles del agente desde custom_ai_agents
+      // 🔧 CORRECCIÓN: Obtener detalles del agente desde 'agents' table (tabla correcta)
       const { data: agentDetails, error: agentError } = await supabase
-        .from('custom_ai_agents')
-        .select('id, retell_agent_id, name, description, status')
+        .from('agents')
+        .select('id, name, description, status')
         .eq('id', assignment.agent_id)
         .single();
 
@@ -108,7 +108,7 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         } : undefined,
         agent_details: agentDetails ? {
           id: agentDetails.id,
-          retell_agent_id: agentDetails.retell_agent_id,
+          retell_agent_id: agentDetails.id, // Usar el mismo ID
           name: agentDetails.name, // 🔧 CORRECCIÓN: Usar el nombre real del agente
           description: agentDetails.description || 'Custom AI Agent',
           status: agentDetails.status || 'active'
@@ -194,10 +194,10 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
         console.log('🔍 [fetchCurrentUserAgentAssignments] Fallback user from users table:', fallbackUser);
       }
 
-      // 🔧 CORRECCIÓN: Obtener detalles del agente desde custom_ai_agents
+      // 🔧 CORRECCIÓN: Obtener detalles del agente desde 'agents' table (tabla correcta)
       const { data: agentDetails, error: agentError } = await supabase
-        .from('custom_ai_agents')
-        .select('id, retell_agent_id, name, description, status')
+        .from('agents')
+        .select('id, name, description, status')
         .eq('id', assignment.agent_id)
         .single();
 
@@ -225,7 +225,7 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
         } : undefined,
         agent_details: agentDetails ? {
           id: agentDetails.id,
-          retell_agent_id: agentDetails.retell_agent_id,
+          retell_agent_id: agentDetails.id, // Usar el mismo ID
           name: agentDetails.name, // 🔧 CORRECCIÓN: Usar el nombre real del agente
           description: agentDetails.description || 'Custom AI Agent',
           status: agentDetails.status || 'active'
