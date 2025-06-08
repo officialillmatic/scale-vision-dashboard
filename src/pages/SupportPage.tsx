@@ -102,7 +102,7 @@ const SupportPage = () => {
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-3">Knowledge Base</h2>
                   <p className="text-gray-600 mb-4">
-                    Explore guides and tutorials to get the most out of Sr Scale.
+                    Explore guides and tutorials to get the most out of Dr Scale.
                   </p>
                   <p className="text-sm font-medium text-gray-700 mb-6">
                     Find answers to common questions
