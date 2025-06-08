@@ -78,7 +78,7 @@ const SupportPage = () => {
                     Send us an email and we'll respond within 24 hours.
                   </p>
                   <p className="text-sm font-medium text-blue-600 mb-6">
-                    support@drscale.com
+                    support@drscaleai.com
                   </p>
                   
                   <Button 
