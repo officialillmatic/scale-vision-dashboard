@@ -194,12 +194,8 @@ serve(async (req) => {
     // Process the webhook event
     const processedData = processWebhookEvent(event, call);
     
-    // Find the agent mapping
-    const { data: agent, error: agentError } = await supabase
-      .from('retell_agents')
-      .select('*')
-      .eq('agent_id', call.agent_id)
-      .single();
+    /// Skip agent lookup for migration - already included in the query
+// (El agente ya viene incluido en call.call_agent)
 
     if (agentError || !agent) {
       console.error(`[WEBHOOK] Agent not found for agent_id: ${call.agent_id}`);
