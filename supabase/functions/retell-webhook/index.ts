@@ -112,10 +112,11 @@ serve(async (req) => {
       console.log(`[WEBHOOK] Processing credits for completed call: ${callId}`);
       
       const creditResult = await processCallCredits(
-        supabase,
-        call,
-        userAgent.user_id
-      );
+  supabase,
+  call,
+  userAgent.user_id,
+  agent.id  // AGREGAR: pasar el agent.id para buscar la tarifa
+);
 
       if (creditResult.error) {
         console.error(`[WEBHOOK] Credit processing failed:`, creditResult.error);
