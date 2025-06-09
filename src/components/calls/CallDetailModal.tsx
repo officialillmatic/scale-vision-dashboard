@@ -306,7 +306,7 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                       <DollarSign className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">Cost:</span>
                       {/* CORRECCIÓN 1: Usar calculateCallCost en lugar de call.cost_usd */}
-                      <span className="text-sm">{formatCurrency(calculateCallCost(call))}</span>
+                      <span className="text-sm">{formatCurrency(calculateCallCost(call, audioDuration))}</span>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -407,7 +407,7 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                       <div className="text-sm font-medium text-green-800">Cost</div>
                       <div className="text-lg font-bold text-green-900">
                         {/* CORRECCIÓN 2: Usar calculateCallCost en lugar de call.cost_usd */}
-                        {formatCurrency(calculateCallCost(call))}
+                        {formatCurrency(calculateCallCost(call, audioDuration))}
                       </div>
                     </div>
                     <div className="p-3 bg-purple-50 rounded-lg">
