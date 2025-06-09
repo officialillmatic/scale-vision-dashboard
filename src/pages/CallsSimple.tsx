@@ -42,6 +42,12 @@ interface Call {
   call_summary?: string;
   sentiment?: string;
   recording_url?: string;
+  // AGREGADO: Campo para el agente con tarifa
+  call_agent?: {
+    id: string;
+    name: string;
+    rate_per_minute: number;
+  };
 }
 
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
@@ -62,7 +68,7 @@ export default function CallsSimple() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
   
-  // 🗓️ NUEVOS ESTADOS PARA FILTRO DE FECHA
+  // Estados para filtro de fecha
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customDate, setCustomDate] = useState<string>('');
   
@@ -74,6 +80,12 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
+  // FUNCIÓN CLAVE: Calcular costo correcto usando tarifa del agente
+  const calculateCallCost = (call: Call) => {
+    const durationMinutes = getCallDuration(call) / 60;
+    const agentRate = call.call_agent?.rate_per_minute || 0;
+    return durationMinutes * agentRate;
+  };
   useEffect(() => {
     if (user?.id) {
       fetchCalls();
@@ -84,7 +96,7 @@ export default function CallsSimple() {
     applyFiltersAndSort();
   }, [calls, searchTerm, statusFilter, sortField, sortOrder, dateFilter, customDate]);
 
-  // 🗓️ FUNCIÓN AUXILIAR PARA FILTRO DE FECHA
+  // Función auxiliar para filtro de fecha
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -223,9 +235,13 @@ export default function CallsSimple() {
 
       console.log("🔍 Fetching calls for user:", user.id);
 
+      // CORRECCIÓN PRINCIPAL: Incluir datos del agente con rate_per_minute
       const { data, error: fetchError } = await supabase
         .from('calls')
-        .select('*')
+        .select(`
+          *,
+          call_agent:agents!calls_agent_id_fkey(id, name, rate_per_minute)
+        `)
         .eq('user_id', user.id)
         .order('timestamp', { ascending: false });
 
@@ -239,37 +255,48 @@ export default function CallsSimple() {
       console.log("📊 Sample call data:", data?.[0]);
       
       if (data && data.length > 0) {
-        console.log("🕐 Duration debug:");
-        console.log("🔍 Available fields in first call:", Object.keys(data[0]));
+        console.log("🔧 Cost calculation debug:");
         
         data.slice(0, 3).forEach((call, i) => {
-          console.log(`Call ${i+1}:`, {
-            call_id: call.call_id.substring(0, 8),
+          const oldCost = call.cost_usd;
+          const newCost = calculateCallCost(call);
+          console.log(`Call ${i+1} (${call.call_id.substring(0, 8)}):`, {
             duration_sec: call.duration_sec,
-            duration: call.duration,
-            call_duration: call.call_duration,
-            length: call.length,
-            time: call.time,
-            typeof_duration: typeof call.duration_sec,
-            is_null: call.duration_sec === null,
-            is_undefined: call.duration_sec === undefined,
-            is_zero: call.duration_sec === 0,
-            all_fields: Object.keys(call)
+            duration_minutes: (call.duration_sec / 60).toFixed(2),
+            agent_rate: call.call_agent?.rate_per_minute,
+            old_cost_from_db: oldCost,
+            new_calculated_cost: newCost,
+            difference: (oldCost - newCost).toFixed(2),
+            savings: oldCost > newCost ? "✅ CORRECTED" : "❌ CHECK"
           });
         });
       }
       
       setCalls(data || []);
 
+      // CORRECCIÓN: Calcular estadísticas usando tarifa del agente
       if (data && data.length > 0) {
-        const totalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+        // Usar la función calculateCallCost para obtener costos correctos
+        const totalCost = data.reduce((sum, call) => {
+          return sum + calculateCallCost(call);
+        }, 0);
+        
         const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
         const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
         const completedCalls = data.filter(call => call.call_status === 'completed').length;
 
+        // Log para comparar costos
+        const oldTotalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+        console.log("💰 Cost comparison:", {
+          old_total_cost: oldTotalCost.toFixed(2),
+          new_calculated_total: totalCost.toFixed(2),
+          difference: (oldTotalCost - totalCost).toFixed(2),
+          status: oldTotalCost > totalCost ? "✅ COSTS REDUCED" : "⚠️ CHECK RATES"
+        });
+
         setStats({
           total: data.length,
-          totalCost,
+          totalCost, // Ahora usa el cálculo correcto
           totalDuration,
           avgDuration,
           completedCalls
@@ -300,7 +327,7 @@ export default function CallsSimple() {
       filtered = filtered.filter(call => call.call_status === statusFilter);
     }
 
-    // 🗓️ APLICAR FILTRO DE FECHA
+    // Aplicar filtro de fecha
     filtered = filtered.filter(call => isDateInRange(call.timestamp));
 
     filtered.sort((a, b) => {
@@ -321,7 +348,6 @@ export default function CallsSimple() {
 
     setFilteredCalls(filtered);
   };
-
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -413,6 +439,7 @@ export default function CallsSimple() {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
+  
   if (!user) {
     return (
       <DashboardLayout>
@@ -424,7 +451,6 @@ export default function CallsSimple() {
       </DashboardLayout>
     );
   }
-
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
@@ -522,8 +548,7 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           </div>
-
-          {/* 🗓️ FILTROS ACTUALIZADOS CON FECHA */}
+          {/* Filtros actualizados con fecha */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4 items-center">
@@ -554,7 +579,7 @@ export default function CallsSimple() {
                   </select>
                 </div>
 
-                {/* 🗓️ NUEVO FILTRO DE FECHA */}
+                {/* Filtro de fecha */}
                 <div className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4 text-gray-500" />
                   <select
@@ -570,7 +595,7 @@ export default function CallsSimple() {
                   </select>
                 </div>
 
-                {/* 🗓️ SELECTOR DE FECHA PERSONALIZADA */}
+                {/* Selector de fecha personalizada */}
                 {dateFilter === 'custom' && (
                   <Input
                     type="date"
@@ -592,6 +617,7 @@ export default function CallsSimple() {
               </div>
             </CardContent>
           </Card>
+
           {/* Professional Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -615,7 +641,7 @@ export default function CallsSimple() {
                       : 'No calls match your current filters'
                     }
                   </p>
-                  {/* 🗓️ SUGERENCIA CUANDO HAY FILTRO DE FECHA ACTIVO */}
+                  {/* Sugerencia cuando hay filtro de fecha activo */}
                   {dateFilter !== 'all' && (
                     <div className="mt-4">
                       <Button 
@@ -719,8 +745,14 @@ export default function CallsSimple() {
                           </td>
                           
                           <td className="px-4 py-4 whitespace-nowrap">
+                            {/* CORRECCIÓN PRINCIPAL: Usar función calculateCallCost */}
                             <div className="text-sm font-medium text-gray-900">
-                              {formatCurrency(call.cost_usd)}
+                              {formatCurrency(calculateCallCost(call))}
+                            </div>
+                            {/* Mostrar comparación para debugging - REMOVER DESPUÉS */}
+                            <div className="text-xs text-gray-500">
+                              DB: {formatCurrency(call.cost_usd)} | 
+                              Rate: ${call.call_agent?.rate_per_minute || 0}/min
                             </div>
                           </td>
                           
@@ -804,7 +836,6 @@ export default function CallsSimple() {
               )}
             </CardContent>
           </Card>
-
           {/* Call Detail Modal */}
           <CallDetailModal 
             call={selectedCall}
