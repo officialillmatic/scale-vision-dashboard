@@ -13,6 +13,8 @@ serve(async (req) => {
   }
 
   try {
+    const body = await req.json();
+if (body.migrate === true || url.searchParams.get('migrate') === 'true') {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -22,7 +24,8 @@ serve(async (req) => {
     const pathname = url.pathname;
 
     // 🆕 NUEVO: Script de migración para procesar llamadas existentes
-    if (pathname.includes('/migrate') || url.searchParams.get('action') === 'migrate') {
+    const body = await req.json();
+if (body.migrate === true || url.searchParams.get('migrate') === 'true') {
       console.log(`[MIGRATION] Starting existing calls processing...`);
 
       if (req.method !== 'POST') {
@@ -194,8 +197,12 @@ serve(async (req) => {
     // Process the webhook event
     const processedData = processWebhookEvent(event, call);
     
-    /// Skip agent lookup for migration - already included in the query
-// (El agente ya viene incluido en call.call_agent)
+    // Find the agent mapping
+    const { data: agent, error: agentError } = await supabase
+      .from('retell_agents')
+      .select('*')
+      .eq('agent_id', call.agent_id)
+      .single();
 
     if (agentError || !agent) {
       console.error(`[WEBHOOK] Agent not found for agent_id: ${call.agent_id}`);
