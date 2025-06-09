@@ -42,8 +42,13 @@ interface Call {
   call_summary?: string;
   sentiment?: string;
   recording_url?: string;
-  // AGREGADO: Campo para el agente con tarifa
+  // OPCIONES PARA AGENTE CON TARIFA (soporta ambas estructuras)
   call_agent?: {
+    id: string;
+    name: string;
+    rate_per_minute: number;
+  };
+  agents?: {
     id: string;
     name: string;
     rate_per_minute: number;
@@ -80,10 +85,25 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // FUNCIÓN CLAVE: Calcular costo correcto usando tarifa del agente
+  // FUNCIÓN CORREGIDA: Calcular costo usando tarifa del agente (soporta ambas estructuras)
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
-    const agentRate = call.call_agent?.rate_per_minute || 0;
+    
+    // Intentar obtener la tarifa del agente de diferentes formas
+    let agentRate = 0;
+    
+    if (call.call_agent?.rate_per_minute) {
+      agentRate = call.call_agent.rate_per_minute;
+    } else if (call.agents?.rate_per_minute) {
+      agentRate = call.agents.rate_per_minute;
+    }
+    
+    // Si no hay tarifa del agente, usar el costo original
+    if (agentRate === 0) {
+      console.warn(`No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
+      return call.cost_usd || 0;
+    }
+    
     return durationMinutes * agentRate;
   };
   useEffect(() => {
@@ -235,17 +255,56 @@ export default function CallsSimple() {
 
       console.log("🔍 Fetching calls for user:", user.id);
 
-      // CORRECCIÓN PRINCIPAL: Incluir datos del agente con rate_per_minute
-      const { data, error: fetchError } = await supabase
+      // OPCIÓN 1: Intentar con la relación directa
+      let { data, error: fetchError } = await supabase
         .from('calls')
         .select(`
           *,
-          call_agent:agents!calls_agent_id_fkey(id, name, rate_per_minute)
+          agents(id, name, rate_per_minute)
         `)
         .eq('user_id', user.id)
         .order('timestamp', { ascending: false });
 
-      if (fetchError) {
+      // OPCIÓN 2: Si falla, usar consulta separada
+      if (fetchError && fetchError.message.includes('relationship')) {
+        console.log("Trying alternative query without join...");
+        
+        const { data: callsData, error: callsError } = await supabase
+          .from('calls')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('timestamp', { ascending: false });
+
+        if (callsError) {
+          console.error("❌ Error fetching calls:", callsError);
+          setError(`Error: ${callsError.message}`);
+          return;
+        }
+
+        // Obtener datos de agentes por separado
+        const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
+        
+        if (agentIds.length > 0) {
+          const { data: agentsData, error: agentsError } = await supabase
+            .from('agents')
+            .select('id, name, rate_per_minute')
+            .in('id', agentIds);
+
+          if (agentsError) {
+            console.warn("⚠️ Could not fetch agents data:", agentsError);
+          }
+
+          // Combinar datos manualmente
+          data = callsData?.map(call => ({
+            ...call,
+            call_agent: agentsData?.find(agent => agent.id === call.agent_id) || null
+          }));
+        } else {
+          data = callsData;
+        }
+      }
+
+      if (fetchError && !data) {
         console.error("❌ Error fetching calls:", fetchError);
         setError(`Error: ${fetchError.message}`);
         return;
@@ -260,10 +319,10 @@ export default function CallsSimple() {
         data.slice(0, 3).forEach((call, i) => {
           const oldCost = call.cost_usd;
           const newCost = calculateCallCost(call);
-          console.log(`Call ${i+1} (${call.call_id.substring(0, 8)}):`, {
+          console.log(`Call ${i+1} (${call.call_id?.substring(0, 8) || 'unknown'}):`, {
             duration_sec: call.duration_sec,
             duration_minutes: (call.duration_sec / 60).toFixed(2),
-            agent_rate: call.call_agent?.rate_per_minute,
+            agent_rate: call.call_agent?.rate_per_minute || call.agents?.rate_per_minute,
             old_cost_from_db: oldCost,
             new_calculated_cost: newCost,
             difference: (oldCost - newCost).toFixed(2),
@@ -749,10 +808,14 @@ export default function CallsSimple() {
                             <div className="text-sm font-medium text-gray-900">
                               {formatCurrency(calculateCallCost(call))}
                             </div>
-                            {/* Mostrar comparación para debugging - REMOVER DESPUÉS */}
+                            {/* Información de debug - REMOVER EN PRODUCCIÓN */}
                             <div className="text-xs text-gray-500">
-                              DB: {formatCurrency(call.cost_usd)} | 
-                              Rate: ${call.call_agent?.rate_per_minute || 0}/min
+                              {(() => {
+                                const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+                                return agentRate ? 
+                                  `${(getCallDuration(call)/60).toFixed(1)}min × $${agentRate}/min` :
+                                  `DB: ${formatCurrency(call.cost_usd)}`;
+                              })()}
                             </div>
                           </td>
                           
