@@ -40,7 +40,7 @@ serve(async (req) => {
         .from('calls')
         .select(`
           *,
-          call_agent:agents!calls_agent_id_fkey(id, name, rate_per_minute)
+          agents!inner(id, name, rate_per_minute)
         `)
         .gt('duration_sec', 0)  // Solo llamadas con duración
         .order('timestamp', { ascending: false });
