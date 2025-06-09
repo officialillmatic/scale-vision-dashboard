@@ -59,9 +59,14 @@ interface CallDetailModalProps {
   audioDuration?: number;
 }
 
-// FUNCIÓN PARA CALCULAR COSTO CORRECTO (igual que en CallsSimple.tsx)
-const calculateCallCost = (call: Call) => {
+// FUNCIÓN PARA CALCULAR COSTO CORRECTO (CORREGIDA para usar audioDuration)
+const calculateCallCost = (call: Call, audioDurationParam?: number) => {
   const getCallDuration = (call: any) => {
+    // PRIORIDAD 1: Usar audioDurationParam si se pasa
+    if (audioDurationParam && audioDurationParam > 0) {
+      return audioDurationParam;
+    }
+    
     const possibleFields = ['duration_sec', 'duration', 'call_duration', 'length', 'time_duration', 'total_duration'];
     for (const field of possibleFields) {
       if (call[field] && call[field] > 0) {
@@ -74,12 +79,13 @@ const calculateCallCost = (call: Call) => {
   const durationMinutes = getCallDuration(call) / 60;
   const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || 0;
   
+  console.log(`💰 Modal calculateCallCost: duration=${getCallDuration(call)}s, rate=$${agentRate}/min, result=$${(durationMinutes * agentRate).toFixed(2)}`);
+  
   if (agentRate === 0) {
     console.warn(`Modal: No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
     return call.cost_usd || 0;
   }
   
-  console.log(`Modal: Calculating cost for call ${call.call_id?.substring(0, 8)}: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${(durationMinutes * agentRate).toFixed(2)}`);
   return durationMinutes * agentRate;
 };
 
