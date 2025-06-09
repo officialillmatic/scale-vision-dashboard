@@ -42,7 +42,6 @@ interface Call {
   call_summary?: string;
   sentiment?: string;
   recording_url?: string;
-  // OPCIONES PARA AGENTE CON TARIFA (soporta ambas estructuras)
   call_agent?: {
     id: string;
     name: string;
@@ -72,11 +71,8 @@ export default function CallsSimple() {
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
-  
-  // Estados para filtro de fecha
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customDate, setCustomDate] = useState<string>('');
-  
   const [stats, setStats] = useState({
     total: 0,
     totalCost: 0,
@@ -85,11 +81,9 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // FUNCIÓN CORREGIDA: Calcular costo usando tarifa del agente (soporta ambas estructuras)
+  // FUNCIÓN CORREGIDA: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
-    
-    // Intentar obtener la tarifa del agente de diferentes formas
     let agentRate = 0;
     
     if (call.call_agent?.rate_per_minute) {
@@ -98,7 +92,6 @@ export default function CallsSimple() {
       agentRate = call.agents.rate_per_minute;
     }
     
-    // Si no hay tarifa del agente, usar el costo original
     if (agentRate === 0) {
       console.warn(`No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
       return call.cost_usd || 0;
@@ -106,6 +99,7 @@ export default function CallsSimple() {
     
     return durationMinutes * agentRate;
   };
+
   useEffect(() => {
     if (user?.id) {
       fetchCalls();
@@ -116,7 +110,6 @@ export default function CallsSimple() {
     applyFiltersAndSort();
   }, [calls, searchTerm, statusFilter, sortField, sortOrder, dateFilter, customDate]);
 
-  // Función auxiliar para filtro de fecha
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -170,17 +163,234 @@ export default function CallsSimple() {
     }
   };
 
+  const getCallDuration = (call: any) => {
+    if (audioDurations[call.id]) {
+      return audioDurations[call.id];
+    }
+    
+    const possibleFields = ['duration_sec', 'duration', 'call_duration', 'length', 'time_duration', 'total_duration'];
+    
+    for (const field of possibleFields) {
+      if (call[field] && call[field] > 0) {
+        return call[field];
+      }
+    }
+    
+    return 0;
+  };
+
+  const fetchCalls = async () => {
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log("🔍 Fetching calls for user:", user.id);
+
+      // PASO 1: Obtener llamadas básicas
+      const { data: callsData, error: callsError } = await supabase
+        .from('calls')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('timestamp', { ascending: false });
+
+      if (callsError) {
+        console.error("❌ Error fetching calls:", callsError);
+        setError(`Error: ${callsError.message}`);
+        return;
+      }
+
+      console.log("✅ Calls fetched successfully:", callsData?.length || 0);
+
+      // PASO 2: Diagnóstico de datos
+      if (callsData && callsData.length > 0) {
+        console.log("🔍 DIAGNOSTIC INFO - Available fields in calls:", Object.keys(callsData[0]));
+        
+        callsData.slice(0, 3).forEach((call, i) => {
+          console.log(`📋 Call ${i+1} fields:`, {
+            call_id: call.call_id?.substring(0, 8),
+            agent_id: call.agent_id,
+            retell_agent_id: call.retell_agent_id,
+            user_id: call.user_id,
+            company_id: call.company_id,
+            duration_sec: call.duration_sec,
+            cost_usd: call.cost_usd,
+            agent_fields: Object.keys(call).filter(key => key.includes('agent'))
+          });
+        });
+      }
+
+      // PASO 3: Obtener TODOS los agentes
+      console.log("🔍 Fetching ALL agents to see what's available...");
+      const { data: allAgents, error: allAgentsError } = await supabase
+        .from('agents')
+        .select('*');
+
+      if (allAgentsError) {
+        console.error("❌ Error fetching agents:", allAgentsError);
+      } else {
+        console.log("📊 ALL AGENTS available:", allAgents?.length);
+        allAgents?.slice(0, 3).forEach((agent, i) => {
+          console.log(`🤖 Agent ${i+1}:`, {
+            id: agent.id,
+            name: agent.name,
+            rate_per_minute: agent.rate_per_minute,
+            retell_agent_id: agent.retell_agent_id,
+            company_id: agent.company_id,
+            all_fields: Object.keys(agent)
+          });
+        });
+      }
+
+      // PASO 4: Conectar agentes con llamadas
+      const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
+      const retellAgentIds = [...new Set(callsData?.map(call => call.retell_agent_id).filter(Boolean))];
+      
+      console.log("🔗 Connection attempt - agent_ids found in calls:", agentIds);
+      console.log("🔗 Connection attempt - retell_agent_ids found in calls:", retellAgentIds);
+
+      let agentsData = [];
+
+      // Método 1: Por agent_id
+      if (agentIds.length > 0) {
+        const { data: agentsByID, error: idError } = await supabase
+          .from('agents')
+          .select('*')
+          .in('id', agentIds);
+
+        if (!idError && agentsByID && agentsByID.length > 0) {
+          agentsData = agentsByID;
+          console.log("✅ SUCCESS: Found agents by agent_id:", agentsData.length);
+        } else {
+          console.log("❌ FAILED: No agents found by agent_id");
+        }
+      }
+
+      // Método 2: Por retell_agent_id
+      if (agentsData.length === 0 && retellAgentIds.length > 0) {
+        const { data: agentsByRetell, error: retellError } = await supabase
+          .from('agents')
+          .select('*')
+          .in('retell_agent_id', retellAgentIds);
+
+        if (!retellError && agentsByRetell && agentsByRetell.length > 0) {
+          agentsData = agentsByRetell;
+          console.log("✅ SUCCESS: Found agents by retell_agent_id:", agentsData.length);
+        } else {
+          console.log("❌ FAILED: No agents found by retell_agent_id");
+        }
+      }
+
+      // Método 3: Por company_id
+      if (agentsData.length === 0 && callsData?.[0]?.company_id) {
+        const { data: agentsByCompany, error: companyError } = await supabase
+          .from('agents')
+          .select('*')
+          .eq('company_id', callsData[0].company_id);
+
+        if (!companyError && agentsByCompany && agentsByCompany.length > 0) {
+          agentsData = agentsByCompany;
+          console.log("✅ SUCCESS: Found agents by company_id:", agentsData.length);
+        } else {
+          console.log("❌ FAILED: No agents found by company_id");
+        }
+      }
+
+      // PASO 5: Mapear agentes a llamadas
+      const data = callsData?.map(call => {
+        let matchedAgent = null;
+
+        if (agentsData) {
+          matchedAgent = agentsData.find(agent => 
+            agent.id === call.agent_id ||
+            agent.retell_agent_id === call.agent_id ||
+            agent.id === call.retell_agent_id ||
+            agent.retell_agent_id === call.retell_agent_id
+          );
+
+          if (!matchedAgent && agentsData.length === 1) {
+            matchedAgent = agentsData[0];
+            console.log(`🔄 Using fallback agent for call ${call.call_id?.substring(0, 8)}`);
+          }
+        }
+
+        return {
+          ...call,
+          call_agent: matchedAgent ? {
+            id: matchedAgent.id,
+            name: matchedAgent.name,
+            rate_per_minute: matchedAgent.rate_per_minute
+          } : null
+        };
+      });
+
+      // PASO 6: Diagnóstico final
+      console.log("🔧 FINAL DIAGNOSTIC - Cost calculation preview:");
+      data?.slice(0, 3).forEach((call, i) => {
+        const duration = getCallDuration(call);
+        const durationMinutes = duration / 60;
+        const agentRate = call.call_agent?.rate_per_minute || 0;
+        const calculatedCost = durationMinutes * agentRate;
+        
+        console.log(`💰 Call ${i+1} (${call.call_id?.substring(0, 8)}):`, {
+          duration_sec: duration,
+          duration_minutes: durationMinutes.toFixed(2),
+          agent_found: !!call.call_agent,
+          agent_name: call.call_agent?.name,
+          agent_rate: agentRate,
+          db_cost: call.cost_usd,
+          calculated_cost: calculatedCost.toFixed(4),
+          will_use: agentRate > 0 ? 'CALCULATED' : 'DB_COST'
+        });
+      });
+      
+      setCalls(data || []);
+
+      // Calcular estadísticas
+      if (data && data.length > 0) {
+        const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
+        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
+        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
+        const completedCalls = data.filter(call => call.call_status === 'completed').length;
+
+        const oldTotalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+        console.log("💰 FINAL COST COMPARISON:", {
+          old_total_cost: oldTotalCost.toFixed(2),
+          new_calculated_total: totalCost.toFixed(2),
+          difference: (oldTotalCost - totalCost).toFixed(2),
+          calls_with_agent_rate: data.filter(call => call.call_agent?.rate_per_minute > 0).length,
+          total_calls: data.length
+        });
+
+        setStats({
+          total: data.length,
+          totalCost,
+          totalDuration,
+          avgDuration,
+          completedCalls
+        });
+      }
+
+    } catch (err: any) {
+      console.error("❌ Exception fetching calls:", err);
+      setError(`Exception: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
     
     try {
-      console.log(`🎵 Loading audio duration for call ${call.call_id.substring(0, 8)}...`);
       const audio = new Audio(call.recording_url);
-      
       return new Promise<void>((resolve) => {
         audio.addEventListener('loadedmetadata', () => {
           const duration = Math.round(audio.duration);
-          console.log(`🎵 Audio duration loaded: ${duration}s for call ${call.call_id.substring(0, 8)}`);
           setAudioDurations(prev => ({
             ...prev,
             [call.id]: duration
@@ -189,7 +399,6 @@ export default function CallsSimple() {
         });
         
         audio.addEventListener('error', () => {
-          console.log(`❌ Failed to load audio for call ${call.call_id.substring(0, 8)}`);
           resolve();
         });
       });
@@ -201,7 +410,6 @@ export default function CallsSimple() {
   useEffect(() => {
     const loadAllAudioDurations = async () => {
       const callsWithAudio = calls.filter(call => call.recording_url);
-      console.log(`🎵 Found ${callsWithAudio.length} calls with recording URLs`);
       
       for (let i = 0; i < callsWithAudio.length; i += 3) {
         const batch = callsWithAudio.slice(i, i + 3);
@@ -216,242 +424,6 @@ export default function CallsSimple() {
       loadAllAudioDurations();
     }
   }, [calls]);
-
-  const getCallDuration = (call: any) => {
-    if (audioDurations[call.id]) {
-      console.log(`🎵 Using audio duration for call ${call.call_id.substring(0, 8)}: ${audioDurations[call.id]}s`);
-      return audioDurations[call.id];
-    }
-    
-    const possibleFields = [
-      'duration_sec',
-      'duration', 
-      'call_duration',
-      'length',
-      'time_duration',
-      'total_duration'
-    ];
-    
-    for (const field of possibleFields) {
-      if (call[field] && call[field] > 0) {
-        console.log(`🕐 Found non-zero duration in field '${field}':`, call[field]);
-        return call[field];
-      }
-    }
-    
-    console.log("🕐 No duration found, using 0");
-    return 0;
-  };
-  const fetchCalls = async () => {
-  if (!user?.id) {
-    setError("User not authenticated");
-    setLoading(false);
-    return;
-  }
-
-  try {
-    setLoading(true);
-    setError(null);
-
-    console.log("🔍 Fetching calls for user:", user.id);
-
-    // PASO 1: Obtener llamadas básicas primero
-    const { data: callsData, error: callsError } = await supabase
-      .from('calls')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('timestamp', { ascending: false });
-
-    if (callsError) {
-      console.error("❌ Error fetching calls:", callsError);
-      setError(`Error: ${callsError.message}`);
-      return;
-    }
-
-    console.log("✅ Calls fetched successfully:", callsData?.length || 0);
-
-    // PASO 2: Diagnóstico completo de los datos
-    if (callsData && callsData.length > 0) {
-      console.log("🔍 DIAGNOSTIC INFO - Available fields in calls:", Object.keys(callsData[0]));
-      
-      // Verificar campos de agente en las llamadas
-      callsData.slice(0, 3).forEach((call, i) => {
-        console.log(`📋 Call ${i+1} fields:`, {
-          call_id: call.call_id?.substring(0, 8),
-          agent_id: call.agent_id,
-          retell_agent_id: call.retell_agent_id,
-          user_id: call.user_id,
-          company_id: call.company_id,
-          duration_sec: call.duration_sec,
-          cost_usd: call.cost_usd,
-          agent_fields: Object.keys(call).filter(key => key.includes('agent'))
-        });
-      });
-    }
-
-    // PASO 3: Obtener TODOS los agentes para verificar qué hay disponible
-    console.log("🔍 Fetching ALL agents to see what's available...");
-    const { data: allAgents, error: allAgentsError } = await supabase
-      .from('agents')
-      .select('*');
-
-    if (allAgentsError) {
-      console.error("❌ Error fetching agents:", allAgentsError);
-    } else {
-      console.log("📊 ALL AGENTS available:", allAgents?.length);
-      allAgents?.slice(0, 3).forEach((agent, i) => {
-        console.log(`🤖 Agent ${i+1}:`, {
-          id: agent.id,
-          name: agent.name,
-          rate_per_minute: agent.rate_per_minute,
-          retell_agent_id: agent.retell_agent_id,
-          company_id: agent.company_id,
-          all_fields: Object.keys(agent)
-        });
-      });
-    }
-
-    // PASO 4: Intentar diferentes métodos de conexión
-    const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
-    const retellAgentIds = [...new Set(callsData?.map(call => call.retell_agent_id).filter(Boolean))];
-    
-    console.log("🔗 Connection attempt - agent_ids found in calls:", agentIds);
-    console.log("🔗 Connection attempt - retell_agent_ids found in calls:", retellAgentIds);
-
-    let agentsData = [];
-
-    // Método 1: Por agent_id
-    if (agentIds.length > 0) {
-      const { data: agentsByID, error: idError } = await supabase
-        .from('agents')
-        .select('*')
-        .in('id', agentIds);
-
-      if (!idError && agentsByID && agentsByID.length > 0) {
-        agentsData = agentsByID;
-        console.log("✅ SUCCESS: Found agents by agent_id:", agentsData.length);
-      } else {
-        console.log("❌ FAILED: No agents found by agent_id");
-      }
-    }
-
-    // Método 2: Por retell_agent_id si el método 1 falló
-    if (agentsData.length === 0 && retellAgentIds.length > 0) {
-      const { data: agentsByRetell, error: retellError } = await supabase
-        .from('agents')
-        .select('*')
-        .in('retell_agent_id', retellAgentIds);
-
-      if (!retellError && agentsByRetell && agentsByRetell.length > 0) {
-        agentsData = agentsByRetell;
-        console.log("✅ SUCCESS: Found agents by retell_agent_id:", agentsData.length);
-      } else {
-        console.log("❌ FAILED: No agents found by retell_agent_id");
-      }
-    }
-
-    // Método 3: Buscar por company_id si todo lo demás falla
-    if (agentsData.length === 0 && callsData?.[0]?.company_id) {
-      const { data: agentsByCompany, error: companyError } = await supabase
-        .from('agents')
-        .select('*')
-        .eq('company_id', callsData[0].company_id);
-
-      if (!companyError && agentsByCompany && agentsByCompany.length > 0) {
-        agentsData = agentsByCompany;
-        console.log("✅ SUCCESS: Found agents by company_id:", agentsData.length);
-      } else {
-        console.log("❌ FAILED: No agents found by company_id");
-      }
-    }
-
-    // PASO 5: Mapear agentes a llamadas
-    const data = callsData?.map(call => {
-      let matchedAgent = null;
-
-      // Intentar diferentes métodos de matching
-      if (agentsData) {
-        matchedAgent = agentsData.find(agent => 
-          agent.id === call.agent_id ||
-          agent.retell_agent_id === call.agent_id ||
-          agent.id === call.retell_agent_id ||
-          agent.retell_agent_id === call.retell_agent_id
-        );
-
-        // Si no encuentra por ID, usar el primer agente de la compañía (fallback)
-        if (!matchedAgent && agentsData.length === 1) {
-          matchedAgent = agentsData[0];
-          console.log(`🔄 Using fallback agent for call ${call.call_id?.substring(0, 8)}`);
-        }
-      }
-
-      return {
-        ...call,
-        call_agent: matchedAgent ? {
-          id: matchedAgent.id,
-          name: matchedAgent.name,
-          rate_per_minute: matchedAgent.rate_per_minute
-        } : null
-      };
-    });
-
-    // PASO 6: Diagnóstico final
-    console.log("🔧 FINAL DIAGNOSTIC - Cost calculation preview:");
-    data?.slice(0, 3).forEach((call, i) => {
-      const duration = getCallDuration(call);
-      const durationMinutes = duration / 60;
-      const agentRate = call.call_agent?.rate_per_minute || 0;
-      const calculatedCost = durationMinutes * agentRate;
-      
-      console.log(`💰 Call ${i+1} (${call.call_id?.substring(0, 8)}):`, {
-        duration_sec: duration,
-        duration_minutes: durationMinutes.toFixed(2),
-        agent_found: !!call.call_agent,
-        agent_name: call.call_agent?.name,
-        agent_rate: agentRate,
-        db_cost: call.cost_usd,
-        calculated_cost: calculatedCost.toFixed(4),
-        will_use: agentRate > 0 ? 'CALCULATED' : 'DB_COST'
-      });
-    });
-    
-    setCalls(data || []);
-
-    // Calcular estadísticas
-    if (data && data.length > 0) {
-      const totalCost = data.reduce((sum, call) => {
-        return sum + calculateCallCost(call);
-      }, 0);
-      
-      const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
-      const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-      const completedCalls = data.filter(call => call.call_status === 'completed').length;
-
-      const oldTotalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-      console.log("💰 FINAL COST COMPARISON:", {
-        old_total_cost: oldTotalCost.toFixed(2),
-        new_calculated_total: totalCost.toFixed(2),
-        difference: (oldTotalCost - totalCost).toFixed(2),
-        calls_with_agent_rate: data.filter(call => call.call_agent?.rate_per_minute > 0).length,
-        total_calls: data.length
-      });
-
-      setStats({
-        total: data.length,
-        totalCost,
-        totalDuration,
-        avgDuration,
-        completedCalls
-      });
-    }
-
-  } catch (err: any) {
-    console.error("❌ Exception fetching calls:", err);
-    setError(`Exception: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
 
   const applyFiltersAndSort = () => {
     let filtered = [...calls];
@@ -469,7 +441,6 @@ export default function CallsSimple() {
       filtered = filtered.filter(call => call.call_status === statusFilter);
     }
 
-    // Aplicar filtro de fecha
     filtered = filtered.filter(call => isDateInRange(call.timestamp));
 
     filtered.sort((a, b) => {
@@ -490,6 +461,7 @@ export default function CallsSimple() {
 
     setFilteredCalls(filtered);
   };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -593,6 +565,7 @@ export default function CallsSimple() {
       </DashboardLayout>
     );
   }
+
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
@@ -690,7 +663,8 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           </div>
-          {/* Filtros actualizados con fecha */}
+
+          {/* Filtros */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4 items-center">
@@ -704,7 +678,6 @@ export default function CallsSimple() {
                   />
                 </div>
                 
-                {/* Status Filter */}
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-gray-500" />
                   <select
@@ -721,7 +694,6 @@ export default function CallsSimple() {
                   </select>
                 </div>
 
-                {/* Filtro de fecha */}
                 <div className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4 text-gray-500" />
                   <select
@@ -737,7 +709,6 @@ export default function CallsSimple() {
                   </select>
                 </div>
 
-                {/* Selector de fecha personalizada */}
                 {dateFilter === 'custom' && (
                   <Input
                     type="date"
@@ -747,7 +718,6 @@ export default function CallsSimple() {
                   />
                 )}
 
-                {/* Info Text */}
                 <div className="text-sm text-gray-500 whitespace-nowrap">
                   {dateFilter !== 'all' && (
                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 mr-2">
@@ -760,7 +730,7 @@ export default function CallsSimple() {
             </CardContent>
           </Card>
 
-          {/* Professional Calls Table */}
+          {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
@@ -783,7 +753,6 @@ export default function CallsSimple() {
                       : 'No calls match your current filters'
                     }
                   </p>
-                  {/* Sugerencia cuando hay filtro de fecha activo */}
                   {dateFilter !== 'all' && (
                     <div className="mt-4">
                       <Button 
@@ -891,7 +860,7 @@ export default function CallsSimple() {
                             <div className="text-sm font-medium text-gray-900">
                               {formatCurrency(calculateCallCost(call))}
                             </div>
-                            {/* Información de debug - REMOVER EN PRODUCCIÓN */}
+                            {/* Información de debug */}
                             <div className="text-xs text-gray-500">
                               {(() => {
                                 const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
@@ -982,6 +951,7 @@ export default function CallsSimple() {
               )}
             </CardContent>
           </Card>
+
           {/* Call Detail Modal */}
           <CallDetailModal 
             call={selectedCall}
