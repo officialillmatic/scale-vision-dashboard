@@ -35,13 +35,10 @@ serve(async (req) => {
         });
       }
 
-      // Get all calls that need processing
+      // Get all calls that need processing (SIN JOIN)
       const { data: calls, error: callsError } = await supabase
         .from('calls')
-        .select(`
-          *,
-          agents!inner(id, name, rate_per_minute)
-        `)
+        .select('*')
         .gt('duration_sec', 0)  // Solo llamadas con duración
         .order('timestamp', { ascending: false });
 
@@ -53,7 +50,24 @@ serve(async (req) => {
         });
       }
 
+      // Obtener todos los agentes por separado
+      const { data: agents, error: agentsError } = await supabase
+        .from('agents')
+        .select('id, name, rate_per_minute');
+
+      if (agentsError) {
+        console.error('[MIGRATION] Error fetching agents:', agentsError);
+        return new Response(JSON.stringify({ error: 'Error fetching agents', details: agentsError }), { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Crear mapa de agentes para búsqueda rápida
+      const agentsMap = new Map(agents?.map(agent => [agent.id, agent]) || []);
+
       console.log(`[MIGRATION] Found ${calls?.length || 0} calls to process`);
+      console.log(`[MIGRATION] Found ${agents?.length || 0} agents available`);
 
       let processed = 0;
       let failed = 0;
@@ -66,13 +80,22 @@ serve(async (req) => {
           try {
             console.log(`[MIGRATION] Processing call ${call.call_id} for user ${call.user_id}`);
             
+            // Buscar el agente correspondiente
+            const agent = agentsMap.get(call.agent_id);
+            
+            if (!agent) {
+              console.log(`[MIGRATION] Skipping call ${call.call_id} - agent not found: ${call.agent_id}`);
+              skipped++;
+              continue;
+            }
+
             // Calcular costo correcto
             const durationMinutes = call.duration_sec / 60;
-            const agentRate = call.call_agent?.rate_per_minute || 0;
+            const agentRate = agent.rate_per_minute || 0;
             const calculatedCost = durationMinutes * agentRate;
 
             if (calculatedCost <= 0) {
-              console.log(`[MIGRATION] Skipping call ${call.call_id} - no cost calculated`);
+              console.log(`[MIGRATION] Skipping call ${call.call_id} - no cost calculated (rate: ${agentRate})`);
               skipped++;
               continue;
             }
@@ -110,7 +133,7 @@ serve(async (req) => {
               results.push({
                 call_id: call.call_id,
                 user_id: call.user_id,
-                agent_name: call.call_agent?.name || 'Unknown',
+                agent_name: agent.name || 'Unknown',
                 duration_minutes: durationMinutes.toFixed(2),
                 rate_per_minute: agentRate,
                 calculated_cost: calculatedCost.toFixed(4),
@@ -125,6 +148,7 @@ serve(async (req) => {
               results.push({
                 call_id: call.call_id,
                 user_id: call.user_id,
+                agent_name: agent.name || 'Unknown',
                 error: creditResult.error,
                 status: 'failed'
               });
