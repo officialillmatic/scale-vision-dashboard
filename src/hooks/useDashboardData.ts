@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -57,9 +56,13 @@ export function useDashboardData() {
       }
 
       try {
+        // MODIFICACIÓN: Incluir datos del agente en la consulta
         let query = supabase
           .from('calls')
-          .select('*')
+          .select(`
+            *,
+            call_agent:agents!calls_agent_id_fkey(id, name, rate_per_minute)
+          `)
           .gte('timestamp', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
 
         // Filter by company for non-super admins
@@ -94,26 +97,36 @@ export function useDashboardData() {
         }
 
         const totalCalls = calls?.length || 0;
-        const totalCost = calls?.reduce((sum, call) => sum + (call.cost_usd || 0), 0) || 0;
         const totalSeconds = calls?.reduce((sum, call) => sum + (call.duration_sec || 0), 0) || 0;
         const totalMinutes = Math.round(totalSeconds / 60);
         const avgDuration = totalCalls > 0 ? totalSeconds / totalCalls : 0;
 
-        // Calculate agent usage
+        // CORRECCIÓN: Calcular costo total usando tarifa del agente
+        const totalCost = calls?.reduce((sum, call) => {
+          const durationMinutes = (call.duration_sec || 0) / 60;
+          const agentRate = call.call_agent?.rate_per_minute || 0;
+          return sum + (durationMinutes * agentRate);
+        }, 0) || 0;
+
+        // CORRECCIÓN: Calculate agent usage con cálculo correcto de costos
         const agentUsageMap = new Map<string, AgentUsage>();
         calls?.forEach(call => {
-          if (call.agent_id) {
+          if (call.agent_id && call.call_agent) {
             const existing = agentUsageMap.get(call.agent_id) || {
               id: call.agent_id,
-              name: 'Unknown Agent',
+              name: call.call_agent.name || 'Unknown Agent',
               calls: 0,
               minutes: 0,
               cost: 0
             };
             
+            const durationMinutes = (call.duration_sec || 0) / 60;
+            const agentRate = call.call_agent.rate_per_minute || 0;
+            
             existing.calls += 1;
-            existing.minutes += (call.duration_sec || 0) / 60;
-            existing.cost += call.cost_usd || 0;
+            existing.minutes += durationMinutes;
+            // CORRECCIÓN CLAVE: Usar tarifa del agente para calcular costo
+            existing.cost += durationMinutes * agentRate;
             
             agentUsageMap.set(call.agent_id, existing);
           }
@@ -131,13 +144,18 @@ export function useDashboardData() {
           count
         }));
 
-        // Calculate chart data (daily aggregation)
+        // CORRECCIÓN: Calculate chart data con cálculo correcto de costos
         const chartMap = new Map<string, { calls: number; cost: number }>();
         calls?.forEach(call => {
           const date = new Date(call.timestamp).toISOString().split('T')[0];
           const existing = chartMap.get(date) || { calls: 0, cost: 0 };
+          
+          const durationMinutes = (call.duration_sec || 0) / 60;
+          const agentRate = call.call_agent?.rate_per_minute || 0;
+          
           existing.calls += 1;
-          existing.cost += call.cost_usd || 0;
+          // CORRECCIÓN CLAVE: Usar tarifa del agente para calcular costo
+          existing.cost += durationMinutes * agentRate;
           chartMap.set(date, existing);
         });
 
