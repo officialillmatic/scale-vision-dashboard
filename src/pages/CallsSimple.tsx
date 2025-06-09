@@ -924,12 +924,21 @@ if (agentIds.length > 0) {
           </Card>
 
           {/* Call Detail Modal */}
-          <CallDetailModal 
-            call={selectedCall}
-            isOpen={isModalOpen}
-            onClose={handleModalClose}
-            audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
-          />
+          {/* DEBUG: Ver qué datos tiene selectedCall */}
+{selectedCall && console.log("🔍 Modal - Selected call data:", {
+  call_id: selectedCall.call_id?.substring(0, 8),
+  cost_usd: selectedCall.cost_usd,
+  call_agent: selectedCall.call_agent,
+  agents: selectedCall.agents,
+  duration_sec: selectedCall.duration_sec
+})}
+
+<CallDetailModal 
+  call={selectedCall}
+  isOpen={isModalOpen}
+  onClose={handleModalClose}
+  audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
+/>
         </div>
       </div>
     </DashboardLayout>
