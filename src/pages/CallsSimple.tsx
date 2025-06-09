@@ -191,6 +191,7 @@ export default function CallsSimple() {
       setError(null);
 
       console.log("🔍 Fetching calls for user:", user.id);
+      console.log("🚀 NEW DIAGNOSTIC FUNCTION IS RUNNING - v2.0"); // NUEVO LOG
 
       // PASO 1: Obtener llamadas básicas
       const { data: callsData, error: callsError } = await supabase
