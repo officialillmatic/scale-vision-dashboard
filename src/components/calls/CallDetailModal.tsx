@@ -39,6 +39,17 @@ interface Call {
   call_summary?: string;
   sentiment?: string;
   recording_url?: string;
+  // AGREGADO: Campos para el agente con tarifa
+  call_agent?: {
+    id: string;
+    name: string;
+    rate_per_minute: number;
+  };
+  agents?: {
+    id: string;
+    name: string;
+    rate_per_minute: number;
+  };
 }
 
 interface CallDetailModalProps {
@@ -47,6 +58,30 @@ interface CallDetailModalProps {
   onClose: () => void;
   audioDuration?: number;
 }
+
+// FUNCIÓN PARA CALCULAR COSTO CORRECTO (igual que en CallsSimple.tsx)
+const calculateCallCost = (call: Call) => {
+  const getCallDuration = (call: any) => {
+    const possibleFields = ['duration_sec', 'duration', 'call_duration', 'length', 'time_duration', 'total_duration'];
+    for (const field of possibleFields) {
+      if (call[field] && call[field] > 0) {
+        return call[field];
+      }
+    }
+    return 0;
+  };
+
+  const durationMinutes = getCallDuration(call) / 60;
+  const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || 0;
+  
+  if (agentRate === 0) {
+    console.warn(`Modal: No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
+    return call.cost_usd || 0;
+  }
+  
+  console.log(`Modal: Calculating cost for call ${call.call_id?.substring(0, 8)}: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${(durationMinutes * agentRate).toFixed(2)}`);
+  return durationMinutes * agentRate;
+};
 
 export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   call,
@@ -209,6 +244,11 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   console.log("🎵 Recording URL:", call.recording_url);
   console.log("🎵 Duration sec:", call.duration_sec, typeof call.duration_sec);
   console.log("🎵 Raw call object keys:", Object.keys(call));
+  console.log("💰 Modal cost calculation:", {
+    original_cost: call.cost_usd,
+    calculated_cost: calculateCallCost(call),
+    agent_rate: call.call_agent?.rate_per_minute || call.agents?.rate_per_minute
+  });
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -259,7 +299,8 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">Cost:</span>
-                      <span className="text-sm">{formatCurrency(call.cost_usd)}</span>
+                      {/* CORRECCIÓN 1: Usar calculateCallCost en lugar de call.cost_usd */}
+                      <span className="text-sm">{formatCurrency(calculateCallCost(call))}</span>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -359,7 +400,8 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                       <DollarSign className="h-6 w-6 text-green-600 mx-auto mb-1" />
                       <div className="text-sm font-medium text-green-800">Cost</div>
                       <div className="text-lg font-bold text-green-900">
-                        {formatCurrency(call.cost_usd)}
+                        {/* CORRECCIÓN 2: Usar calculateCallCost en lugar de call.cost_usd */}
+                        {formatCurrency(calculateCallCost(call))}
                       </div>
                     </div>
                     <div className="p-3 bg-purple-50 rounded-lg">
