@@ -250,6 +250,31 @@ try {
 console.log("🔧 FIN DEL DIAGNÓSTICO");
 console.log("==========================================");
 // FIN DIAGNÓSTICO TEMPORAL
+      // 🔍 VERIFICACIÓN DE USER ID - AGREGAR ESTE CÓDIGO
+console.log("🔍 USER ID EXACTO:", JSON.stringify(user.id));
+console.log("🔍 USER ID LENGTH:", user.id.length);
+console.log("🔍 USER COMPLETO:", JSON.stringify(user));
+
+// 🔄 FORZAR REFRESH CON USER_ID FIJO
+console.log("🔄 FORZANDO REFRESH DE LLAMADAS...");
+const { data: llamadasForzadas, error: errorForzado } = await supabase
+  .from('calls')
+  .select('*')
+  .eq('user_id', 'efe4f9c1-8322-4ce7-8193-69b0dc982003')  // User ID fijo
+  .order('timestamp', { ascending: false });
+
+console.log("📊 Llamadas con user_id fijo:", llamadasForzadas?.length);
+if (llamadasForzadas && llamadasForzadas.length > 0) {
+  console.log("✅ SÍ HAY LLAMADAS - El problema es que user.id no coincide");
+  console.log("🔍 Comparar user.id vs user_id fijo:");
+  console.log("   Frontend user.id:", user.id);
+  console.log("   BD user_id:     ", "efe4f9c1-8322-4ce7-8193-69b0dc982003");
+  console.log("   ¿Son iguales?:", user.id === "efe4f9c1-8322-4ce7-8193-69b0dc982003");
+} else {
+  console.log("❌ Ni siquiera con user_id fijo encuentra llamadas");
+}
+console.log("🔧 FIN VERIFICACIÓN USER ID");
+// FIN VERIFICACIÓN USER ID
       console.log("🔍 Fetching calls for user:", user.id);
       console.log("🚀 NEW DIAGNOSTIC FUNCTION IS RUNNING - v2.0"); // NUEVO LOG
 
