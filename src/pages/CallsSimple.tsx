@@ -443,9 +443,17 @@ if (agentIds.length > 0) {
   };
 
   const handleCallClick = (call: Call) => {
-    setSelectedCall(call);
-    setIsModalOpen(true);
-  };
+  // CORRECCIÓN: Buscar la llamada original con datos del agente
+  const originalCall = calls.find(c => c.id === call.id) || call;
+  console.log("🔍 HandleCallClick - Original call data:", {
+    call_id: originalCall.call_id?.substring(0, 8),
+    call_agent: originalCall.call_agent,
+    agents: originalCall.agents,
+    duration_sec: originalCall.duration_sec
+  });
+  setSelectedCall(originalCall);
+  setIsModalOpen(true);
+};
 
   const handleModalClose = () => {
     setIsModalOpen(false);
