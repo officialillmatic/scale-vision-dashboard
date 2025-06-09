@@ -190,6 +190,66 @@ export default function CallsSimple() {
       setLoading(true);
       setError(null);
 
+      // 🔧 DIAGNÓSTICO TEMPORAL - AGREGAR ESTAS LÍNEAS
+console.log("🚀 INICIANDO DIAGNÓSTICO...");
+console.log("👤 Usuario logueado:", {
+  id: user.id,
+  email: user.email || 'N/A'
+});
+
+try {
+  // CONSULTA SIN FILTRO PARA VER TODAS LAS LLAMADAS
+  console.log("📞 Consultando TODAS las llamadas...");
+  const { data: todasLasLlamadas, error: errorTodas } = await supabase
+    .from('calls')
+    .select('id, call_id, user_id, timestamp, from_number, to_number')
+    .order('timestamp', { ascending: false })
+    .limit(10);
+
+  if (errorTodas) {
+    console.error("❌ Error consultando todas las llamadas:", errorTodas);
+  } else {
+    console.log("✅ Llamadas encontradas:", todasLasLlamadas?.length || 0);
+    
+    if (todasLasLlamadas && todasLasLlamadas.length > 0) {
+      // Mostrar user_ids únicos
+      const userIds = [...new Set(todasLasLlamadas.map(call => call.user_id))];
+      console.log("🔍 User IDs únicos en la BD:", userIds);
+      
+      // Contar por user_id
+      userIds.forEach(userId => {
+        const count = todasLasLlamadas.filter(call => call.user_id === userId).length;
+        const esTuUsuario = userId === user.id;
+        console.log(`${esTuUsuario ? '👤 TU USUARIO' : '👥'} ${userId}: ${count} llamadas`);
+      });
+
+      // Mostrar primeras 3 llamadas
+      console.log("📋 Primeras 3 llamadas:");
+      todasLasLlamadas.slice(0, 3).forEach((call, i) => {
+        console.log(`  ${i+1}. Call ID: ${call.call_id?.substring(0, 12)} | User: ${call.user_id} | From: ${call.from_number}`);
+      });
+
+      // Contar llamadas del usuario actual
+      const llamadasDelUsuario = todasLasLlamadas.filter(call => call.user_id === user.id);
+      console.log(`🎯 Llamadas asignadas a tu usuario: ${llamadasDelUsuario.length}`);
+      
+      if (llamadasDelUsuario.length === 0) {
+        console.log("❌ PROBLEMA IDENTIFICADO: No tienes llamadas asignadas");
+        console.log("💡 Las llamadas están asignadas a otros user_ids");
+      } else {
+        console.log("✅ Tienes llamadas asignadas correctamente");
+      }
+    } else {
+      console.log("❌ No hay llamadas en la base de datos");
+    }
+  }
+} catch (diagError) {
+  console.error("❌ Error en diagnóstico:", diagError);
+}
+
+console.log("🔧 FIN DEL DIAGNÓSTICO");
+console.log("==========================================");
+// FIN DIAGNÓSTICO TEMPORAL
       console.log("🔍 Fetching calls for user:", user.id);
       console.log("🚀 NEW DIAGNOSTIC FUNCTION IS RUNNING - v2.0"); // NUEVO LOG
 
