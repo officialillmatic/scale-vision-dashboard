@@ -243,132 +243,215 @@ export default function CallsSimple() {
     return 0;
   };
   const fetchCalls = async () => {
-    if (!user?.id) {
-      setError("User not authenticated");
-      setLoading(false);
+  if (!user?.id) {
+    setError("User not authenticated");
+    setLoading(false);
+    return;
+  }
+
+  try {
+    setLoading(true);
+    setError(null);
+
+    console.log("🔍 Fetching calls for user:", user.id);
+
+    // PASO 1: Obtener llamadas básicas primero
+    const { data: callsData, error: callsError } = await supabase
+      .from('calls')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('timestamp', { ascending: false });
+
+    if (callsError) {
+      console.error("❌ Error fetching calls:", callsError);
+      setError(`Error: ${callsError.message}`);
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
+    console.log("✅ Calls fetched successfully:", callsData?.length || 0);
 
-      console.log("🔍 Fetching calls for user:", user.id);
-
-      // OPCIÓN 1: Intentar con la relación directa
-      let { data, error: fetchError } = await supabase
-        .from('calls')
-        .select(`
-          *,
-          agents(id, name, rate_per_minute)
-        `)
-        .eq('user_id', user.id)
-        .order('timestamp', { ascending: false });
-
-      // OPCIÓN 2: Si falla, usar consulta separada
-      if (fetchError && fetchError.message.includes('relationship')) {
-        console.log("Trying alternative query without join...");
-        
-        const { data: callsData, error: callsError } = await supabase
-          .from('calls')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('timestamp', { ascending: false });
-
-        if (callsError) {
-          console.error("❌ Error fetching calls:", callsError);
-          setError(`Error: ${callsError.message}`);
-          return;
-        }
-
-        // Obtener datos de agentes por separado
-        const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
-        
-        if (agentIds.length > 0) {
-          const { data: agentsData, error: agentsError } = await supabase
-            .from('agents')
-            .select('id, name, rate_per_minute')
-            .in('id', agentIds);
-
-          if (agentsError) {
-            console.warn("⚠️ Could not fetch agents data:", agentsError);
-          }
-
-          // Combinar datos manualmente
-          data = callsData?.map(call => ({
-            ...call,
-            call_agent: agentsData?.find(agent => agent.id === call.agent_id) || null
-          }));
-        } else {
-          data = callsData;
-        }
-      }
-
-      if (fetchError && !data) {
-        console.error("❌ Error fetching calls:", fetchError);
-        setError(`Error: ${fetchError.message}`);
-        return;
-      }
-
-      console.log("✅ Calls fetched successfully:", data?.length || 0);
-      console.log("📊 Sample call data:", data?.[0]);
+    // PASO 2: Diagnóstico completo de los datos
+    if (callsData && callsData.length > 0) {
+      console.log("🔍 DIAGNOSTIC INFO - Available fields in calls:", Object.keys(callsData[0]));
       
-      if (data && data.length > 0) {
-        console.log("🔧 Cost calculation debug:");
-        
-        data.slice(0, 3).forEach((call, i) => {
-          const oldCost = call.cost_usd;
-          const newCost = calculateCallCost(call);
-          console.log(`Call ${i+1} (${call.call_id?.substring(0, 8) || 'unknown'}):`, {
-            duration_sec: call.duration_sec,
-            duration_minutes: (call.duration_sec / 60).toFixed(2),
-            agent_rate: call.call_agent?.rate_per_minute || call.agents?.rate_per_minute,
-            old_cost_from_db: oldCost,
-            new_calculated_cost: newCost,
-            difference: (oldCost - newCost).toFixed(2),
-            savings: oldCost > newCost ? "✅ CORRECTED" : "❌ CHECK"
-          });
+      // Verificar campos de agente en las llamadas
+      callsData.slice(0, 3).forEach((call, i) => {
+        console.log(`📋 Call ${i+1} fields:`, {
+          call_id: call.call_id?.substring(0, 8),
+          agent_id: call.agent_id,
+          retell_agent_id: call.retell_agent_id,
+          user_id: call.user_id,
+          company_id: call.company_id,
+          duration_sec: call.duration_sec,
+          cost_usd: call.cost_usd,
+          agent_fields: Object.keys(call).filter(key => key.includes('agent'))
         });
-      }
-      
-      setCalls(data || []);
-
-      // CORRECCIÓN: Calcular estadísticas usando tarifa del agente
-      if (data && data.length > 0) {
-        // Usar la función calculateCallCost para obtener costos correctos
-        const totalCost = data.reduce((sum, call) => {
-          return sum + calculateCallCost(call);
-        }, 0);
-        
-        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
-        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-        const completedCalls = data.filter(call => call.call_status === 'completed').length;
-
-        // Log para comparar costos
-        const oldTotalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-        console.log("💰 Cost comparison:", {
-          old_total_cost: oldTotalCost.toFixed(2),
-          new_calculated_total: totalCost.toFixed(2),
-          difference: (oldTotalCost - totalCost).toFixed(2),
-          status: oldTotalCost > totalCost ? "✅ COSTS REDUCED" : "⚠️ CHECK RATES"
-        });
-
-        setStats({
-          total: data.length,
-          totalCost, // Ahora usa el cálculo correcto
-          totalDuration,
-          avgDuration,
-          completedCalls
-        });
-      }
-
-    } catch (err: any) {
-      console.error("❌ Exception fetching calls:", err);
-      setError(`Exception: ${err.message}`);
-    } finally {
-      setLoading(false);
+      });
     }
-  };
+
+    // PASO 3: Obtener TODOS los agentes para verificar qué hay disponible
+    console.log("🔍 Fetching ALL agents to see what's available...");
+    const { data: allAgents, error: allAgentsError } = await supabase
+      .from('agents')
+      .select('*');
+
+    if (allAgentsError) {
+      console.error("❌ Error fetching agents:", allAgentsError);
+    } else {
+      console.log("📊 ALL AGENTS available:", allAgents?.length);
+      allAgents?.slice(0, 3).forEach((agent, i) => {
+        console.log(`🤖 Agent ${i+1}:`, {
+          id: agent.id,
+          name: agent.name,
+          rate_per_minute: agent.rate_per_minute,
+          retell_agent_id: agent.retell_agent_id,
+          company_id: agent.company_id,
+          all_fields: Object.keys(agent)
+        });
+      });
+    }
+
+    // PASO 4: Intentar diferentes métodos de conexión
+    const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
+    const retellAgentIds = [...new Set(callsData?.map(call => call.retell_agent_id).filter(Boolean))];
+    
+    console.log("🔗 Connection attempt - agent_ids found in calls:", agentIds);
+    console.log("🔗 Connection attempt - retell_agent_ids found in calls:", retellAgentIds);
+
+    let agentsData = [];
+
+    // Método 1: Por agent_id
+    if (agentIds.length > 0) {
+      const { data: agentsByID, error: idError } = await supabase
+        .from('agents')
+        .select('*')
+        .in('id', agentIds);
+
+      if (!idError && agentsByID && agentsByID.length > 0) {
+        agentsData = agentsByID;
+        console.log("✅ SUCCESS: Found agents by agent_id:", agentsData.length);
+      } else {
+        console.log("❌ FAILED: No agents found by agent_id");
+      }
+    }
+
+    // Método 2: Por retell_agent_id si el método 1 falló
+    if (agentsData.length === 0 && retellAgentIds.length > 0) {
+      const { data: agentsByRetell, error: retellError } = await supabase
+        .from('agents')
+        .select('*')
+        .in('retell_agent_id', retellAgentIds);
+
+      if (!retellError && agentsByRetell && agentsByRetell.length > 0) {
+        agentsData = agentsByRetell;
+        console.log("✅ SUCCESS: Found agents by retell_agent_id:", agentsData.length);
+      } else {
+        console.log("❌ FAILED: No agents found by retell_agent_id");
+      }
+    }
+
+    // Método 3: Buscar por company_id si todo lo demás falla
+    if (agentsData.length === 0 && callsData?.[0]?.company_id) {
+      const { data: agentsByCompany, error: companyError } = await supabase
+        .from('agents')
+        .select('*')
+        .eq('company_id', callsData[0].company_id);
+
+      if (!companyError && agentsByCompany && agentsByCompany.length > 0) {
+        agentsData = agentsByCompany;
+        console.log("✅ SUCCESS: Found agents by company_id:", agentsData.length);
+      } else {
+        console.log("❌ FAILED: No agents found by company_id");
+      }
+    }
+
+    // PASO 5: Mapear agentes a llamadas
+    const data = callsData?.map(call => {
+      let matchedAgent = null;
+
+      // Intentar diferentes métodos de matching
+      if (agentsData) {
+        matchedAgent = agentsData.find(agent => 
+          agent.id === call.agent_id ||
+          agent.retell_agent_id === call.agent_id ||
+          agent.id === call.retell_agent_id ||
+          agent.retell_agent_id === call.retell_agent_id
+        );
+
+        // Si no encuentra por ID, usar el primer agente de la compañía (fallback)
+        if (!matchedAgent && agentsData.length === 1) {
+          matchedAgent = agentsData[0];
+          console.log(`🔄 Using fallback agent for call ${call.call_id?.substring(0, 8)}`);
+        }
+      }
+
+      return {
+        ...call,
+        call_agent: matchedAgent ? {
+          id: matchedAgent.id,
+          name: matchedAgent.name,
+          rate_per_minute: matchedAgent.rate_per_minute
+        } : null
+      };
+    });
+
+    // PASO 6: Diagnóstico final
+    console.log("🔧 FINAL DIAGNOSTIC - Cost calculation preview:");
+    data?.slice(0, 3).forEach((call, i) => {
+      const duration = getCallDuration(call);
+      const durationMinutes = duration / 60;
+      const agentRate = call.call_agent?.rate_per_minute || 0;
+      const calculatedCost = durationMinutes * agentRate;
+      
+      console.log(`💰 Call ${i+1} (${call.call_id?.substring(0, 8)}):`, {
+        duration_sec: duration,
+        duration_minutes: durationMinutes.toFixed(2),
+        agent_found: !!call.call_agent,
+        agent_name: call.call_agent?.name,
+        agent_rate: agentRate,
+        db_cost: call.cost_usd,
+        calculated_cost: calculatedCost.toFixed(4),
+        will_use: agentRate > 0 ? 'CALCULATED' : 'DB_COST'
+      });
+    });
+    
+    setCalls(data || []);
+
+    // Calcular estadísticas
+    if (data && data.length > 0) {
+      const totalCost = data.reduce((sum, call) => {
+        return sum + calculateCallCost(call);
+      }, 0);
+      
+      const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
+      const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
+      const completedCalls = data.filter(call => call.call_status === 'completed').length;
+
+      const oldTotalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+      console.log("💰 FINAL COST COMPARISON:", {
+        old_total_cost: oldTotalCost.toFixed(2),
+        new_calculated_total: totalCost.toFixed(2),
+        difference: (oldTotalCost - totalCost).toFixed(2),
+        calls_with_agent_rate: data.filter(call => call.call_agent?.rate_per_minute > 0).length,
+        total_calls: data.length
+      });
+
+      setStats({
+        total: data.length,
+        totalCost,
+        totalDuration,
+        avgDuration,
+        completedCalls
+      });
+    }
+
+  } catch (err: any) {
+    console.error("❌ Exception fetching calls:", err);
+    setError(`Exception: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const applyFiltersAndSort = () => {
     let filtered = [...calls];
