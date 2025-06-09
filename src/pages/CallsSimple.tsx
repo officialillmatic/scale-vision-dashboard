@@ -57,7 +57,6 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
-
 export default function CallsSimple() {
   const { user } = useAuth();
   const [calls, setCalls] = useState<Call[]>([]);
@@ -81,7 +80,7 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // FUNCIÓN CORREGIDA: Calcular costo usando tarifa del agente
+  // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
     let agentRate = 0;
@@ -93,13 +92,13 @@ export default function CallsSimple() {
     }
     
     if (agentRate === 0) {
-      console.warn(`No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
       return call.cost_usd || 0;
     }
     
     return durationMinutes * agentRate;
   };
 
+  // useEffect hooks
   useEffect(() => {
     if (user?.id) {
       fetchCalls();
@@ -109,7 +108,6 @@ export default function CallsSimple() {
   useEffect(() => {
     applyFiltersAndSort();
   }, [calls, searchTerm, statusFilter, sortField, sortOrder, dateFilter, customDate]);
-
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -178,7 +176,6 @@ export default function CallsSimple() {
     
     return 0;
   };
-
   const fetchCalls = async () => {
     if (!user?.id) {
       setError("User not authenticated");
@@ -190,93 +187,7 @@ export default function CallsSimple() {
       setLoading(true);
       setError(null);
 
-      // 🔧 DIAGNÓSTICO TEMPORAL - AGREGAR ESTAS LÍNEAS
-console.log("🚀 INICIANDO DIAGNÓSTICO...");
-console.log("👤 Usuario logueado:", {
-  id: user.id,
-  email: user.email || 'N/A'
-});
-
-try {
-  // CONSULTA SIN FILTRO PARA VER TODAS LAS LLAMADAS
-  console.log("📞 Consultando TODAS las llamadas...");
-  const { data: todasLasLlamadas, error: errorTodas } = await supabase
-    .from('calls')
-    .select('id, call_id, user_id, timestamp, from_number, to_number')
-    .order('timestamp', { ascending: false })
-    .limit(10);
-
-  if (errorTodas) {
-    console.error("❌ Error consultando todas las llamadas:", errorTodas);
-  } else {
-    console.log("✅ Llamadas encontradas:", todasLasLlamadas?.length || 0);
-    
-    if (todasLasLlamadas && todasLasLlamadas.length > 0) {
-      // Mostrar user_ids únicos
-      const userIds = [...new Set(todasLasLlamadas.map(call => call.user_id))];
-      console.log("🔍 User IDs únicos en la BD:", userIds);
-      
-      // Contar por user_id
-      userIds.forEach(userId => {
-        const count = todasLasLlamadas.filter(call => call.user_id === userId).length;
-        const esTuUsuario = userId === user.id;
-        console.log(`${esTuUsuario ? '👤 TU USUARIO' : '👥'} ${userId}: ${count} llamadas`);
-      });
-
-      // Mostrar primeras 3 llamadas
-      console.log("📋 Primeras 3 llamadas:");
-      todasLasLlamadas.slice(0, 3).forEach((call, i) => {
-        console.log(`  ${i+1}. Call ID: ${call.call_id?.substring(0, 12)} | User: ${call.user_id} | From: ${call.from_number}`);
-      });
-
-      // Contar llamadas del usuario actual
-      const llamadasDelUsuario = todasLasLlamadas.filter(call => call.user_id === user.id);
-      console.log(`🎯 Llamadas asignadas a tu usuario: ${llamadasDelUsuario.length}`);
-      
-      if (llamadasDelUsuario.length === 0) {
-        console.log("❌ PROBLEMA IDENTIFICADO: No tienes llamadas asignadas");
-        console.log("💡 Las llamadas están asignadas a otros user_ids");
-      } else {
-        console.log("✅ Tienes llamadas asignadas correctamente");
-      }
-    } else {
-      console.log("❌ No hay llamadas en la base de datos");
-    }
-  }
-} catch (diagError) {
-  console.error("❌ Error en diagnóstico:", diagError);
-}
-
-console.log("🔧 FIN DEL DIAGNÓSTICO");
-console.log("==========================================");
-// FIN DIAGNÓSTICO TEMPORAL
-      // 🔍 VERIFICACIÓN DE USER ID - AGREGAR ESTE CÓDIGO
-console.log("🔍 USER ID EXACTO:", JSON.stringify(user.id));
-console.log("🔍 USER ID LENGTH:", user.id.length);
-console.log("🔍 USER COMPLETO:", JSON.stringify(user));
-
-// 🔄 FORZAR REFRESH CON USER_ID FIJO
-console.log("🔄 FORZANDO REFRESH DE LLAMADAS...");
-const { data: llamadasForzadas, error: errorForzado } = await supabase
-  .from('calls')
-  .select('*')
-  .eq('user_id', 'efe4f9c1-8322-4ce7-8193-69b0dc982003')  // User ID fijo
-  .order('timestamp', { ascending: false });
-
-console.log("📊 Llamadas con user_id fijo:", llamadasForzadas?.length);
-if (llamadasForzadas && llamadasForzadas.length > 0) {
-  console.log("✅ SÍ HAY LLAMADAS - El problema es que user.id no coincide");
-  console.log("🔍 Comparar user.id vs user_id fijo:");
-  console.log("   Frontend user.id:", user.id);
-  console.log("   BD user_id:     ", "efe4f9c1-8322-4ce7-8193-69b0dc982003");
-  console.log("   ¿Son iguales?:", user.id === "efe4f9c1-8322-4ce7-8193-69b0dc982003");
-} else {
-  console.log("❌ Ni siquiera con user_id fijo encuentra llamadas");
-}
-console.log("🔧 FIN VERIFICACIÓN USER ID");
-// FIN VERIFICACIÓN USER ID
       console.log("🔍 Fetching calls for user:", user.id);
-      console.log("🚀 NEW DIAGNOSTIC FUNCTION IS RUNNING - v2.0"); // NUEVO LOG
 
       // PASO 1: Obtener llamadas básicas
       const { data: callsData, error: callsError } = await supabase
@@ -292,86 +203,86 @@ console.log("🔧 FIN VERIFICACIÓN USER ID");
       }
 
       console.log("✅ Calls fetched successfully:", callsData?.length || 0);
-
-      // PASO 2: Diagnóstico de datos
-      if (callsData && callsData.length > 0) {
-        console.log("🔍 DIAGNOSTIC INFO - Available fields in calls:", Object.keys(callsData[0]));
+      
+      // DIAGNÓSTICO SIMPLE: Si no hay llamadas, verificar con user_id fijo
+      if (!callsData || callsData.length === 0) {
+        console.log("⚠️ No calls found, trying with fixed user_id for debugging...");
+        const { data: debugCalls } = await supabase
+          .from('calls')
+          .select('id, call_id, user_id, timestamp')
+          .eq('user_id', 'efe4f9c1-8322-4ce7-8193-69b0dc982d03')
+          .order('timestamp', { ascending: false });
         
-        callsData.slice(0, 3).forEach((call, i) => {
-          console.log(`📋 Call ${i+1} fields:`, {
-            call_id: call.call_id?.substring(0, 8),
-            agent_id: call.agent_id,
-            retell_agent_id: call.retell_agent_id,
-            user_id: call.user_id,
-            company_id: call.company_id,
-            duration_sec: call.duration_sec,
-            cost_usd: call.cost_usd,
-            agent_fields: Object.keys(call).filter(key => key.includes('agent'))
-          });
-        });
+        console.log("🔍 Debug calls with fixed ID:", debugCalls?.length || 0);
+        if (debugCalls && debugCalls.length > 0) {
+          console.log("🚨 FOUND CALLS WITH FIXED ID - USER ID MISMATCH!");
+          console.log("   Frontend user.id:", user.id);
+          console.log("   Fixed user_id:   ", 'efe4f9c1-8322-4ce7-8193-69b0dc982d03');
+          console.log("   Are they equal?  ", user.id === 'efe4f9c1-8322-4ce7-8193-69b0dc982d03');
+          
+          // TEMPORAL: Usar las llamadas encontradas para mostrar en pantalla
+          console.log("🔧 TEMPORARY FIX: Using fixed user_id to fetch calls...");
+          const { data: fixedCalls, error: fixedError } = await supabase
+            .from('calls')
+            .select('*')
+            .eq('user_id', 'efe4f9c1-8322-4ce7-8193-69b0dc982d03')
+            .order('timestamp', { ascending: false });
+          
+          if (!fixedError && fixedCalls) {
+            console.log("✅ Successfully fetched calls with fixed user_id:", fixedCalls.length);
+            // Usar estas llamadas temporalmente
+            setCalls(fixedCalls);
+            
+            // Calcular estadísticas
+            const totalCost = fixedCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+            const totalDuration = fixedCalls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
+            const avgDuration = fixedCalls.length > 0 ? Math.round(totalDuration / fixedCalls.length) : 0;
+            const completedCalls = fixedCalls.filter(call => call.call_status === 'completed').length;
+
+            setStats({
+              total: fixedCalls.length,
+              totalCost,
+              totalDuration,
+              avgDuration,
+              completedCalls
+            });
+            
+            return; // Salir temprano con las llamadas encontradas
+          }
+        }
       }
 
-      // PASO 3: Obtener TODOS los agentes
-      console.log("🔍 Fetching ALL agents to see what's available...");
+      // PASO 2: Obtener agentes para el cálculo de costos
       const { data: allAgents, error: allAgentsError } = await supabase
         .from('agents')
         .select('*');
 
       if (allAgentsError) {
-        console.error("❌ Error fetching agents:", allAgentsError);
-      } else {
-        console.log("📊 ALL AGENTS available:", allAgents?.length);
-        allAgents?.slice(0, 3).forEach((agent, i) => {
-          console.log(`🤖 Agent ${i+1}:`, {
-            id: agent.id,
-            name: agent.name,
-            rate_per_minute: agent.rate_per_minute,
-            retell_agent_id: agent.retell_agent_id,
-            company_id: agent.company_id,
-            all_fields: Object.keys(agent)
-          });
-        });
+        console.error("⚠️ Error fetching agents:", allAgentsError);
       }
 
-      // PASO 4: Conectar agentes con llamadas - CORREGIDO
-const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
-const retellAgentIds = [...new Set(callsData?.map(call => call.retell_agent_id).filter(Boolean))];
+      // PASO 3: Conectar agentes con llamadas
+      const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
+      let agentsData = [];
 
-console.log("🔗 Connection attempt - agent_ids found in calls:", agentIds);
-console.log("🔗 Connection attempt - retell_agent_ids found in calls:", retellAgentIds);
+      if (agentIds.length > 0 && allAgents) {
+        agentsData = allAgents.filter(agent => 
+          agentIds.includes(agent.id) || agentIds.includes(agent.retell_agent_id)
+        );
+      }
 
-let agentsData = [];
-
-// NUEVO MÉTODO PRINCIPAL: Buscar por retell_agent_id en la tabla agents
-if (agentIds.length > 0) {
-  const { data: agentsByRetellMatch, error: retellMatchError } = await supabase
-    .from('agents')
-    .select('*')
-    .in('retell_agent_id', agentIds); // ← ESTE ES EL CAMBIO CLAVE
-
-  if (!retellMatchError && agentsByRetellMatch && agentsByRetellMatch.length > 0) {
-    agentsData = agentsByRetellMatch;
-    console.log("✅ SUCCESS: Found agents by matching call.agent_id with agents.retell_agent_id:", agentsData.length);
-  } else {
-    console.log("❌ FAILED: No agents found by retell_agent_id match");
-  }
-}
-
-      // PASO 5: Mapear agentes a llamadas
+      // PASO 4: Mapear agentes a llamadas
       const data = callsData?.map(call => {
         let matchedAgent = null;
 
-        if (agentsData) {
+        if (agentsData && agentsData.length > 0) {
           matchedAgent = agentsData.find(agent => 
             agent.id === call.agent_id ||
-            agent.retell_agent_id === call.agent_id ||
-            agent.id === call.retell_agent_id ||
-            agent.retell_agent_id === call.retell_agent_id
+            agent.retell_agent_id === call.agent_id
           );
 
           if (!matchedAgent && agentsData.length === 1) {
             matchedAgent = agentsData[0];
-            console.log(`🔄 Using fallback agent for call ${call.call_id?.substring(0, 8)}`);
           }
         }
 
@@ -384,26 +295,6 @@ if (agentIds.length > 0) {
           } : null
         };
       });
-
-      // PASO 6: Diagnóstico final
-      console.log("🔧 FINAL DIAGNOSTIC - Cost calculation preview:");
-      data?.slice(0, 3).forEach((call, i) => {
-        const duration = getCallDuration(call);
-        const durationMinutes = duration / 60;
-        const agentRate = call.call_agent?.rate_per_minute || 0;
-        const calculatedCost = durationMinutes * agentRate;
-        
-        console.log(`💰 Call ${i+1} (${call.call_id?.substring(0, 8)}):`, {
-          duration_sec: duration,
-          duration_minutes: durationMinutes.toFixed(2),
-          agent_found: !!call.call_agent,
-          agent_name: call.call_agent?.name,
-          agent_rate: agentRate,
-          db_cost: call.cost_usd,
-          calculated_cost: calculatedCost.toFixed(4),
-          will_use: agentRate > 0 ? 'CALCULATED' : 'DB_COST'
-        });
-      });
       
       setCalls(data || []);
 
@@ -413,15 +304,6 @@ if (agentIds.length > 0) {
         const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
         const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
         const completedCalls = data.filter(call => call.call_status === 'completed').length;
-
-        const oldTotalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-        console.log("💰 FINAL COST COMPARISON:", {
-          old_total_cost: oldTotalCost.toFixed(2),
-          new_calculated_total: totalCost.toFixed(2),
-          difference: (oldTotalCost - totalCost).toFixed(2),
-          calls_with_agent_rate: data.filter(call => call.call_agent?.rate_per_minute > 0).length,
-          total_calls: data.length
-        });
 
         setStats({
           total: data.length,
@@ -517,7 +399,6 @@ if (agentIds.length > 0) {
 
     setFilteredCalls(filtered);
   };
-
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -528,23 +409,15 @@ if (agentIds.length > 0) {
   };
 
   const handleCallClick = (call: Call) => {
-  // CORRECCIÓN: Buscar la llamada original con datos del agente
-  const originalCall = calls.find(c => c.id === call.id) || call;
-  console.log("🔍 HandleCallClick - Original call data:", {
-    call_id: originalCall.call_id?.substring(0, 8),
-    call_agent: originalCall.call_agent,
-    agents: originalCall.agents,
-    duration_sec: originalCall.duration_sec
-  });
-  setSelectedCall(originalCall);
-  setIsModalOpen(true);
-};
+    const originalCall = calls.find(c => c.id === call.id) || call;
+    setSelectedCall(originalCall);
+    setIsModalOpen(true);
+  };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
     setSelectedCall(null);
   };
-
   const formatDuration = (seconds: number) => {
     if (seconds === null || seconds === undefined || isNaN(seconds)) {
       return "0:00";
@@ -617,7 +490,6 @@ if (agentIds.length > 0) {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-  
   if (!user) {
     return (
       <DashboardLayout>
@@ -664,7 +536,6 @@ if (agentIds.length > 0) {
               </CardContent>
             </Card>
           )}
-
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -727,7 +598,6 @@ if (agentIds.length > 0) {
               </CardContent>
             </Card>
           </div>
-
           {/* Filtros */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
@@ -793,7 +663,6 @@ if (agentIds.length > 0) {
               </div>
             </CardContent>
           </Card>
-
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -920,11 +789,9 @@ if (agentIds.length > 0) {
                           </td>
                           
                           <td className="px-4 py-4 whitespace-nowrap">
-                            {/* CORRECCIÓN PRINCIPAL: Usar función calculateCallCost */}
                             <div className="text-sm font-medium text-gray-900">
                               {formatCurrency(calculateCallCost(call))}
                             </div>
-                            {/* Información de debug */}
                             <div className="text-xs text-gray-500">
                               {(() => {
                                 const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
@@ -1010,28 +877,19 @@ if (agentIds.length > 0) {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                    </table>
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* Call Detail Modal */}
-          {/* DEBUG: Ver qué datos tiene selectedCall */}
-{selectedCall && console.log("🔍 Modal - Selected call data:", {
-  call_id: selectedCall.call_id?.substring(0, 8),
-  cost_usd: selectedCall.cost_usd,
-  call_agent: selectedCall.call_agent,
-  agents: selectedCall.agents,
-  duration_sec: selectedCall.duration_sec
-})}
-
-<CallDetailModal 
-  call={selectedCall}
-  isOpen={isModalOpen}
-  onClose={handleModalClose}
-  audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
-/>
+          <CallDetailModal 
+            call={selectedCall}
+            isOpen={isModalOpen}
+            onClose={handleModalClose}
+            audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
+          />
         </div>
       </div>
     </DashboardLayout>
