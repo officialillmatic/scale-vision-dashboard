@@ -1,13 +1,274 @@
+// 🔥 VERSIÓN MEJORADA DEL SISTEMA DE CRÉDITOS
+// Este archivo reemplaza/mejora el webhook existente con una lógica más robusta
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 import { corsHeaders } from "../_shared/cors.ts";
-import { processWebhookEvent, handleTransactionAndBalance, logWebhookResult } from "../_shared/retellEventProcessor.ts";
-import { processCallCredits } from "../_shared/creditProcessor.ts";
 
+// ✅ FUNCIÓN MEJORADA PARA PROCESAR CRÉDITOS
+async function processCallCredits(supabase: any, call: any, userId: string, agentId: string) {
+  try {
+    console.log(`[CREDITS] Processing credits for call ${call.call_id}, user ${userId}, agent ${agentId}`);
+    
+    // 1. Obtener información del agente para calcular el costo correcto
+    const { data: agent, error: agentError } = await supabase
+      .from('agents')
+      .select('id, name, rate_per_minute')
+      .eq('id', agentId)
+      .single();
+
+    if (agentError || !agent) {
+      console.error(`[CREDITS] Agent not found: ${agentId}`, agentError);
+      return { success: false, error: 'Agent not found' };
+    }
+
+    // 2. Calcular el costo real basado en la tarifa del agente
+    const durationMinutes = call.duration_sec / 60;
+    const ratePerMinute = agent.rate_per_minute || 0;
+    const calculatedCost = Math.round(durationMinutes * ratePerMinute * 10000) / 10000; // 4 decimales
+
+    console.log(`[CREDITS] Call details: ${durationMinutes.toFixed(2)} min × $${ratePerMinute}/min = $${calculatedCost.toFixed(4)}`);
+
+    if (calculatedCost <= 0) {
+      console.log(`[CREDITS] No cost to deduct for call ${call.call_id}`);
+      return { success: true, calculatedCost: 0, message: 'No cost to deduct' };
+    }
+
+    // 3. Verificar si ya existe una transacción para esta llamada
+    const { data: existingTransaction } = await supabase
+      .from('credit_transactions')
+      .select('id, amount')
+      .eq('call_id', call.call_id)
+      .eq('transaction_type', 'call_charge')
+      .single();
+
+    if (existingTransaction) {
+      console.log(`[CREDITS] Transaction already exists for call ${call.call_id}`);
+      return { 
+        success: true, 
+        calculatedCost: Math.abs(existingTransaction.amount),
+        message: 'Already processed' 
+      };
+    }
+
+    // 4. Obtener el balance actual del usuario
+    const { data: currentBalance, error: balanceError } = await supabase
+      .from('user_balances')
+      .select('balance')
+      .eq('user_id', userId)
+      .single();
+
+    if (balanceError) {
+      console.error(`[CREDITS] Error getting user balance:`, balanceError);
+      return { success: false, error: 'Error getting balance' };
+    }
+
+    const currentAmount = currentBalance?.balance || 0;
+    const newBalance = currentAmount - calculatedCost;
+
+    console.log(`[CREDITS] Balance update: $${currentAmount.toFixed(4)} - $${calculatedCost.toFixed(4)} = $${newBalance.toFixed(4)}`);
+
+    // 5. Crear transacción de cargo por llamada
+    const { error: transactionError } = await supabase
+      .from('credit_transactions')
+      .insert({
+        user_id: userId,
+        call_id: call.call_id,
+        transaction_type: 'call_charge',
+        amount: -calculatedCost, // Negativo porque es un cargo
+        balance_after: newBalance,
+        description: `Call charge - Agent: ${agent.name} - Duration: ${durationMinutes.toFixed(2)} min`,
+        metadata: {
+          agent_id: agentId,
+          agent_name: agent.name,
+          duration_sec: call.duration_sec,
+          duration_minutes: durationMinutes,
+          rate_per_minute: ratePerMinute,
+          retell_cost_usd: call.cost_usd || 0
+        }
+      });
+
+    if (transactionError) {
+      console.error(`[CREDITS] Error creating transaction:`, transactionError);
+      return { success: false, error: 'Error creating transaction' };
+    }
+
+    // 6. Actualizar el balance del usuario
+    const { error: updateError } = await supabase
+      .from('user_balances')
+      .update({ 
+        balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error(`[CREDITS] Error updating balance:`, updateError);
+      return { success: false, error: 'Error updating balance' };
+    }
+
+    // 7. Determinar alertas de balance
+    const isLow = newBalance < 10 && newBalance > 5;
+    const isCritical = newBalance < 5 && newBalance > 0;
+    const wasBlocked = newBalance <= 0;
+
+    console.log(`[CREDITS] ✅ Successfully processed call ${call.call_id}: $${calculatedCost.toFixed(4)} deducted, new balance: $${newBalance.toFixed(4)}`);
+
+    return {
+      success: true,
+      calculatedCost,
+      newBalance,
+      previousBalance: currentAmount,
+      isLow,
+      isCritical,
+      wasBlocked,
+      transactionCreated: true
+    };
+
+  } catch (error) {
+    console.error(`[CREDITS] Unexpected error:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ✅ FUNCIÓN MEJORADA PARA MIGRACIÓN MASIVA
+async function processMigration(supabase: any) {
+  console.log(`[MIGRATION] Starting enhanced migration process...`);
+  
+  // 1. Obtener todas las llamadas que necesitan procesamiento
+  const { data: calls, error: callsError } = await supabase
+    .from('calls')
+    .select(`
+      call_id,
+      user_id,
+      agent_id,
+      duration_sec,
+      cost_usd,
+      timestamp,
+      call_status
+    `)
+    .gt('duration_sec', 0)
+    .order('timestamp', { ascending: true }); // Procesar en orden cronológico
+
+  if (callsError) {
+    console.error('[MIGRATION] Error fetching calls:', callsError);
+    throw new Error('Failed to fetch calls');
+  }
+
+  // 2. Obtener todos los agentes
+  const { data: agents, error: agentsError } = await supabase
+    .from('agents')
+    .select('id, name, rate_per_minute');
+
+  if (agentsError) {
+    console.error('[MIGRATION] Error fetching agents:', agentsError);
+    throw new Error('Failed to fetch agents');
+  }
+
+  const agentsMap = new Map(agents?.map(agent => [agent.id, agent]) || []);
+
+  // 3. Obtener transacciones existentes para evitar duplicados
+  const { data: existingTransactions, error: transError } = await supabase
+    .from('credit_transactions')
+    .select('call_id')
+    .eq('transaction_type', 'call_charge');
+
+  const processedCallIds = new Set(
+    existingTransactions?.map(t => t.call_id) || []
+  );
+
+  console.log(`[MIGRATION] Found ${calls?.length || 0} total calls`);
+  console.log(`[MIGRATION] Found ${agents?.length || 0} agents`);
+  console.log(`[MIGRATION] ${processedCallIds.size} calls already processed`);
+
+  const results = {
+    total: calls?.length || 0,
+    processed: 0,
+    skipped: 0,
+    failed: 0,
+    totalDeducted: 0,
+    details: []
+  };
+
+  // 4. Procesar cada llamada
+  if (calls && calls.length > 0) {
+    for (const call of calls) {
+      try {
+        // Skip si ya fue procesada
+        if (processedCallIds.has(call.call_id)) {
+          results.skipped++;
+          console.log(`[MIGRATION] Skipping already processed call: ${call.call_id}`);
+          continue;
+        }
+
+        // Skip si no tiene agente válido
+        const agent = agentsMap.get(call.agent_id);
+        if (!agent) {
+          results.skipped++;
+          console.log(`[MIGRATION] Skipping call with unknown agent: ${call.call_id} (agent: ${call.agent_id})`);
+          continue;
+        }
+
+        // Skip si no tiene rate válido
+        if (!agent.rate_per_minute || agent.rate_per_minute <= 0) {
+          results.skipped++;
+          console.log(`[MIGRATION] Skipping call with no rate: ${call.call_id} (agent: ${agent.name})`);
+          continue;
+        }
+
+        // Procesar créditos
+        const creditResult = await processCallCredits(
+          supabase,
+          call,
+          call.user_id,
+          call.agent_id
+        );
+
+        if (creditResult.success) {
+          results.processed++;
+          results.totalDeducted += creditResult.calculatedCost || 0;
+          
+          results.details.push({
+            call_id: call.call_id,
+            user_id: call.user_id,
+            agent_name: agent.name,
+            duration_minutes: (call.duration_sec / 60).toFixed(2),
+            rate_per_minute: agent.rate_per_minute,
+            calculated_cost: creditResult.calculatedCost?.toFixed(4),
+            new_balance: creditResult.newBalance?.toFixed(4),
+            status: 'success'
+          });
+
+          console.log(`[MIGRATION] ✅ Call ${call.call_id}: $${creditResult.calculatedCost?.toFixed(4)} deducted`);
+        } else {
+          results.failed++;
+          results.details.push({
+            call_id: call.call_id,
+            user_id: call.user_id,
+            agent_name: agent.name,
+            error: creditResult.error,
+            status: 'failed'
+          });
+          console.error(`[MIGRATION] ❌ Failed call ${call.call_id}:`, creditResult.error);
+        }
+
+        // Pausa para no sobrecargar la DB
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (error) {
+        results.failed++;
+        console.error(`[MIGRATION] Error processing call ${call.call_id}:`, error);
+      }
+    }
+  }
+
+  return results;
+}
+
+// ✅ SERVIDOR PRINCIPAL MEJORADO
 serve(async (req) => {
   const startTime = Date.now();
   
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -21,13 +282,8 @@ serve(async (req) => {
     const url = new URL(req.url);
     const body = await req.json();
 
-    console.log('[DEBUG] Request body received:', JSON.stringify(body));
-    console.log('[DEBUG] URL search params:', url.searchParams.toString());
-
-    // 🆕 NUEVO: Script de migración para procesar llamadas existentes
+    // 🔄 MIGRACIÓN MEJORADA
     if (body.migrate === true || url.searchParams.get('migrate') === 'true') {
-      console.log(`[MIGRATION] Starting existing calls processing...`);
-
       if (req.method !== 'POST') {
         return new Response('Method not allowed for migration', { 
           status: 405, 
@@ -35,176 +291,34 @@ serve(async (req) => {
         });
       }
 
-      // Get all calls that need processing (SIN JOIN)
-      const { data: calls, error: callsError } = await supabase
-        .from('calls')
-        .select('*')
-        .gt('duration_sec', 0)  // Solo llamadas con duración
-        .order('timestamp', { ascending: false });
-
-      if (callsError) {
-        console.error('[MIGRATION] Error fetching calls:', callsError);
-        return new Response(JSON.stringify({ error: 'Error fetching calls', details: callsError }), { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Obtener todos los agentes por separado
-      const { data: agents, error: agentsError } = await supabase
-        .from('agents')
-        .select('id, name, rate_per_minute');
-
-      if (agentsError) {
-        console.error('[MIGRATION] Error fetching agents:', agentsError);
-        return new Response(JSON.stringify({ error: 'Error fetching agents', details: agentsError }), { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Crear mapa de agentes para búsqueda rápida
-      const agentsMap = new Map(agents?.map(agent => [agent.id, agent]) || []);
-
-      console.log(`[MIGRATION] Found ${calls?.length || 0} calls to process`);
-      console.log(`[MIGRATION] Found ${agents?.length || 0} agents available`);
-
-      let processed = 0;
-      let failed = 0;
-      let skipped = 0;
-      let totalDeducted = 0;
-      const results = [];
-
-      if (calls && calls.length > 0) {
-        for (const call of calls) {
-          try {
-            console.log(`[MIGRATION] Processing call ${call.call_id} for user ${call.user_id}`);
-            
-            // Buscar el agente correspondiente
-            const agent = agentsMap.get(call.agent_id);
-            
-            if (!agent) {
-              console.log(`[MIGRATION] Skipping call ${call.call_id} - agent not found: ${call.agent_id}`);
-              skipped++;
-              continue;
-            }
-
-            // Calcular costo correcto
-            const durationMinutes = call.duration_sec / 60;
-            const agentRate = agent.rate_per_minute || 0;
-            const calculatedCost = durationMinutes * agentRate;
-
-            if (calculatedCost <= 0) {
-              console.log(`[MIGRATION] Skipping call ${call.call_id} - no cost calculated (rate: ${agentRate})`);
-              skipped++;
-              continue;
-            }
-
-            // Verificar si ya existe una transacción para esta llamada
-            const { data: existingTransaction } = await supabase
-              .from('credit_transactions')
-              .select('id')
-              .eq('call_id', call.call_id)
-              .eq('transaction_type', 'call_charge')
-              .single();
-
-            if (existingTransaction) {
-              console.log(`[MIGRATION] Skipping call ${call.call_id} - already processed`);
-              skipped++;
-              continue;
-            }
-
-            // Procesar créditos usando nuestro procesador corregido
-            const creditResult = await processCallCredits(
-              supabase,
-              {
-                call_id: call.call_id,
-                duration_sec: call.duration_sec,
-                cost_usd: call.cost_usd  // Para referencia
-              },
-              call.user_id,
-              call.agent_id  // USAR TARIFA DEL AGENTE
-            );
-
-            if (creditResult.success) {
-              processed++;
-              totalDeducted += creditResult.calculatedCost || calculatedCost;
-              
-              results.push({
-                call_id: call.call_id,
-                user_id: call.user_id,
-                agent_name: agent.name || 'Unknown',
-                duration_minutes: durationMinutes.toFixed(2),
-                rate_per_minute: agentRate,
-                calculated_cost: calculatedCost.toFixed(4),
-                retell_cost: call.cost_usd,
-                new_balance: creditResult.newBalance?.toFixed(2),
-                status: 'success'
-              });
-
-              console.log(`[MIGRATION] ✅ Call ${call.call_id}: $${calculatedCost.toFixed(4)} deducted (was $${call.cost_usd}), new balance: $${creditResult.newBalance?.toFixed(2)}`);
-            } else {
-              failed++;
-              results.push({
-                call_id: call.call_id,
-                user_id: call.user_id,
-                agent_name: agent.name || 'Unknown',
-                error: creditResult.error,
-                status: 'failed'
-              });
-              console.error(`[MIGRATION] ❌ Failed to process call ${call.call_id}:`, creditResult.error);
-            }
-
-            // Pequeña pausa para no sobrecargar la DB
-            await new Promise(resolve => setTimeout(resolve, 50));
-
-          } catch (error) {
-            failed++;
-            console.error(`[MIGRATION] Error processing call ${call.call_id}:`, error);
-            results.push({
-              call_id: call.call_id,
-              error: error.message,
-              status: 'error'
-            });
-          }
-        }
-      }
-
+      const migrationResults = await processMigration(supabase);
+      
       const summary = {
-        total_calls: calls?.length || 0,
-        processed_successfully: processed,
-        failed: failed,
-        skipped: skipped,
-        total_amount_deducted: `$${totalDeducted.toFixed(2)}`,
-        processing_time_ms: Date.now() - startTime
+        ...migrationResults,
+        total_amount_deducted: `$${migrationResults.totalDeducted.toFixed(4)}`,
+        processing_time_ms: Date.now() - startTime,
+        timestamp: new Date().toISOString()
       };
 
-      console.log(`[MIGRATION] SUMMARY:`, summary);
+      console.log('[MIGRATION] FINAL SUMMARY:', summary);
 
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         success: true,
         summary,
-        detailed_results: results.slice(0, 10), // Solo primeros 10 para no sobrecargar respuesta
-        total_results_count: results.length
+        detailed_results: migrationResults.details.slice(0, 20), // Primeros 20
+        total_results_count: migrationResults.details.length
       }), {
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // 📞 WEBHOOK NORMAL: Procesar llamadas de Retell
-    console.log(`[WEBHOOK] Received ${req.method} request`);
-
+    // 📞 WEBHOOK NORMAL MEJORADO
     if (req.method !== 'POST') {
       return new Response('Method not allowed', { 
         status: 405, 
         headers: corsHeaders 
       });
     }
-
-    console.log(`[WEBHOOK] Processing event: ${body.event}`);
 
     const { event, call } = body;
     const callId = call?.call_id;
@@ -217,10 +331,9 @@ serve(async (req) => {
       });
     }
 
-    // Process the webhook event
-    const processedData = processWebhookEvent(event, call);
-    
-    // Find the agent mapping
+    console.log(`[WEBHOOK] Processing ${event} for call ${callId}`);
+
+    // Buscar mapeo del agente
     const { data: agent, error: agentError } = await supabase
       .from('retell_agents')
       .select('*')
@@ -228,14 +341,11 @@ serve(async (req) => {
       .single();
 
     if (agentError || !agent) {
-      console.error(`[WEBHOOK] Agent not found for agent_id: ${call.agent_id}`);
-      return new Response('Agent not found', { 
-        status: 404, 
-        headers: corsHeaders 
-      });
+      console.error(`[WEBHOOK] Agent not found: ${call.agent_id}`);
+      return new Response('Agent not found', { status: 404, headers: corsHeaders });
     }
 
-    // Find user assignment
+    // Buscar asignación de usuario
     const { data: userAgent, error: userAgentError } = await supabase
       .from('user_agent_assignments')
       .select('user_id, company_id')
@@ -245,13 +355,10 @@ serve(async (req) => {
 
     if (userAgentError || !userAgent) {
       console.error(`[WEBHOOK] User assignment not found for agent: ${agent.id}`);
-      return new Response('User assignment not found', { 
-        status: 404, 
-        headers: corsHeaders 
-      });
+      return new Response('User assignment not found', { status: 404, headers: corsHeaders });
     }
 
-    // Store/update call data
+    // Guardar datos de la llamada
     const callData = {
       call_id: callId,
       user_id: userAgent.user_id,
@@ -260,29 +367,25 @@ serve(async (req) => {
       timestamp: call.start_timestamp || new Date().toISOString(),
       duration_sec: call.duration_sec || 0,
       cost_usd: call.cost_usd || 0,
-      call_status: processedData.call_status,
+      call_status: event === 'call_ended' ? 'completed' : 'in_progress',
       from: call.from_number || 'unknown',
       to: call.to_number || 'unknown',
       disconnection_reason: call.disconnection_reason,
       transcript: call.transcript,
-      sentiment: call.sentiment,
       recording_url: call.recording_url
     };
 
+    // Insertar/actualizar llamada
     const { error: upsertError } = await supabase
-      .from('retell_calls')
+      .from('calls')
       .upsert(callData, { onConflict: 'call_id' });
 
     if (upsertError) {
-      console.error('[WEBHOOK] Error upserting call data:', upsertError);
-      await logWebhookResult(supabase, event, callId, agent, userAgent, callData, 'failed', startTime);
-      return new Response('Database error', { 
-        status: 500, 
-        headers: corsHeaders 
-      });
+      console.error('[WEBHOOK] Error saving call:', upsertError);
+      return new Response('Database error', { status: 500, headers: corsHeaders });
     }
 
-    // Process credits for completed calls (USANDO TARIFA CORRECTA)
+    // Procesar créditos SOLO para llamadas terminadas con duración
     if (event === 'call_ended' && call.duration_sec > 0) {
       console.log(`[WEBHOOK] Processing credits for completed call: ${callId}`);
       
@@ -290,43 +393,23 @@ serve(async (req) => {
         supabase,
         call,
         userAgent.user_id,
-        agent.id  // CORRECCIÓN: pasar agent.id para usar tarifa correcta
+        agent.id
       );
 
-      if (creditResult.error) {
-        console.error(`[WEBHOOK] Credit processing failed:`, creditResult.error);
-        // Don't fail the webhook if credit processing fails
-      } else if (creditResult.success) {
-        console.log(`[WEBHOOK] Credits processed successfully. Calculated cost: $${creditResult.calculatedCost?.toFixed(4)}, New balance: $${creditResult.newBalance?.toFixed(2)}`);
-        
-        // Log balance warnings
-        if (creditResult.wasBlocked) {
-          console.warn(`[WEBHOOK] User account blocked due to insufficient funds: ${userAgent.user_id}`);
-        } else if (creditResult.isCritical) {
-          console.warn(`[WEBHOOK] User has critical low balance: ${userAgent.user_id}`);
-        } else if (creditResult.isLow) {
-          console.warn(`[WEBHOOK] User has low balance: ${userAgent.user_id}`);
-        }
+      if (creditResult.success) {
+        console.log(`[WEBHOOK] ✅ Credits processed: $${creditResult.calculatedCost?.toFixed(4)} deducted, balance: $${creditResult.newBalance?.toFixed(4)}`);
+      } else {
+        console.error(`[WEBHOOK] ❌ Credit processing failed:`, creditResult.error);
       }
     }
 
-    // Handle transaction and balance (existing logic)
-    await handleTransactionAndBalance(supabase, event, call, userAgent);
-
-    // Log successful webhook processing
-    await logWebhookResult(supabase, event, callId, agent, userAgent, callData, 'success', startTime);
-
-    console.log(`[WEBHOOK] Successfully processed ${event} for call ${callId}`);
-    
     return new Response(JSON.stringify({ 
       success: true, 
       event, 
-      call_id: callId 
+      call_id: callId,
+      credits_processed: event === 'call_ended' && call.duration_sec > 0
     }), {
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json' 
-      }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
@@ -337,10 +420,7 @@ serve(async (req) => {
       message: error.message 
     }), {
       status: 500,
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json' 
-      }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
