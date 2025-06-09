@@ -193,7 +193,7 @@ export default function CallsSimple() {
       const { data: callsData, error: callsError } = await supabase
         .from('calls')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', 'efe4f9c1-8322-4ce7-8193-69b0dc982d03')
         .order('timestamp', { ascending: false });
 
       if (callsError) {
