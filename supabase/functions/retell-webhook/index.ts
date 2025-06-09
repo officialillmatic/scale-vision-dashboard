@@ -13,19 +13,19 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
-if (body.migrate === true || url.searchParams.get('migrate') === 'true') {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     const url = new URL(req.url);
-    const pathname = url.pathname;
+    const body = await req.json();
+
+    console.log('[DEBUG] Request body received:', JSON.stringify(body));
+    console.log('[DEBUG] URL search params:', url.searchParams.toString());
 
     // 🆕 NUEVO: Script de migración para procesar llamadas existentes
-    const body = await req.json();
-if (body.migrate === true || url.searchParams.get('migrate') === 'true') {
+    if (body.migrate === true || url.searchParams.get('migrate') === 'true') {
       console.log(`[MIGRATION] Starting existing calls processing...`);
 
       if (req.method !== 'POST') {
@@ -180,7 +180,6 @@ if (body.migrate === true || url.searchParams.get('migrate') === 'true') {
       });
     }
 
-    const body = await req.json();
     console.log(`[WEBHOOK] Processing event: ${body.event}`);
 
     const { event, call } = body;
