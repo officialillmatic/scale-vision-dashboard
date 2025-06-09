@@ -1,19 +1,45 @@
-
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.23.0";
 
 export async function processCallCredits(
   supabaseClient: any,
   callData: any,
-  userId: string
+  userId: string,
+  agentId?: string  // AGREGADO: parámetro opcional para el agentId
 ) {
   console.log(`[CREDIT_PROCESSOR] Processing credits for call: ${callData.call_id}`);
   
   try {
-    const callCost = callData.cost_usd || 0;
+    // CORRECCIÓN PRINCIPAL: Calcular costo correcto usando tarifa del agente
+    let callCost = 0;
+    
+    if (callData.duration_sec && callData.duration_sec > 0) {
+      // Buscar el agente y su tarifa
+      const { data: agent, error: agentError } = await supabaseClient
+        .from('agents')
+        .select('rate_per_minute, name')
+        .eq('id', agentId)
+        .single();
+
+      if (agentError || !agent) {
+        console.error(`[CREDIT_PROCESSOR] Agent not found for id: ${agentId}`, agentError);
+        // Fallback al costo original de Retell
+        callCost = callData.cost_usd || 0;
+        console.warn(`[CREDIT_PROCESSOR] Using fallback cost from Retell: $${callCost}`);
+      } else {
+        // Calcular costo correcto: duración en minutos × tarifa por minuto
+        const durationMinutes = callData.duration_sec / 60;
+        callCost = durationMinutes * (agent.rate_per_minute || 0);
+        
+        console.log(`[CREDIT_PROCESSOR] Calculated cost: ${durationMinutes.toFixed(2)}min × $${agent.rate_per_minute}/min = $${callCost.toFixed(4)} (Agent: ${agent.name})`);
+      }
+    } else {
+      console.log(`[CREDIT_PROCESSOR] No duration found, using Retell cost: $${callData.cost_usd || 0}`);
+      callCost = callData.cost_usd || 0;
+    }
     
     if (callCost <= 0) {
       console.log(`[CREDIT_PROCESSOR] No cost to process for call: ${callData.call_id}`);
-      return { success: true };
+      return { success: true, newBalance: null };
     }
 
     // Get current user credits
@@ -73,14 +99,15 @@ export async function processCallCredits(
       // Don't fail the process if transaction logging fails
     }
 
-    console.log(`[CREDIT_PROCESSOR] Credits processed successfully. Cost: $${callCost}, New balance: $${newBalance}`);
+    console.log(`[CREDIT_PROCESSOR] Credits processed successfully. Calculated cost: $${callCost.toFixed(4)}, New balance: $${newBalance.toFixed(2)}`);
     
     return { 
       success: true, 
       newBalance, 
       wasBlocked: shouldBlock,
-      isLow: newBalance <= credits.warning_threshold,
-      isCritical: newBalance <= credits.critical_threshold
+      isLow: newBalance <= (credits.warning_threshold || 10),
+      isCritical: newBalance <= (credits.critical_threshold || 5),
+      calculatedCost: callCost  // AGREGADO: para debugging
     };
 
   } catch (error) {
