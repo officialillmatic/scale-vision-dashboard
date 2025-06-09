@@ -248,59 +248,29 @@ export default function CallsSimple() {
         });
       }
 
-      // PASO 4: Conectar agentes con llamadas
-      const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
-      const retellAgentIds = [...new Set(callsData?.map(call => call.retell_agent_id).filter(Boolean))];
-      
-      console.log("🔗 Connection attempt - agent_ids found in calls:", agentIds);
-      console.log("🔗 Connection attempt - retell_agent_ids found in calls:", retellAgentIds);
+      // PASO 4: Conectar agentes con llamadas - CORREGIDO
+const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
+const retellAgentIds = [...new Set(callsData?.map(call => call.retell_agent_id).filter(Boolean))];
 
-      let agentsData = [];
+console.log("🔗 Connection attempt - agent_ids found in calls:", agentIds);
+console.log("🔗 Connection attempt - retell_agent_ids found in calls:", retellAgentIds);
 
-      // Método 1: Por agent_id
-      if (agentIds.length > 0) {
-        const { data: agentsByID, error: idError } = await supabase
-          .from('agents')
-          .select('*')
-          .in('id', agentIds);
+let agentsData = [];
 
-        if (!idError && agentsByID && agentsByID.length > 0) {
-          agentsData = agentsByID;
-          console.log("✅ SUCCESS: Found agents by agent_id:", agentsData.length);
-        } else {
-          console.log("❌ FAILED: No agents found by agent_id");
-        }
-      }
+// NUEVO MÉTODO PRINCIPAL: Buscar por retell_agent_id en la tabla agents
+if (agentIds.length > 0) {
+  const { data: agentsByRetellMatch, error: retellMatchError } = await supabase
+    .from('agents')
+    .select('*')
+    .in('retell_agent_id', agentIds); // ← ESTE ES EL CAMBIO CLAVE
 
-      // Método 2: Por retell_agent_id
-      if (agentsData.length === 0 && retellAgentIds.length > 0) {
-        const { data: agentsByRetell, error: retellError } = await supabase
-          .from('agents')
-          .select('*')
-          .in('retell_agent_id', retellAgentIds);
-
-        if (!retellError && agentsByRetell && agentsByRetell.length > 0) {
-          agentsData = agentsByRetell;
-          console.log("✅ SUCCESS: Found agents by retell_agent_id:", agentsData.length);
-        } else {
-          console.log("❌ FAILED: No agents found by retell_agent_id");
-        }
-      }
-
-      // Método 3: Por company_id
-      if (agentsData.length === 0 && callsData?.[0]?.company_id) {
-        const { data: agentsByCompany, error: companyError } = await supabase
-          .from('agents')
-          .select('*')
-          .eq('company_id', callsData[0].company_id);
-
-        if (!companyError && agentsByCompany && agentsByCompany.length > 0) {
-          agentsData = agentsByCompany;
-          console.log("✅ SUCCESS: Found agents by company_id:", agentsData.length);
-        } else {
-          console.log("❌ FAILED: No agents found by company_id");
-        }
-      }
+  if (!retellMatchError && agentsByRetellMatch && agentsByRetellMatch.length > 0) {
+    agentsData = agentsByRetellMatch;
+    console.log("✅ SUCCESS: Found agents by matching call.agent_id with agents.retell_agent_id:", agentsData.length);
+  } else {
+    console.log("❌ FAILED: No agents found by retell_agent_id match");
+  }
+}
 
       // PASO 5: Mapear agentes a llamadas
       const data = callsData?.map(call => {
