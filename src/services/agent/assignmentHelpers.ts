@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface AssignmentUser {
@@ -109,10 +108,10 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
 
 export const fetchAvailableAgents = async (): Promise<AssignmentAgent[]> => {
   try {
-    console.log('🔍 [fetchAvailableAgents] Fetching agents from retell_agents table');
+    console.log('🔍 [fetchAvailableAgents] Fetching agents from agents table (CORRECTED)');
     
     const { data, error } = await supabase
-      .from("retell_agents")
+      .from("agents")  // ✅ CAMBIADO DE "retell_agents" A "agents"
       .select("id, name, description, status, retell_agent_id")
       .eq("status", "active")
       .order("name");
@@ -122,7 +121,8 @@ export const fetchAvailableAgents = async (): Promise<AssignmentAgent[]> => {
       throw error;
     }
 
-    console.log('🔍 [fetchAvailableAgents] Agents fetched:', data?.length || 0, 'agents');
+    console.log('🔍 [fetchAvailableAgents] Agents fetched from agents table:', data?.length || 0, 'agents');
+    console.log('🔍 [fetchAvailableAgents] Agent details:', data);
     return data || [];
   } catch (error: any) {
     console.error("[ASSIGNMENT_HELPERS] Error in fetchAvailableAgents:", error);
