@@ -206,7 +206,7 @@ export default function CallsSimple() {
       const { data: callsData, error: callsError } = await supabase
         .from('calls')
         .select('*')
-        .eq('user_id', 'efe4f9c1-8322-4ce7-8193-69b0dc982d03')
+        .eq('user_id', user.id)
         .order('timestamp', { ascending: false });
 
       if (callsError) {
@@ -233,35 +233,7 @@ export default function CallsSimple() {
           console.log("   Fixed user_id:   ", 'efe4f9c1-8322-4ce7-8193-69b0dc982d03');
           console.log("   Are they equal?  ", user.id === 'efe4f9c1-8322-4ce7-8193-69b0dc982d03');
           
-          // TEMPORAL: Usar las llamadas encontradas para mostrar en pantalla
-          console.log("🔧 TEMPORARY FIX: Using fixed user_id to fetch calls...");
-          const { data: fixedCalls, error: fixedError } = await supabase
-            .from('calls')
-            .select('*')
-            .eq('user_id', 'efe4f9c1-8322-4ce7-8193-69b0dc982d03')
-            .order('timestamp', { ascending: false });
           
-          if (!fixedError && fixedCalls) {
-            console.log("✅ Successfully fetched calls with fixed user_id:", fixedCalls.length);
-            // Usar estas llamadas temporalmente
-            setCalls(fixedCalls);
-            
-            // Calcular estadísticas
-            const totalCost = fixedCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-            const totalDuration = fixedCalls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
-            const avgDuration = fixedCalls.length > 0 ? Math.round(totalDuration / fixedCalls.length) : 0;
-            const completedCalls = fixedCalls.filter(call => call.call_status === 'completed').length;
-
-            setStats({
-              total: fixedCalls.length,
-              totalCost,
-              totalDuration,
-              avgDuration,
-              completedCalls
-            });
-            
-            return; // Salir temprano con las llamadas encontradas
-          }
         }
       }
 
