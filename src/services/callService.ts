@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { CallsTable } from "@/types/supabase";
 
@@ -22,20 +21,23 @@ export type CallData = Omit<CallsTable, 'timestamp' | 'start_time'> & {
   call_summary?: string;
 };
 
-export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
-  console.log("[CALL_SERVICE] Fetching calls for company:", companyId);
+export const fetchCalls = async (userId?: string): Promise<CallData[]> => {
+  console.log("[CALL_SERVICE] Fetching calls for user:", userId);
   
   try {
-    // Use the proper foreign key constraint established in migration
-    const { data, error } = await supabase
+    // ✅ CORREGIDO: Consulta simple sin JOINs problemáticos
+    let query = supabase
       .from("calls")
-      .select(`
-        *,
-        call_agent:agents!calls_agent_id_fkey(id, name, rate_per_minute)
-      `)
-      .eq("company_id", companyId)
+      .select("*")
       .order("timestamp", { ascending: false })
       .limit(1000);
+
+    // ✅ CORREGIDO: Filtrar por user_id en lugar de company_id
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("[CALL_SERVICE] Database error:", error);
@@ -47,21 +49,44 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
       return [];
     }
 
-    // Transform the data to ensure proper date objects and agent mapping
-    const transformedCalls: CallData[] = data.map((call) => ({
-      ...call,
-      timestamp: new Date(call.timestamp),
-      start_time: call.start_time ? new Date(call.start_time) : undefined,
-      // Map call_agent to agent for compatibility
-      agent: call.call_agent ? {
-        id: call.call_agent.id,
-        name: call.call_agent.name,
-        rate_per_minute: call.call_agent.rate_per_minute
-      } : undefined
-    }));
+    // ✅ ENRIQUECER CON DATOS DE AGENTES POR SEPARADO
+    const enrichedCalls: CallData[] = [];
+    
+    for (const call of data) {
+      let agentInfo = undefined;
+      
+      // Si la llamada tiene agent_id, buscar información del agente
+      if (call.agent_id) {
+        try {
+          const { data: agentData } = await supabase
+            .from("agents")
+            .select("id, name, rate_per_minute, retell_agent_id")
+            .eq("id", call.agent_id)
+            .single();
+            
+          if (agentData) {
+            agentInfo = {
+              id: agentData.id,
+              name: agentData.name,
+              agent_id: agentData.retell_agent_id,
+              rate_per_minute: agentData.rate_per_minute
+            };
+          }
+        } catch (agentError) {
+          console.warn("[CALL_SERVICE] Could not fetch agent info for:", call.agent_id);
+        }
+      }
 
-    console.log("[CALL_SERVICE] Successfully fetched and transformed", transformedCalls.length, "calls");
-    return transformedCalls;
+      enrichedCalls.push({
+        ...call,
+        timestamp: new Date(call.timestamp),
+        start_time: call.start_time ? new Date(call.start_time) : undefined,
+        agent: agentInfo
+      });
+    }
+
+    console.log("[CALL_SERVICE] Successfully fetched and enriched", enrichedCalls.length, "calls");
+    return enrichedCalls;
     
   } catch (error: any) {
     console.error("[CALL_SERVICE] Error in fetchCalls:", error);
@@ -73,7 +98,7 @@ export const fetchCalls = async (companyId: string): Promise<CallData[]> => {
     }
     
     if (error.message?.includes("permission denied")) {
-      throw new Error("Permission denied: You don't have access to view calls for this company");
+      throw new Error("Permission denied: You don't have access to view calls");
     }
     
     if (error.message?.includes("relation") && error.message?.includes("does not exist")) {
