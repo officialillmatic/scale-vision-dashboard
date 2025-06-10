@@ -92,10 +92,12 @@ export default function CallsSimple() {
   } else if (call.agents?.rate_per_minute) {
     agentRate = call.agents.rate_per_minute;
     console.log(`💰 Using agents rate: $${agentRate}/min`);
-  } else {
-    // FALLBACK: Usar tarifa por defecto más razonable
-    agentRate = 16.0; // $16/min como tarifa por defecto
-    console.log(`⚠️ No agent rate found, using default: $${agentRate}/min`);
+  }
+  
+  // Si NO encontramos tarifa del agente, usar costo de la DB
+  if (agentRate === 0) {
+    console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
+    return call.cost_usd || 0;
   }
   
   const calculatedCost = durationMinutes * agentRate;
@@ -104,7 +106,7 @@ export default function CallsSimple() {
     📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
     💵 Rate: $${agentRate}/min
     🎯 Calculated: $${calculatedCost.toFixed(4)}
-    🗄️ DB Cost: $${call.cost_usd || 0} (${calculatedCost > 0 ? 'IGNORED' : 'USED'})`);
+    🗄️ DB Cost: $${call.cost_usd || 0} (IGNORED)`);
   
   return calculatedCost;
 };
