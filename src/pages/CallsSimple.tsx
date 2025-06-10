@@ -355,6 +355,147 @@ if (data && data.length > 0) {
       setLoading(false);
     }
   };
+  // FUNCIÓN PARA SINCRONIZAR LLAMADAS FALTANTES DE RETELL AI
+const syncCallsFromRetell = async () => {
+  try {
+    setLoading(true);
+    console.log("🔄 Sincronizando llamadas desde Retell AI...");
+    
+    // PASO 1: Obtener llamadas desde Retell AI API
+    const retellResponse = await fetch('https://api.retellai.com/v2/list-calls', {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer key_95bd60545651d5d45eda5de17b2c',
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!retellResponse.ok) {
+      throw new Error(`Retell API error: ${retellResponse.status}`);
+    }
+    
+    const retellData = await retellResponse.json();
+    const retellCalls = retellData.calls || retellData;
+    console.log(`📞 Llamadas encontradas en Retell: ${retellCalls.length}`);
+    
+    // PASO 2: Obtener llamadas existentes en nuestra DB
+    const { data: existingCalls } = await supabase
+      .from('calls')
+      .select('call_id');
+    
+    const existingCallIds = new Set(existingCalls?.map(call => call.call_id) || []);
+    
+    // PASO 3: Filtrar llamadas que NO están en nuestra DB
+    const missingCalls = retellCalls.filter(call => !existingCallIds.has(call.call_id));
+    console.log(`🔍 Llamadas faltantes: ${missingCalls.length}`);
+    
+    if (missingCalls.length === 0) {
+      console.log("✅ No hay llamadas faltantes");
+      setError("No hay llamadas faltantes para sincronizar");
+      return;
+    }
+    
+    // PASO 4: Procesar cada llamada faltante
+    let syncedCount = 0;
+    for (const retellCall of missingCalls) {
+      try {
+        // Buscar agente correspondiente
+        const { data: agent } = await supabase
+          .from('retell_agents')
+          .select('*')
+          .eq('agent_id', retellCall.agent_id)
+          .single();
+        
+        if (!agent) {
+          console.log(`⚠️ Agente no encontrado: ${retellCall.agent_id}, usando fallback`);
+          
+          // FALLBACK: Usar valores por defecto
+          const fallbackCallData = {
+            call_id: retellCall.call_id,
+            user_id: 'efe4f9c1-8322-4ce7-8193-69b0dc982d03', // User ID fijo
+            agent_id: retellCall.agent_id,
+            timestamp: retellCall.start_timestamp || retellCall.end_timestamp || new Date().toISOString(),
+            duration_sec: retellCall.duration_ms ? Math.round(retellCall.duration_ms / 1000) : 0,
+            cost_usd: (retellCall.duration_ms ? Math.round(retellCall.duration_ms / 1000) : 0) / 60 * 0.17,
+            call_status: retellCall.disconnection_reason ? 'completed' : 'completed',
+            from_number: retellCall.from_number || 'unknown',
+            to_number: retellCall.to_number || 'unknown',
+            transcript: retellCall.transcript || null,
+            call_summary: retellCall.call_summary || null,
+            recording_url: retellCall.recording_url || null
+          };
+          
+          const { error: insertError } = await supabase
+            .from('calls')
+            .insert(fallbackCallData);
+          
+          if (!insertError) {
+            syncedCount++;
+            console.log(`✅ Llamada sincronizada (fallback): ${retellCall.call_id}`);
+          }
+          continue;
+        }
+        
+        // Buscar asignación de usuario
+        const { data: userAssignment } = await supabase
+          .from('user_agent_assignments')
+          .select('user_id')
+          .eq('agent_id', agent.id)
+          .eq('is_primary', true)
+          .single();
+        
+        const userId = userAssignment?.user_id || 'efe4f9c1-8322-4ce7-8193-69b0dc982d03';
+        
+        // Calcular costo con tarifa custom
+        const durationSec = retellCall.duration_ms ? Math.round(retellCall.duration_ms / 1000) : 0;
+        const durationMin = durationSec / 60;
+        const customRate = agent.rate_per_minute || 0.17;
+        const calculatedCost = durationMin * customRate;
+        
+        // Crear registro de llamada
+        const callData = {
+          call_id: retellCall.call_id,
+          user_id: userId,
+          agent_id: agent.id,
+          timestamp: retellCall.start_timestamp || retellCall.end_timestamp || new Date().toISOString(),
+          duration_sec: durationSec,
+          cost_usd: calculatedCost,
+          call_status: retellCall.disconnection_reason ? 'completed' : 'completed',
+          from_number: retellCall.from_number || 'unknown',
+          to_number: retellCall.to_number || 'unknown',
+          transcript: retellCall.transcript || null,
+          call_summary: retellCall.call_summary || null,
+          recording_url: retellCall.recording_url || null
+        };
+        
+        // Insertar en base de datos
+        const { error } = await supabase
+          .from('calls')
+          .insert(callData);
+        
+        if (!error) {
+          syncedCount++;
+          console.log(`✅ Llamada sincronizada: ${retellCall.call_id}`);
+        }
+        
+      } catch (callError) {
+        console.error(`❌ Error procesando llamada ${retellCall.call_id}:`, callError);
+      }
+    }
+    
+    console.log(`🎉 Sincronización completada: ${syncedCount} llamadas sincronizadas`);
+    setError(`✅ ${syncedCount} llamadas sincronizadas desde Retell AI`);
+    
+    // Recargar llamadas
+    await fetchCalls();
+    
+  } catch (error) {
+    console.error("❌ Error sincronizando llamadas:", error);
+    setError(`Error sincronizando: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
     
@@ -547,19 +688,28 @@ if (data && data.length > 0) {
               <p className="text-gray-600">Comprehensive call data for your account</p>
             </div>
             <div className="flex items-center gap-3">
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                <User className="w-3 h-3 mr-1" />
-                Active User
-              </Badge>
-              <Button
-                onClick={fetchCalls}
-                disabled={loading}
-                variant="outline"
-                size="sm"
-              >
-                {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
-              </Button>
-            </div>
+  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+    <User className="w-3 h-3 mr-1" />
+    Active User
+  </Badge>
+  <Button
+    onClick={syncCallsFromRetell}
+    disabled={loading}
+    variant="default"
+    size="sm"
+    className="bg-green-600 hover:bg-green-700 text-white"
+  >
+    {loading ? <LoadingSpinner size="sm" /> : "📡"} Sync Retell
+  </Button>
+  <Button
+    onClick={fetchCalls}
+    disabled={loading}
+    variant="outline"
+    size="sm"
+  >
+    {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
+  </Button>
+</div>
           </div>
 
           {/* Error Alert */}
