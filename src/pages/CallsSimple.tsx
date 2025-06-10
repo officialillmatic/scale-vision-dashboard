@@ -257,7 +257,7 @@ console.log("✅ Calls fetched successfully:", callsData?.length || 0);
 
 // PASO 4: Obtener agentes para el cálculo de costos
 const { data: allAgents, error: allAgentsError } = await supabase
-  .from('agents')
+  .from('retell_agents')
   .select('*');
 
 if (allAgentsError) {
@@ -270,8 +270,8 @@ let agentsData = [];
 
 if (agentIds.length > 0 && allAgents) {
   agentsData = allAgents.filter(agent => 
-    agentIds.includes(agent.id) || agentIds.includes(agent.retell_agent_id)
-  );
+  agentIds.includes(agent.id) || agentIds.includes(agent.agent_id)
+);
 }
 
       // PASO 4: Mapear agentes a llamadas
