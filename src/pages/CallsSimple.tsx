@@ -709,7 +709,7 @@ const syncCallsFromRetell = async () => {
                 size="sm"
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
-                {loading ? <LoadingSpinner size="sm" /> : "📡"} Sync Retell
+                {loading ? <LoadingSpinner size="sm" /> : "📡"} Sync Calls
               </Button>
               <Button
                 onClick={fetchCalls}
