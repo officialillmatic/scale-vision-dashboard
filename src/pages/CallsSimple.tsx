@@ -377,10 +377,6 @@ if (!retellResponse.ok) {
   throw new Error(`Retell API error: ${retellResponse.status} - ${errorText}`);
 }
     
-    const retellData = await retellResponse.json();
-    const retellCalls = retellData.calls || retellData;
-    console.log(`📞 Llamadas encontradas en Retell: ${retellCalls.length}`);
-    
     // PASO 2: Obtener llamadas existentes en nuestra DB
     const { data: existingCalls } = await supabase
       .from('calls')
