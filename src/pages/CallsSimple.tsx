@@ -356,26 +356,33 @@ if (data && data.length > 0) {
     }
   };
   // FUNCIÓN PARA SINCRONIZAR LLAMADAS FALTANTES DE RETELL AI
-// REEMPLAZA TODA la sección del fetch con:
-const retellResponse = await fetch('https://api.retellai.com/list-calls', {
-  method: 'POST',
+const syncCallsFromRetell = async () => {
+  try {
+    setLoading(true);
+    console.log("🔄 Sincronizando llamadas desde Retell AI...");
+    
+    // PASO 1: Obtener llamadas desde Retell AI API
+    const retellResponse = await fetch('https://api.retellai.com/list-calls', {
+  method: 'GET',
   headers: {
-    'Authorization': 'Bearer key_95bd60545651d5d45eda5de17b2c',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    limit: 1000,
-    sort_order: "descending"
-  })
+  'Authorization': 'Bearer key_95bd60545651d5d45eda5de17b2c',
+  'Content-Type': 'application/json',
+  'Accept': 'application/json'
+}
 });
 
 console.log("🔍 Response status:", retellResponse.status);
+console.log("🔍 Response headers:", retellResponse.headers);
 
 if (!retellResponse.ok) {
   const errorText = await retellResponse.text();
   console.error("❌ Retell API Error:", errorText);
   throw new Error(`Retell API error: ${retellResponse.status} - ${errorText}`);
 }
+    
+    const retellData = await retellResponse.json();
+    const retellCalls = retellData.calls || retellData;
+    console.log(`📞 Llamadas encontradas en Retell: ${retellCalls.length}`);
     
     // PASO 2: Obtener llamadas existentes en nuestra DB
     const { data: existingCalls } = await supabase
