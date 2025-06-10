@@ -1,22 +1,17 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, UserPlus } from 'lucide-react';
-import { AgentsTable } from './AgentsTable';
 import { AssignmentsTable } from './AssignmentsTable';
 import { NewAssignmentDialog } from './NewAssignmentDialog';
 import { useAgents } from '@/hooks/useAgents';
 import { useUserAgentAssignments } from '@/hooks/useUserAgentAssignments';
-import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 export function AgentAssignmentManager() {
   const [isNewAssignmentDialogOpen, setIsNewAssignmentDialogOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
 
   const {
-    agents,
-    isLoadingAgents,
     isAdmin
   } = useAgents();
 
@@ -70,11 +65,11 @@ export function AgentAssignmentManager() {
 
   return (
     <div className="space-y-6">
-      {/* Available Agents Section */}
+      {/* Current Assignments Section */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Available Agents</CardTitle>
+            <CardTitle>Current Agent Assignments</CardTitle>
             <Button 
               onClick={() => handleAssignAgent()}
               size="sm"
@@ -83,28 +78,6 @@ export function AgentAssignmentManager() {
               New Assignment
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoadingAgents ? (
-            <div className="flex items-center justify-center py-8">
-              <LoadingSpinner size="md" />
-            </div>
-          ) : (
-            <AgentsTable
-              agents={agents}
-              isLoading={isLoadingAgents}
-              onAssign={handleAssignAgent}
-              isAdmin={isAdmin}
-              showRates={isAdmin}
-            />
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Current Assignments Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Current Agent Assignments</CardTitle>
         </CardHeader>
         <CardContent>
           <AssignmentsTable
