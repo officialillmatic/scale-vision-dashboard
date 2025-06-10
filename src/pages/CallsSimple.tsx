@@ -308,6 +308,29 @@ export default function CallsSimple() {
       });
       
       setCalls(data || []);
+      // DIAGNÓSTICO DE AGENTES
+console.log("🔍 DIAGNÓSTICO DE AGENTES:");
+if (data && data.length > 0) {
+  data.slice(0, 3).forEach((call, index) => {
+    console.log(`📞 Call ${index + 1}:`);
+    console.log(`   Call ID: ${call.call_id}`);
+    console.log(`   Agent ID: ${call.agent_id}`);
+    console.log(`   call_agent:`, call.call_agent);
+    console.log(`   agents:`, call.agents);
+    console.log(`   DB cost: $${call.cost_usd}`);
+    console.log(`   ---`);
+  });
+
+  console.log("📊 AGENTES ÚNICOS:");
+  const uniqueAgentIds = [...new Set(data.map(call => call.agent_id))];
+  console.log("Agent IDs encontrados:", uniqueAgentIds);
+
+  console.log("🎯 AGENTES CON TARIFAS:");
+  const agentsWithRates = data.filter(call => 
+    call.call_agent?.rate_per_minute || call.agents?.rate_per_minute
+  );
+  console.log(`Llamadas con tarifas: ${agentsWithRates.length}/${data.length}`);
+}
 
       // Calcular estadísticas
       if (data && data.length > 0) {
