@@ -698,28 +698,19 @@ const syncCallsFromRetell = async () => {
               <p className="text-gray-600">Comprehensive call data for your account</p>
             </div>
             <div className="flex items-center gap-3">
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                <User className="w-3 h-3 mr-1" />
-                Active User
-              </Badge>
-              <Button
-                onClick={syncCallsFromRetell}
-                disabled={loading}
-                variant="default"
-                size="sm"
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                {loading ? <LoadingSpinner size="sm" /> : "📡"} Sync Calls
-              </Button>
-              <Button
-                onClick={fetchCalls}
-                disabled={loading}
-                variant="outline"
-                size="sm"
-              >
-                {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
-              </Button>
-            </div>
+  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+    <User className="w-3 h-3 mr-1" />
+    Active User
+  </Badge>
+  <Button
+    onClick={fetchCalls}
+    disabled={loading}
+    variant="outline"
+    size="sm"
+  >
+    {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
+  </Button>
+</div>
           </div>
 
           {/* Error Alert */}
