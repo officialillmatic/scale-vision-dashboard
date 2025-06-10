@@ -56,6 +56,33 @@ export type Database = {
           },
         ]
       }
+      app_users: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string | null
+          id: string
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       calls: {
         Row: {
           agent_id: string | null
@@ -446,39 +473,6 @@ export type Database = {
           total_calls?: number
           total_duration_minutes?: number
           total_revenue?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          avatar_url: string | null
-          created_at: string
-          email: string | null
-          full_name: string | null
-          id: string
-          role: string | null
-          status: string | null
-          updated_at: string
-        }
-        Insert: {
-          avatar_url?: string | null
-          created_at?: string
-          email?: string | null
-          full_name?: string | null
-          id: string
-          role?: string | null
-          status?: string | null
-          updated_at?: string
-        }
-        Update: {
-          avatar_url?: string | null
-          created_at?: string
-          email?: string | null
-          full_name?: string | null
-          id?: string
-          role?: string | null
-          status?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -898,20 +892,6 @@ export type Database = {
             referencedRelation: "retell_agents"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "user_agent_assignments_assigned_by_fkey"
-            columns: ["assigned_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_agent_assignments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
         ]
       }
       user_agents: {
@@ -1108,6 +1088,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          name: string | null
           role: string | null
           updated_at: string | null
         }
@@ -1115,7 +1096,8 @@ export type Database = {
           created_at?: string | null
           email: string
           full_name?: string | null
-          id?: string
+          id: string
+          name?: string | null
           role?: string | null
           updated_at?: string | null
         }
@@ -1124,6 +1106,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          name?: string | null
           role?: string | null
           updated_at?: string | null
         }
@@ -1359,6 +1342,36 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string | null
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string | null
+          role?: never
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string | null
+          role?: never
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_invitation: {
@@ -1420,9 +1433,29 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      cleanup_user_completely: {
+        Args: { email_to_clean: string }
+        Returns: Json
+      }
+      cleanup_user_for_reinvite: {
+        Args: { user_id_to_clean: string }
+        Returns: Json
+      }
+      create_profile_for_new_user_simulation: {
+        Args: { user_data: Record<string, unknown> }
+        Returns: undefined
+      }
       deduct_call_credits: {
         Args: { call_cost: number; call_id_ref: string }
         Returns: boolean
+      }
+      delete_team_member: {
+        Args: { user_id_to_delete: string }
+        Returns: Json
+      }
+      delete_user_completely: {
+        Args: { user_id_to_delete: string }
+        Returns: Json
       }
       get_call_metrics_for_period: {
         Args: {
@@ -1674,6 +1707,10 @@ export type Database = {
       is_user_company_owner_simple: {
         Args: { p_user_id: string; p_company_id: string }
         Returns: boolean
+      }
+      simulate_new_user_registration: {
+        Args: { user_email: string }
+        Returns: Json
       }
       sync_calls: {
         Args: Record<PropertyKey, never>

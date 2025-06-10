@@ -82,34 +82,34 @@ export default function CallsSimple() {
 
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
-  const durationMinutes = getCallDuration(call) / 60;
-  let agentRate = 0;
-  
-  // ORDEN DE PRIORIDAD para obtener la tarifa
-  if (call.call_agent?.rate_per_minute) {
-    agentRate = call.call_agent.rate_per_minute;
-    console.log(`💰 Using call_agent rate: $${agentRate}/min`);
-  } else if (call.agents?.rate_per_minute) {
-    agentRate = call.agents.rate_per_minute;
-    console.log(`💰 Using agents rate: $${agentRate}/min`);
-  }
-  
-  // Si NO encontramos tarifa del agente, usar costo de la DB
-  if (agentRate === 0) {
-    console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
-    return call.cost_usd || 0;
-  }
-  
-  const calculatedCost = durationMinutes * agentRate;
-  
-  console.log(`🧮 COST CALCULATION:
-    📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
-    💵 Rate: $${agentRate}/min
-    🎯 Calculated: $${calculatedCost.toFixed(4)}
-    🗄️ DB Cost: $${call.cost_usd || 0} (IGNORED)`);
-  
-  return calculatedCost;
-};
+    const durationMinutes = getCallDuration(call) / 60;
+    let agentRate = 0;
+    
+    // ORDEN DE PRIORIDAD para obtener la tarifa
+    if (call.call_agent?.rate_per_minute) {
+      agentRate = call.call_agent.rate_per_minute;
+      console.log(`💰 Using call_agent rate: $${agentRate}/min`);
+    } else if (call.agents?.rate_per_minute) {
+      agentRate = call.agents.rate_per_minute;
+      console.log(`💰 Using agents rate: $${agentRate}/min`);
+    }
+    
+    // Si NO encontramos tarifa del agente, usar costo de la DB
+    if (agentRate === 0) {
+      console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
+      return call.cost_usd || 0;
+    }
+    
+    const calculatedCost = durationMinutes * agentRate;
+    
+    console.log(`🧮 COST CALCULATION:
+      📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
+      💵 Rate: $${agentRate}/min
+      🎯 Calculated: $${calculatedCost.toFixed(4)}
+      🗄️ DB Cost: $${call.cost_usd || 0} (IGNORED)`);
+    
+    return calculatedCost;
+  };
 
   // useEffect hooks
   useEffect(() => {
@@ -698,28 +698,28 @@ const syncCallsFromRetell = async () => {
               <p className="text-gray-600">Comprehensive call data for your account</p>
             </div>
             <div className="flex items-center gap-3">
-  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-    <User className="w-3 h-3 mr-1" />
-    Active User
-  </Badge>
-  <Button
-    onClick={syncCallsFromRetell}
-    disabled={loading}
-    variant="default"
-    size="sm"
-    className="bg-green-600 hover:bg-green-700 text-white"
-  >
-    {loading ? <LoadingSpinner size="sm" /> : "📡"} Sync Retell
-  </Button>
-  <Button
-    onClick={fetchCalls}
-    disabled={loading}
-    variant="outline"
-    size="sm"
-  >
-    {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
-  </Button>
-</div>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                <User className="w-3 h-3 mr-1" />
+                Active User
+              </Badge>
+              <Button
+                onClick={syncCallsFromRetell}
+                disabled={loading}
+                variant="default"
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {loading ? <LoadingSpinner size="sm" /> : "📡"} Sync Retell
+              </Button>
+              <Button
+                onClick={fetchCalls}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+              >
+                {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
+              </Button>
+            </div>
           </div>
 
           {/* Error Alert */}
