@@ -22,11 +22,11 @@ export interface UserAgentAssignment {
   };
 }
 
-// 🔧 FUNCIÓN LOCAL que consulta retell_agents (la tabla correcta)
-const fetchRetellAgentsLocal = async (companyId?: string) => {
+// 🔧 FUNCIÓN CORREGIDA que consulta agents (la tabla correcta)
+const fetchAgentsLocal = async (companyId?: string) => {
   try {
     let query = supabase
-      .from("retell_agents")
+      .from("agents")  // ✅ CAMBIADO DE "retell_agents" A "agents"
       .select("*");
     
     if (companyId) {
@@ -36,20 +36,20 @@ const fetchRetellAgentsLocal = async (companyId?: string) => {
     const { data, error } = await query;
     
     if (error) {
-      console.error("[LOCAL_FETCH_RETELL_AGENTS] Error fetching retell agents:", error);
+      console.error("[LOCAL_FETCH_AGENTS] Error fetching agents:", error);
       throw error;
     }
     
     return data || [];
   } catch (error: any) {
-    console.error("[LOCAL_FETCH_RETELL_AGENTS] Error:", error);
-    throw new Error(`Failed to fetch retell agents: ${error.message}`);
+    console.error("[LOCAL_FETCH_AGENTS] Error:", error);
+    throw new Error(`Failed to fetch agents: ${error.message}`);
   }
 };
 
 export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]> => {
   try {
-    console.log('🔍 [fetchUserAgentAssignments] Starting fetch - using successful agent queries');
+    console.log('🔍 [fetchUserAgentAssignments] Starting fetch - using correct agent queries');
     
     // Usar consulta básica sin JOINs para evitar errores de relación
     const { data: assignments, error } = await supabase
@@ -76,10 +76,10 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
 
     console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments, enriching...');
 
-    // 🔧 USAR fetchRetellAgentsLocal (la tabla correcta donde están los IDs)
-    const allAgents = await fetchRetellAgentsLocal(); // Función que consulta retell_agents
-    console.log('🔍 [fetchUserAgentAssignments] Fetched retell agents:', allAgents.length, 'agents');
-    console.log('🔍 [fetchUserAgentAssignments] Retell agent details:', allAgents);
+    // 🔧 USAR fetchAgentsLocal (la tabla correcta agents)
+    const allAgents = await fetchAgentsLocal(); // Función que consulta agents
+    console.log('🔍 [fetchUserAgentAssignments] Fetched agents:', allAgents.length, 'agents');
+    console.log('🔍 [fetchUserAgentAssignments] Agent details:', allAgents);
 
     // Crear un mapa de agentes para lookup rápido
     const agentsMap = new Map(allAgents.map((agent: any) => [agent.id, agent]));
@@ -127,8 +127,8 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
         } : undefined,
         agent_details: agentDetails ? {
           id: agentDetails.id,
-          retell_agent_id: agentDetails.id,
-          name: agentDetails.name, // 🔧 NOMBRE REAL del agente que funciona
+          retell_agent_id: agentDetails.retell_agent_id,  // ✅ USAR retell_agent_id DE LA TABLA agents
+          name: agentDetails.name, // ✅ NOMBRE REAL del agente que funciona
           description: agentDetails.description || 'Custom AI Agent',
           status: agentDetails.status || 'active'
         } : undefined
@@ -188,8 +188,8 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
 
     console.log('🔍 [fetchCurrentUserAgentAssignments] Found', assignments.length, 'assignments for current user');
 
-    // 🔧 USAR fetchRetellAgentsLocal también aquí
-    const allAgents = await fetchRetellAgentsLocal();
+    // 🔧 USAR fetchAgentsLocal también aquí
+    const allAgents = await fetchAgentsLocal();
     const agentsMap = new Map(allAgents.map((agent: any) => [agent.id, agent]));
 
     // Enrich assignments with user and agent details
@@ -229,7 +229,7 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
         } : undefined,
         agent_details: agentDetails ? {
           id: agentDetails.id,
-          retell_agent_id: agentDetails.id,
+          retell_agent_id: agentDetails.retell_agent_id,  // ✅ USAR retell_agent_id DE LA TABLA agents
           name: agentDetails.name,
           description: agentDetails.description || 'Custom AI Agent',
           status: agentDetails.status || 'active'
@@ -308,6 +308,20 @@ export const createUserAgentAssignment = async (
 ): Promise<boolean> => {
   try {
     console.log('🔍 [createUserAgentAssignment] Creating assignment:', { userId, agentId, isPrimary });
+
+    // ✅ VALIDAR QUE EL AGENTE EXISTE EN LA TABLA agents
+    const { data: agentExists, error: agentError } = await supabase
+      .from("agents")
+      .select("id")
+      .eq("id", agentId)
+      .single();
+
+    if (agentError || !agentExists) {
+      console.error("[USER_AGENT_ASSIGNMENT_SERVICE] Agent not found:", agentId, agentError);
+      throw new Error(`Agent with ID ${agentId} not found in agents table`);
+    }
+
+    console.log('🔍 [createUserAgentAssignment] Agent validated successfully');
 
     // If setting as primary, first unset all other primary assignments for this user
     if (isPrimary) {
