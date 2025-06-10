@@ -207,11 +207,11 @@ const { data: userAgents, error: agentsError } = await supabase
   .from('user_agent_assignments')
   .select(`
     agent_id,
-    retell_agents!inner (
+    agents!inner (
       id,
-      agent_id,
       name,
-      rate_per_minute
+      rate_per_minute,
+      retell_agent_id
     )
   `)
   .eq('user_id', user.id)
@@ -237,7 +237,7 @@ if (!userAgents || userAgents.length === 0) {
 }
 
 // PASO 2: Obtener IDs de agentes del usuario
-const userAgentIds = userAgents.map(assignment => assignment.retell_agents.id);
+const userAgentIds = userAgents.map(assignment => assignment.agents.id);
 console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
 
 // PASO 3: Obtener llamadas de esos agentes
