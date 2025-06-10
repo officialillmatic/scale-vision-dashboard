@@ -82,21 +82,32 @@ export default function CallsSimple() {
 
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
-    const durationMinutes = getCallDuration(call) / 60;
-    let agentRate = 0;
-    
-    if (call.call_agent?.rate_per_minute) {
-      agentRate = call.call_agent.rate_per_minute;
-    } else if (call.agents?.rate_per_minute) {
-      agentRate = call.agents.rate_per_minute;
-    }
-    
-    if (agentRate === 0) {
-      return call.cost_usd || 0;
-    }
-    
-    return durationMinutes * agentRate;
-  };
+  const durationMinutes = getCallDuration(call) / 60;
+  let agentRate = 0;
+  
+  // ORDEN DE PRIORIDAD para obtener la tarifa
+  if (call.call_agent?.rate_per_minute) {
+    agentRate = call.call_agent.rate_per_minute;
+    console.log(`💰 Using call_agent rate: $${agentRate}/min`);
+  } else if (call.agents?.rate_per_minute) {
+    agentRate = call.agents.rate_per_minute;
+    console.log(`💰 Using agents rate: $${agentRate}/min`);
+  } else {
+    // FALLBACK: Usar tarifa por defecto más razonable
+    agentRate = 16.0; // $16/min como tarifa por defecto
+    console.log(`⚠️ No agent rate found, using default: $${agentRate}/min`);
+  }
+  
+  const calculatedCost = durationMinutes * agentRate;
+  
+  console.log(`🧮 COST CALCULATION:
+    📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
+    💵 Rate: $${agentRate}/min
+    🎯 Calculated: $${calculatedCost.toFixed(4)}
+    🗄️ DB Cost: $${call.cost_usd || 0} (${calculatedCost > 0 ? 'IGNORED' : 'USED'})`);
+  
+  return calculatedCost;
+};
 
   // useEffect hooks
   useEffect(() => {
