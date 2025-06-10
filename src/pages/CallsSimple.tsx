@@ -365,9 +365,10 @@ const syncCallsFromRetell = async () => {
     const retellResponse = await fetch('https://api.retellai.com/list-calls', {
   method: 'GET',
   headers: {
-    'Authorization': 'Bearer key_95bd60545651d5d45eda5de17b2c',
-    'Content-Type': 'application/json'
-  }
+  'Authorization': 'Bearer key_95bd60545651d5d45eda5de17b2c',
+  'Content-Type': 'application/json',
+  'Accept': 'application/json'
+}
 });
 
 console.log("🔍 Response status:", retellResponse.status);
