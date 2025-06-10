@@ -202,59 +202,77 @@ export default function CallsSimple() {
 
       console.log("🔍 Fetching calls for user:", user.id);
 
-      // PASO 1: Obtener llamadas básicas
-      const { data: callsData, error: callsError } = await supabase
-        .from('calls')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('timestamp', { ascending: false });
+      // PASO 1: Obtener agentes asignados al usuario actual
+const { data: userAgents, error: agentsError } = await supabase
+  .from('user_agent_assignments')
+  .select(`
+    agent_id,
+    retell_agents!inner (
+      id,
+      agent_id,
+      name,
+      rate_per_minute
+    )
+  `)
+  .eq('user_id', user.id)
+  .eq('is_primary', true);
 
-      if (callsError) {
-        console.error("❌ Error fetching calls:", callsError);
-        setError(`Error: ${callsError.message}`);
-        return;
-      }
+if (agentsError) {
+  console.error("❌ Error fetching user agents:", agentsError);
+  setError(`Error: ${agentsError.message}`);
+  return;
+}
 
-      console.log("✅ Calls fetched successfully:", callsData?.length || 0);
-      
-      // DIAGNÓSTICO SIMPLE: Si no hay llamadas, verificar con user_id fijo
-      if (!callsData || callsData.length === 0) {
-        console.log("⚠️ No calls found, trying with fixed user_id for debugging...");
-        const { data: debugCalls } = await supabase
-          .from('calls')
-          .select('id, call_id, user_id, timestamp')
-          .eq('user_id', 'efe4f9c1-8322-4ce7-8193-69b0dc982d03')
-          .order('timestamp', { ascending: false });
-        
-        console.log("🔍 Debug calls with fixed ID:", debugCalls?.length || 0);
-        if (debugCalls && debugCalls.length > 0) {
-          console.log("🚨 FOUND CALLS WITH FIXED ID - USER ID MISMATCH!");
-          console.log("   Frontend user.id:", user.id);
-          console.log("   Fixed user_id:   ", 'efe4f9c1-8322-4ce7-8193-69b0dc982d03');
-          console.log("   Are they equal?  ", user.id === 'efe4f9c1-8322-4ce7-8193-69b0dc982d03');
-          
-          
-        }
-      }
+if (!userAgents || userAgents.length === 0) {
+  console.log("⚠️ No agents assigned to this user");
+  setCalls([]);
+  setStats({
+    total: 0,
+    totalCost: 0,
+    totalDuration: 0,
+    avgDuration: 0,
+    completedCalls: 0
+  });
+  return;
+}
 
-      // PASO 2: Obtener agentes para el cálculo de costos
-      const { data: allAgents, error: allAgentsError } = await supabase
-        .from('agents')
-        .select('*');
+// PASO 2: Obtener IDs de agentes del usuario
+const userAgentIds = userAgents.map(assignment => assignment.retell_agents.id);
+console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
 
-      if (allAgentsError) {
-        console.error("⚠️ Error fetching agents:", allAgentsError);
-      }
+// PASO 3: Obtener llamadas de esos agentes
+const { data: callsData, error: callsError } = await supabase
+  .from('calls')
+  .select('*')
+  .in('agent_id', userAgentIds)
+  .order('timestamp', { ascending: false });
 
-      // PASO 3: Conectar agentes con llamadas
-      const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
-      let agentsData = [];
+if (callsError) {
+  console.error("❌ Error fetching calls:", callsError);
+  setError(`Error: ${callsError.message}`);
+  return;
+}
 
-      if (agentIds.length > 0 && allAgents) {
-        agentsData = allAgents.filter(agent => 
-          agentIds.includes(agent.id) || agentIds.includes(agent.retell_agent_id)
-        );
-      }
+console.log("✅ Calls fetched successfully:", callsData?.length || 0);
+
+// PASO 4: Obtener agentes para el cálculo de costos
+const { data: allAgents, error: allAgentsError } = await supabase
+  .from('agents')
+  .select('*');
+
+if (allAgentsError) {
+  console.error("⚠️ Error fetching agents:", allAgentsError);
+}
+
+// PASO 5: Conectar agentes con llamadas
+const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
+let agentsData = [];
+
+if (agentIds.length > 0 && allAgents) {
+  agentsData = allAgents.filter(agent => 
+    agentIds.includes(agent.id) || agentIds.includes(agent.retell_agent_id)
+  );
+}
 
       // PASO 4: Mapear agentes a llamadas
       const data = callsData?.map(call => {
