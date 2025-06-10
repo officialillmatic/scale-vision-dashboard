@@ -362,7 +362,7 @@ const syncCallsFromRetell = async () => {
     console.log("🔄 Sincronizando llamadas desde Retell AI...");
     
     // PASO 1: Obtener llamadas desde Retell AI API
-    const retellResponse = await fetch('https://api.retellai.com/list-calls', {
+    const retellResponse = await fetch('https://api.retellai.com/get-call', {
       method: 'GET',
       headers: {
         'Authorization': 'Bearer key_95bd60545651d5d45eda5de17b2c',
