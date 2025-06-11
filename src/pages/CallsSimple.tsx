@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -62,7 +61,6 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
-
 // COMPONENTE FILTRO DE AGENTES
 const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
   agents: any[];
@@ -152,7 +150,6 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
     </div>
   );
 };
-
 export default function CallsSimple() {
   const { user } = useAuth();
   const { getAgentName, getUniqueAgentsFromCalls, isLoadingAgents } = useAgents();
@@ -179,11 +176,9 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // Obtener agentes únicos de las llamadas
   const uniqueAgents = getUniqueAgentsFromCalls(calls);
   const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
 
-  // useEffect hooks
   useEffect(() => {
     if (user?.id) {
       fetchCalls();
@@ -211,39 +206,36 @@ export default function CallsSimple() {
       loadAllAudioDurations();
     }
   }, [calls]);
-
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
     let agentRate = 0;
     
-    // AGREGAR ESTOS LOGS DE DEBUG:
+    // LOGS DE DEBUG:
     console.log(`🔍 CALCULANDO COSTO PARA ${call.call_id?.substring(0, 8)}:`);
     console.log(`📏 Duración: ${getCallDuration(call)}s`);
     console.log(`🔍 call_agent:`, call.call_agent);
     console.log(`🔍 cost_usd de DB:`, call.cost_usd);
     
-    // RESTO DE TU FUNCIÓN ACTUAL...
     if (call.call_agent?.rate_per_minute) {
       agentRate = call.call_agent.rate_per_minute;
-      console.log(`💰 Using call_agent rate: $${agentRate}/min`); // AGREGAR
+      console.log(`💰 Using call_agent rate: $${agentRate}/min`);
     } else if (call.agents?.rate_per_minute) {
       agentRate = call.agents.rate_per_minute;
-      console.log(`💰 Using agents rate: $${agentRate}/min`); // AGREGAR
+      console.log(`💰 Using agents rate: $${agentRate}/min`);
     }
     
     if (agentRate === 0) {
-      console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`); // AGREGAR
+      console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
       const finalCost = call.cost_usd || 0;
-console.log(`🎯 RETORNANDO FINAL: $${finalCost}`);
-return finalCost;
+      console.log(`🎯 RETORNANDO FINAL: $${finalCost}`);
+      return finalCost;
     }
     
     const calculatedCost = durationMinutes * agentRate;
-    console.log(`🎯 RESULTADO: $${calculatedCost.toFixed(4)}`); // AGREGAR
-    
     console.log(`🎯 RETORNANDO CALCULADO: $${calculatedCost}`);
-return calculatedCost;
+    
+    return calculatedCost;
   };
 
   const getCallDuration = (call: any) => {
@@ -285,7 +277,6 @@ return calculatedCost;
       console.log(`❌ Error loading audio duration:`, error);
     }
   };
-
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -380,7 +371,6 @@ return calculatedCost;
 
     setFilteredCalls(filtered);
   };
-
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
@@ -425,93 +415,146 @@ return calculatedCost;
         return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
-
   const fetchCalls = async () => {
-  console.log("🚀 FETCHCALLS STARTED");
-  if (!user?.id) {
-    setError("User not authenticated");
-    setLoading(false);
-    return;
-  }
-
-  try {
-    setLoading(true);
-    setError(null);
-
-    // PASO 1: Obtener TODAS las llamadas (sin JOIN)
-    const { data: callsData, error: callsError } = await supabase
-      .from('calls')
-      .select('*')
-      .order('timestamp', { ascending: false});
-
-    if (callsError) {
-      console.error("❌ Error fetching calls:", callsError);
-      setError(`Error: ${callsError.message}`);
+    console.log("🚀 FETCHCALLS STARTED");
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
       return;
     }
 
-    console.log("✅ Calls fetched successfully:", callsData?.length || 0);
+    try {
+      setLoading(true);
+      setError(null);
 
-    // PASO 2: Obtener TODOS los agentes (consulta separada)
-    const { data: allAgents, error: agentsError } = await supabase
-      .from('agents')
-      .select('id, name, rate_per_minute');
+      // PASO 1: Obtener agentes asignados al usuario actual
+      const { data: userAgents, error: agentsError } = await supabase
+        .from('user_agent_assignments')
+        .select(`
+          agent_id,
+          agents!inner (
+            id,
+            name,
+            rate_per_minute,
+            retell_agent_id
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('is_primary', true);
 
-    if (agentsError) {
-      console.error("❌ Error fetching agents:", agentsError);
-    }
+      if (agentsError) {
+        console.error("❌ Error fetching user agents:", agentsError);
+        setError(`Error: ${agentsError.message}`);
+        return;
+      }
 
-    console.log("✅ Agents fetched:", allAgents?.length || 0);
+      if (!userAgents || userAgents.length === 0) {
+        console.log("⚠️ No agents assigned to this user");
+        setCalls([]);
+        setStats({
+          total: 0,
+          totalCost: 0,
+          totalDuration: 0,
+          avgDuration: 0,
+          completedCalls: 0
+        });
+        return;
+      }
 
-    // PASO 3: Crear mapa de agentes para búsqueda rápida
-    const agentsMap = new Map(allAgents?.map(agent => [agent.id, agent]) || []);
+      // PASO 2: Obtener IDs de agentes del usuario
+      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
+      console.log(`🎯 User has ${userAgentIds.length} assigned agents`);
 
-    // PASO 4: Mapear datos CON agentes
-    const data = callsData?.map(call => {
-      const agent = agentsMap.get(call.agent_id);
-      
-      return {
-        ...call,
-        call_summary: call.call_summary || null,
-        end_reason: call.disconnection_reason || null,
-        call_agent: agent ? {
-          id: agent.id,
-          name: agent.name,
-          rate_per_minute: agent.rate_per_minute
-        } : null
-      };
-    });
+      // PASO 3: Obtener llamadas de esos agentes
+      const { data: callsData, error: callsError } = await supabase
+        .from('calls')
+        .select('*')
+        .in('agent_id', userAgentIds)
+        .order('timestamp', { ascending: false});
 
-    // DEBUG: Contar summaries
-    const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
-    console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length, "de", data?.length || 0);
+      if (callsError) {
+        console.error("❌ Error fetching calls:", callsError);
+        setError(`Error: ${callsError.message}`);
+        return;
+      }
 
-    setCalls(data || []);
+      console.log("✅ Calls fetched successfully:", callsData?.length || 0);
 
-    // Calcular estadísticas
-    if (data && data.length > 0) {
-      const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
-      const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
-      const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-      const completedCalls = data.filter(call => call.call_status === 'completed').length;
+      // PASO 4: Obtener agentes para el cálculo de costos
+      const { data: allAgents, error: allAgentsError } = await supabase
+        .from('retell_agents')
+        .select('*');
 
-      setStats({
-        total: data.length,
-        totalCost,
-        totalDuration,
-        avgDuration,
-        completedCalls
+      if (allAgentsError) {
+        console.error("⚠️ Error fetching agents:", allAgentsError);
+      }
+
+      // PASO 5: Conectar agentes con llamadas
+      const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
+      let agentsData = [];
+
+      if (agentIds.length > 0 && allAgents) {
+        agentsData = allAgents.filter(agent => 
+          agentIds.includes(agent?.id) || agentIds.includes(agent?.agent_id)
+        );
+      }
+
+      // PASO 6: Mapear agentes a llamadas CON SUMMARY
+      const data = callsData?.map(call => {
+        let matchedAgent = null;
+
+        if (agentsData && agentsData.length > 0) {
+          matchedAgent = agentsData.find(agent => 
+            agent?.id === call.agent_id ||
+            agent?.retell_agent_id === call.agent_id
+          );
+
+          if (!matchedAgent && agentsData.length === 1) {
+            matchedAgent = agentsData[0];
+          }
+        }
+
+        return {
+          ...call,
+          call_summary: call.call_summary || null,
+          end_reason: call.disconnection_reason || null,
+          call_agent: matchedAgent ? {
+            id: matchedAgent.id,
+            name: matchedAgent.name,
+            rate_per_minute: matchedAgent.rate_per_minute
+          } : null
+        };
       });
+
+      // DEBUG: Contar summaries
+      const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
+      console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length, "de", data?.length || 0);
+
+      setCalls(data || []);
+
+      // Calcular estadísticas
+      if (data && data.length > 0) {
+        const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
+        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
+        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
+        const completedCalls = data.filter(call => call.call_status === 'completed').length;
+
+        setStats({
+          total: data.length,
+          totalCost,
+          totalDuration,
+          avgDuration,
+          completedCalls
+        });
+      }
+
+    } catch (err: any) {
+      console.error("❌ Exception fetching calls:", err);
+      setError(`Exception: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
-
-  } catch (err: any) {
-    console.error("❌ Exception fetching calls:", err);
-    setError(`Exception: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -589,7 +632,6 @@ return calculatedCost;
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-
   if (!user) {
     return (
       <DashboardLayout>
@@ -643,7 +685,6 @@ return calculatedCost;
               </CardContent>
             </Card>
           )}
-
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -706,7 +747,6 @@ return calculatedCost;
               </CardContent>
             </Card>
           </div>
-
           {/* Filters */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
@@ -779,7 +819,6 @@ return calculatedCost;
               </div>
             </CardContent>
           </Card>
-
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -865,6 +904,7 @@ return calculatedCost;
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           End Reason
                         </th>
+                        <th className="px-
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Content
                         </th>
@@ -906,7 +946,6 @@ return calculatedCost;
                                 <div className="text-sm font-medium text-gray-900">
                                   {getAgentName(call.agent_id)}
                                 </div>
-                                
                                 <div className="text-xs text-gray-500">
                                   {call.agent_id.substring(0, 8)}...
                                 </div>
@@ -925,7 +964,6 @@ return calculatedCost;
                               }
                             </div>
                           </td>
-                          
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {formatCurrency(calculateCallCost(call))}
@@ -971,7 +1009,7 @@ return calculatedCost;
                                   Transcript
                                 </div>
                               )}
-                              {call.call_summary && (
+                              {(call.call_summary && call.call_summary !== null) && (
                                 <div className="flex items-center gap-1 text-xs text-blue-600">
                                   <PlayCircle className="h-3 w-3" />
                                   Summary
@@ -984,13 +1022,12 @@ return calculatedCost;
                                 </div>
                               )}
                             </div>
-                            {call.call_summary && (
+                            {(call.call_summary && call.call_summary !== null) && (
                               <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
                                 {call.call_summary}
                               </div>
                             )}
                           </td>
-                          
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-1">
                               <Button 
