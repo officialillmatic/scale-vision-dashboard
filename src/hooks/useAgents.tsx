@@ -102,20 +102,23 @@ export function useAgents() {
 
   // Función para obtener agentes únicos de una lista de llamadas
   const getUniqueAgentsFromCalls = (calls: any[]) => {
-    if (!calls || !agents) return [];
-    
-    const uniqueAgentIds = [...new Set(calls.map(call => call.agentId))];
-    
-    return uniqueAgentIds
-      .map(agentId => {
-        const agent = agents.find(a => a.id === agentId);
-        return {
-          id: agentId,
-          name: agent ? agent.name : getAgentName(agentId)
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  };
+  if (!calls || !agents) return [];
+  
+  const uniqueAgentIds = [...new Set(calls.map(call => call.agent_id))];
+  
+  return uniqueAgentIds
+    .map(agentId => {
+      const agent = agents.find(a => a.id === agentId);
+      return {
+        id: agentId,
+        name: agent ? agent.name : getAgentName(agentId),
+        // Agregar estas propiedades que faltan:
+        rate_per_minute: agent?.rate_per_minute,
+        retell_agent_id: agent?.retell_agent_id
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
 
   const handleCreateAgent = async (agentData: Partial<Agent>) => {
     if (!isSuperAdmin && !isAdmin) return false;
