@@ -240,6 +240,31 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
         return 'bg-gray-50 text-gray-600 border-gray-200';
     }
   };
+  const getEndReasonColor = (endReason: string) => {
+    if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
+    
+    switch (endReason.toLowerCase()) {
+      case 'user hangup':
+      case 'user_hangup':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'agent hangup':
+      case 'agent_hangup':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'dial no answer':
+      case 'dial_no_answer':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'error llm websocket open':
+      case 'error_llm_websocket_open':
+      case 'technical_error':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'call completed':
+      case 'call_completed':
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -400,6 +425,19 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                         <Badge className={getSentimentColor(call.sentiment || 'neutral')}>
                           {call.sentiment || 'Neutral'}
                         </Badge>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Activity className="h-4 w-4 text-orange-600" />
+                          <span className="text-sm font-medium">End Reason</span>
+                        </div>
+                        {call.end_reason ? (
+                          <Badge className={getEndReasonColor(call.end_reason)}>
+                            {call.end_reason.replace(/_/g, ' ')}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-gray-500">Not specified</span>
+                        )}
                       </div>
 
                       {/* NUEVO: Mostrar información del agente en Analysis */}
