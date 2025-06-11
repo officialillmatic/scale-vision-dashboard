@@ -210,22 +210,34 @@ export default function CallsSimple() {
   }, [calls]);
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
-    const durationMinutes = getCallDuration(call) / 60;
-    let agentRate = 0;
-    
-    if (call.call_agent?.rate_per_minute) {
-      agentRate = call.call_agent.rate_per_minute;
-    } else if (call.agents?.rate_per_minute) {
-      agentRate = call.agents.rate_per_minute;
-    }
-    
-    if (agentRate === 0) {
-      return call.cost_usd || 0;
-    }
-    
-    const calculatedCost = durationMinutes * agentRate;
-    return calculatedCost;
-  };
+  const durationMinutes = getCallDuration(call) / 60;
+  let agentRate = 0;
+  
+  // ORDEN DE PRIORIDAD para obtener la tarifa
+  if (call.call_agent?.rate_per_minute) {
+    agentRate = call.call_agent.rate_per_minute;
+    console.log(`💰 Using call_agent rate: $${agentRate}/min`);
+  } else if (call.agents?.rate_per_minute) {
+    agentRate = call.agents.rate_per_minute;
+    console.log(`💰 Using agents rate: $${agentRate}/min`);
+  }
+  
+  // Si NO encontramos tarifa del agente, usar costo de la DB
+  if (agentRate === 0) {
+    console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
+    return call.cost_usd || 0;
+  }
+  
+  const calculatedCost = durationMinutes * agentRate;
+  
+  console.log(`🧮 COST CALCULATION:
+    📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
+    💵 Rate: $${agentRate}/min
+    🎯 Calculated: $${calculatedCost.toFixed(4)}
+    🗄️ DB Cost: $${call.cost_usd || 0} (IGNORED)`);
+  
+  return calculatedCost;
+};
 
   const getCallDuration = (call: any) => {
     if (audioDurations[call.id]) {
