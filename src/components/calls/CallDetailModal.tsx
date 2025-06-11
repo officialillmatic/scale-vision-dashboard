@@ -22,6 +22,7 @@ import {
   Pause,
   Download
 } from "lucide-react";
+import { useAgents } from "@/hooks/useAgents"; // NUEVO IMPORT
 
 interface Call {
   id: string;
@@ -100,6 +101,9 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+
+  // NUEVO: Usar el hook de agentes para obtener nombres
+  const { getAgentName, getAgent } = useAgents();
 
   // Audio setup
   useEffect(() => {
@@ -245,6 +249,10 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
 
   if (!call) return null;
 
+  // NUEVO: Obtener información del agente
+  const agent = getAgent(call.agent_id);
+  const agentName = getAgentName(call.agent_id);
+
   // Console log for debugging
   console.log("🎵 Call data in modal:", call);
   console.log("🎵 Recording URL:", call.recording_url);
@@ -305,7 +313,6 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">Cost:</span>
-                      {/* CORRECCIÓN 1: Usar calculateCallCost en lugar de call.cost_usd */}
                       <span className="text-sm">{formatCurrency(calculateCallCost(call, audioDuration))}</span>
                     </div>
                   </div>
@@ -320,10 +327,27 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                       <span className="text-sm font-medium">To:</span>
                       <span className="text-sm font-mono">{call.to_number}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm font-medium">Agent ID:</span>
-                      <span className="text-sm">{call.agent_id}</span>
+                    {/* CAMBIO PRINCIPAL: Mostrar nombre del agente en lugar del ID */}
+                    <div className="flex items-start gap-2">
+                      <User className="h-4 w-4 text-gray-500 mt-0.5" />
+                      <div>
+                        <div className="text-sm font-medium text-gray-500">Agent:</div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {agentName}
+                        </div>
+                        {agent?.status && (
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mr-2 ${
+                            agent.status === 'active' 
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {agent.status}
+                          </span>
+                        )}
+                        <div className="text-xs text-gray-500">
+                          ID: {call.agent_id}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -377,6 +401,20 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                           {call.sentiment || 'Neutral'}
                         </Badge>
                       </div>
+
+                      {/* NUEVO: Mostrar información del agente en Analysis */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <User className="h-4 w-4 text-purple-600" />
+                          <span className="text-sm font-medium">Assigned Agent</span>
+                        </div>
+                        <div className="text-sm">
+                          <div className="font-medium text-gray-900">{agentName}</div>
+                          {agent?.description && (
+                            <div className="text-xs text-gray-500 mt-1">{agent.description}</div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-4">
@@ -406,7 +444,6 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                       <DollarSign className="h-6 w-6 text-green-600 mx-auto mb-1" />
                       <div className="text-sm font-medium text-green-800">Cost</div>
                       <div className="text-lg font-bold text-green-900">
-                        {/* CORRECCIÓN 2: Usar calculateCallCost en lugar de call.cost_usd */}
                         {formatCurrency(calculateCallCost(call, audioDuration))}
                       </div>
                     </div>
