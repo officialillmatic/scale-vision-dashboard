@@ -585,10 +585,10 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
   };
 
   const handleCallClick = (call: Call) => {
-  console.log("🎯 SELECTED CALL:", call);
-  console.log("🎯 SELECTED CALL SUMMARY:", call.call_summary);
+  console.log("🎯 CLICKED CALL:", call);
+  console.log("🎯 CLICKED CALL SUMMARY:", call.call_summary);
   const originalCall = calls.find(c => c.id === call.id) || call;
-  console.log("🎯 ORIGINAL CALL:", originalCall);
+  console.log("🎯 ORIGINAL CALL FOUND:", originalCall);
   console.log("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
   setSelectedCall(originalCall);
   setIsModalOpen(true);
