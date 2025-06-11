@@ -411,7 +411,6 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                   )}
                 </CardContent>
               </Card>
-              )}
             </TabsContent>
 
             <TabsContent value="analysis" className="space-y-4">
