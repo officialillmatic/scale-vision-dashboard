@@ -492,6 +492,8 @@ export default function CallsSimple() {
       }
 
       console.log("✅ Calls fetched successfully:", callsData?.length || 0);
+console.log("🔍 RAW SUPABASE DATA - FIRST CALL:", callsData?.[0]);
+console.log("🔍 RAW SUPABASE CALL_SUMMARY:", callsData?.[0]?.call_summary);
       console.log("🔍 FIRST CALL RAW DATA:", callsData?.[0]);
       console.log("🔍 CALL_SUMMARY from DB:", callsData?.[0]?.call_summary);
       console.log("🔍 ALL CALL_SUMMARIES:", callsData?.map(call => ({ 
@@ -544,7 +546,8 @@ export default function CallsSimple() {
   } : null
 };
       });
-
+console.log("🎯 AFTER MAPPING - FIRST CALL:", data?.[0]);
+console.log("🎯 AFTER MAPPING CALL_SUMMARY:", data?.[0]?.call_summary);
       setCalls(data || []);
 console.log("🎯 FINAL DATA BEFORE setCalls:", data?.[0]);
 console.log("🎯 CALL_SUMMARY BEFORE setCalls:", data?.[0]?.call_summary);
