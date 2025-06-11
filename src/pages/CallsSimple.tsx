@@ -587,6 +587,16 @@ const data = callsData?.map(call => {
 });
 
 console.log("🎯 FINAL DATA SAMPLE:", {
+  // DEBUG EN PANTALLA - Buscar llamadas con summary
+const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
+console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length);
+
+// Mostrar alert si encontramos summaries
+if (callsWithSummary.length > 0) {
+  alert(`✅ ENCONTRÉ ${callsWithSummary.length} LLAMADAS CON SUMMARY!\nPrimera: ${callsWithSummary[0].call_summary?.substring(0, 100)}...`);
+} else {
+  alert(`❌ NO HAY LLAMADAS CON SUMMARY en ${data?.length || 0} llamadas totales`);
+}
   totalCalls: data?.length,
   firstCall: data?.[0],
   firstCallSummary: data?.[0]?.call_summary,
