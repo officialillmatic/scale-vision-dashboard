@@ -253,8 +253,6 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     case 'dial no answer':
     case 'dial_no_answer':
       return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'voicemail_reached':
-      return 'bg-orange-100 text-orange-800 border-orange-200';
     case 'error llm websocket open':
     case 'error_llm_websocket_open':
     case 'technical_error':
@@ -282,6 +280,7 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
 
   // Console log for debugging
   console.log("🎵 Call data in modal:", call);
+  console.log("📝 Call summary:", call.call_summary);  // AGREGAR ESTA LÍNEA AQUÍ
   console.log("🎵 Recording URL:", call.recording_url);
   console.log("🎵 Duration sec:", call.duration_sec, typeof call.duration_sec);
   console.log("🎵 Raw call object keys:", Object.keys(call));
