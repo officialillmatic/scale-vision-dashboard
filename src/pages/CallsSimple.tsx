@@ -956,8 +956,8 @@ export default function CallsSimple() {
                           
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
-                              {formatDuration(getCallDuration(call))}
-                            </div>
+  {formatCurrency(calculateCallCost(call))}
+</div>
                             <div className="text-xs text-gray-500">
                               {audioDurations[call.id] ? 
                                 `${getCallDuration(call)}s (from audio)` : 
