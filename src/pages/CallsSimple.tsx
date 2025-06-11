@@ -480,9 +480,11 @@ export default function CallsSimple() {
       // PASO 3: Obtener llamadas de esos agentes - QUERY CORREGIDA
 const { data: callsData, error: callsError } = await supabase
   .from('calls')
-  .select('*')  // Solo esto, SIN campos duplicados
+  .select(`
+    *
+  `)
   .in('agent_id', userAgentIds)
-  .order('timestamp', { ascending: false});
+  .order('created_at', { ascending: false});
 
 console.log("📊 RAW SUPABASE DATA COMPLETA:", {
   totalCalls: callsData?.length,
