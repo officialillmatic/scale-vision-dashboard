@@ -1,25 +1,38 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Agent, UserAgent } from "./agentTypes";
 
 export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
   try {
-    let query = supabase
+    console.log('🔍 [fetchAgents] Called with companyId:', companyId);
+    
+    // TEMPORAL: Sin filtro de company_id para debugging
+    const { data, error } = await supabase
       .from("agents")
       .select("*")
       .eq("status", "active");
-
-    if (companyId) {
-      query = query.eq("company_id", companyId);
+      // COMENTAR TEMPORALMENTE: .eq("company_id", companyId);
+    
+    console.log('🔍 [fetchAgents] Raw data from agents table:', data);
+    console.log('🔍 [fetchAgents] Count of agents:', data?.length);
+    
+    // Log detallado de cada agente
+    if (data && data.length > 0) {
+      data.forEach((agent, index) => {
+        console.log(`🔍 [fetchAgents] Agent ${index + 1}:`, {
+          id: agent.id,
+          name: agent.name,
+          status: agent.status,
+          company_id: agent.company_id,
+          retell_agent_id: agent.retell_agent_id
+        });
+      });
     }
-
-    const { data, error } = await query;
-
+    
     if (error) {
       console.error("[AGENT_SERVICE] Error fetching agents:", error);
       throw error;
     }
-
+    
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchAgents:", error);
@@ -36,22 +49,20 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
         agent:agents!inner(*),
         user_details:user_profiles!inner(id, email, name, avatar_url)
       `);
-
+    
     if (companyId) {
       query = query.eq("company_id", companyId);
     }
-
+    
     console.log('🔍 [fetchUserAgents] Executing query with company_id:', companyId);
-
     const { data, error } = await query;
-
+    
     if (error) {
       console.error("[AGENT_SERVICE] Error fetching user agents:", error);
       throw error;
     }
-
+    
     console.log('🔍 [fetchUserAgents] Raw data received:', data);
-
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchUserAgents:", error);
@@ -67,18 +78,18 @@ export const fetchUserAccessibleAgents = async (userId: string, companyId?: stri
         agent:agents(*)
       `)
       .eq("user_id", userId);
-
+      
     if (companyId) {
       query = query.eq("company_id", companyId);
     }
-
+    
     const { data, error } = await query;
-
+    
     if (error) {
       console.error("[AGENT_SERVICE] Error fetching user accessible agents:", error);
       throw error;
     }
-
+    
     // Extract agents from the nested structure with proper type checking
     const agents: Agent[] = [];
     if (data && Array.isArray(data)) {
@@ -92,7 +103,7 @@ export const fetchUserAccessibleAgents = async (userId: string, companyId?: stri
         }
       });
     }
-
+    
     return agents;
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchUserAccessibleAgents:", error);
@@ -112,14 +123,13 @@ export const fetchCompanyUserAgents = async (companyId: string): Promise<UserAge
         user_details:user_profiles!inner(id, email, name, avatar_url)
       `)
       .eq("company_id", companyId);
-
+      
     if (error) {
       console.error("[AGENT_SERVICE] Error fetching company user agents:", error);
       throw error;
     }
-
+    
     console.log('🔍 [fetchCompanyUserAgents] Data received:', data);
-
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchCompanyUserAgents:", error);
