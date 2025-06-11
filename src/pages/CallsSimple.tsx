@@ -492,6 +492,12 @@ export default function CallsSimple() {
       }
 
       console.log("✅ Calls fetched successfully:", callsData?.length || 0);
+      console.log("🔍 FIRST CALL RAW DATA:", callsData?.[0]);
+      console.log("🔍 CALL_SUMMARY from DB:", callsData?.[0]?.call_summary);
+      console.log("🔍 ALL CALL_SUMMARIES:", callsData?.map(call => ({ 
+        id: call.call_id?.substring(0, 8), 
+        summary: call.call_summary?.substring(0, 50) + "..." 
+      })));
 
       // PASO 4: Obtener agentes para el cálculo de costos
       const { data: allAgents, error: allAgentsError } = await supabase
