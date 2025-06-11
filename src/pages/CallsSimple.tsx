@@ -22,12 +22,12 @@ import {
   Volume2,
   Download,
   CalendarDays,
-  ChevronDown,
-  Users
+  ChevronDown,  // NUEVO
+  Users         // NUEVO
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useAgents } from "@/hooks/useAgents";
+import { useAgents } from "@/hooks/useAgents"; // NUEVO IMPORT
 
 interface Call {
   id: string;
@@ -45,7 +45,7 @@ interface Call {
   call_summary?: string;
   sentiment?: string;
   recording_url?: string;
-  end_reason?: string;
+  end_reason?: string;  // NUEVO CAMPO AGREGADO
   call_agent?: {
     id: string;
     name: string;
@@ -61,8 +61,7 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
-
-// COMPONENTE FILTRO DE AGENTES
+// COMPONENTE FILTRO DE AGENTES (agregar después de los tipos)
 const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
   agents: any[];
   selectedAgent: string | null;
@@ -151,9 +150,10 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
     </div>
   );
 };
-
 export default function CallsSimple() {
   const { user } = useAuth();
+  
+  // NUEVO: Usar el hook de agentes
   const { getAgentName, getUniqueAgentsFromCalls, isLoadingAgents } = useAgents();
   
   const [calls, setCalls] = useState<Call[]>([]);
@@ -162,7 +162,7 @@ export default function CallsSimple() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [agentFilter, setAgentFilter] = useState<string | null>(null);
+  const [agentFilter, setAgentFilter] = useState<string | null>(null); // NUEVO ESTADO
   const [sortField, setSortField] = useState<SortField>('timestamp');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
@@ -178,9 +178,13 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
+  // NUEVO: Obtener agentes únicos de las llamadas
   const uniqueAgents = getUniqueAgentsFromCalls(calls);
+
+  // NUEVO: Obtener nombre del agente seleccionado para mostrar en la descripción
   const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
 
+  // useEffect hooks
   useEffect(() => {
     if (user?.id) {
       fetchCalls();
@@ -189,7 +193,7 @@ export default function CallsSimple() {
 
   useEffect(() => {
     applyFiltersAndSort();
-  }, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
+  }, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]); // AGREGADO agentFilter
 
   useEffect(() => {
     const loadAllAudioDurations = async () => {
@@ -208,18 +212,12 @@ export default function CallsSimple() {
       loadAllAudioDurations();
     }
   }, [calls]);
-
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
     let agentRate = 0;
     
-    // LOGS DE DEBUG:
-    console.log(`🔍 CALCULANDO COSTO PARA ${call.call_id?.substring(0, 8)}:`);
-    console.log(`📏 Duración: ${getCallDuration(call)}s`);
-    console.log(`🔍 call_agent:`, call.call_agent);
-    console.log(`🔍 cost_usd de DB:`, call.cost_usd);
-    
+    // ORDEN DE PRIORIDAD para obtener la tarifa
     if (call.call_agent?.rate_per_minute) {
       agentRate = call.call_agent.rate_per_minute;
       console.log(`💰 Using call_agent rate: $${agentRate}/min`);
@@ -228,15 +226,19 @@ export default function CallsSimple() {
       console.log(`💰 Using agents rate: $${agentRate}/min`);
     }
     
+    // Si NO encontramos tarifa del agente, usar costo de la DB
     if (agentRate === 0) {
       console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
-      const finalCost = call.cost_usd || 0;
-      console.log(`🎯 RETORNANDO FINAL: $${finalCost}`);
-      return finalCost;
+      return call.cost_usd || 0;
     }
     
     const calculatedCost = durationMinutes * agentRate;
-    console.log(`🎯 RETORNANDO CALCULADO: $${calculatedCost}`);
+    
+    console.log(`🧮 COST CALCULATION:
+      📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
+      💵 Rate: $${agentRate}/min
+      🎯 Calculated: $${calculatedCost.toFixed(4)}
+      🗄️ DB Cost: $${call.cost_usd || 0} (IGNORED)`);
     
     return calculatedCost;
   };
@@ -280,7 +282,6 @@ export default function CallsSimple() {
       console.log(`❌ Error loading audio duration:`, error);
     }
   };
-
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -343,7 +344,7 @@ export default function CallsSimple() {
         call.from_number.includes(searchTerm) ||
         call.to_number.includes(searchTerm) ||
         call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        getAgentName(call.agent_id).toLowerCase().includes(searchTerm.toLowerCase())
+        getAgentName(call.agent_id).toLowerCase().includes(searchTerm.toLowerCase()) // NUEVO: Búsqueda por nombre de agente
       );
     }
 
@@ -351,6 +352,7 @@ export default function CallsSimple() {
       filtered = filtered.filter(call => call.call_status === statusFilter);
     }
 
+    // NUEVO: Filtro por agente
     if (agentFilter !== null) {
       filtered = filtered.filter(call => call.agent_id === agentFilter);
     }
@@ -395,6 +397,7 @@ export default function CallsSimple() {
     }
   };
 
+  // NUEVA FUNCIÓN: Color para End Reason
   const getEndReasonColor = (endReason: string) => {
     if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
     
@@ -420,9 +423,9 @@ export default function CallsSimple() {
         return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
-
   const fetchCalls = async () => {
-    console.log("🚀 FETCHCALLS STARTED");
+  console.log("🚀 FETCHCALLS STARTED - DEBUG TEST");
+  console.log("🚀 USER ID:", user?.id);
     if (!user?.id) {
       setError("User not authenticated");
       setLoading(false);
@@ -433,6 +436,9 @@ export default function CallsSimple() {
       setLoading(true);
       setError(null);
 
+      console.log("🔍 Fetching calls for user:", user.id);
+
+      // PASO 1: Obtener agentes asignados al usuario actual
       const { data: userAgents, error: agentsError } = await supabase
         .from('user_agent_assignments')
         .select(`
@@ -466,12 +472,18 @@ export default function CallsSimple() {
         return;
       }
 
+      // PASO 2: Obtener IDs de agentes del usuario
       const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-      console.log(`🎯 User has ${userAgentIds.length} assigned agents`);
+      console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
 
+      // PASO 3: Obtener llamadas de esos agentes
       const { data: callsData, error: callsError } = await supabase
         .from('calls')
-        .select('*')
+        .select(`
+          *,
+          call_summary,
+          disconnection_reason
+        `)
         .in('agent_id', userAgentIds)
         .order('timestamp', { ascending: false});
 
@@ -482,7 +494,16 @@ export default function CallsSimple() {
       }
 
       console.log("✅ Calls fetched successfully:", callsData?.length || 0);
+console.log("🔍 RAW SUPABASE DATA - FIRST CALL:", callsData?.[0]);
+console.log("🔍 RAW SUPABASE CALL_SUMMARY:", callsData?.[0]?.call_summary);
+      console.log("🔍 FIRST CALL RAW DATA:", callsData?.[0]);
+      console.log("🔍 CALL_SUMMARY from DB:", callsData?.[0]?.call_summary);
+      console.log("🔍 ALL CALL_SUMMARIES:", callsData?.map(call => ({ 
+        id: call.call_id?.substring(0, 8), 
+        summary: call.call_summary?.substring(0, 50) + "..." 
+      })));
 
+      // PASO 4: Obtener agentes para el cálculo de costos
       const { data: allAgents, error: allAgentsError } = await supabase
         .from('retell_agents')
         .select('*');
@@ -491,22 +512,24 @@ export default function CallsSimple() {
         console.error("⚠️ Error fetching agents:", allAgentsError);
       }
 
+      // PASO 5: Conectar agentes con llamadas
       const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
       let agentsData = [];
 
       if (agentIds.length > 0 && allAgents) {
         agentsData = allAgents.filter(agent => 
-          agentIds.includes(agent?.id) || agentIds.includes(agent?.agent_id)
+          agentIds.includes(agent.id) || agentIds.includes(agent.agent_id)
         );
       }
 
+      // PASO 6: Mapear agentes a llamadas
       const data = callsData?.map(call => {
         let matchedAgent = null;
 
         if (agentsData && agentsData.length > 0) {
           matchedAgent = agentsData.find(agent => 
-            agent?.id === call.agent_id ||
-            agent?.retell_agent_id === call.agent_id
+            agent.id === call.agent_id ||
+            agent.retell_agent_id === call.agent_id
           );
 
           if (!matchedAgent && agentsData.length === 1) {
@@ -515,27 +538,28 @@ export default function CallsSimple() {
         }
 
         return {
-          ...call,
-          call_summary: call.call_summary || null,
-          end_reason: call.disconnection_reason || null,
-          call_agent: matchedAgent ? {
-            id: matchedAgent.id,
-            name: matchedAgent.name,
-            rate_per_minute: matchedAgent.rate_per_minute
-          } : null
-        };
+  ...call,
+  // Mapear disconnection_reason a end_reason para compatibilidad
+  end_reason: call.disconnection_reason || null,
+  call_agent: matchedAgent ? {
+    id: matchedAgent.id,
+    name: matchedAgent.name,
+    rate_per_minute: matchedAgent.rate_per_minute
+  } : null
+};
       });
-
-      const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
-      console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length, "de", data?.length || 0);
-
+console.log("🎯 AFTER MAPPING - FIRST CALL:", data?.[0]);
+console.log("🎯 AFTER MAPPING CALL_SUMMARY:", data?.[0]?.call_summary);
       setCalls(data || []);
+console.log("🎯 FINAL DATA BEFORE setCalls:", data?.[0]);
+console.log("🎯 CALL_SUMMARY BEFORE setCalls:", data?.[0]?.call_summary);
 
+      // Calcular estadísticas
       if (data && data.length > 0) {
         const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
-        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
-        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-        const completedCalls = data.filter(call => call.call_status === 'completed').length;
+const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
+const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
+const completedCalls = data.filter(call => call.call_status === 'completed').length;
 
         setStats({
           total: data.length,
@@ -553,7 +577,6 @@ export default function CallsSimple() {
       setLoading(false);
     }
   };
-
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -564,14 +587,14 @@ export default function CallsSimple() {
   };
 
   const handleCallClick = (call: Call) => {
-    console.log("🎯 CLICKED CALL:", call);
-    console.log("🎯 CLICKED CALL SUMMARY:", call.call_summary);
-    const originalCall = calls.find(c => c.id === call.id) || call;
-    console.log("🎯 ORIGINAL CALL FOUND:", originalCall);
-    console.log("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
-    setSelectedCall(originalCall);
-    setIsModalOpen(true);
-  };
+  console.log("🎯 CLICKED CALL:", call);
+  console.log("🎯 CLICKED CALL SUMMARY:", call.call_summary);
+  const originalCall = calls.find(c => c.id === call.id) || call;
+  console.log("🎯 ORIGINAL CALL FOUND:", originalCall);
+  console.log("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
+  setSelectedCall(originalCall);
+  setIsModalOpen(true);
+};
 
   const handleModalClose = () => {
     setIsModalOpen(false);
@@ -631,7 +654,6 @@ export default function CallsSimple() {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-
   if (!user) {
     return (
       <DashboardLayout>
@@ -821,7 +843,6 @@ export default function CallsSimple() {
               </div>
             </CardContent>
           </Card>
-
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -904,6 +925,7 @@ export default function CallsSimple() {
                             Status {getSortIcon('call_status')}
                           </button>
                         </th>
+                        {/* NUEVA COLUMNA END REASON */}
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           End Reason
                         </th>
@@ -994,6 +1016,7 @@ export default function CallsSimple() {
                             </div>
                           </td>
 
+                          {/* NUEVA CELDA END REASON */}
                           <td className="px-4 py-4 whitespace-nowrap">
                             {call.end_reason ? (
                               <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
@@ -1012,7 +1035,7 @@ export default function CallsSimple() {
                                   Transcript
                                 </div>
                               )}
-                              {(call.call_summary && call.call_summary !== null) && (
+                              {call.call_summary && (
                                 <div className="flex items-center gap-1 text-xs text-blue-600">
                                   <PlayCircle className="h-3 w-3" />
                                   Summary
@@ -1025,7 +1048,7 @@ export default function CallsSimple() {
                                 </div>
                               )}
                             </div>
-                            {(call.call_summary && call.call_summary !== null) && (
+                            {call.call_summary && (
                               <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
                                 {call.call_summary}
                               </div>
@@ -1071,8 +1094,7 @@ export default function CallsSimple() {
               )}
             </CardContent>
           </Card>
-
-          {/* Call Detail Modal */}
+            {/* Call Detail Modal */}
           <CallDetailModal 
             call={selectedCall}
             isOpen={isModalOpen}
