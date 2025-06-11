@@ -477,9 +477,13 @@ export default function CallsSimple() {
       // PASO 3: Obtener llamadas de esos agentes
       const { data: callsData, error: callsError } = await supabase
         .from('calls')
-        .select('*')
+        .select(`
+          *,
+          call_summary,
+          disconnection_reason
+        `)
         .in('agent_id', userAgentIds)
-        .order('timestamp', { ascending: false });
+        .order('timestamp', { ascending: false});
 
       if (callsError) {
         console.error("❌ Error fetching calls:", callsError);
