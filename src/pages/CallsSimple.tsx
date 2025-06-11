@@ -399,30 +399,30 @@ export default function CallsSimple() {
 
   // NUEVA FUNCIÓN: Color para End Reason
   const getEndReasonColor = (endReason: string) => {
-    if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
-    
-    switch (endReason.toLowerCase()) {
-      case 'user hangup':
-      case 'user_hangup':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'agent hangup':
-      case 'agent_hangup':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'dial no answer':
-      case 'dial_no_answer':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'error llm websocket open':
-      case 'error_llm_websocket_open':
-      case 'technical_error':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'call completed':
-      case 'call_completed':
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200';
-      default:
-        return 'bg-gray-100 text-gray-600 border-gray-200';
-    }
-  };
+  if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
+  
+  switch (endReason.toLowerCase()) {
+    case 'user hangup':
+    case 'user_hangup':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'agent hangup':
+    case 'agent_hangup':
+      return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'dial no answer':
+    case 'dial_no_answer':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    case 'error llm websocket open':
+    case 'error_llm_websocket_open':
+    case 'technical_error':
+      return 'bg-red-100 text-red-800 border-red-200';
+    case 'call completed':
+    case 'call_completed':
+    case 'completed':
+      return 'bg-green-100 text-green-800 border-green-200';
+    default:
+      return 'bg-gray-100 text-gray-600 border-gray-200';
+  }
+};
   const fetchCalls = async () => {
     if (!user?.id) {
       setError("User not authenticated");
@@ -525,6 +525,8 @@ export default function CallsSimple() {
 
         return {
           ...call,
+          // Mapear disconnection_reason a end_reason para compatibilidad
+          end_reason: call.disconnection_reason || null,
           call_agent: matchedAgent ? {
             id: matchedAgent.id,
             name: matchedAgent.name,
@@ -560,14 +562,14 @@ export default function CallsSimple() {
       setCalls(dataWithEndReason || []);
 
       // Calcular estadísticas
-      if (data && data.length > 0) {
-        const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
-const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
-const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-const completedCalls = data.filter(call => call.call_status === 'completed').length;
+      if (dataWithEndReason && dataWithEndReason.length > 0) {
+        const totalCost = dataWithEndReason.reduce((sum, call) => sum + calculateCallCost(call), 0);
+        const totalDuration = dataWithEndReason.reduce((sum, call) => sum + getCallDuration(call), 0);
+        const avgDuration = dataWithEndReason.length > 0 ? Math.round(totalDuration / dataWithEndReason.length) : 0;
+        const completedCalls = dataWithEndReason.filter(call => call.call_status === 'completed').length;
 
         setStats({
-          total: data.length,
+          total: dataWithEndReason.length,
           totalCost,
           totalDuration,
           avgDuration,
