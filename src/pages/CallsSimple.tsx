@@ -213,30 +213,28 @@ export default function CallsSimple() {
   const durationMinutes = getCallDuration(call) / 60;
   let agentRate = 0;
   
-  console.log(`🔍 CALCULANDO COSTO PARA LLAMADA ${call.call_id?.substring(0, 8)}:`);
-  console.log(`📏 Duración: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min`);
+  // AGREGAR ESTOS LOGS DE DEBUG:
+  console.log(`🔍 CALCULANDO COSTO PARA ${call.call_id?.substring(0, 8)}:`);
+  console.log(`📏 Duración: ${getCallDuration(call)}s`);
   console.log(`🔍 call_agent:`, call.call_agent);
-  console.log(`🔍 agents:`, call.agents);
   console.log(`🔍 cost_usd de DB:`, call.cost_usd);
   
-  // ORDEN DE PRIORIDAD para obtener la tarifa
+  // RESTO DE TU FUNCIÓN ACTUAL...
   if (call.call_agent?.rate_per_minute) {
     agentRate = call.call_agent.rate_per_minute;
-    console.log(`💰 Using call_agent rate: $${agentRate}/min`);
+    console.log(`💰 Using call_agent rate: $${agentRate}/min`); // AGREGAR
   } else if (call.agents?.rate_per_minute) {
     agentRate = call.agents.rate_per_minute;
-    console.log(`💰 Using agents rate: $${agentRate}/min`);
+    console.log(`💰 Using agents rate: $${agentRate}/min`); // AGREGAR
   }
   
-  // Si NO encontramos tarifa del agente, usar costo de la DB
   if (agentRate === 0) {
-    console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
+    console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`); // AGREGAR
     return call.cost_usd || 0;
   }
   
   const calculatedCost = durationMinutes * agentRate;
-  
-  console.log(`🎯 RESULTADO FINAL: $${calculatedCost.toFixed(4)}`);
+  console.log(`🎯 RESULTADO: $${calculatedCost.toFixed(4)}`); // AGREGAR
   
   return calculatedCost;
 };
