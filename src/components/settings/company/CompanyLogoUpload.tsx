@@ -1,14 +1,15 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Label } from '@/components/ui/label';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { updateCompanyLogo } from '@/services/companyService';
 import { uploadCompanyLogo } from '@/services/storageService';
 import { toast } from 'sonner';
 import { useRole } from '@/hooks/useRole';
 import { RoleCheck } from '@/components/auth/RoleCheck';
+import { Upload, X, Building2, AlertCircle } from 'lucide-react';
 
 interface CompanyLogoUploadProps {
   logoUrl: string | null;
@@ -18,120 +19,339 @@ interface CompanyLogoUploadProps {
 export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadProps) {
   const { company, refreshCompany } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(logoUrl);
+  const [error, setError] = useState<string | null>(null);
   const { isCompanyOwner, can } = useRole();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleLogoClick = () => {
-    // Only allow logo uploads for company owners/admins
-    if (!isCompanyOwner && !can.editSettings) {
-      toast.error("Only company admins can change the logo");
-      return;
+  // Configuración de validación
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+
+  const validateFile = useCallback((file: File): string | null => {
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      return `Formato no válido. Se aceptan: ${ACCEPTED_TYPES.map(t => t.split('/')[1].toUpperCase()).join(', ')}`;
     }
     
-    fileInputRef.current?.click();
-  };
+    if (file.size > MAX_FILE_SIZE) {
+      return `El archivo es demasiado grande. Máximo ${Math.floor(MAX_FILE_SIZE / (1024 * 1024))}MB permitido.`;
+    }
+    
+    return null;
+  }, []);
 
-  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !company) {
+  const resizeImage = useCallback((file: File, maxWidth: number = 512, maxHeight: number = 512): Promise<File> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+      const img = new Image();
+
+      img.onload = () => {
+        let { width, height } = img;
+        
+        // Calcular nuevas dimensiones manteniendo aspect ratio
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const resizedFile = new File([blob], file.name, {
+              type: file.type,
+              lastModified: Date.now()
+            });
+            resolve(resizedFile);
+          }
+        }, file.type, 0.9);
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
+  }, []);
+
+  const handleFileUpload = async (file: File) => {
+    if (!company) return;
+
+    // Validar archivo
+    const validationError = validateFile(file);
+    if (validationError) {
+      setError(validationError);
+      toast.error(validationError);
       return;
     }
 
+    setError(null);
     setIsUploading(true);
+    setUploadProgress(0);
+
     try {
-      // Upload logo using the storage service
-      const logoUrl = await uploadCompanyLogo(company.id, file);
+      // Redimensionar imagen si es necesario
+      const processedFile = await resizeImage(file);
+      
+      // Crear preview
+      const previewUrl = URL.createObjectURL(processedFile);
+      setPreviewUrl(previewUrl);
+      
+      // Simular progreso
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev < 90) return prev + 10;
+          return prev;
+        });
+      }, 100);
+
+      // Upload logo usando el storage service
+      const logoUrl = await uploadCompanyLogo(company.id, processedFile);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
       
       if (logoUrl) {
-        // Update company record with the new logo URL
+        // Update company record con la nueva logo URL
         const updated = await updateCompanyLogo(company.id, logoUrl);
         
         if (updated) {
-          // Preview the logo while waiting for refresh
           onLogoUpdate(logoUrl);
-          // Refresh company data to get the updated logo
           await refreshCompany();
-          toast.success("Company logo updated successfully");
+          toast.success("Logo de empresa actualizado exitosamente");
+          
+          // Limpiar preview URL anterior
+          if (previewUrl && previewUrl !== logoUrl) {
+            URL.revokeObjectURL(previewUrl);
+          }
         } else {
           throw new Error("Failed to update company record with logo URL");
         }
       }
     } catch (error: any) {
       console.error("Error uploading logo:", error);
-      toast.error(error.message || "Failed to upload logo. Please try again.");
+      setError(error.message || "Error al subir el logo");
+      toast.error(error.message || "Error al subir el logo. Por favor, inténtalo de nuevo.");
+      
+      // Restaurar preview anterior
+      setPreviewUrl(logoUrl);
     } finally {
       setIsUploading(false);
-      // Clear the file input
+      setUploadProgress(0);
+      
+      // Limpiar file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (!isCompanyOwner && !can.editSettings) {
+      toast.error("Solo los administradores de la empresa pueden cambiar el logo");
+      return;
+    }
+
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      handleFileUpload(files[0]);
+    }
+  }, [isCompanyOwner, can.editSettings, handleFileUpload]);
+
+  const handleClick = () => {
+    if (!isCompanyOwner && !can.editSettings) {
+      toast.error("Solo los administradores de la empresa pueden cambiar el logo");
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!company) return;
+
+    try {
+      setIsUploading(true);
+      const updated = await updateCompanyLogo(company.id, '');
+      
+      if (updated) {
+        setPreviewUrl(null);
+        onLogoUpdate('');
+        await refreshCompany();
+        toast.success("Logo removido exitosamente");
+      }
+    } catch (error: any) {
+      console.error("Error removing logo:", error);
+      toast.error("Error al remover el logo");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const canEdit = isCompanyOwner || can.editSettings;
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <Label>Company Logo</Label>
+      
       <RoleCheck
         adminOnly
         fallback={
-          <div className="border rounded-lg p-4 flex flex-col items-center justify-center">
-            {logoUrl ? (
+          <div className="border rounded-lg p-6 flex flex-col items-center justify-center">
+            {previewUrl ? (
               <Avatar className="w-24 h-24 mb-4">
                 <img 
-                  src={logoUrl} 
+                  src={previewUrl} 
                   alt={company?.name} 
-                  className="object-cover" 
-                  onError={() => onLogoUpdate('')}
+                  className="object-contain" 
+                  onError={() => setPreviewUrl(null)}
                 />
               </Avatar>
             ) : (
-              <div className="w-24 h-24 bg-gray-200 rounded-full mb-4 flex items-center justify-center text-gray-400">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"></path>
-                  <polygon points="18 2 22 6 12 16 8 16 8 12 18 2"></polygon>
-                </svg>
+              <div className="w-24 h-24 bg-gray-100 rounded-lg mb-4 flex items-center justify-center text-gray-400">
+                <Building2 size={32} />
               </div>
             )}
-            <p className="text-sm text-gray-500">
-              Only administrators can change the company logo
+            <p className="text-sm text-gray-500 text-center">
+              Solo los administradores pueden cambiar el logo de la empresa
             </p>
           </div>
         }
       >
-        <div 
-          className="cursor-pointer border border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center hover:bg-gray-50 transition-colors"
-          onClick={handleLogoClick}
-        >
-          {isUploading ? (
-            <LoadingSpinner size="md" className="mb-4" />
-          ) : logoUrl ? (
-            <Avatar className="w-24 h-24 mb-4">
-              <img 
-                src={logoUrl} 
-                alt={company?.name} 
-                className="object-cover" 
-                onError={() => onLogoUpdate('')}
-              />
-            </Avatar>
-          ) : (
-            <div className="w-24 h-24 bg-gray-200 rounded-full mb-4 flex items-center justify-center text-gray-400">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"></path>
-                <polygon points="18 2 22 6 12 16 8 16 8 12 18 2"></polygon>
-              </svg>
+        <div className="space-y-4">
+          {/* Preview y botones */}
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
+                {previewUrl ? (
+                  <img 
+                    src={previewUrl} 
+                    alt="Logo preview" 
+                    className="w-full h-full object-contain p-1"
+                    onError={() => setPreviewUrl(null)}
+                  />
+                ) : (
+                  <Building2 className="w-8 h-8 text-gray-400" />
+                )}
+              </div>
+              
+              {/* Progress overlay */}
+              {isUploading && (
+                <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <LoadingSpinner size="sm" />
+                    <div className="text-xs mt-1">{uploadProgress}%</div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-          <p className="text-sm text-gray-500">
-            {logoUrl ? 'Click to change logo' : 'Click to upload logo'}
-          </p>
+            
+            <div className="flex-1 space-y-2">
+              <div className="flex space-x-2">
+                <Button
+                  onClick={handleClick}
+                  disabled={isUploading}
+                  size="sm"
+                  className="flex items-center space-x-2"
+                >
+                  <Upload size={16} />
+                  <span>{previewUrl ? 'Cambiar logo' : 'Subir logo'}</span>
+                </Button>
+                
+                {previewUrl && (
+                  <Button
+                    onClick={handleRemoveLogo}
+                    disabled={isUploading}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center space-x-2"
+                  >
+                    <X size={16} />
+                    <span>Remover</span>
+                  </Button>
+                )}
+              </div>
+              
+              <p className="text-xs text-gray-500">
+                Formatos: JPG, PNG, WebP, SVG • Máximo 10MB
+              </p>
+            </div>
+          </div>
+
+          {/* Zona de drag & drop */}
+          <div
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            onClick={handleClick}
+            className={`
+              border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all
+              ${dragActive 
+                ? 'border-blue-400 bg-blue-50' 
+                : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+              }
+              ${isUploading ? 'pointer-events-none opacity-50' : ''}
+            `}
+          >
+            <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 mb-1">
+              {dragActive 
+                ? 'Suelta la imagen aquí' 
+                : 'Arrastra tu logo aquí, o haz clic para seleccionar'
+              }
+            </p>
+            <p className="text-xs text-gray-500">
+              Recomendamos un logo cuadrado de al menos 200x200 píxeles
+            </p>
+          </div>
+
+          {/* Input file oculto */}
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+            accept={ACCEPTED_TYPES.join(',')}
             className="hidden"
-            onChange={handleLogoChange}
+            onChange={handleFileChange}
             disabled={isUploading}
           />
+
+          {/* Error message */}
+          {error && (
+            <div className="flex items-center space-x-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-3">
+              <AlertCircle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
         </div>
       </RoleCheck>
     </div>
