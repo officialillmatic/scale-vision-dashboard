@@ -277,7 +277,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                     variant="outline" 
                     size="lg"
                     onClick={() => {
-                      alert('Please contact support to recharge your account: support@drscale.com');
+                      alert('Please contact support to recharge your account: support@drscaleai.com');
                     }}
                     className="px-6 py-3 rounded-lg font-semibold"
                   >
@@ -319,7 +319,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                   variant="outline" 
                   size="lg"
                   onClick={() => {
-                    alert('Please contact support to recharge your account: support@drscale.com');
+                    alert('Please contact support to recharge your account: support@drscaleai.com');
                   }}
                   className="w-full py-3 rounded-lg font-semibold"
                 >
