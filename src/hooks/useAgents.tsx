@@ -37,7 +37,7 @@ export function useAgents() {
     enabled: !!company?.id || isSuperAdmin
   });
 
-  // LOGS DE DEBUG PARA EL QUERY DE AGENTS
+  // LOGS DE DEBUG
   console.log('🔍 [useAgents] Raw allAgents data:', allAgents);
   console.log('🔍 [useAgents] allAgents length:', allAgents?.length);
   console.log('🔍 [useAgents] agentsError:', agentsError);
@@ -86,13 +86,13 @@ export function useAgents() {
   console.log('🔍 [useAgents] user?.id:', user?.id);
 
   // FUNCIONES CORREGIDAS PARA NOMBRES DE AGENTES
-  const getAgentName = (retellAgentId: string): string => {
-    console.log('🔍 [getAgentName] Looking for retell_agent_id:', retellAgentId);
+  const getAgentName = (agentId: string): string => {
+    console.log('🔍 [getAgentName] Looking for agent ID:', agentId);
     console.log('🔍 [getAgentName] Available custom agents:', agents);
     console.log('🔍 [getAgentName] Raw allAgents for search:', allAgents);
     
-    // BUSCAR por retell_agent_id en lugar de por id
-    const agent = agents?.find(a => a.retell_agent_id === retellAgentId);
+    // CORREGIDO: Buscar por 'id' en lugar de 'retell_agent_id'
+    const agent = agents?.find(a => a.id === agentId);
     console.log('🔍 [getAgentName] Found custom agent:', agent);
     
     if (agent) {
@@ -101,7 +101,7 @@ export function useAgents() {
     }
     
     // FALLBACK: Buscar en allAgents sin filtros (por si hay problema de permisos)
-    const agentInAll = allAgents?.find(a => a.retell_agent_id === retellAgentId);
+    const agentInAll = allAgents?.find(a => a.id === agentId);
     console.log('🔍 [getAgentName] Found in allAgents (unfiltered):', agentInAll);
     
     if (agentInAll) {
@@ -111,21 +111,21 @@ export function useAgents() {
     
     // Fallback para IDs que no están en el sistema
     console.log('⚠️ [getAgentName] No custom agent found, using fallback');
-    if (retellAgentId.length > 8) {
-      return `Agent ${retellAgentId.substring(0, 8)}`;
+    if (agentId.length > 8) {
+      return `Agent ${agentId.substring(0, 8)}`;
     }
-    return `Agent ${retellAgentId}`;
+    return `Agent ${agentId}`;
   };
 
-  const getAgent = (retellAgentId: string): Agent | undefined => {
-    console.log('🔍 [getAgent] Looking for retell_agent_id:', retellAgentId);
+  const getAgent = (agentId: string): Agent | undefined => {
+    console.log('🔍 [getAgent] Looking for agent ID:', agentId);
     
-    // BUSCAR por retell_agent_id primero en agents filtrados
-    let agent = agents?.find(agent => agent.retell_agent_id === retellAgentId);
+    // CORREGIDO: Buscar por 'id' primero en agents filtrados
+    let agent = agents?.find(agent => agent.id === agentId);
     
     // Si no se encuentra, buscar en allAgents
     if (!agent) {
-      agent = allAgents?.find(agent => agent.retell_agent_id === retellAgentId);
+      agent = allAgents?.find(agent => agent.id === agentId);
     }
     
     console.log('🔍 [getAgent] Found custom agent:', agent);
@@ -141,38 +141,38 @@ export function useAgents() {
         name: agent.name,
         status: agent.status,
         description: agent.description,
-        retell_agent_id: agent.retell_agent_id // Para debugging
+        retell_agent_id: agent.retell_agent_id // Para debugging (si existe)
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   };
 
   // Función para obtener agentes únicos de una lista de llamadas
-  // CORREGIDA: Las llamadas usan retell_agent_id, no custom agent id
+  // CORREGIDA: Las llamadas usan agent_id que corresponde al id del Custom Agent
   const getUniqueAgentsFromCalls = (calls: any[]) => {
     if (!calls || !agents) return [];
     
-    // Obtener retell_agent_ids únicos de las llamadas
-    const uniqueRetellAgentIds = [...new Set(calls.map(call => call.agent_id))];
-    console.log('🔍 [getUniqueAgentsFromCalls] Unique retell agent IDs from calls:', uniqueRetellAgentIds);
+    // Obtener agent_ids únicos de las llamadas
+    const uniqueAgentIds = [...new Set(calls.map(call => call.agent_id))];
+    console.log('🔍 [getUniqueAgentsFromCalls] Unique agent IDs from calls:', uniqueAgentIds);
     console.log('🔍 [getUniqueAgentsFromCalls] Available agents to search in:', agents);
     
-    return uniqueRetellAgentIds
-      .map(retellAgentId => {
-        // Buscar el Custom Agent que tiene este retell_agent_id
-        let agent = agents.find(a => a.retell_agent_id === retellAgentId);
+    return uniqueAgentIds
+      .map(agentId => {
+        // Buscar el Custom Agent que tiene este id
+        let agent = agents.find(a => a.id === agentId);
         
         // Si no se encuentra en agents filtrados, buscar en allAgents
         if (!agent) {
-          agent = allAgents?.find(a => a.retell_agent_id === retellAgentId);
+          agent = allAgents?.find(a => a.id === agentId);
         }
         
-        console.log(`🔍 [getUniqueAgentsFromCalls] For retell ID ${retellAgentId}, found custom agent:`, agent);
+        console.log(`🔍 [getUniqueAgentsFromCalls] For agent ID ${agentId}, found custom agent:`, agent);
         
         return {
-          id: retellAgentId, // Para el filtro, usamos el retell_agent_id
-          name: agent ? agent.name : getAgentName(retellAgentId),
-          customAgentId: agent?.id, // ID del Custom Agent (por si lo necesitamos)
-          retell_agent_id: retellAgentId
+          id: agentId, // Para el filtro, usamos el agent_id
+          name: agent ? agent.name : getAgentName(agentId),
+          customAgentId: agent?.id, // ID del Custom Agent
+          retell_agent_id: agent?.retell_agent_id // Si existe
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -289,9 +289,9 @@ export function useAgents() {
     refetchUserAgents,
     isAdmin: isSuperAdmin || isAdmin,
     // FUNCIONES CORREGIDAS PARA MY CALLS:
-    getAgentName,        // Busca por retell_agent_id y retorna nombre del Custom Agent
-    getAgent,           // Busca por retell_agent_id y retorna Custom Agent completo
+    getAgentName,        // Busca por id y retorna nombre del Custom Agent
+    getAgent,           // Busca por id y retorna Custom Agent completo
     getAgentList,       // Lista de Custom Agents
-    getUniqueAgentsFromCalls // Agentes únicos de llamadas (usando retell_agent_id)
+    getUniqueAgentsFromCalls // Agentes únicos de llamadas (usando agent_id)
   };
 }
