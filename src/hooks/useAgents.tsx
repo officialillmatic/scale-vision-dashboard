@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -71,6 +70,52 @@ export function useAgents() {
         );
       })
   ) : [];
+
+  // NUEVAS FUNCIONES PARA NOMBRES DE AGENTES
+  const getAgentName = (agentId: string): string => {
+    const agent = agents?.find(a => a.id === agentId);
+    if (agent) return agent.name;
+    
+    // Fallback para IDs que no están en el sistema
+    if (agentId.length > 8) {
+      return `Agent ${agentId.substring(0, 8)}`;
+    }
+    return `Agent ${agentId}`;
+  };
+
+  const getAgent = (agentId: string): Agent | undefined => {
+    return agents?.find(agent => agent.id === agentId);
+  };
+
+  const getAgentList = () => {
+    if (!agents) return [];
+    
+    return agents
+      .map(agent => ({
+        id: agent.id,
+        name: agent.name,
+        status: agent.status,
+        description: agent.description
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  // Función para obtener agentes únicos de una lista de llamadas
+  const getUniqueAgentsFromCalls = (calls: any[]) => {
+    if (!calls || !agents) return [];
+    
+    const uniqueAgentIds = [...new Set(calls.map(call => call.agentId))];
+    
+    return uniqueAgentIds
+      .map(agentId => {
+        const agent = agents.find(a => a.id === agentId);
+        return {
+          id: agentId,
+          name: agent ? agent.name : getAgentName(agentId)
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
 
   const handleCreateAgent = async (agentData: Partial<Agent>) => {
     if (!isSuperAdmin && !isAdmin) return false;
@@ -181,6 +226,11 @@ export function useAgents() {
     handleRemoveAgentAssignment,
     refetchAgents,
     refetchUserAgents,
-    isAdmin: isSuperAdmin || isAdmin
+    isAdmin: isSuperAdmin || isAdmin,
+    // NUEVAS FUNCIONES PARA MY CALLS:
+    getAgentName,
+    getAgent,
+    getAgentList,
+    getUniqueAgentsFromCalls
   };
 }
