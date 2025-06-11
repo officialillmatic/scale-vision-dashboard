@@ -280,7 +280,6 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
 
   // Console log for debugging
   console.log("🎵 Call data in modal:", call);
-  console.log("📝 Call summary:", call.call_summary);  // AGREGAR ESTA LÍNEA AQUÍ
   console.log("🎵 Recording URL:", call.recording_url);
   console.log("🎵 Duration sec:", call.duration_sec, typeof call.duration_sec);
   console.log("🎵 Raw call object keys:", Object.keys(call));
@@ -390,21 +389,28 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                 </CardContent>
               </Card>
 
-              {/* Call Summary */}
-              {call.call_summary && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <MessageSquare className="h-5 w-5 text-green-600" />
-                      Call Summary
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
+              {/* Call Summary - SIEMPRE MOSTRAR */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-green-600" />
+                    Call Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {call.call_summary ? (
                     <p className="text-sm text-gray-700 leading-relaxed">
                       {call.call_summary}
                     </p>
-                  </CardContent>
-                </Card>
+                  ) : (
+                    <div className="text-center py-6 text-gray-500">
+                      <MessageSquare className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm">No summary available for this call</p>
+                      <p className="text-xs text-gray-400 mt-1">Summary will appear here when generated</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
               )}
             </TabsContent>
 
