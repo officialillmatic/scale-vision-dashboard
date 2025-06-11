@@ -549,7 +549,7 @@ const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 
 const completedCalls = data.filter(call => call.call_status === 'completed').length;
 
         setStats({
-          total: dataWithEndReason.length,
+          total: data.length,
           totalCost,
           totalDuration,
           avgDuration,
