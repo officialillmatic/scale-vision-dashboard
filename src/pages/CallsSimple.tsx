@@ -21,10 +21,13 @@ import {
   ArrowUpDown,
   Volume2,
   Download,
-  CalendarDays
+  CalendarDays,
+  ChevronDown,  // NUEVO
+  Users         // NUEVO
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAgents } from "@/hooks/useAgents"; // NUEVO IMPORT
 
 interface Call {
   id: string;
@@ -57,14 +60,108 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
+// COMPONENTE FILTRO DE AGENTES (agregar después de los tipos)
+const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
+  agents: any[];
+  selectedAgent: string | null;
+  onAgentChange: (agentId: string | null) => void;
+  isLoading: boolean;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const selectedAgentName = selectedAgent 
+    ? agents.find(agent => agent.id === selectedAgent)?.name || 'Unknown Agent'
+    : 'All Agents';
+
+  if (isLoading) {
+    return (
+      <div className="relative">
+        <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm font-medium text-gray-500 min-w-[160px]">
+          <User className="w-4 h-4" />
+          <span>Loading agents...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-w-[160px]"
+      >
+        <User className="w-4 h-4" />
+        <span className="truncate flex-1 text-left">{selectedAgentName}</span>
+        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+          <div className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+            <div className="py-1 max-h-60 overflow-y-auto">
+              <button
+                onClick={() => {
+                  onAgentChange(null);
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${
+                  selectedAgent === null ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Users className="w-4 h-4" />
+                  <div>
+                    <div className="font-medium">All Agents</div>
+                    <div className="text-xs text-gray-500">Show all calls</div>
+                  </div>
+                </div>
+              </button>
+              
+              {agents.length > 0 && <hr className="my-1" />}
+              
+              {agents.map((agent) => (
+                <button
+                  key={agent.id}
+                  onClick={() => {
+                    onAgentChange(agent.id);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${
+                    selectedAgent === agent.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <User className="w-4 h-4" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{agent.name}</div>
+                      <div className="text-xs text-gray-500 truncate">
+                        ID: {agent.id.substring(0, 12)}...
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 export default function CallsSimple() {
   const { user } = useAuth();
+  
+  // NUEVO: Usar el hook de agentes
+  const { getAgentName, getUniqueAgentsFromCalls, isLoadingAgents } = useAgents();
+  
   const [calls, setCalls] = useState<Call[]>([]);
   const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [agentFilter, setAgentFilter] = useState<string | null>(null); // NUEVO ESTADO
   const [sortField, setSortField] = useState<SortField>('timestamp');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
@@ -80,6 +177,39 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
+  // NUEVO: Obtener agentes únicos de las llamadas
+  const uniqueAgents = getUniqueAgentsFromCalls(calls);
+
+  // NUEVO: Obtener nombre del agente seleccionado para mostrar en la descripción
+  const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
+  // useEffect hooks
+  useEffect(() => {
+    if (user?.id) {
+      fetchCalls();
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    applyFiltersAndSort();
+  }, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]); // AGREGADO agentFilter
+
+  useEffect(() => {
+    const loadAllAudioDurations = async () => {
+      const callsWithAudio = calls.filter(call => call.recording_url);
+      
+      for (let i = 0; i < callsWithAudio.length; i += 3) {
+        const batch = callsWithAudio.slice(i, i + 3);
+        await Promise.all(batch.map(call => loadAudioDuration(call)));
+        if (i + 3 < callsWithAudio.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    };
+
+    if (calls.length > 0) {
+      loadAllAudioDurations();
+    }
+  }, [calls]);
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
@@ -111,16 +241,45 @@ export default function CallsSimple() {
     return calculatedCost;
   };
 
-  // useEffect hooks
-  useEffect(() => {
-    if (user?.id) {
-      fetchCalls();
+  const getCallDuration = (call: any) => {
+    if (audioDurations[call.id]) {
+      return audioDurations[call.id];
     }
-  }, [user?.id]);
+    
+    const possibleFields = ['duration_sec', 'duration', 'call_duration', 'length', 'time_duration', 'total_duration'];
+    
+    for (const field of possibleFields) {
+      if (call[field] && call[field] > 0) {
+        return call[field];
+      }
+    }
+    
+    return 0;
+  };
 
-  useEffect(() => {
-    applyFiltersAndSort();
-  }, [calls, searchTerm, statusFilter, sortField, sortOrder, dateFilter, customDate]);
+  const loadAudioDuration = async (call: Call) => {
+    if (!call.recording_url || audioDurations[call.id]) return;
+    
+    try {
+      const audio = new Audio(call.recording_url);
+      return new Promise<void>((resolve) => {
+        audio.addEventListener('loadedmetadata', () => {
+          const duration = Math.round(audio.duration);
+          setAudioDurations(prev => ({
+            ...prev,
+            [call.id]: duration
+          }));
+          resolve();
+        });
+        
+        audio.addEventListener('error', () => {
+          resolve();
+        });
+      });
+    } catch (error) {
+      console.log(`❌ Error loading audio duration:`, error);
+    }
+  };
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -174,20 +333,47 @@ export default function CallsSimple() {
     }
   };
 
-  const getCallDuration = (call: any) => {
-    if (audioDurations[call.id]) {
-      return audioDurations[call.id];
+  const applyFiltersAndSort = () => {
+    let filtered = [...calls];
+
+    if (searchTerm) {
+      filtered = filtered.filter(call => 
+        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        call.from_number.includes(searchTerm) ||
+        call.to_number.includes(searchTerm) ||
+        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        getAgentName(call.agent_id).toLowerCase().includes(searchTerm.toLowerCase()) // NUEVO: Búsqueda por nombre de agente
+      );
     }
-    
-    const possibleFields = ['duration_sec', 'duration', 'call_duration', 'length', 'time_duration', 'total_duration'];
-    
-    for (const field of possibleFields) {
-      if (call[field] && call[field] > 0) {
-        return call[field];
+
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(call => call.call_status === statusFilter);
+    }
+
+    // NUEVO: Filtro por agente
+    if (agentFilter !== null) {
+      filtered = filtered.filter(call => call.agent_id === agentFilter);
+    }
+
+    filtered = filtered.filter(call => isDateInRange(call.timestamp));
+
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
+
+      if (sortField === 'timestamp') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
       }
-    }
-    
-    return 0;
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    setFilteredCalls(filtered);
   };
   const fetchCalls = async () => {
     if (!user?.id) {
@@ -300,29 +486,6 @@ if (agentIds.length > 0 && allAgents) {
       });
       
       setCalls(data || []);
-      // DIAGNÓSTICO DE AGENTES
-console.log("🔍 DIAGNÓSTICO DE AGENTES:");
-if (data && data.length > 0) {
-  data.slice(0, 3).forEach((call, index) => {
-    console.log(`📞 Call ${index + 1}:`);
-    console.log(`   Call ID: ${call.call_id}`);
-    console.log(`   Agent ID: ${call.agent_id}`);
-    console.log(`   call_agent:`, call.call_agent);
-    console.log(`   agents:`, call.agents);
-    console.log(`   DB cost: $${call.cost_usd}`);
-    console.log(`   ---`);
-  });
-
-  console.log("📊 AGENTES ÚNICOS:");
-  const uniqueAgentIds = [...new Set(data.map(call => call.agent_id))];
-  console.log("Agent IDs encontrados:", uniqueAgentIds);
-
-  console.log("🎯 AGENTES CON TARIFAS:");
-  const agentsWithRates = data.filter(call => 
-    call.call_agent?.rate_per_minute || call.agents?.rate_per_minute
-  );
-  console.log(`Llamadas con tarifas: ${agentsWithRates.length}/${data.length}`);
-}
 
       // Calcular estadísticas
       if (data && data.length > 0) {
@@ -347,85 +510,6 @@ if (data && data.length > 0) {
       setLoading(false);
     }
   };
-  
-  const loadAudioDuration = async (call: Call) => {
-    if (!call.recording_url || audioDurations[call.id]) return;
-    
-    try {
-      const audio = new Audio(call.recording_url);
-      return new Promise<void>((resolve) => {
-        audio.addEventListener('loadedmetadata', () => {
-          const duration = Math.round(audio.duration);
-          setAudioDurations(prev => ({
-            ...prev,
-            [call.id]: duration
-          }));
-          resolve();
-        });
-        
-        audio.addEventListener('error', () => {
-          resolve();
-        });
-      });
-    } catch (error) {
-      console.log(`❌ Error loading audio duration:`, error);
-    }
-  };
-
-  useEffect(() => {
-    const loadAllAudioDurations = async () => {
-      const callsWithAudio = calls.filter(call => call.recording_url);
-      
-      for (let i = 0; i < callsWithAudio.length; i += 3) {
-        const batch = callsWithAudio.slice(i, i + 3);
-        await Promise.all(batch.map(call => loadAudioDuration(call)));
-        if (i + 3 < callsWithAudio.length) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-    };
-
-    if (calls.length > 0) {
-      loadAllAudioDurations();
-    }
-  }, [calls]);
-
-  const applyFiltersAndSort = () => {
-    let filtered = [...calls];
-
-    if (searchTerm) {
-      filtered = filtered.filter(call => 
-        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.from_number.includes(searchTerm) ||
-        call.to_number.includes(searchTerm) ||
-        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(call => call.call_status === statusFilter);
-    }
-
-    filtered = filtered.filter(call => isDateInRange(call.timestamp));
-
-    filtered.sort((a, b) => {
-      let aValue: any = a[sortField];
-      let bValue: any = b[sortField];
-
-      if (sortField === 'timestamp') {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
-    setFilteredCalls(filtered);
-  };
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -445,6 +529,7 @@ if (data && data.length > 0) {
     setIsModalOpen(false);
     setSelectedCall(null);
   };
+
   const formatDuration = (seconds: number) => {
     if (seconds === null || seconds === undefined || isNaN(seconds)) {
       return "0:00";
@@ -537,22 +622,29 @@ if (data && data.length > 0) {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
-              <p className="text-gray-600">Comprehensive call data for your account</p>
+              <p className="text-gray-600">
+                Comprehensive call data for your account
+                {selectedAgentName && (
+                  <span className="ml-2 text-blue-600 font-medium">
+                    • Filtered by {selectedAgentName}
+                  </span>
+                )}
+              </p>
             </div>
             <div className="flex items-center gap-3">
-  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-    <User className="w-3 h-3 mr-1" />
-    Active User
-  </Badge>
-  <Button
-    onClick={fetchCalls}
-    disabled={loading}
-    variant="outline"
-    size="sm"
-  >
-    {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
-  </Button>
-</div>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                <User className="w-3 h-3 mr-1" />
+                Active User
+              </Badge>
+              <Button
+                onClick={fetchCalls}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+              >
+                {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
+              </Button>
+            </div>
           </div>
 
           {/* Error Alert */}
@@ -632,7 +724,7 @@ if (data && data.length > 0) {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Search calls by ID, phone, or summary..."
+                    placeholder="Search calls by ID, phone, agent, or summary..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -654,6 +746,14 @@ if (data && data.length > 0) {
                     ))}
                   </select>
                 </div>
+
+                {/* NUEVO: Filtro de Agentes */}
+                <AgentFilter
+                  agents={uniqueAgents}
+                  selectedAgent={agentFilter}
+                  onAgentChange={setAgentFilter}
+                  isLoading={isLoadingAgents}
+                />
 
                 <div className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4 text-gray-500" />
@@ -680,6 +780,7 @@ if (data && data.length > 0) {
                 )}
 
                 <div className="text-sm text-gray-500 whitespace-nowrap">
+                  <div className="text-sm text-gray-500 whitespace-nowrap">
                   {dateFilter !== 'all' && (
                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 mr-2">
                       📅 {getDateFilterText()}
@@ -690,6 +791,7 @@ if (data && data.length > 0) {
               </div>
             </CardContent>
           </Card>
+
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -746,6 +848,9 @@ if (data && data.length > 0) {
                           Call Details
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Agent {/* NUEVA COLUMNA */}
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
                             onClick={() => handleSort('duration_sec')}
                             className="flex items-center gap-1 hover:text-gray-700"
@@ -800,6 +905,21 @@ if (data && data.length > 0) {
                             </div>
                             <div className="text-xs text-gray-500 font-mono">
                               ID: {call.call_id.substring(0, 16)}...
+                            </div>
+                          </td>
+                          
+                          {/* NUEVA COLUMNA DE AGENTE */}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {getAgentName(call.agent_id)}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {call.agent_id.substring(0, 8)}...
+                                </div>
+                              </div>
                             </div>
                           </td>
                           
@@ -904,13 +1024,12 @@ if (data && data.length > 0) {
                         </tr>
                       ))}
                     </tbody>
-                    </table>
+                  </table>
                 </div>
               )}
             </CardContent>
           </Card>
-
-          {/* Call Detail Modal */}
+            {/* Call Detail Modal */}
           <CallDetailModal 
             call={selectedCall}
             isOpen={isModalOpen}
