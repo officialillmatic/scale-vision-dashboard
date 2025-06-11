@@ -655,6 +655,7 @@ if (agentIds.length > 0 && allAgents) {
               </CardContent>
             </Card>
           )}
+
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -717,7 +718,8 @@ if (agentIds.length > 0 && allAgents) {
               </CardContent>
             </Card>
           </div>
-          {/* Filtros */}
+
+          {/* Filters */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4 items-center">
@@ -747,7 +749,6 @@ if (agentIds.length > 0 && allAgents) {
                   </select>
                 </div>
 
-                {/* NUEVO: Filtro de Agentes */}
                 <AgentFilter
                   agents={uniqueAgents}
                   selectedAgent={agentFilter}
@@ -780,7 +781,6 @@ if (agentIds.length > 0 && allAgents) {
                 )}
 
                 <div className="text-sm text-gray-500 whitespace-nowrap">
-                  <div className="text-sm text-gray-500 whitespace-nowrap">
                   {dateFilter !== 'all' && (
                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 mr-2">
                       📅 {getDateFilterText()}
@@ -848,7 +848,7 @@ if (agentIds.length > 0 && allAgents) {
                           Call Details
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Agent {/* NUEVA COLUMNA */}
+                          Agent
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
@@ -908,7 +908,6 @@ if (agentIds.length > 0 && allAgents) {
                             </div>
                           </td>
                           
-                          {/* NUEVA COLUMNA DE AGENTE */}
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <User className="w-4 h-4 text-gray-400" />
