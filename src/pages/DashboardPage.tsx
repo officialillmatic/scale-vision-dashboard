@@ -254,7 +254,7 @@ export default function DashboardPage() {
         <div className="w-full">
           <CreditBalance 
             onRequestRecharge={() => {
-              alert('Please contact support to recharge your account: support@drscale.com');
+              alert('Please contact support to recharge your account: support@drscaleai.com');
             }}
             showActions={true}
           />
