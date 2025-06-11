@@ -213,6 +213,12 @@ export default function CallsSimple() {
   const durationMinutes = getCallDuration(call) / 60;
   let agentRate = 0;
   
+  console.log(`🔍 CALCULANDO COSTO PARA LLAMADA ${call.call_id?.substring(0, 8)}:`);
+  console.log(`📏 Duración: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min`);
+  console.log(`🔍 call_agent:`, call.call_agent);
+  console.log(`🔍 agents:`, call.agents);
+  console.log(`🔍 cost_usd de DB:`, call.cost_usd);
+  
   // ORDEN DE PRIORIDAD para obtener la tarifa
   if (call.call_agent?.rate_per_minute) {
     agentRate = call.call_agent.rate_per_minute;
@@ -230,11 +236,7 @@ export default function CallsSimple() {
   
   const calculatedCost = durationMinutes * agentRate;
   
-  console.log(`🧮 COST CALCULATION:
-    📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
-    💵 Rate: $${agentRate}/min
-    🎯 Calculated: $${calculatedCost.toFixed(4)}
-    🗄️ DB Cost: $${call.cost_usd || 0} (IGNORED)`);
+  console.log(`🎯 RESULTADO FINAL: $${calculatedCost.toFixed(4)}`);
   
   return calculatedCost;
 };
