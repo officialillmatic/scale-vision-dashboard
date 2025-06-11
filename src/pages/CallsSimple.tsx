@@ -483,8 +483,9 @@ const { data: callsData, error: callsError } = await supabase
   .select(`
     *
   `)
-  .in('agent_id', userAgentIds)
-  .order('timestamp', { ascending: false});
+  // .in('agent_id', userAgentIds)  // COMENTADO TEMPORALMENTE
+  .order('timestamp', { ascending: false})
+.limit(50);  // Solo 50 llamadas para debug
 
 console.log("📊 RAW SUPABASE DATA COMPLETA:", {
   totalCalls: callsData?.length,
@@ -595,17 +596,6 @@ console.log("🎯 FINAL DATA SAMPLE:", {
   summaryType: typeof data?.[0]?.call_summary,
   summaryLength: data?.[0]?.call_summary?.length
 });
-
-// DEBUG EN PANTALLA - Buscar llamadas con summary
-const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
-console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length);
-
-// Mostrar alert si encontramos summaries
-if (callsWithSummary.length > 0) {
-  alert(`✅ ENCONTRÉ ${callsWithSummary.length} LLAMADAS CON SUMMARY!\nPrimera: ${callsWithSummary[0].call_summary?.substring(0, 100)}...`);
-} else {
-  alert(`❌ NO HAY LLAMADAS CON SUMMARY en ${data?.length || 0} llamadas totales`);
-}
 console.log("🎯 AFTER MAPPING - FIRST CALL:", data?.[0]);
 console.log("🎯 AFTER MAPPING CALL_SUMMARY:", data?.[0]?.call_summary);
       setCalls(data || []);
