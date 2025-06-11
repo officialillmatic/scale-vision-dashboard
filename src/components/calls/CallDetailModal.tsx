@@ -40,7 +40,7 @@ interface Call {
   call_summary?: string;
   sentiment?: string;
   recording_url?: string;
-  // AGREGADO: Campos para el agente con tarifa
+  end_reason?: string;  // NUEVO CAMPO AGREGADO
   call_agent?: {
     id: string;
     name: string;
