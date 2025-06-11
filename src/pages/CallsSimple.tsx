@@ -61,6 +61,7 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
+
 // COMPONENTE FILTRO DE AGENTES
 const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
   agents: any[];
@@ -150,6 +151,7 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
     </div>
   );
 };
+
 export default function CallsSimple() {
   const { user } = useAuth();
   const { getAgentName, getUniqueAgentsFromCalls, isLoadingAgents } = useAgents();
@@ -206,6 +208,7 @@ export default function CallsSimple() {
       loadAllAudioDurations();
     }
   }, [calls]);
+
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
@@ -277,6 +280,7 @@ export default function CallsSimple() {
       console.log(`❌ Error loading audio duration:`, error);
     }
   };
+
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -371,6 +375,7 @@ export default function CallsSimple() {
 
     setFilteredCalls(filtered);
   };
+
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
@@ -415,6 +420,7 @@ export default function CallsSimple() {
         return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
+
   const fetchCalls = async () => {
     console.log("🚀 FETCHCALLS STARTED");
     if (!user?.id) {
@@ -427,7 +433,6 @@ export default function CallsSimple() {
       setLoading(true);
       setError(null);
 
-      // PASO 1: Obtener agentes asignados al usuario actual
       const { data: userAgents, error: agentsError } = await supabase
         .from('user_agent_assignments')
         .select(`
@@ -461,11 +466,9 @@ export default function CallsSimple() {
         return;
       }
 
-      // PASO 2: Obtener IDs de agentes del usuario
       const userAgentIds = userAgents.map(assignment => assignment.agents.id);
       console.log(`🎯 User has ${userAgentIds.length} assigned agents`);
 
-      // PASO 3: Obtener llamadas de esos agentes
       const { data: callsData, error: callsError } = await supabase
         .from('calls')
         .select('*')
@@ -480,7 +483,6 @@ export default function CallsSimple() {
 
       console.log("✅ Calls fetched successfully:", callsData?.length || 0);
 
-      // PASO 4: Obtener agentes para el cálculo de costos
       const { data: allAgents, error: allAgentsError } = await supabase
         .from('retell_agents')
         .select('*');
@@ -489,7 +491,6 @@ export default function CallsSimple() {
         console.error("⚠️ Error fetching agents:", allAgentsError);
       }
 
-      // PASO 5: Conectar agentes con llamadas
       const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
       let agentsData = [];
 
@@ -499,7 +500,6 @@ export default function CallsSimple() {
         );
       }
 
-      // PASO 6: Mapear agentes a llamadas CON SUMMARY
       const data = callsData?.map(call => {
         let matchedAgent = null;
 
@@ -526,13 +526,11 @@ export default function CallsSimple() {
         };
       });
 
-      // DEBUG: Contar summaries
       const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
       console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length, "de", data?.length || 0);
 
       setCalls(data || []);
 
-      // Calcular estadísticas
       if (data && data.length > 0) {
         const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
         const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
@@ -555,6 +553,7 @@ export default function CallsSimple() {
       setLoading(false);
     }
   };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -632,6 +631,7 @@ export default function CallsSimple() {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
+
   if (!user) {
     return (
       <DashboardLayout>
@@ -685,6 +685,7 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           )}
+
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -747,6 +748,7 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           </div>
+
           {/* Filters */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
@@ -819,6 +821,7 @@ export default function CallsSimple() {
               </div>
             </CardContent>
           </Card>
+
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -904,7 +907,6 @@ export default function CallsSimple() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           End Reason
                         </th>
-                        <th className="px-
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Content
                         </th>
@@ -964,6 +966,7 @@ export default function CallsSimple() {
                               }
                             </div>
                           </td>
+                          
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {formatCurrency(calculateCallCost(call))}
@@ -1028,6 +1031,7 @@ export default function CallsSimple() {
                               </div>
                             )}
                           </td>
+                          
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-1">
                               <Button 
