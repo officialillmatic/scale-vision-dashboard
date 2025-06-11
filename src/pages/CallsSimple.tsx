@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -61,6 +62,7 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
+
 // COMPONENTE FILTRO DE AGENTES
 const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
   agents: any[];
@@ -150,6 +152,7 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
     </div>
   );
 };
+
 export default function CallsSimple() {
   const { user } = useAuth();
   const { getAgentName, getUniqueAgentsFromCalls, isLoadingAgents } = useAgents();
@@ -208,36 +211,37 @@ export default function CallsSimple() {
       loadAllAudioDurations();
     }
   }, [calls]);
+
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
-  const durationMinutes = getCallDuration(call) / 60;
-  let agentRate = 0;
-  
-  // AGREGAR ESTOS LOGS DE DEBUG:
-  console.log(`🔍 CALCULANDO COSTO PARA ${call.call_id?.substring(0, 8)}:`);
-  console.log(`📏 Duración: ${getCallDuration(call)}s`);
-  console.log(`🔍 call_agent:`, call.call_agent);
-  console.log(`🔍 cost_usd de DB:`, call.cost_usd);
-  
-  // RESTO DE TU FUNCIÓN ACTUAL...
-  if (call.call_agent?.rate_per_minute) {
-    agentRate = call.call_agent.rate_per_minute;
-    console.log(`💰 Using call_agent rate: $${agentRate}/min`); // AGREGAR
-  } else if (call.agents?.rate_per_minute) {
-    agentRate = call.agents.rate_per_minute;
-    console.log(`💰 Using agents rate: $${agentRate}/min`); // AGREGAR
-  }
-  
-  if (agentRate === 0) {
-    console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`); // AGREGAR
-    return call.cost_usd || 0;
-  }
-  
-  const calculatedCost = durationMinutes * agentRate;
-  console.log(`🎯 RESULTADO: $${calculatedCost.toFixed(4)}`); // AGREGAR
-  
-  return calculatedCost;
-};
+    const durationMinutes = getCallDuration(call) / 60;
+    let agentRate = 0;
+    
+    // AGREGAR ESTOS LOGS DE DEBUG:
+    console.log(`🔍 CALCULANDO COSTO PARA ${call.call_id?.substring(0, 8)}:`);
+    console.log(`📏 Duración: ${getCallDuration(call)}s`);
+    console.log(`🔍 call_agent:`, call.call_agent);
+    console.log(`🔍 cost_usd de DB:`, call.cost_usd);
+    
+    // RESTO DE TU FUNCIÓN ACTUAL...
+    if (call.call_agent?.rate_per_minute) {
+      agentRate = call.call_agent.rate_per_minute;
+      console.log(`💰 Using call_agent rate: $${agentRate}/min`); // AGREGAR
+    } else if (call.agents?.rate_per_minute) {
+      agentRate = call.agents.rate_per_minute;
+      console.log(`💰 Using agents rate: $${agentRate}/min`); // AGREGAR
+    }
+    
+    if (agentRate === 0) {
+      console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`); // AGREGAR
+      return call.cost_usd || 0;
+    }
+    
+    const calculatedCost = durationMinutes * agentRate;
+    console.log(`🎯 RESULTADO: $${calculatedCost.toFixed(4)}`); // AGREGAR
+    
+    return calculatedCost;
+  };
 
   const getCallDuration = (call: any) => {
     if (audioDurations[call.id]) {
@@ -331,6 +335,7 @@ export default function CallsSimple() {
         return 'All dates';
     }
   };
+
   const applyFiltersAndSort = () => {
     let filtered = [...calls];
 
@@ -417,6 +422,7 @@ export default function CallsSimple() {
         return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
+
   const fetchCalls = async () => {
     console.log("🚀 FETCHCALLS STARTED");
     if (!user?.id) {
@@ -430,49 +436,49 @@ export default function CallsSimple() {
       setError(null);
 
       // PASO 1: Obtener agentes asignados al usuario actual
-const { data: userAgents, error: agentsError } = await supabase
-  .from('user_agent_assignments')
-  .select(`
-    agent_id,
-    agents!inner (
-      id,
-      name,
-      rate_per_minute,
-      retell_agent_id
-    )
-  `)
-  .eq('user_id', user.id)
-  .eq('is_primary', true);
+      const { data: userAgents, error: agentsError } = await supabase
+        .from('user_agent_assignments')
+        .select(`
+          agent_id,
+          agents!inner (
+            id,
+            name,
+            rate_per_minute,
+            retell_agent_id
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('is_primary', true);
 
-if (agentsError) {
-  console.error("❌ Error fetching user agents:", agentsError);
-  setError(`Error: ${agentsError.message}`);
-  return;
-}
+      if (agentsError) {
+        console.error("❌ Error fetching user agents:", agentsError);
+        setError(`Error: ${agentsError.message}`);
+        return;
+      }
 
-if (!userAgents || userAgents.length === 0) {
-  console.log("⚠️ No agents assigned to this user");
-  setCalls([]);
-  setStats({
-    total: 0,
-    totalCost: 0,
-    totalDuration: 0,
-    avgDuration: 0,
-    completedCalls: 0
-  });
-  return;
-}
+      if (!userAgents || userAgents.length === 0) {
+        console.log("⚠️ No agents assigned to this user");
+        setCalls([]);
+        setStats({
+          total: 0,
+          totalCost: 0,
+          totalDuration: 0,
+          avgDuration: 0,
+          completedCalls: 0
+        });
+        return;
+      }
 
-// PASO 2: Obtener IDs de agentes del usuario
-const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
+      // PASO 2: Obtener IDs de agentes del usuario
+      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
+      console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
 
-// PASO 3: Obtener llamadas de esos agentes
-const { data: callsData, error: callsError } = await supabase
-  .from('calls')
-  .select('*')
-  .in('agent_id', userAgentIds)
-  .order('timestamp', { ascending: false});
+      // PASO 3: Obtener llamadas de esos agentes
+      const { data: callsData, error: callsError } = await supabase
+        .from('calls')
+        .select('*')
+        .in('agent_id', userAgentIds)
+        .order('timestamp', { ascending: false});
 
       if (callsError) {
         console.error("❌ Error fetching calls:", callsError);
@@ -528,7 +534,7 @@ const { data: callsData, error: callsError } = await supabase
         };
       });
 
-      // DEBUG: Contar summaries
+      // DEBUG: Contar summaries - FIXED SYNTAX
       const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
       console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length, "de", data?.length || 0);
 
@@ -557,6 +563,7 @@ const { data: callsData, error: callsError } = await supabase
       setLoading(false);
     }
   };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -634,6 +641,7 @@ const { data: callsData, error: callsError } = await supabase
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
+
   if (!user) {
     return (
       <DashboardLayout>
@@ -687,6 +695,7 @@ const { data: callsData, error: callsError } = await supabase
               </CardContent>
             </Card>
           )}
+
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -749,6 +758,7 @@ const { data: callsData, error: callsError } = await supabase
               </CardContent>
             </Card>
           </div>
+
           {/* Filters */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
@@ -821,6 +831,7 @@ const { data: callsData, error: callsError } = await supabase
               </div>
             </CardContent>
           </Card>
+
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -957,8 +968,8 @@ const { data: callsData, error: callsError } = await supabase
                           
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
-  {formatCurrency(calculateCallCost(call))}
-</div>
+                              {formatDuration(getCallDuration(call))}
+                            </div>
                             <div className="text-xs text-gray-500">
                               {audioDurations[call.id] ? 
                                 `${getCallDuration(call)}s (from audio)` : 
