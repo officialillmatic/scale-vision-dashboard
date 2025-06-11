@@ -595,7 +595,6 @@ console.log("🎯 FINAL DATA SAMPLE:", {
   summaryType: typeof data?.[0]?.call_summary,
   summaryLength: data?.[0]?.call_summary?.length
 });
-      });
 console.log("🎯 AFTER MAPPING - FIRST CALL:", data?.[0]);
 console.log("🎯 AFTER MAPPING CALL_SUMMARY:", data?.[0]?.call_summary);
       setCalls(data || []);
