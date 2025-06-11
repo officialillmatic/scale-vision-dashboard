@@ -837,53 +837,57 @@ export default function CallsSimple() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('timestamp')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Date & Time {getSortIcon('timestamp')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Call Details
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Agent
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('duration_sec')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Duration {getSortIcon('duration_sec')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('cost_usd')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Cost {getSortIcon('cost_usd')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('call_status')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Status {getSortIcon('call_status')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Content
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
+  <tr>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <button
+        onClick={() => handleSort('timestamp')}
+        className="flex items-center gap-1 hover:text-gray-700"
+      >
+        Date & Time {getSortIcon('timestamp')}
+      </button>
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Call Details
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Agent
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <button
+        onClick={() => handleSort('duration_sec')}
+        className="flex items-center gap-1 hover:text-gray-700"
+      >
+        Duration {getSortIcon('duration_sec')}
+      </button>
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <button
+        onClick={() => handleSort('cost_usd')}
+        className="flex items-center gap-1 hover:text-gray-700"
+      >
+        Cost {getSortIcon('cost_usd')}
+      </button>
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <button
+        onClick={() => handleSort('call_status')}
+        className="flex items-center gap-1 hover:text-gray-700"
+      >
+        Status {getSortIcon('call_status')}
+      </button>
+    </th>
+    {/* NUEVA COLUMNA END REASON */}
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      End Reason
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Content
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Actions
+    </th>
+  </tr>
+</thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredCalls.map((call, index) => (
                         <tr 
