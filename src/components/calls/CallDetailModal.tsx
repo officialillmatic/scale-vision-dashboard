@@ -340,6 +340,17 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                       <span className="text-sm font-medium">Cost:</span>
                       <span className="text-sm">{formatCurrency(calculateCallCost(call, audioDuration))}</span>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm font-medium">End Reason:</span>
+                      {call.end_reason ? (
+                        <Badge className={getEndReasonColor(call.end_reason)} size="sm">
+                          {call.end_reason.replace(/_/g, ' ')}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-gray-500">Not specified</span>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
