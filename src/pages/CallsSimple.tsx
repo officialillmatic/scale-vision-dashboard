@@ -503,7 +503,7 @@ export default function CallsSimple() {
 
       if (agentIds.length > 0 && allAgents) {
         agentsData = allAgents.filter(agent => 
-          agentIds.includes(agent.id) || agentIds.includes(agent.agent_id)
+          agentIds.includes(agent?.id) || agentIds.includes(agent.agent_id)
         );
       }
 
