@@ -477,21 +477,26 @@ export default function CallsSimple() {
       console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
 
       // PASO 3: Obtener llamadas de esos agentes
-      const { data: callsData, error: callsError } = await supabase
-        .from('calls')
-        .select(`
-          *,
-          call_summary,
-          disconnection_reason
-        `)
-        .in('agent_id', userAgentIds)
-        .order('timestamp', { ascending: false});
+      // PASO 3: Obtener llamadas de esos agentes - QUERY CORREGIDA
+const { data: callsData, error: callsError } = await supabase
+  .from('calls')
+  .select('*')  // Solo esto, SIN campos duplicados
+  .in('agent_id', userAgentIds)
+  .order('timestamp', { ascending: false});
 
-      if (callsError) {
-        console.error("❌ Error fetching calls:", callsError);
-        setError(`Error: ${callsError.message}`);
-        return;
-      }
+console.log("📊 RAW SUPABASE DATA COMPLETA:", {
+  totalCalls: callsData?.length,
+  firstCall: callsData?.[0],
+  firstCallSummary: callsData?.[0]?.call_summary,
+  firstCallDisconnectionReason: callsData?.[0]?.disconnection_reason,
+  allFieldsInFirstCall: callsData?.[0] ? Object.keys(callsData[0]) : []
+});
+
+if (callsError) {
+  console.error("❌ Error fetching calls:", callsError);
+  setError(`Error: ${callsError.message}`);
+  return;
+}
 
       console.log("✅ Calls fetched successfully:", callsData?.length || 0);
 console.log("🔍 RAW SUPABASE DATA - FIRST CALL:", callsData?.[0]);
