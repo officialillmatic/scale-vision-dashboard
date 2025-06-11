@@ -587,7 +587,16 @@ const data = callsData?.map(call => {
 });
 
 console.log("🎯 FINAL DATA SAMPLE:", {
-  // DEBUG EN PANTALLA - Buscar llamadas con summary
+  totalCalls: data?.length,
+  firstCall: data?.[0],
+  firstCallSummary: data?.[0]?.call_summary,
+  firstCallEndReason: data?.[0]?.end_reason,
+  summaryExists: !!data?.[0]?.call_summary,
+  summaryType: typeof data?.[0]?.call_summary,
+  summaryLength: data?.[0]?.call_summary?.length
+});
+
+// DEBUG EN PANTALLA - Buscar llamadas con summary
 const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
 console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length);
 
@@ -597,14 +606,6 @@ if (callsWithSummary.length > 0) {
 } else {
   alert(`❌ NO HAY LLAMADAS CON SUMMARY en ${data?.length || 0} llamadas totales`);
 }
-  totalCalls: data?.length,
-  firstCall: data?.[0],
-  firstCallSummary: data?.[0]?.call_summary,
-  firstCallEndReason: data?.[0]?.end_reason,
-  summaryExists: !!data?.[0]?.call_summary,
-  summaryType: typeof data?.[0]?.call_summary,
-  summaryLength: data?.[0]?.call_summary?.length
-});
 console.log("🎯 AFTER MAPPING - FIRST CALL:", data?.[0]);
 console.log("🎯 AFTER MAPPING CALL_SUMMARY:", data?.[0]?.call_summary);
       setCalls(data || []);
