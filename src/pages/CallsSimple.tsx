@@ -234,13 +234,16 @@ export default function CallsSimple() {
     
     if (agentRate === 0) {
       console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`); // AGREGAR
-      return call.cost_usd || 0;
+      const finalCost = call.cost_usd || 0;
+console.log(`🎯 RETORNANDO FINAL: $${finalCost}`);
+return finalCost;
     }
     
     const calculatedCost = durationMinutes * agentRate;
     console.log(`🎯 RESULTADO: $${calculatedCost.toFixed(4)}`); // AGREGAR
     
-    return calculatedCost;
+    console.log(`🎯 RETORNANDO CALCULADO: $${calculatedCost}`);
+return calculatedCost;
   };
 
   const getCallDuration = (call: any) => {
