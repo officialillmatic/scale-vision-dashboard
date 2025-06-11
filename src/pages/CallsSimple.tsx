@@ -182,6 +182,7 @@ export default function CallsSimple() {
 
   // NUEVO: Obtener nombre del agente seleccionado para mostrar en la descripción
   const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
+
   // useEffect hooks
   useEffect(() => {
     if (user?.id) {
@@ -389,76 +390,76 @@ export default function CallsSimple() {
       console.log("🔍 Fetching calls for user:", user.id);
 
       // PASO 1: Obtener agentes asignados al usuario actual
-const { data: userAgents, error: agentsError } = await supabase
-  .from('user_agent_assignments')
-  .select(`
-    agent_id,
-    agents!inner (
-      id,
-      name,
-      rate_per_minute,
-      retell_agent_id
-    )
-  `)
-  .eq('user_id', user.id)
-  .eq('is_primary', true);
+      const { data: userAgents, error: agentsError } = await supabase
+        .from('user_agent_assignments')
+        .select(`
+          agent_id,
+          agents!inner (
+            id,
+            name,
+            rate_per_minute,
+            retell_agent_id
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('is_primary', true);
 
-if (agentsError) {
-  console.error("❌ Error fetching user agents:", agentsError);
-  setError(`Error: ${agentsError.message}`);
-  return;
-}
+      if (agentsError) {
+        console.error("❌ Error fetching user agents:", agentsError);
+        setError(`Error: ${agentsError.message}`);
+        return;
+      }
 
-if (!userAgents || userAgents.length === 0) {
-  console.log("⚠️ No agents assigned to this user");
-  setCalls([]);
-  setStats({
-    total: 0,
-    totalCost: 0,
-    totalDuration: 0,
-    avgDuration: 0,
-    completedCalls: 0
-  });
-  return;
-}
+      if (!userAgents || userAgents.length === 0) {
+        console.log("⚠️ No agents assigned to this user");
+        setCalls([]);
+        setStats({
+          total: 0,
+          totalCost: 0,
+          totalDuration: 0,
+          avgDuration: 0,
+          completedCalls: 0
+        });
+        return;
+      }
 
-// PASO 2: Obtener IDs de agentes del usuario
-const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
+      // PASO 2: Obtener IDs de agentes del usuario
+      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
+      console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
 
-// PASO 3: Obtener llamadas de esos agentes
-const { data: callsData, error: callsError } = await supabase
-  .from('calls')
-  .select('*')
-  .in('agent_id', userAgentIds)
-  .order('timestamp', { ascending: false });
+      // PASO 3: Obtener llamadas de esos agentes
+      const { data: callsData, error: callsError } = await supabase
+        .from('calls')
+        .select('*')
+        .in('agent_id', userAgentIds)
+        .order('timestamp', { ascending: false });
 
-if (callsError) {
-  console.error("❌ Error fetching calls:", callsError);
-  setError(`Error: ${callsError.message}`);
-  return;
-}
+      if (callsError) {
+        console.error("❌ Error fetching calls:", callsError);
+        setError(`Error: ${callsError.message}`);
+        return;
+      }
 
-console.log("✅ Calls fetched successfully:", callsData?.length || 0);
+      console.log("✅ Calls fetched successfully:", callsData?.length || 0);
 
-// PASO 4: Obtener agentes para el cálculo de costos
-const { data: allAgents, error: allAgentsError } = await supabase
-  .from('retell_agents')
-  .select('*');
+      // PASO 4: Obtener agentes para el cálculo de costos
+      const { data: allAgents, error: allAgentsError } = await supabase
+        .from('retell_agents')
+        .select('*');
 
-if (allAgentsError) {
-  console.error("⚠️ Error fetching agents:", allAgentsError);
-}
+      if (allAgentsError) {
+        console.error("⚠️ Error fetching agents:", allAgentsError);
+      }
 
-// PASO 5: Conectar agentes con llamadas
-const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
-let agentsData = [];
+      // PASO 5: Conectar agentes con llamadas
+      const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
+      let agentsData = [];
 
-if (agentIds.length > 0 && allAgents) {
-  agentsData = allAgents.filter(agent => 
-  agentIds.includes(agent.id) || agentIds.includes(agent.agent_id)
-);
-}
+      if (agentIds.length > 0 && allAgents) {
+        agentsData = allAgents.filter(agent => 
+          agentIds.includes(agent.id) || agentIds.includes(agent.agent_id)
+        );
+      }
 
       // PASO 4: Mapear agentes a llamadas
       const data = callsData?.map(call => {
