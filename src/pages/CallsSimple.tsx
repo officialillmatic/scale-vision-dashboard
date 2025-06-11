@@ -424,6 +424,8 @@ export default function CallsSimple() {
     }
   };
   const fetchCalls = async () => {
+  console.log("🚀 FETCHCALLS STARTED - DEBUG TEST");
+  console.log("🚀 USER ID:", user?.id);
     if (!user?.id) {
       setError("User not authenticated");
       setLoading(false);
