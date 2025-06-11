@@ -427,145 +427,90 @@ return calculatedCost;
   };
 
   const fetchCalls = async () => {
-    console.log("🚀 FETCHCALLS STARTED");
-    if (!user?.id) {
-      setError("User not authenticated");
-      setLoading(false);
+  console.log("🚀 FETCHCALLS STARTED");
+  if (!user?.id) {
+    setError("User not authenticated");
+    setLoading(false);
+    return;
+  }
+
+  try {
+    setLoading(true);
+    setError(null);
+
+    // PASO 1: Obtener TODAS las llamadas (sin JOIN)
+    const { data: callsData, error: callsError } = await supabase
+      .from('calls')
+      .select('*')
+      .order('timestamp', { ascending: false});
+
+    if (callsError) {
+      console.error("❌ Error fetching calls:", callsError);
+      setError(`Error: ${callsError.message}`);
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
+    console.log("✅ Calls fetched successfully:", callsData?.length || 0);
 
-      // PASO 1: Obtener agentes asignados al usuario actual
-      const { data: userAgents, error: agentsError } = await supabase
-        .from('user_agent_assignments')
-        .select(`
-          agent_id,
-          agents!inner (
-            id,
-            name,
-            rate_per_minute,
-            retell_agent_id
-          )
-        `)
-        .eq('user_id', user.id)
-        .eq('is_primary', true);
+    // PASO 2: Obtener TODOS los agentes (consulta separada)
+    const { data: allAgents, error: agentsError } = await supabase
+      .from('agents')
+      .select('id, name, rate_per_minute');
 
-      if (agentsError) {
-        console.error("❌ Error fetching user agents:", agentsError);
-        setError(`Error: ${agentsError.message}`);
-        return;
-      }
-
-      if (!userAgents || userAgents.length === 0) {
-        console.log("⚠️ No agents assigned to this user");
-        setCalls([]);
-        setStats({
-          total: 0,
-          totalCost: 0,
-          totalDuration: 0,
-          avgDuration: 0,
-          completedCalls: 0
-        });
-        return;
-      }
-
-      // PASO 2: Obtener IDs de agentes del usuario
-      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-      console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
-
-      // PASO 3: Obtener llamadas de esos agentes
-      const { data: callsData, error: callsError } = await supabase
-        .from('calls')
-        .select('*')
-        .in('agent_id', userAgentIds)
-        .order('timestamp', { ascending: false});
-
-      if (callsError) {
-        console.error("❌ Error fetching calls:", callsError);
-        setError(`Error: ${callsError.message}`);
-        return;
-      }
-
-      console.log("✅ Calls fetched successfully:", callsData?.length || 0);
-
-      // PASO 4: Obtener agentes para el cálculo de costos
-      const { data: allAgents, error: allAgentsError } = await supabase
-        .from('retell_agents')
-        .select('*');
-
-      if (allAgentsError) {
-        console.error("⚠️ Error fetching agents:", allAgentsError);
-      }
-
-      // PASO 5: Conectar agentes con llamadas
-      const agentIds = [...new Set(callsData?.map(call => call.agent_id).filter(Boolean))];
-      let agentsData = [];
-
-      if (agentIds.length > 0 && allAgents) {
-        agentsData = allAgents.filter(agent => 
-          agentIds.includes(agent?.id) || agentIds.includes(agent.agent_id)
-        );
-      }
-
-      // PASO 6: Mapear agentes a llamadas CON SUMMARY
-      const data = callsData?.map(call => {
-        let matchedAgent = null;
-
-        if (agentsData && agentsData.length > 0) {
-          matchedAgent = agentsData.find(agent => 
-            agent.id === call.agent_id ||
-            agent.retell_agent_id === call.agent_id
-          );
-
-          if (!matchedAgent && agentsData.length === 1) {
-            matchedAgent = agentsData[0];
-          }
-        }
-
-        return {
-          ...call,
-          call_summary: call.call_summary || null,
-          end_reason: call.disconnection_reason || null,
-          call_agent: matchedAgent ? {
-            id: matchedAgent.id,
-            name: matchedAgent.name,
-            rate_per_minute: matchedAgent.rate_per_minute
-          } : null
-        };
-      });
-
-      // DEBUG: Contar summaries - FIXED SYNTAX
-      const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
-      console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length, "de", data?.length || 0);
-
-      setCalls(data || []);
-
-      // Calcular estadísticas
-      if (data && data.length > 0) {
-        const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
-        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
-        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-        const completedCalls = data.filter(call => call.call_status === 'completed').length;
-
-        setStats({
-          total: data.length,
-          totalCost,
-          totalDuration,
-          avgDuration,
-          completedCalls
-        });
-      }
-
-    } catch (err: any) {
-      console.error("❌ Exception fetching calls:", err);
-      setError(`Exception: ${err.message}`);
-    } finally {
-      setLoading(false);
+    if (agentsError) {
+      console.error("❌ Error fetching agents:", agentsError);
     }
-  };
+
+    console.log("✅ Agents fetched:", allAgents?.length || 0);
+
+    // PASO 3: Crear mapa de agentes para búsqueda rápida
+    const agentsMap = new Map(allAgents?.map(agent => [agent.id, agent]) || []);
+
+    // PASO 4: Mapear datos CON agentes
+    const data = callsData?.map(call => {
+      const agent = agentsMap.get(call.agent_id);
+      
+      return {
+        ...call,
+        call_summary: call.call_summary || null,
+        end_reason: call.disconnection_reason || null,
+        call_agent: agent ? {
+          id: agent.id,
+          name: agent.name,
+          rate_per_minute: agent.rate_per_minute
+        } : null
+      };
+    });
+
+    // DEBUG: Contar summaries
+    const callsWithSummary = data?.filter(call => call.call_summary && call.call_summary !== null) || [];
+    console.log("🔍 LLAMADAS CON SUMMARY:", callsWithSummary.length, "de", data?.length || 0);
+
+    setCalls(data || []);
+
+    // Calcular estadísticas
+    if (data && data.length > 0) {
+      const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
+      const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
+      const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
+      const completedCalls = data.filter(call => call.call_status === 'completed').length;
+
+      setStats({
+        total: data.length,
+        totalCost,
+        totalDuration,
+        avgDuration,
+        completedCalls
+      });
+    }
+
+  } catch (err: any) {
+    console.error("❌ Exception fetching calls:", err);
+    setError(`Exception: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
