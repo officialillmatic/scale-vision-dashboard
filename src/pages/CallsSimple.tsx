@@ -484,7 +484,7 @@ const { data: callsData, error: callsError } = await supabase
     *
   `)
   .in('agent_id', userAgentIds)
-  .order('created_at', { ascending: false});
+  .order('timestamp', { ascending: false});
 
 console.log("📊 RAW SUPABASE DATA COMPLETA:", {
   totalCalls: callsData?.length,
