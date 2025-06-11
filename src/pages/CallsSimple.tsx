@@ -541,31 +541,58 @@ console.log("🔍 RAW SUPABASE CALL_SUMMARY:", callsData?.[0]?.call_summary);
         );
       }
 
-      // PASO 6: Mapear agentes a llamadas
-      const data = callsData?.map(call => {
-        let matchedAgent = null;
+      // PASO 6: Mapear agentes a llamadas CON MAPEO ROBUSTO DE SUMMARY
+const data = callsData?.map(call => {
+  let matchedAgent = null;
 
-        if (agentsData && agentsData.length > 0) {
-          matchedAgent = agentsData.find(agent => 
-            agent.id === call.agent_id ||
-            agent.retell_agent_id === call.agent_id
-          );
+  if (agentsData && agentsData.length > 0) {
+    matchedAgent = agentsData.find(agent => 
+      agent.id === call.agent_id ||
+      agent.retell_agent_id === call.agent_id
+    );
 
-          if (!matchedAgent && agentsData.length === 1) {
-            matchedAgent = agentsData[0];
-          }
-        }
+    if (!matchedAgent && agentsData.length === 1) {
+      matchedAgent = agentsData[0];
+    }
+  }
 
-        return {
-  ...call,
-  // Mapear disconnection_reason a end_reason para compatibilidad
-  end_reason: call.disconnection_reason || null,
-  call_agent: matchedAgent ? {
-    id: matchedAgent.id,
-    name: matchedAgent.name,
-    rate_per_minute: matchedAgent.rate_per_minute
-  } : null
-};
+  // 🔧 MAPEO ROBUSTO DE SUMMARY - Buscar en todos los campos posibles
+  let summary = call.call_summary || call.summary || call.call_summary_text || call.Summary || null;
+  let endReason = call.disconnection_reason || call.end_reason || call.disconnect_reason || null;
+
+  console.log(`📝 MAPEO CALL ${call.call_id?.substring(0, 8)}:`, {
+    originalCallSummary: call.call_summary,
+    summary: call.summary, 
+    call_summary_text: call.call_summary_text,
+    Summary: call.Summary,
+    finalSummaryValue: summary,
+    disconnectionReason: call.disconnection_reason,
+    finalEndReason: endReason
+  });
+
+  return {
+    ...call,
+    // 🚨 IMPORTANTE: Asegurar que call_summary esté disponible
+    call_summary: summary,
+    // Mapear disconnection_reason a end_reason para compatibilidad
+    end_reason: endReason,
+    call_agent: matchedAgent ? {
+      id: matchedAgent.id,
+      name: matchedAgent.name,
+      rate_per_minute: matchedAgent.rate_per_minute
+    } : null
+  };
+});
+
+console.log("🎯 FINAL DATA SAMPLE:", {
+  totalCalls: data?.length,
+  firstCall: data?.[0],
+  firstCallSummary: data?.[0]?.call_summary,
+  firstCallEndReason: data?.[0]?.end_reason,
+  summaryExists: !!data?.[0]?.call_summary,
+  summaryType: typeof data?.[0]?.call_summary,
+  summaryLength: data?.[0]?.call_summary?.length
+});
       });
 console.log("🎯 AFTER MAPPING - FIRST CALL:", data?.[0]);
 console.log("🎯 AFTER MAPPING CALL_SUMMARY:", data?.[0]?.call_summary);
