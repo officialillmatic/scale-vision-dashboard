@@ -377,6 +377,52 @@ export default function CallsSimple() {
 
     setFilteredCalls(filtered);
   };
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'error': return 'bg-red-100 text-red-800 border-red-200';
+      case 'ended': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'in_progress': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getSentimentColor = (sentiment: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case 'positive': return 'bg-green-100 text-green-700 border-green-200';
+      case 'negative': return 'bg-red-100 text-red-700 border-red-200';
+      case 'neutral': return 'bg-gray-100 text-gray-700 border-gray-200';
+      default: return 'bg-gray-50 text-gray-600 border-gray-200';
+    }
+  };
+
+  // NUEVA FUNCIÓN: Color para End Reason
+  const getEndReasonColor = (endReason: string) => {
+    if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
+    
+    switch (endReason.toLowerCase()) {
+      case 'user hangup':
+      case 'user_hangup':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'agent hangup':
+      case 'agent_hangup':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'dial no answer':
+      case 'dial_no_answer':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'error llm websocket open':
+      case 'error_llm_websocket_open':
+      case 'technical_error':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'call completed':
+      case 'call_completed':
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
+  };
   const fetchCalls = async () => {
     if (!user?.id) {
       setError("User not authenticated");
@@ -462,7 +508,7 @@ export default function CallsSimple() {
         );
       }
 
-      // PASO 4: Mapear agentes a llamadas
+      // PASO 6: Mapear agentes a llamadas
       const data = callsData?.map(call => {
         let matchedAgent = null;
 
@@ -486,6 +532,7 @@ export default function CallsSimple() {
           } : null
         };
       });
+
       // TEMPORAL: Simular end_reason para testing (remover cuando tengas datos reales)
       const dataWithEndReason = data?.map(call => ({
         ...call,
@@ -509,11 +556,12 @@ export default function CallsSimple() {
           }
         })()
       }));
+      
       setCalls(dataWithEndReason || []);
 
       // Calcular estadísticas
       if (dataWithEndReason && dataWithEndReason.length > 0) {
-        onst totalCost = dataWithEndReason.reduce((sum, call) => sum + calculateCallCost(call), 0);
+        const totalCost = dataWithEndReason.reduce((sum, call) => sum + calculateCallCost(call), 0);
         const totalDuration = dataWithEndReason.reduce((sum, call) => sum + getCallDuration(call), 0);
         const avgDuration = dataWithEndReason.length > 0 ? Math.round(totalDuration / dataWithEndReason.length) : 0;
         const completedCalls = dataWithEndReason.filter(call => call.call_status === 'completed').length;
@@ -599,50 +647,6 @@ export default function CallsSimple() {
   const formatPhoneNumber = (phone: string) => {
     if (!phone || phone === 'unknown') return 'Unknown';
     return phone;
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'error': return 'bg-red-100 text-red-800 border-red-200';
-      case 'ended': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'in_progress': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment?.toLowerCase()) {
-      case 'positive': return 'bg-green-100 text-green-700 border-green-200';
-      case 'negative': return 'bg-red-100 text-red-700 border-red-200';
-      case 'neutral': return 'bg-gray-100 text-gray-700 border-gray-200';
-      default: return 'bg-gray-50 text-gray-600 border-gray-200';
-    }
-  };
-  const getEndReasonColor = (endReason: string) => {
-    if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
-    
-    switch (endReason.toLowerCase()) {
-      case 'user hangup':
-      case 'user_hangup':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'agent hangup':
-      case 'agent_hangup':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'dial no answer':
-      case 'dial_no_answer':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'error llm websocket open':
-      case 'error_llm_websocket_open':
-      case 'technical_error':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'call completed':
-      case 'call_completed':
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200';
-      default:
-        return 'bg-gray-100 text-gray-600 border-gray-200';
-    }
   };
 
   const getSortIcon = (field: SortField) => {
@@ -840,7 +844,6 @@ export default function CallsSimple() {
               </div>
             </CardContent>
           </Card>
-
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -884,57 +887,57 @@ export default function CallsSimple() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
-  <tr>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      <button
-        onClick={() => handleSort('timestamp')}
-        className="flex items-center gap-1 hover:text-gray-700"
-      >
-        Date & Time {getSortIcon('timestamp')}
-      </button>
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Call Details
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Agent
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      <button
-        onClick={() => handleSort('duration_sec')}
-        className="flex items-center gap-1 hover:text-gray-700"
-      >
-        Duration {getSortIcon('duration_sec')}
-      </button>
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      <button
-        onClick={() => handleSort('cost_usd')}
-        className="flex items-center gap-1 hover:text-gray-700"
-      >
-        Cost {getSortIcon('cost_usd')}
-      </button>
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      <button
-        onClick={() => handleSort('call_status')}
-        className="flex items-center gap-1 hover:text-gray-700"
-      >
-        Status {getSortIcon('call_status')}
-      </button>
-    </th>
-    {/* NUEVA COLUMNA END REASON */}
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      End Reason
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Content
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Actions
-    </th>
-  </tr>
-</thead>
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('timestamp')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Date & Time {getSortIcon('timestamp')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Call Details
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Agent
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('duration_sec')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Duration {getSortIcon('duration_sec')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('cost_usd')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Cost {getSortIcon('cost_usd')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('call_status')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Status {getSortIcon('call_status')}
+                          </button>
+                        </th>
+                        {/* NUEVA COLUMNA END REASON */}
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          End Reason
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Content
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredCalls.map((call, index) => (
                         <tr 
@@ -1013,6 +1016,8 @@ export default function CallsSimple() {
                               )}
                             </div>
                           </td>
+
+                          {/* NUEVA CELDA END REASON */}
                           <td className="px-4 py-4 whitespace-nowrap">
                             {call.end_reason ? (
                               <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
