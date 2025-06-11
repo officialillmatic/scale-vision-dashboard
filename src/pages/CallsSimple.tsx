@@ -947,6 +947,9 @@ export default function CallsSimple() {
                                 <div className="text-sm font-medium text-gray-900">
                                   {getAgentName(call.agent_id)}
                                 </div>
+                                <div className="text-xs text-red-500">
+  DEBUG: {calculateCallCost(call)}
+</div>
                                 <div className="text-xs text-gray-500">
                                   {call.agent_id.substring(0, 8)}...
                                 </div>
