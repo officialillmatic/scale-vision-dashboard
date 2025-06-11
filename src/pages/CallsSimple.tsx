@@ -546,6 +546,8 @@ export default function CallsSimple() {
       });
 
       setCalls(data || []);
+console.log("🎯 FINAL DATA BEFORE setCalls:", data?.[0]);
+console.log("🎯 CALL_SUMMARY BEFORE setCalls:", data?.[0]?.call_summary);
 
       // Calcular estadísticas
       if (data && data.length > 0) {
@@ -580,10 +582,14 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
   };
 
   const handleCallClick = (call: Call) => {
-    const originalCall = calls.find(c => c.id === call.id) || call;
-    setSelectedCall(originalCall);
-    setIsModalOpen(true);
-  };
+  console.log("🎯 SELECTED CALL:", call);
+  console.log("🎯 SELECTED CALL SUMMARY:", call.call_summary);
+  const originalCall = calls.find(c => c.id === call.id) || call;
+  console.log("🎯 ORIGINAL CALL:", originalCall);
+  console.log("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
+  setSelectedCall(originalCall);
+  setIsModalOpen(true);
+};
 
   const handleModalClose = () => {
     setIsModalOpen(false);
