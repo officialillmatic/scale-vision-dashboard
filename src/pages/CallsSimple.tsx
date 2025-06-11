@@ -532,18 +532,42 @@ export default function CallsSimple() {
           } : null
         };
       });
+
+      // TEMPORAL: Simular end_reason para testing (remover cuando tengas datos reales)
+      const dataWithEndReason = data?.map(call => ({
+        ...call,
+        end_reason: call.end_reason || (() => {
+          // Simular diferentes end_reason basado en call_status
+          switch (call.call_status) {
+            case 'completed':
+              return 'call completed';
+            case 'error':
+              return 'error llm websocket open';
+            case 'ended':
+              return Math.random() > 0.5 ? 'user hangup' : 'agent hangup';
+            default:
+              const reasons = [
+                'user hangup',
+                'agent hangup', 
+                'dial no answer',
+                'technical_error'
+              ];
+              return reasons[Math.floor(Math.random() * reasons.length)];
+          }
+        })()
+      }));
       
-      setCalls(data || []);
+      setCalls(dataWithEndReason || []);
 
       // Calcular estadísticas
-      if (dataWithEndReason && dataWithEndReason.length > 0) {
-        const totalCost = dataWithEndReason.reduce((sum, call) => sum + calculateCallCost(call), 0);
-        const totalDuration = dataWithEndReason.reduce((sum, call) => sum + getCallDuration(call), 0);
-        const avgDuration = dataWithEndReason.length > 0 ? Math.round(totalDuration / dataWithEndReason.length) : 0;
-        const completedCalls = dataWithEndReason.filter(call => call.call_status === 'completed').length;
+      if (data && data.length > 0) {
+        const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
+const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
+const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
+const completedCalls = data.filter(call => call.call_status === 'completed').length;
 
         setStats({
-          total: dataWithEndReason.length,
+          total: data.length,
           totalCost,
           totalDuration,
           avgDuration,
