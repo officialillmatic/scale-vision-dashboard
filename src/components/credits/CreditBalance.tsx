@@ -40,41 +40,25 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   const [refreshing, setRefreshing] = useState(false);
 
   // NUEVO: Usar el hook de agentes para obtener tarifas reales
-  const { agents, userAgents, isLoadingAgents } = useAgents();
+  const { agents, isLoadingAgents } = useAgents();
 
   // NUEVA FUNCIÓN: Calcular tarifa promedio de agentes asignados al usuario
   const calculateAverageRate = (): number => {
-    if (!agents || !userAgents || agents.length === 0) {
-      console.log('🔍 [CreditBalance] No agents or userAgents data, using fallback rate');
+    if (!agents || agents.length === 0) {
       return 0.02; // Fallback a tarifa genérica
     }
 
-    // Obtener agentes asignados al usuario actual
-    const userAssignedAgents = userAgents.filter(ua => ua.user_id === user?.id);
+    // USAR LA MISMA LÓGICA QUE FUNCIONA EN MY CALLS
+    // Obtener agentes que tienen tarifas configuradas
+    const agentsWithRates = agents.filter(agent => agent.rate_per_minute && agent.rate_per_minute > 0);
     
-    if (userAssignedAgents.length === 0) {
-      console.log('🔍 [CreditBalance] No agents assigned to user, using fallback rate');
-      return 0.02; // Fallback si no hay agentes asignados
+    if (agentsWithRates.length === 0) {
+      return 0.02; // Fallback si no hay tarifas configuradas
     }
 
-    // Obtener tarifas de los agentes asignados
-    const agentRates: number[] = [];
-    userAssignedAgents.forEach(userAgent => {
-      const agent = agents.find(a => a.id === userAgent.agent_id);
-      if (agent && agent.rate_per_minute && agent.rate_per_minute > 0) {
-        agentRates.push(agent.rate_per_minute);
-        console.log(`🔍 [CreditBalance] Agent "${agent.name}": $${agent.rate_per_minute}/min`);
-      }
-    });
-
-    if (agentRates.length === 0) {
-      console.log('🔍 [CreditBalance] No agent rates found, using fallback rate');
-      return 0.02; // Fallback si no hay tarifas
-    }
-
-    // Calcular promedio de tarifas
-    const averageRate = agentRates.reduce((sum, rate) => sum + rate, 0) / agentRates.length;
-    console.log(`🔍 [CreditBalance] Average rate calculated: $${averageRate.toFixed(4)}/min from ${agentRates.length} agents`);
+    // Calcular promedio de tarifas de todos los agentes disponibles para el usuario
+    const totalRate = agentsWithRates.reduce((sum, agent) => sum + agent.rate_per_minute!, 0);
+    const averageRate = totalRate / agentsWithRates.length;
     
     return averageRate;
   };
@@ -85,8 +69,6 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
     const averageRate = calculateAverageRate();
     const estimatedMinutes = Math.floor(credits.current_balance / averageRate);
-    
-    console.log(`🔍 [CreditBalance] Calculation: $${credits.current_balance} ÷ $${averageRate.toFixed(4)}/min = ${estimatedMinutes} minutes`);
     
     return estimatedMinutes;
   };
@@ -373,10 +355,6 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                     ) : (
                       <>
                         Estimated {estimatedMinutes.toLocaleString()} minutes remaining
-                        {/* Debug info - remover en producción */}
-                        <span className="text-xs text-gray-400 block">
-                          (using avg rate: ${calculateAverageRate().toFixed(4)}/min)
-                        </span>
                       </>
                     )}
                   </p>
