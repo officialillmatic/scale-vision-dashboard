@@ -280,6 +280,11 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
 
   // Console log for debugging
   console.log("🎵 Call data in modal:", call);
+  console.log("📝 Call summary field:", call.call_summary);
+  console.log("📝 Call summary type:", typeof call.call_summary);
+  console.log("📝 Call summary length:", call.call_summary?.length);
+  console.log("📝 Call summary is null?:", call.call_summary === null);
+  console.log("📝 Call summary is undefined?:", call.call_summary === undefined);
   console.log("🎵 Recording URL:", call.recording_url);
   console.log("🎵 Duration sec:", call.duration_sec, typeof call.duration_sec);
   console.log("🎵 Raw call object keys:", Object.keys(call));
