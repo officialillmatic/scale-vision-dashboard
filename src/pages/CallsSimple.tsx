@@ -45,6 +45,7 @@ interface Call {
   call_summary?: string;
   sentiment?: string;
   recording_url?: string;
+  end_reason?: string;  // NUEVO CAMPO AGREGADO
   call_agent?: {
     id: string;
     name: string;
