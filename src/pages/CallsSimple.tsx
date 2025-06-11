@@ -508,6 +508,20 @@ console.log("🔍 RAW SUPABASE CALL_SUMMARY:", callsData?.[0]?.call_summary);
         summary: call.call_summary?.substring(0, 50) + "..." 
       })));
 
+      if (callsData && callsData.length > 0) {
+  console.log("🔍 TODOS LOS CAMPOS DISPONIBLES:", Object.keys(callsData[0]));
+  console.log("🔍 CAMPOS QUE CONTIENEN 'summary':", 
+    Object.keys(callsData[0]).filter(key => key.toLowerCase().includes('summary'))
+  );
+  console.log("🔍 VALORES DE CAMPOS SUMMARY:", {
+    call_summary: callsData[0].call_summary,
+    summary: callsData[0].summary,
+    call_summary_text: callsData[0].call_summary_text,
+    Summary: callsData[0].Summary,
+    callSummary: callsData[0].callSummary
+  });
+}
+
       // PASO 4: Obtener agentes para el cálculo de costos
       const { data: allAgents, error: allAgentsError } = await supabase
         .from('retell_agents')
