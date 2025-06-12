@@ -649,12 +649,13 @@ export default function CallsSimple() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 4,  // ✅ CAMBIADO A 4 DECIMALES
+    maximumFractionDigits: 4,  // ✅ AGREGADO PARA CONSISTENCIA
+  }).format(amount);
+};
 
   const formatDate = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-US', {
