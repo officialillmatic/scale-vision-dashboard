@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 export function useRole() {
   const { user, company } = useAuth();
   const [isCompanyOwner, setIsCompanyOwner] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,10 +53,18 @@ export function useRole() {
     return true; // All authenticated users can access basic features
   };
 
+  // ✅ AGREGAR ESTE OBJETO PARA COMPATIBILIDAD CON DASHBOARDSIDEBAR
+  const can = {
+    superAdminAccess: isCompanyOwner || userRole === 'admin',
+    adminAccess: isCompanyOwner || userRole === 'admin',
+    userAccess: true
+  };
+
   return {
     isCompanyOwner,
     userRole,
     loading,
     checkRole,
+    can, // ✅ AGREGAR ESTO PARA QUE EL SIDEBAR FUNCIONE
   };
 }
