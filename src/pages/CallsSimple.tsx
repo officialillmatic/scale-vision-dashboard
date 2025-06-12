@@ -150,6 +150,286 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
     </div>
   );
 };
+// Función para actualizar el costo en la base de datos
+const updateCallCostInDatabase = async (call: Call, calculatedCost: number) => {
+  try {
+    console.log(`💾 Updating cost for call ${call.call_id}: $${calculatedCost.toFixed(4)}`);
+    
+    const { error } = await supabase
+      .from('calls')
+      .update({ 
+        cost_usd: calculatedCost,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', call.id);
+
+    if (error) {
+      console.error('❌ Error updating call cost:', error);
+      return false;
+    }
+
+    console.log(`✅ Successfully updated cost for call ${call.call_id}`);
+    return true;
+  } catch (err) {
+    console.error('❌ Exception updating call cost:', err);
+    return false;
+  }
+};
+
+// Procesador automático de costos
+const processPendingCallCosts = async () => {
+  console.log('🔍 Checking for calls that need cost calculation...');
+  
+  // Filtrar llamadas que necesitan cálculo de costo
+  const pendingCalls = calls.filter(call => {
+    const duration = getCallDuration(call);
+    const currentCost = call.cost_usd || 0;
+    const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+    
+    return (
+      call.call_status === 'completed' &&  // Solo llamadas completadas
+      duration > 0 &&                     // Que tengan duración
+      currentCost === 0 &&                // Que no tengan costo calculado
+      hasAgentRate                        // Que tengan tarifa de agente
+    );
+  });
+
+  if (pendingCalls.length === 0) {
+    console.log('✅ All calls have proper costs calculated');
+    return;
+  }
+
+  console.log(`🎯 Found ${pendingCalls.length} calls that need cost calculation`);
+
+  // Procesar cada llamada
+  for (const call of pendingCalls) {
+    const calculatedCost = calculateCallCost(call);
+    
+    if (calculatedCost > 0) {
+      const success = await updateCallCostInDatabase(call, calculatedCost);
+      
+      if (success) {
+        // Actualizar el estado local para reflejar el cambio inmediatamente
+        setCalls(prevCalls => 
+          prevCalls.map(c => 
+            c.id === call.id 
+              ? { ...c, cost_usd: calculatedCost }
+              : c
+          )
+        );
+        
+        // Esperar un poco entre actualizaciones para no sobrecargar la DB
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+  }
+
+  console.log('🎉 Finished processing pending call costs');
+};
+
+// Función para descuento de balance (cuando esté listo)
+const deductFromUserBalance = async (userId: string, amount: number, callId: string) => {
+  try {
+    console.log(`💰 Deducting $${amount.toFixed(4)} from user ${userId}`);
+    
+    // Obtener balance actual
+    const { data: user, error: userError } = await supabase
+      .from('profiles') // Ajustar nombre de tabla según tu esquema
+      .select('account_balance')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      console.error('❌ Error fetching user balance:', userError);
+      return false;
+    }
+
+    const currentBalance = user.account_balance || 0;
+    const newBalance = Math.max(0, currentBalance - amount);
+
+    // Actualizar balance
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ 
+        account_balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('❌ Error updating user balance:', updateError);
+      return false;
+    }
+
+    console.log(`✅ Balance updated: $${currentBalance.toFixed(4)} → $${newBalance.toFixed(4)}`);
+    
+    // Opcional: Registrar transacción para auditoría
+    await supabase
+      .from('balance_transactions')
+      .insert({
+        user_id: userId,
+        call_id: callId,
+        amount: -amount, // Negativo porque es deducción
+        transaction_type: 'call_cost',
+        description: `Call cost deduction for ${callId}`,
+        created_at: new Date().toISOString()
+      });
+
+    return true;
+  } catch (err) {
+    console.error('❌ Exception deducting balance:', err);
+    return false;
+  }
+};
+
+// ============================================================================
+// 2. MODIFICAR el useEffect existente (línea ~180) para AGREGAR el procesador
+// ============================================================================
+
+// BUSCAR este useEffect en tu código:
+useEffect(() => {
+  applyFiltersAndSort();
+}, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
+
+// REEMPLAZARLO por:
+useEffect(() => {
+  applyFiltersAndSort();
+  
+  // NUEVO: Procesar costos automáticamente cuando cambian las llamadas
+  if (calls.length > 0) {
+    processPendingCallCosts();
+  }
+}, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
+
+// ============================================================================
+// 3. AGREGAR botón manual para forzar recálculo (opcional)
+// ============================================================================
+
+// En el header donde está el botón "Refresh", AGREGAR:
+<Button
+  onClick={() => {
+    console.log('🔄 Manual cost recalculation triggered');
+    processPendingCallCosts();
+  }}
+  variant="outline"
+  size="sm"
+  className="ml-2"
+>
+  💰 Recalculate Costs
+</Button>
+
+// ============================================================================
+// 4. WEBHOOK ENDPOINT (archivo nuevo - opcional)
+// ============================================================================
+
+// Si quieres procesar costos cuando llegan webhooks de Retell:
+// Crear archivo: pages/api/webhooks/retell-call-completed.ts
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { call_id, duration_seconds, agent_id, user_id } = req.body;
+    
+    console.log(`📞 Webhook received for call: ${call_id}`);
+    
+    // Buscar la llamada en la base de datos
+    const { data: call, error } = await supabase
+      .from('calls')
+      .select(`
+        *,
+        call_agent:agents!inner(rate_per_minute)
+      `)
+      .eq('call_id', call_id)
+      .single();
+
+    if (error || !call) {
+      console.error('❌ Call not found:', call_id);
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    // Calcular costo
+    const durationMinutes = duration_seconds / 60;
+    const agentRate = call.call_agent?.rate_per_minute || 0;
+    const calculatedCost = durationMinutes * agentRate;
+
+    if (calculatedCost > 0) {
+      // Actualizar costo en la base de datos
+      await supabase
+        .from('calls')
+        .update({ cost_usd: calculatedCost })
+        .eq('call_id', call_id);
+
+      // Descontar del balance del usuario (cuando esté listo)
+      // await deductFromUserBalance(user_id, calculatedCost, call_id);
+
+      console.log(`✅ Processed cost for call ${call_id}: $${calculatedCost.toFixed(4)}`);
+    }
+
+    res.status(200).json({ success: true, cost: calculatedCost });
+  } catch (error) {
+    console.error('❌ Webhook error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// ============================================================================
+// 5. COMPONENTE DE ESTADÍSTICAS MEJORADO (opcional)
+// ============================================================================
+
+// Para mostrar estadísticas de costos recalculados:
+const CostProcessingStats = () => {
+  const [stats, setStats] = useState({
+    totalCalls: 0,
+    processedCalls: 0,
+    pendingCalls: 0,
+    totalProcessedCost: 0
+  });
+
+  useEffect(() => {
+    const processedCalls = calls.filter(call => call.cost_usd > 0);
+    const pendingCalls = calls.filter(call => 
+      call.call_status === 'completed' && 
+      call.cost_usd === 0 && 
+      getCallDuration(call) > 0
+    );
+
+    setStats({
+      totalCalls: calls.length,
+      processedCalls: processedCalls.length,
+      pendingCalls: pendingCalls.length,
+      totalProcessedCost: processedCalls.reduce((sum, call) => sum + call.cost_usd, 0)
+    });
+  }, [calls]);
+
+  return (
+    <Card className="border-yellow-200 bg-yellow-50">
+      <CardContent className="p-4">
+        <h3 className="font-semibold text-yellow-800 mb-2">💰 Cost Processing Status</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <p className="text-yellow-600">Total Calls</p>
+            <p className="font-bold text-yellow-900">{stats.totalCalls}</p>
+          </div>
+          <div>
+            <p className="text-yellow-600">Processed</p>
+            <p className="font-bold text-green-700">{stats.processedCalls}</p>
+          </div>
+          <div>
+            <p className="text-yellow-600">Pending</p>
+            <p className="font-bold text-red-700">{stats.pendingCalls}</p>
+          </div>
+          <div>
+            <p className="text-yellow-600">Total Cost</p>
+            <p className="font-bold text-yellow-900">${stats.totalProcessedCost.toFixed(4)}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 export default function CallsSimple() {
   const { user } = useAuth();
   
