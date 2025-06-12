@@ -49,14 +49,14 @@ export function useTeamMembers(companyId?: string) {
       console.log('🔍 [useTeamMembers] Fetching team members...');
       
       try {
-        // For super admins - SIMPLE QUERY THAT WORKED
-        if (isSuperAdmin) {
-          console.log('🔍 [SUPER ADMIN] Fetching all users from profiles');
-          
-          const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, full_name, email, role')
-            .order('created_at', { ascending: false });
+        // For super admins - USE REAL AUTH USERS TABLE
+if (isSuperAdmin) {
+  console.log('🔍 [SUPER ADMIN] Fetching all users from auth.users');
+  
+  const { data: profilesData, error: profilesError } = await supabase
+    .from('auth.users')
+    .select('id, email, created_at, email_confirmed_at, last_sign_in_at')
+    .order('created_at', { ascending: false });
 
           if (profilesError) {
             console.error('❌ [SUPER ADMIN] Error:', profilesError);
