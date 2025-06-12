@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { TeamMembers } from '@/components/team/TeamMembers';
@@ -17,17 +16,29 @@ const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
   const { user } = useAuth();
   const { isCompanyOwner, can } = useRole();
-  const { isSuperAdmin } = useSuperAdmin();
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
   const navigate = useNavigate();
   
   // Super admins should have unrestricted access - skip redirection
   useEffect(() => {
+    // No hacer nada mientras está cargando
+    if (isSuperAdminLoading) return;
+    
     if (user && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
       toast.error("You don't have permission to access team management");
       navigate('/dashboard');
       return;
     }
-  }, [user, isSuperAdmin, isCompanyOwner, can.manageTeam, navigate]);
+  }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
+  
+  // Mostrar loading mientras verifica permisos
+  if (isSuperAdminLoading) {
+    return <DashboardLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-600">Loading permissions...</div>
+      </div>
+    </DashboardLayout>;
+  }
   
   // Super admins should never be blocked from accessing this page
   if (!isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
