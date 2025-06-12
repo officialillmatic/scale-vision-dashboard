@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -66,32 +65,92 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserCompany = async (userId: string) => {
     try {
       setIsCompanyLoading(true);
+      console.log('🔍 Fetching company for user:', userId);
+
       // First try to find company where user is owner
-      let { data: company, error } = await supabase
+      let { data: ownerCompany, error: ownerError } = await supabase
         .from('companies')
         .select('*')
         .eq('owner_id', userId)
-        .single();
+        .maybeSingle(); // ✅ Cambiar single() por maybeSingle()
 
-      if (error && error.code === 'PGRST116') {
-        // User is not an owner, check if they're a member
-        const { data: membership, error: memberError } = await supabase
-          .from('company_members')
-          .select('company_id, companies(*)')
-          .eq('user_id', userId)
-          .eq('status', 'active')
+      console.log('Owner company query result:', { ownerCompany, ownerError });
+
+      if (ownerCompany) {
+        console.log('✅ User is company owner');
+        setCompany(ownerCompany);
+        return;
+      }
+
+      // If not owner, check if they're a member
+      console.log('🔍 User is not owner, checking membership...');
+      const { data: membership, error: memberError } = await supabase
+        .from('company_members')
+        .select(`
+          company_id,
+          companies (
+            id,
+            name,
+            owner_id,
+            logo_url,
+            created_at,
+            updated_at
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .maybeSingle(); // ✅ Cambiar single() por maybeSingle()
+
+      console.log('Membership query result:', { membership, memberError });
+
+      if (membership && membership.companies) {
+        // ✅ Arreglar el acceso a companies
+        const memberCompany = Array.isArray(membership.companies) 
+          ? membership.companies[0] 
+          : membership.companies;
+        
+        console.log('✅ User is company member, company:', memberCompany);
+        setCompany(memberCompany as Company);
+        return;
+      }
+
+      // ✅ Si no encuentra company como owner ni como member, crear una por defecto
+      console.log('⚠️ No company found, checking if we need to create one...');
+      
+      // Verificar si existen companies en el sistema
+      const { data: existingCompanies } = await supabase
+        .from('companies')
+        .select('id')
+        .limit(1);
+
+      if (!existingCompanies || existingCompanies.length === 0) {
+        console.log('📝 No companies exist, creating default company...');
+        
+        // Crear una company por defecto
+        const { data: newCompany, error: createError } = await supabase
+          .from('companies')
+          .insert({
+            name: 'My Company',
+            owner_id: userId
+          })
+          .select()
           .single();
 
-        if (!memberError && membership) {
-          company = Array.isArray(membership.companies) ? membership.companies[0] : membership.companies;
+        if (createError) {
+          console.error('Error creating default company:', createError);
+        } else {
+          console.log('✅ Default company created:', newCompany);
+          setCompany(newCompany);
+          return;
         }
       }
 
-      if (company) {
-        setCompany(company);
-      }
+      console.log('❌ No company found and could not create one');
+      setCompany(null);
+
     } catch (error) {
       console.error('Error fetching user company:', error);
+      setCompany(null);
     } finally {
       setIsCompanyLoading(false);
     }
@@ -138,6 +197,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshCompany,
     updateUserProfile,
   };
+
+  // 🔍 DEBUG: Log del estado del AuthContext
+  console.log('🎯 AuthContext state:', {
+    user: user?.id,
+    company: company?.id,
+    loading,
+    isCompanyLoading,
+    isCompanyOwner
+  });
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
