@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -22,10 +21,23 @@ export function DashboardHeader() {
   const isMobile = useIsMobile();
   const { user, signOut } = useAuth();
   
-  // Fallback user data if auth not available
-  const userName = user?.email?.split('@')[0] || "User";
+  // Get user data including avatar
+  const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || "User";
   const userEmail = user?.email || "user@example.com";
+  const userAvatar = user?.user_metadata?.avatar_url; // ← Esta es la línea clave
   const company = "Dr. Scale";
+
+  // Get user initials for fallback
+  const getUserInitials = () => {
+    if (user?.user_metadata?.name) {
+      const parts = user.user_metadata.name.split(" ");
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      }
+      return user.user_metadata.name.substring(0, 2).toUpperCase();
+    }
+    return userName.substring(0, 2).toUpperCase();
+  };
 
   const handleLogout = async () => {
     try {
@@ -61,9 +73,12 @@ export function DashboardHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full border border-muted-foreground/10">
               <Avatar className="h-9 w-9">
-                <AvatarImage src="" />
+                <AvatarImage 
+                  src={userAvatar} 
+                  alt={userName}
+                />
                 <AvatarFallback className="bg-brand-purple text-white">
-                  {userName.substring(0, 2).toUpperCase()}
+                  {getUserInitials()}
                 </AvatarFallback>
               </Avatar>
             </Button>
