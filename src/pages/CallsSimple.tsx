@@ -62,9 +62,7 @@ type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
 
-// ============================================================================
-// PROCESADOR AUTOMÁTICO DE COSTOS (FUNCIONA EN SEGUNDO PLANO)
-// ============================================================================
+// PROCESADOR AUTOMÁTICO DE COSTOS
 const processPendingCallCosts = async (
   calls: Call[], 
   setCalls: React.Dispatch<React.SetStateAction<Call[]>>,
@@ -218,10 +216,9 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
     </div>
   );
 };
+
 export default function CallsSimple() {
   const { user } = useAuth();
-  
-  // Usar el hook de agentes
   const { getAgentName, getUniqueAgentsFromCalls, isLoadingAgents } = useAgents();
   
   const [calls, setCalls] = useState<Call[]>([]);
@@ -246,10 +243,7 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // Obtener agentes únicos de las llamadas
   const uniqueAgents = getUniqueAgentsFromCalls(calls);
-
-  // Obtener nombre del agente seleccionado para mostrar en la descripción
   const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
 
   // useEffect hooks
@@ -262,7 +256,6 @@ export default function CallsSimple() {
   useEffect(() => {
     applyFiltersAndSort();
     
-    // NUEVO: Procesar costos automáticamente cuando cambian las llamadas
     if (calls.length > 0) {
       processPendingCallCosts(calls, setCalls, calculateCallCost, getCallDuration);
     }
@@ -285,13 +278,11 @@ export default function CallsSimple() {
       loadAllAudioDurations();
     }
   }, [calls]);
-
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
     let agentRate = 0;
     
-    // ORDEN DE PRIORIDAD para obtener la tarifa
     if (call.call_agent?.rate_per_minute) {
       agentRate = call.call_agent.rate_per_minute;
       console.log(`💰 Using call_agent rate: $${agentRate}/min`);
@@ -300,7 +291,6 @@ export default function CallsSimple() {
       console.log(`💰 Using agents rate: $${agentRate}/min`);
     }
     
-    // Si NO encontramos tarifa del agente, usar costo de la DB
     if (agentRate === 0) {
       console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
       return call.cost_usd || 0;
@@ -356,6 +346,7 @@ export default function CallsSimple() {
       console.log(`❌ Error loading audio duration:`, error);
     }
   };
+
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -426,7 +417,6 @@ export default function CallsSimple() {
       filtered = filtered.filter(call => call.call_status === statusFilter);
     }
 
-    // Filtro por agente
     if (agentFilter !== null) {
       filtered = filtered.filter(call => call.agent_id === agentFilter);
     }
@@ -512,7 +502,6 @@ export default function CallsSimple() {
 
       console.log("🔍 Fetching calls for user:", user.id);
 
-      // PASO 1: Obtener agentes asignados al usuario actual
       const { data: userAgents, error: agentsError } = await supabase
         .from('user_agent_assignments')
         .select(`
@@ -546,11 +535,9 @@ export default function CallsSimple() {
         return;
       }
 
-      // PASO 2: Obtener IDs de agentes del usuario
       const userAgentIds = userAgents.map(assignment => assignment.agents.id);
       console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
 
-      // PASO 3: Obtener llamadas de esos agentes
       const { data: callsData, error: callsError } = await supabase
         .from('calls')
         .select(`
@@ -569,11 +556,9 @@ export default function CallsSimple() {
 
       console.log("✅ Calls fetched successfully:", callsData?.length || 0);
 
-      // PASO 4: Mapear agentes a llamadas con tarifas correctas
       const data = callsData?.map(call => {
         let matchedAgent = null;
 
-        // Buscar en los agentes asignados al usuario (con tarifa)
         const userAgentAssignment = userAgents.find(assignment => 
           assignment.agents.id === call.agent_id ||
           assignment.agents.retell_agent_id === call.agent_id
@@ -601,7 +586,6 @@ export default function CallsSimple() {
 
       setCalls(data || []);
 
-      // Calcular estadísticas
       if (data && data.length > 0) {
         const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
         const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
@@ -624,6 +608,7 @@ export default function CallsSimple() {
       setLoading(false);
     }
   };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -701,104 +686,6 @@ export default function CallsSimple() {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-
-  if (!user) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <p className="text-red-600 font-medium">Please log in to view your calls</p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  return (
-    <DashboardLayout>
-      <div className="container mx-auto py-4">
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortOrder('desc');
-    }
-  };
-
-  const handleCallClick = (call: Call) => {
-    console.log("🎯 CLICKED CALL:", call);
-    console.log("🎯 CLICKED CALL SUMMARY:", call.call_summary);
-    const originalCall = calls.find(c => c.id === call.id) || call;
-    console.log("🎯 ORIGINAL CALL FOUND:", originalCall);
-    console.log("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
-    setSelectedCall(originalCall);
-    setIsModalOpen(true);
-  };
-
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-    setSelectedCall(null);
-  };
-
-  const formatDuration = (seconds: number) => {
-    if (seconds === null || seconds === undefined || isNaN(seconds)) {
-      return "0:00";
-    }
-    
-    const numSeconds = Number(seconds);
-    if (numSeconds === 0) {
-      return "0:00";
-    }
-    
-    const mins = Math.floor(numSeconds / 60);
-    const secs = Math.floor(numSeconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const formatDate = (timestamp: string) => {
-    return new Date(timestamp).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  const formatPhoneNumber = (phone: string) => {
-    if (!phone || phone === 'unknown') return 'Unknown';
-    return phone;
-  };
-
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
-    return sortOrder === 'asc' ? '↑' : '↓';
-  };
-
-  const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-
   if (!user) {
     return (
       <DashboardLayout>
