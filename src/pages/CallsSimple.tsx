@@ -22,12 +22,12 @@ import {
   Volume2,
   Download,
   CalendarDays,
-  ChevronDown,  // NUEVO
-  Users         // NUEVO
+  ChevronDown,
+  Users
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useAgents } from "@/hooks/useAgents"; // NUEVO IMPORT
+import { useAgents } from "@/hooks/useAgents";
 
 interface Call {
   id: string;
@@ -45,7 +45,7 @@ interface Call {
   call_summary?: string;
   sentiment?: string;
   recording_url?: string;
-  end_reason?: string;  // NUEVO CAMPO AGREGADO
+  end_reason?: string;
   call_agent?: {
     id: string;
     name: string;
@@ -61,7 +61,7 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
-// COMPONENTE FILTRO DE AGENTES (agregar después de los tipos)
+// COMPONENTE FILTRO DE AGENTES
 const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
   agents: any[];
   selectedAgent: string | null;
@@ -150,6 +150,10 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
     </div>
   );
 };
+// ============================================================================
+// PROCESADOR AUTOMÁTICO DE COSTOS PARA DRSCALEAI
+// ============================================================================
+
 // Función para actualizar el costo en la base de datos
 const updateCallCostInDatabase = async (call: Call, calculatedCost: number) => {
   try {
@@ -177,7 +181,7 @@ const updateCallCostInDatabase = async (call: Call, calculatedCost: number) => {
 };
 
 // Procesador automático de costos
-const processPendingCallCosts = async () => {
+const processPendingCallCosts = async (calls: Call[], setCalls: any, calculateCallCost: any, getCallDuration: any) => {
   console.log('🔍 Checking for calls that need cost calculation...');
   
   // Filtrar llamadas que necesitan cálculo de costo
@@ -210,7 +214,7 @@ const processPendingCallCosts = async () => {
       
       if (success) {
         // Actualizar el estado local para reflejar el cambio inmediatamente
-        setCalls(prevCalls => 
+        setCalls((prevCalls: Call[]) => 
           prevCalls.map(c => 
             c.id === call.id 
               ? { ...c, cost_usd: calculatedCost }
@@ -281,153 +285,10 @@ const deductFromUserBalance = async (userId: string, amount: number, callId: str
     return false;
   }
 };
-
-// ============================================================================
-// 2. MODIFICAR el useEffect existente (línea ~180) para AGREGAR el procesador
-// ============================================================================
-
-/useEffect(() => {
-  applyFiltersAndSort();
-  
-  // NUEVO: Procesar costos automáticamente cuando cambian las llamadas
-  if (calls.length > 0) {
-    processPendingCallCosts();
-  }
-}, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
-
-// ============================================================================
-// 3. AGREGAR botón manual para forzar recálculo (opcional)
-// ============================================================================
-
-// En el header donde está el botón "Refresh", AGREGAR:
-<Button
-  onClick={() => {
-    console.log('🔄 Manual cost recalculation triggered');
-    processPendingCallCosts();
-  }}
-  variant="outline"
-  size="sm"
-  className="ml-2"
->
-  💰 Recalculate Costs
-</Button>
-
-// ============================================================================
-// 4. WEBHOOK ENDPOINT (archivo nuevo - opcional)
-// ============================================================================
-
-// Si quieres procesar costos cuando llegan webhooks de Retell:
-// Crear archivo: pages/api/webhooks/retell-call-completed.ts
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  try {
-    const { call_id, duration_seconds, agent_id, user_id } = req.body;
-    
-    console.log(`📞 Webhook received for call: ${call_id}`);
-    
-    // Buscar la llamada en la base de datos
-    const { data: call, error } = await supabase
-      .from('calls')
-      .select(`
-        *,
-        call_agent:agents!inner(rate_per_minute)
-      `)
-      .eq('call_id', call_id)
-      .single();
-
-    if (error || !call) {
-      console.error('❌ Call not found:', call_id);
-      return res.status(404).json({ error: 'Call not found' });
-    }
-
-    // Calcular costo
-    const durationMinutes = duration_seconds / 60;
-    const agentRate = call.call_agent?.rate_per_minute || 0;
-    const calculatedCost = durationMinutes * agentRate;
-
-    if (calculatedCost > 0) {
-      // Actualizar costo en la base de datos
-      await supabase
-        .from('calls')
-        .update({ cost_usd: calculatedCost })
-        .eq('call_id', call_id);
-
-      // Descontar del balance del usuario (cuando esté listo)
-      // await deductFromUserBalance(user_id, calculatedCost, call_id);
-
-      console.log(`✅ Processed cost for call ${call_id}: $${calculatedCost.toFixed(4)}`);
-    }
-
-    res.status(200).json({ success: true, cost: calculatedCost });
-  } catch (error) {
-    console.error('❌ Webhook error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-// ============================================================================
-// 5. COMPONENTE DE ESTADÍSTICAS MEJORADO (opcional)
-// ============================================================================
-
-// Para mostrar estadísticas de costos recalculados:
-const CostProcessingStats = () => {
-  const [stats, setStats] = useState({
-    totalCalls: 0,
-    processedCalls: 0,
-    pendingCalls: 0,
-    totalProcessedCost: 0
-  });
-
-  useEffect(() => {
-    const processedCalls = calls.filter(call => call.cost_usd > 0);
-    const pendingCalls = calls.filter(call => 
-      call.call_status === 'completed' && 
-      call.cost_usd === 0 && 
-      getCallDuration(call) > 0
-    );
-
-    setStats({
-      totalCalls: calls.length,
-      processedCalls: processedCalls.length,
-      pendingCalls: pendingCalls.length,
-      totalProcessedCost: processedCalls.reduce((sum, call) => sum + call.cost_usd, 0)
-    });
-  }, [calls]);
-
-  return (
-    <Card className="border-yellow-200 bg-yellow-50">
-      <CardContent className="p-4">
-        <h3 className="font-semibold text-yellow-800 mb-2">💰 Cost Processing Status</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <p className="text-yellow-600">Total Calls</p>
-            <p className="font-bold text-yellow-900">{stats.totalCalls}</p>
-          </div>
-          <div>
-            <p className="text-yellow-600">Processed</p>
-            <p className="font-bold text-green-700">{stats.processedCalls}</p>
-          </div>
-          <div>
-            <p className="text-yellow-600">Pending</p>
-            <p className="font-bold text-red-700">{stats.pendingCalls}</p>
-          </div>
-          <div>
-            <p className="text-yellow-600">Total Cost</p>
-            <p className="font-bold text-yellow-900">${stats.totalProcessedCost.toFixed(4)}</p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
 export default function CallsSimple() {
   const { user } = useAuth();
   
-  // NUEVO: Usar el hook de agentes
+  // Usar el hook de agentes
   const { getAgentName, getUniqueAgentsFromCalls, isLoadingAgents } = useAgents();
   
   const [calls, setCalls] = useState<Call[]>([]);
@@ -436,7 +297,7 @@ export default function CallsSimple() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [agentFilter, setAgentFilter] = useState<string | null>(null); // NUEVO ESTADO
+  const [agentFilter, setAgentFilter] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('timestamp');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
@@ -452,12 +313,11 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // NUEVO: Obtener agentes únicos de las llamadas
+  // Obtener agentes únicos de las llamadas
   const uniqueAgents = getUniqueAgentsFromCalls(calls);
 
-  // NUEVO: Obtener nombre del agente seleccionado para mostrar en la descripción
+  // Obtener nombre del agente seleccionado para mostrar en la descripción
   const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
-
   // useEffect hooks
   useEffect(() => {
     if (user?.id) {
@@ -467,7 +327,12 @@ export default function CallsSimple() {
 
   useEffect(() => {
     applyFiltersAndSort();
-  }, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]); // AGREGADO agentFilter
+    
+    // NUEVO: Procesar costos automáticamente cuando cambian las llamadas
+    if (calls.length > 0) {
+      processPendingCallCosts(calls, setCalls, calculateCallCost, getCallDuration);
+    }
+  }, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
 
   useEffect(() => {
     const loadAllAudioDurations = async () => {
@@ -618,7 +483,7 @@ export default function CallsSimple() {
         call.from_number.includes(searchTerm) ||
         call.to_number.includes(searchTerm) ||
         call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        getAgentName(call.agent_id).toLowerCase().includes(searchTerm.toLowerCase()) // NUEVO: Búsqueda por nombre de agente
+        getAgentName(call.agent_id).toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -626,7 +491,7 @@ export default function CallsSimple() {
       filtered = filtered.filter(call => call.call_status === statusFilter);
     }
 
-    // NUEVO: Filtro por agente
+    // Filtro por agente
     if (agentFilter !== null) {
       filtered = filtered.filter(call => call.agent_id === agentFilter);
     }
@@ -651,7 +516,6 @@ export default function CallsSimple() {
 
     setFilteredCalls(filtered);
   };
-
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
@@ -671,7 +535,7 @@ export default function CallsSimple() {
     }
   };
 
-  // NUEVA FUNCIÓN: Color para End Reason
+  // Color para End Reason
   const getEndReasonColor = (endReason: string) => {
     if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
     
@@ -698,8 +562,63 @@ export default function CallsSimple() {
     }
   };
   const fetchCalls = async () => {
-  console.log("🚀 FETCHCALLS STARTED - DEBUG TEST");
-  console.log("🚀 USER ID:", user?.id);
+    console.log("🚀 FETCHCALLS STARTED - DEBUG TEST");
+    console.log("🚀 USER ID:", user?.id);
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log("🔍 Fetching calls for user:", user.id);
+
+      // PASO 1: Obtener agentes asignados al usuario actual
+      const { data: userAgents, error: agentsError } = await supabase
+        .from('user_agent_assignments')
+        .select(`
+          agent_id,
+          agents!inner (
+            id,
+            name,
+            rate_per_minute,
+            retell_agent_id
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('is_primary', true);
+
+      if (agentsError) {
+        console.error("❌ Error fetching user agents:", agentsError);
+        setError(`Error: ${agentsError.message}`);
+        return;
+      }
+
+      if (!userAgents || userAgents.length === 0) {
+        console.log("⚠️ No agents assigned to this user");
+        setCalls([]);
+        setStats({
+          total: 0,
+          totalCost: 0,
+          totalDuration: 0,
+          avgDuration: 0,
+          completedCalls: 0
+        });
+        return;
+      }
+
+      // PASO 2: Obtener IDs de agentes del usuario
+      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
+      console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
+
+      // PASO 3: Obtener llamadas de esos agentes
+      const { data: callsData, error: call
+              const fetchCalls = async () => {
+    console.log("🚀 FETCHCALLS STARTED - DEBUG TEST");
+    console.log("🚀 USER ID:", user?.id);
     if (!user?.id) {
       setError("User not authenticated");
       setLoading(false);
@@ -768,8 +687,8 @@ export default function CallsSimple() {
       }
 
       console.log("✅ Calls fetched successfully:", callsData?.length || 0);
-console.log("🔍 RAW SUPABASE DATA - FIRST CALL:", callsData?.[0]);
-console.log("🔍 RAW SUPABASE CALL_SUMMARY:", callsData?.[0]?.call_summary);
+      console.log("🔍 RAW SUPABASE DATA - FIRST CALL:", callsData?.[0]);
+      console.log("🔍 RAW SUPABASE CALL_SUMMARY:", callsData?.[0]?.call_summary);
       console.log("🔍 FIRST CALL RAW DATA:", callsData?.[0]);
       console.log("🔍 CALL_SUMMARY from DB:", callsData?.[0]?.call_summary);
       console.log("🔍 ALL CALL_SUMMARIES:", callsData?.map(call => ({ 
@@ -796,44 +715,66 @@ console.log("🔍 RAW SUPABASE CALL_SUMMARY:", callsData?.[0]?.call_summary);
         );
       }
 
-      // PASO 6: Mapear agentes a llamadas
+      // PASO 6: Mapear agentes a llamadas con tarifas correctas (MEJORADO)
       const data = callsData?.map(call => {
         let matchedAgent = null;
 
-        if (agentsData && agentsData.length > 0) {
-          matchedAgent = agentsData.find(agent => 
+        // Buscar en los agentes asignados al usuario (con tarifa)
+        const userAgentAssignment = userAgents.find(assignment => 
+          assignment.agents.id === call.agent_id ||
+          assignment.agents.retell_agent_id === call.agent_id
+        );
+
+        if (userAgentAssignment) {
+          matchedAgent = {
+            id: userAgentAssignment.agents.id,
+            name: userAgentAssignment.agents.name,
+            rate_per_minute: userAgentAssignment.agents.rate_per_minute
+          };
+          console.log(`✅ Found agent with rate: ${matchedAgent.name} - ${matchedAgent.rate_per_minute}/min`);
+        }
+
+        // Fallback: buscar en agentes generales
+        if (!matchedAgent && agentsData && agentsData.length > 0) {
+          const fallbackAgent = agentsData.find(agent => 
             agent.id === call.agent_id ||
             agent.retell_agent_id === call.agent_id
           );
 
-          if (!matchedAgent && agentsData.length === 1) {
-            matchedAgent = agentsData[0];
+          if (fallbackAgent) {
+            matchedAgent = {
+              id: fallbackAgent.id,
+              name: fallbackAgent.name,
+              rate_per_minute: fallbackAgent.rate_per_minute || 0
+            };
+            console.log(`⚠️ Using fallback agent: ${matchedAgent.name} - ${matchedAgent.rate_per_minute}/min`);
           }
         }
 
+        if (!matchedAgent) {
+          console.log(`❌ No agent found for call ${call.call_id} with agent_id: ${call.agent_id}`);
+        }
+
         return {
-  ...call,
-  // Mapear disconnection_reason a end_reason para compatibilidad
-  end_reason: call.disconnection_reason || null,
-  call_agent: matchedAgent ? {
-    id: matchedAgent.id,
-    name: matchedAgent.name,
-    rate_per_minute: matchedAgent.rate_per_minute
-  } : null
-};
+          ...call,
+          // Mapear disconnection_reason a end_reason para compatibilidad
+          end_reason: call.disconnection_reason || null,
+          call_agent: matchedAgent
+        };
       });
-console.log("🎯 AFTER MAPPING - FIRST CALL:", data?.[0]);
-console.log("🎯 AFTER MAPPING CALL_SUMMARY:", data?.[0]?.call_summary);
+
+      console.log("🎯 AFTER MAPPING - FIRST CALL:", data?.[0]);
+      console.log("🎯 AFTER MAPPING CALL_SUMMARY:", data?.[0]?.call_summary);
       setCalls(data || []);
-console.log("🎯 FINAL DATA BEFORE setCalls:", data?.[0]);
-console.log("🎯 CALL_SUMMARY BEFORE setCalls:", data?.[0]?.call_summary);
+      console.log("🎯 FINAL DATA BEFORE setCalls:", data?.[0]);
+      console.log("🎯 CALL_SUMMARY BEFORE setCalls:", data?.[0]?.call_summary);
 
       // Calcular estadísticas
       if (data && data.length > 0) {
         const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
-const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
-const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-const completedCalls = data.filter(call => call.call_status === 'completed').length;
+        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
+        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
+        const completedCalls = data.filter(call => call.call_status === 'completed').length;
 
         setStats({
           total: data.length,
@@ -851,7 +792,7 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
       setLoading(false);
     }
   };
-  const handleSort = (field: SortField) => {
+      const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
@@ -861,14 +802,14 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
   };
 
   const handleCallClick = (call: Call) => {
-  console.log("🎯 CLICKED CALL:", call);
-  console.log("🎯 CLICKED CALL SUMMARY:", call.call_summary);
-  const originalCall = calls.find(c => c.id === call.id) || call;
-  console.log("🎯 ORIGINAL CALL FOUND:", originalCall);
-  console.log("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
-  setSelectedCall(originalCall);
-  setIsModalOpen(true);
-};
+    console.log("🎯 CLICKED CALL:", call);
+    console.log("🎯 CLICKED CALL SUMMARY:", call.call_summary);
+    const originalCall = calls.find(c => c.id === call.id) || call;
+    console.log("🎯 ORIGINAL CALL FOUND:", originalCall);
+    console.log("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
+    setSelectedCall(originalCall);
+    setIsModalOpen(true);
+  };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
@@ -894,7 +835,7 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 2,
+      minimumFractionDigits: 4,
     }).format(amount);
   };
 
@@ -928,7 +869,7 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-  if (!user) {
+      if (!user) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
@@ -970,6 +911,17 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
               >
                 {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
               </Button>
+              <Button
+                onClick={() => {
+                  console.log('🧪 Manual cost recalculation triggered');
+                  processPendingCallCosts(calls, setCalls, calculateCallCost, getCallDuration);
+                }}
+                variant="outline"
+                size="sm"
+                className="ml-2"
+              >
+                💰 Recalculate Costs
+              </Button>
             </div>
           </div>
 
@@ -981,7 +933,6 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
               </CardContent>
             </Card>
           )}
-
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -1044,7 +995,6 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
               </CardContent>
             </Card>
           </div>
-
           {/* Filters */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
@@ -1199,7 +1149,6 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
                             Status {getSortIcon('call_status')}
                           </button>
                         </th>
-                        {/* NUEVA COLUMNA END REASON */}
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           End Reason
                         </th>
@@ -1290,7 +1239,111 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
                             </div>
                           </td>
 
-                          {/* NUEVA CELDA END REASON */}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            {call.end_reason ? (
+                              <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
+                                {call.end_reason.replace(/_/g, ' ')}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-gray-400">No reason</span>
+                            )}
+                          </td>
+                          
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              {call.transcript && (
+                                <div className="flex items-center gap-1 text-xs text-green-600">
+                                  <FileText className="h-3 w-3" />
+                                  Transcript
+                                </div>
+                              )}
+                              {call.call_summary && (
+                                <div className="flex items-center gap-1 text-xs text-blue-600">
+                                  <PlayCircle className="h-3 w-3" />
+                                  Summary
+                                </div>
+                              )}
+                              {call.recording_url && (
+                                <div className="flex items-center gap-1 text-xs
+                                  <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredCalls.map((call, index) => (
+                        <tr 
+                          key={call.id} 
+                          className="hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => handleCallClick(call)}
+                        >
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900 font-medium">
+                              {formatDate(call.timestamp).split(',')[0]}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {formatTime(call.timestamp)}
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
+                              <Phone className="h-3 w-3 text-gray-400" />
+                              {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono">
+                              ID: {call.call_id.substring(0, 16)}...
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {getAgentName(call.agent_id)}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {call.agent_id.substring(0, 8)}...
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatDuration(getCallDuration(call))}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {audioDurations[call.id] ? 
+                                `${getCallDuration(call)}s (from audio)` : 
+                                `${getCallDuration(call)}s`
+                              }
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatCurrency(calculateCallCost(call))}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {(() => {
+                                const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+                                return agentRate ? 
+                                  `${(getCallDuration(call)/60).toFixed(1)}min × $${agentRate}/min` :
+                                  `DB: ${formatCurrency(call.cost_usd)}`;
+                              })()}
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
+                                {call.call_status}
+                              </Badge>
+                              {call.sentiment && (
+                                <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
+                                  {call.sentiment}
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+
                           <td className="px-4 py-4 whitespace-nowrap">
                             {call.end_reason ? (
                               <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
@@ -1368,7 +1421,8 @@ const completedCalls = data.filter(call => call.call_status === 'completed').len
               )}
             </CardContent>
           </Card>
-            {/* Call Detail Modal */}
+          
+          {/* Call Detail Modal */}
           <CallDetailModal 
             call={selectedCall}
             isOpen={isModalOpen}
