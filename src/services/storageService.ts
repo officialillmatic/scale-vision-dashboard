@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -23,9 +22,13 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
     const fileName = `${userId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${userId}/${fileName}`;
 
+    // Use the correct bucket name from your Supabase setup
     const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file);
+      .from('User Profile Avatars')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
 
     if (uploadError) {
       console.error("Upload error:", uploadError);
@@ -34,7 +37,7 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
     }
 
     const { data } = supabase.storage
-      .from('avatars')
+      .from('User Profile Avatars')
       .getPublicUrl(filePath);
 
     console.log("Avatar uploaded successfully:", data.publicUrl);
@@ -67,6 +70,7 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
     const fileExt = file.name.split('.').pop();
     const fileName = `logos/${companyId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
+    // Use the correct bucket name from your setup
     const { error: uploadError } = await supabase.storage
       .from('company-assets')
       .upload(fileName, file);
@@ -112,7 +116,7 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
     const fileName = `${companyId}/${userId}-${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
-      .from('recordings')
+      .from('Call Recordings')
       .upload(fileName, file);
 
     if (uploadError) {
@@ -123,7 +127,7 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
 
     // Use signed URL for private recordings
     const result = await supabase.storage
-      .from('recordings')
+      .from('Call Recordings')
       .createSignedUrl(fileName, 60 * 60 * 24 * 7); // 7 days
       
     if (result.error) {
@@ -148,7 +152,7 @@ export const getRecordingUrl = async (filePath: string): Promise<string | null> 
     console.log("Getting signed URL for recording:", filePath);
     
     const result = await supabase.storage
-      .from('recordings')
+      .from('Call Recordings')
       .createSignedUrl(filePath, 60 * 60); // 1 hour
 
     if (result.error) {
@@ -174,7 +178,7 @@ export const validateStorageBuckets = async (): Promise<boolean> => {
       return false;
     }
     
-    const requiredBuckets = ['avatars', 'company-assets', 'recordings'];
+    const requiredBuckets = ['User Profile Avatars', 'company-assets', 'Call Recordings'];
     const existingBuckets = buckets.map(bucket => bucket.id);
     const missingBuckets = requiredBuckets.filter(bucket => !existingBuckets.includes(bucket));
     
