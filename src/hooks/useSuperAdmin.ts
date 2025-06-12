@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 export const useSuperAdmin = () => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -7,19 +8,31 @@ export const useSuperAdmin = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    const checkSuperAdminStatus = () => {
+    const checkSuperAdminStatus = async () => {
+      if (!user) {
+        setIsSuperAdmin(false);
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        console.log("[SUPER_ADMIN] Checking status for current user");
+        console.log("[SUPER_ADMIN] Checking status for user:", user.id);
         
-        // Define superadmin por email
-        const superAdminEmails = [
-          'aiagentsdevelopers@gmail.com',  // Tu email de superadmin
-        ];
-        
-        const isAdmin = user?.email && superAdminEmails.includes(user.email);
-        console.log("[SUPER_ADMIN] User email:", user?.email);
-        console.log("[SUPER_ADMIN] Is SuperAdmin:", isAdmin);
-        setIsSuperAdmin(isAdmin || false);
+        // Verificar en la tabla super_admins
+        const { data, error } = await supabase
+          .from('super_admins')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+          console.error('Error checking super admin status:', error);
+          setIsSuperAdmin(false);
+        } else {
+          const isAdmin = !!data;
+          console.log("[SUPER_ADMIN] Is SuperAdmin:", isAdmin);
+          setIsSuperAdmin(isAdmin);
+        }
       } catch (error) {
         console.error('Error checking super admin status:', error);
         setIsSuperAdmin(false);
@@ -28,12 +41,7 @@ export const useSuperAdmin = () => {
       }
     };
 
-    if (user) {
-      checkSuperAdminStatus();
-    } else {
-      setIsSuperAdmin(false);
-      setIsLoading(false);
-    }
+    checkSuperAdminStatus();
   }, [user]);
 
   return { isSuperAdmin, isLoading };
