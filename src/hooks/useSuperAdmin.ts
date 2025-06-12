@@ -9,7 +9,12 @@ export const useSuperAdmin = () => {
   useEffect(() => {
     const checkSuperAdminStatus = () => {
       try {
-        console.log("[SUPER_ADMIN] Checking status for user:", user?.id);
+        console.log("[SUPER_ADMIN] ===================");
+console.log("[SUPER_ADMIN] User object:", user);
+console.log("[SUPER_ADMIN] User ID:", user?.id);
+console.log("[SUPER_ADMIN] User email:", user?.email);
+console.log("[SUPER_ADMIN] Expected ID:", '53392e76-008c-4e46-8443-a6ebd6bd4504');
+console.log("[SUPER_ADMIN] ===================");
         
         // SOLO TU ID ESPECÍFICO ES SUPERADMIN
         const SUPER_ADMIN_ID = '53392e76-008c-4e46-8443-a6ebd6bd4504';
