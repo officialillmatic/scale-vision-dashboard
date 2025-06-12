@@ -20,10 +20,8 @@ export function useRole() {
       try {
         // ✅ DETECTAR SUPER ADMIN POR EMAIL (reemplaza con tu email)
         const SUPER_ADMIN_EMAILS = [
-          'tu-email@domain.com',  // ⚠️ REEMPLAZA CON TU EMAIL REAL
-          'admin@scale.com',
-          // Agrega más emails de super admin aquí
-        ];
+  'aiagentsdevelopers@gmail.com',  // ← TU EMAIL REAL
+];
 
         const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(user.email || '');
         
