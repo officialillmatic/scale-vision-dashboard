@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { uploadAvatar } from "@/services/storageService";
-import { Camera, Upload, X, User } from "lucide-react";
+import { Camera, Upload, X, User, AlertTriangle } from "lucide-react";
 
 export function ProfileAvatar() {
   const { user, updateUserProfile: updateProfile } = useAuth();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [showUploadOptions, setShowUploadOptions] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Configuración de validación
@@ -43,14 +44,20 @@ export function ProfileAvatar() {
     return null;
   };
 
-  // Handle file upload
+  // Handle file upload with extensive debugging
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file || !user) {
+      setDebugInfo("No file selected or no user found");
+      return;
+    }
+
+    setDebugInfo(`File selected: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)}MB, Type: ${file.type}`);
 
     // Validate file
     const validationError = validateFile(file);
     if (validationError) {
+      setDebugInfo(`Validation failed: ${validationError}`);
       toast({
         title: "Validation Error",
         description: validationError,
@@ -61,27 +68,46 @@ export function ProfileAvatar() {
 
     setIsUploading(true);
     setShowUploadOptions(false);
+    setDebugInfo("Starting upload process...");
     
     try {
+      // Debug user info
+      console.log("User ID:", user.id);
+      console.log("User object:", user);
+      
+      setDebugInfo(`Uploading for user ID: ${user.id}`);
+      
       // Upload avatar using the storage service
       const avatarUrl = await uploadAvatar(user.id, file);
       
+      console.log("Upload result:", avatarUrl);
+      setDebugInfo(`Upload completed. Avatar URL: ${avatarUrl}`);
+      
       if (avatarUrl) {
+        setDebugInfo("Updating user profile...");
+        
         // Update user profile with new avatar URL
         await updateProfile({ avatar_url: avatarUrl });
+        
+        setDebugInfo("Profile updated successfully");
         
         toast({
           title: "Avatar updated",
           description: "Your profile photo has been updated successfully",
         });
       } else {
-        throw new Error("Failed to get avatar URL from upload service");
+        throw new Error("Upload service returned null/undefined URL");
       }
     } catch (error: any) {
-      console.error("Error uploading avatar:", error);
+      console.error("Full error object:", error);
+      console.error("Error stack:", error?.stack);
+      
+      const errorMessage = error?.message || "Unknown error occurred";
+      setDebugInfo(`Error: ${errorMessage}`);
+      
       toast({
         title: "Upload failed",
-        description: error?.message || "Failed to update your profile photo. Please try again.",
+        description: `${errorMessage}. Check console for details.`,
         variant: "destructive",
       });
     } finally {
@@ -98,9 +124,12 @@ export function ProfileAvatar() {
 
     setIsUploading(true);
     setShowUploadOptions(false);
+    setDebugInfo("Removing avatar...");
     
     try {
       await updateProfile({ avatar_url: null });
+      
+      setDebugInfo("Avatar removed successfully");
       
       toast({
         title: "Avatar removed",
@@ -108,6 +137,8 @@ export function ProfileAvatar() {
       });
     } catch (error: any) {
       console.error("Error removing avatar:", error);
+      setDebugInfo(`Error removing avatar: ${error?.message}`);
+      
       toast({
         title: "Error",
         description: "Failed to remove profile photo",
@@ -119,6 +150,7 @@ export function ProfileAvatar() {
   };
 
   const openFileDialog = () => {
+    setDebugInfo("Opening file dialog...");
     fileInputRef.current?.click();
     setShowUploadOptions(false);
   };
@@ -127,6 +159,17 @@ export function ProfileAvatar() {
 
   return (
     <div className="flex flex-col items-center space-y-4">
+      {/* Debug info */}
+      {debugInfo && (
+        <div className="w-full max-w-sm p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+          <div className="flex items-center space-x-1 mb-1">
+            <AlertTriangle size={12} />
+            <span className="font-medium">Debug Info:</span>
+          </div>
+          <div className="break-words">{debugInfo}</div>
+        </div>
+      )}
+
       {/* Avatar principal */}
       <div className="relative group">
         <Avatar className="h-24 w-24">
@@ -148,7 +191,10 @@ export function ProfileAvatar() {
 
         {/* Camera button */}
         <button
-          onClick={() => setShowUploadOptions(!showUploadOptions)}
+          onClick={() => {
+            setDebugInfo("Camera button clicked");
+            setShowUploadOptions(!showUploadOptions);
+          }}
           disabled={isUploading}
           className="absolute bottom-0 right-0 h-8 w-8 bg-brand-green text-white rounded-full flex items-center justify-center shadow-md hover:bg-brand-green/90 transition-colors disabled:opacity-50"
         >
@@ -206,6 +252,13 @@ export function ProfileAvatar() {
           Click the camera icon to change your profile photo
         </p>
       )}
+
+      {/* User debug info */}
+      <div className="w-full max-w-sm p-2 bg-gray-50 border rounded text-xs text-gray-600">
+        <div><strong>User ID:</strong> {user?.id || "Not found"}</div>
+        <div><strong>Current Avatar:</strong> {currentAvatarUrl ? "Yes" : "No"}</div>
+        <div><strong>User Name:</strong> {user?.user_metadata?.name || "Not set"}</div>
+      </div>
     </div>
   );
 }
