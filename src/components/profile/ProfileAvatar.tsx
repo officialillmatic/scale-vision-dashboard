@@ -23,11 +23,11 @@ export function ProfileAvatar() {
 
   const validateFile = useCallback((file: File): string | null => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      return `Formato no válido. Se aceptan: ${ACCEPTED_TYPES.map(t => t.split('/')[1].toUpperCase()).join(', ')}`;
+      return `Invalid format. Accepted: ${ACCEPTED_TYPES.map(t => t.split('/')[1].toUpperCase()).join(', ')}`;
     }
     
     if (file.size > MAX_FILE_SIZE) {
-      return `El archivo es demasiado grande. Máximo ${Math.floor(MAX_FILE_SIZE / (1024 * 1024))}MB permitido.`;
+      return `File too large. Maximum ${Math.floor(MAX_FILE_SIZE / (1024 * 1024))}MB allowed.`;
     }
     
     return null;
@@ -91,7 +91,7 @@ export function ProfileAvatar() {
     if (validationError) {
       setError(validationError);
       toast({
-        title: "Error de validación",
+        title: "Validation error",
         description: validationError,
         variant: "destructive",
       });
@@ -130,8 +130,8 @@ export function ProfileAvatar() {
         await updateProfile({ avatar_url: avatarUrl });
         
         toast({
-          title: "Avatar actualizado",
-          description: "Tu foto de perfil se ha actualizado exitosamente",
+          title: "Avatar updated",
+          description: "Your profile photo has been updated successfully",
         });
         
         // Limpiar preview URL anterior si es diferente
@@ -142,10 +142,10 @@ export function ProfileAvatar() {
       }
     } catch (error: any) {
       console.error("Error uploading avatar:", error);
-      setError(error.message || "Error al subir el avatar");
+      setError(error.message || "Error uploading avatar");
       toast({
-        title: "Error de subida",
-        description: error.message || "Error al actualizar tu foto de perfil",
+        title: "Upload failed",
+        description: error.message || "Failed to update your profile photo",
         variant: "destructive",
       });
       
@@ -197,14 +197,14 @@ export function ProfileAvatar() {
       setShowUploadOptions(false);
       
       toast({
-        title: "Avatar removido",
-        description: "Tu foto de perfil ha sido removida",
+        title: "Avatar removed",
+        description: "Your profile photo has been removed",
       });
     } catch (error: any) {
       console.error("Error removing avatar:", error);
       toast({
         title: "Error",
-        description: "Error al remover la foto de perfil",
+        description: "Failed to remove profile photo",
         variant: "destructive",
       });
     } finally {
@@ -263,7 +263,7 @@ export function ProfileAvatar() {
               className="flex items-center space-x-2"
             >
               <Upload size={16} />
-              <span>Subir foto</span>
+              <span>Upload photo</span>
             </Button>
             
             {previewUrl && (
@@ -275,7 +275,7 @@ export function ProfileAvatar() {
                 className="flex items-center space-x-2"
               >
                 <X size={16} />
-                <span>Remover</span>
+                <span>Remove</span>
               </Button>
             )}
           </div>
@@ -299,8 +299,8 @@ export function ProfileAvatar() {
             <User className="w-6 h-6 text-gray-400 mx-auto mb-2" />
             <p className="text-xs text-gray-600 mb-1">
               {dragActive 
-                ? 'Suelta la imagen aquí' 
-                : 'Arrastra tu foto aquí'
+                ? 'Drop the image here' 
+                : 'Drag your photo here'
               }
             </p>
             <p className="text-xs text-gray-500">
@@ -331,7 +331,7 @@ export function ProfileAvatar() {
       {/* Texto informativo */}
       {!showUploadOptions && (
         <p className="text-xs text-gray-500 text-center max-w-xs">
-          Haz clic en el ícono de cámara para cambiar tu foto de perfil
+          Click the camera icon to change your profile photo
         </p>
       )}
     </div>
