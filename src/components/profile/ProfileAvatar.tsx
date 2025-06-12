@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,7 @@ export function ProfileAvatar() {
       
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `${userId}/${fileName}`;
+      let filePath = `${userId}/${fileName}`; // Changed from const to let
 
       setDebugInfo(`📁 Uploading to path: ${filePath}`);
 
@@ -92,7 +93,7 @@ export function ProfileAvatar() {
         });
 
       if (uploadError) {
-        setDebugInfo(`❌ Upload error: ${uploadError.message} (Code: ${uploadError.error || 'N/A'})`);
+        setDebugInfo(`❌ Upload error: ${uploadError.message}`); // Removed .error property access
         console.error("Detailed upload error:", uploadError);
         
         // Handle specific error cases
@@ -110,7 +111,7 @@ export function ProfileAvatar() {
             return null;
           } else {
             setDebugInfo(`✅ Retry successful: ${newFilePath}`);
-            filePath = newFilePath;
+            filePath = newFilePath; // Now this works since filePath is let
           }
         } else {
           return null;
@@ -316,7 +317,7 @@ export function ProfileAvatar() {
       <div className="w-full max-w-md p-2 bg-gray-50 border rounded text-xs text-gray-600">
         <div><strong>User ID:</strong> {user?.id || "Not found"}</div>
         <div><strong>Current Avatar:</strong> {currentAvatarUrl ? "Yes" : "No"}</div>
-        <div><strong>Supabase URL:</strong> {supabase.supabaseUrl}</div>
+        <div><strong>Connected:</strong> {supabase ? "Yes" : "No"}</div>
       </div>
     </div>
   );
