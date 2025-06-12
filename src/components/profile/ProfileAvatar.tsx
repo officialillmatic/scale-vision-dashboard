@@ -38,9 +38,11 @@ export function ProfileAvatar() {
     setShowUploadOptions(false);
     
     try {
+      // The uploadAvatar service handles all validation and shows toasts
       const avatarUrl = await uploadAvatar(user.id, file);
       
       if (avatarUrl) {
+        // Update user profile with new avatar URL
         await updateProfile({ avatar_url: avatarUrl });
         
         toast({
@@ -48,6 +50,7 @@ export function ProfileAvatar() {
           description: "Your profile photo has been updated successfully",
         });
       }
+      // If avatarUrl is null, the service already showed an error toast
     } catch (error: any) {
       console.error("Error in profile update:", error);
       toast({
@@ -57,6 +60,7 @@ export function ProfileAvatar() {
       });
     } finally {
       setIsUploading(false);
+      // Clear the file input
       if (e.target) {
         e.target.value = '';
       }
@@ -97,6 +101,7 @@ export function ProfileAvatar() {
 
   return (
     <div className="flex flex-col items-center space-y-4">
+      {/* Avatar principal */}
       <div className="relative group">
         <Avatar className="h-24 w-24">
           <AvatarImage 
@@ -108,12 +113,14 @@ export function ProfileAvatar() {
           </AvatarFallback>
         </Avatar>
         
+        {/* Loading overlay */}
         {isUploading && (
           <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
             <div className="animate-spin h-6 w-6 border-2 border-white border-t-transparent rounded-full" />
           </div>
         )}
 
+        {/* Camera button */}
         <button
           onClick={() => setShowUploadOptions(!showUploadOptions)}
           disabled={isUploading}
@@ -123,6 +130,7 @@ export function ProfileAvatar() {
         </button>
       </div>
 
+      {/* Upload options */}
       {showUploadOptions && !isUploading && (
         <div className="space-y-3 w-full max-w-sm">
           <div className="flex flex-col space-y-2">
@@ -156,6 +164,7 @@ export function ProfileAvatar() {
         </div>
       )}
 
+      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -165,6 +174,7 @@ export function ProfileAvatar() {
         disabled={isUploading}
       />
 
+      {/* Help text */}
       {!showUploadOptions && !isUploading && (
         <p className="text-xs text-gray-500 text-center max-w-xs">
           Click the camera icon to change your profile photo
