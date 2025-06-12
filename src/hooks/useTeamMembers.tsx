@@ -66,21 +66,21 @@ if (isSuperAdmin) {
           console.log(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users`);
 
           return profilesData?.map(profile => ({
-            id: profile.id,
-            email: profile.email || 'No email',
-            full_name: profile.full_name,
-            avatar_url: null,
-            role: profile.role || 'member',
-            status: 'active' as const,
-            created_at: new Date().toISOString(),
-            last_sign_in_at: null,
-            company_id: null,
-            email_confirmed_at: new Date().toISOString(),
-            user_details: {
-              name: profile.full_name || profile.email?.split('@')[0] || 'User',
-              email: profile.email || 'No email'
-            }
-          })) || [];
+  id: profile.id,
+  email: profile.email || 'No email',
+  full_name: profile.email?.split('@')[0] || 'User',
+  avatar_url: null,
+  role: 'member', // Rol por defecto
+  status: 'active' as const,
+  created_at: profile.created_at,
+  last_sign_in_at: profile.last_sign_in_at,
+  company_id: null,
+  email_confirmed_at: profile.email_confirmed_at,
+  user_details: {
+    name: profile.email?.split('@')[0] || 'User',
+    email: profile.email || 'No email'
+  }
+})) || [];
         }
 
         // For company users, get confirmed members from company_members
