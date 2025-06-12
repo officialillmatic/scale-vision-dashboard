@@ -286,13 +286,7 @@ const deductFromUserBalance = async (userId: string, amount: number, callId: str
 // 2. MODIFICAR el useEffect existente (línea ~180) para AGREGAR el procesador
 // ============================================================================
 
-// BUSCAR este useEffect en tu código:
-useEffect(() => {
-  applyFiltersAndSort();
-}, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
-
-// REEMPLAZARLO por:
-useEffect(() => {
+/useEffect(() => {
   applyFiltersAndSort();
   
   // NUEVO: Procesar costos automáticamente cuando cambian las llamadas
