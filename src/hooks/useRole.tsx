@@ -10,7 +10,7 @@ export function useRole() {
 
   useEffect(() => {
     const checkRole = async () => {
-      if (!user || !company) {
+      if (!user) {
         setIsCompanyOwner(false);
         setUserRole(null);
         setLoading(false);
@@ -18,6 +18,31 @@ export function useRole() {
       }
 
       try {
+        // ✅ DETECTAR SUPER ADMIN POR EMAIL (reemplaza con tu email)
+        const SUPER_ADMIN_EMAILS = [
+          'tu-email@domain.com',  // ⚠️ REEMPLAZA CON TU EMAIL REAL
+          'admin@scale.com',
+          // Agrega más emails de super admin aquí
+        ];
+
+        const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(user.email || '');
+        
+        if (isSuperAdmin) {
+          console.log('🔥 Super admin detected by email:', user.email);
+          setIsCompanyOwner(true);  // Tratarlo como owner para permisos
+          setUserRole('super_admin');
+          setLoading(false);
+          return;
+        }
+
+        // Lógica normal para usuarios con company
+        if (!company) {
+          setIsCompanyOwner(false);
+          setUserRole('user');
+          setLoading(false);
+          return;
+        }
+
         // Check if user is company owner
         const isOwner = company.owner_id === user.id;
         setIsCompanyOwner(isOwner);
@@ -48,23 +73,34 @@ export function useRole() {
   }, [user, company]);
 
   const checkRole = (requiredRole: string) => {
+    // Super admin tiene acceso a todo
+    if (userRole === 'super_admin') return true;
     if (isCompanyOwner) return true;
     if (requiredRole === 'admin') return userRole === 'admin';
-    return true; // All authenticated users can access basic features
+    return true;
   };
 
   // ✅ OBJETO PARA COMPATIBILIDAD CON DASHBOARDSIDEBAR
   const can = {
-    superAdminAccess: isCompanyOwner || userRole === 'admin',
-    adminAccess: isCompanyOwner || userRole === 'admin',
+    superAdminAccess: userRole === 'super_admin' || isCompanyOwner || userRole === 'admin',
+    adminAccess: userRole === 'super_admin' || isCompanyOwner || userRole === 'admin',
     userAccess: true
   };
+
+  // 🔍 DEBUG
+  console.log('🎯 useRole state:', {
+    userEmail: user?.email,
+    userRole,
+    isCompanyOwner,
+    superAdminAccess: can.superAdminAccess,
+    company: company?.id
+  });
 
   return {
     isCompanyOwner,
     userRole,
     loading,
     checkRole,
-    can, // ✅ ESTO ES LO QUE NECESITA EL SIDEBAR
+    can,
   };
 }
