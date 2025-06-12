@@ -1,4 +1,3 @@
-
 import { useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSuperAdmin } from './useSuperAdmin';
@@ -27,7 +26,7 @@ export const useRole = () => {
   }
   
   const { isSuperAdmin, isLoading: isSuperAdminLoading } = superAdminContext;
-
+  
   const checkRole = (role: Role): boolean => {
     if (!user) return false;
     
@@ -56,7 +55,7 @@ export const useRole = () => {
       default: return false;
     }
   };
-
+  
   const can = useMemo(() => {
     // Early return for loading states
     if (isCompanyLoading || isSuperAdminLoading) {
@@ -80,7 +79,31 @@ export const useRole = () => {
         superAdminAccess: false
       };
     }
-
+    
+    // SUPER ADMINS GET ACCESS EVEN WITHOUT COMPANY
+    if (isSuperAdmin) {
+      console.log("🔥 [USE_ROLE] Super admin detected, granting full access");
+      return {
+        manageTeam: true,
+        manageAgents: true,
+        viewAgents: true,
+        createAgents: true,
+        assignAgents: true,
+        deleteAgents: true,
+        viewCalls: true,
+        uploadCalls: true,
+        manageBalances: true,
+        viewBalance: true,
+        accessBillingSettings: true,
+        editSettings: true,
+        uploadCompanyLogo: true,
+        inviteUsers: true,
+        removeUsers: true,
+        sendInvitations: true,
+        superAdminAccess: true
+      };
+    }
+    
     return {
       // Team and agent management - Super admins and company owners get full access
       manageTeam: isSuperAdmin || isCompanyOwner,
@@ -112,6 +135,15 @@ export const useRole = () => {
       superAdminAccess: isSuperAdmin
     };
   }, [isSuperAdmin, isCompanyOwner, user, userRole, company, isCompanyLoading, isSuperAdminLoading, checkRole]);
-
+  
+  // Debug logging
+  console.log("🎯 [USE_ROLE] Final state:", {
+    isSuperAdmin,
+    isCompanyOwner,
+    superAdminAccess: can.superAdminAccess,
+    company: company?.id,
+    user: user?.id
+  });
+  
   return { isSuperAdmin, isCompanyOwner, checkRole, can };
 };
