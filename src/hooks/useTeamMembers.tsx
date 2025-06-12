@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,28 +34,43 @@ export interface TeamInvitation {
 }
 
 export function useTeamMembers(companyId?: string) {
-  const { company } = useAuth();
+  const { company, user } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { toast } = useToast();
   const [isInviting, setIsInviting] = useState(false);
   
   const targetCompanyId = companyId || company?.id;
 
-  // Query for team members - RESTORED SIMPLE QUERY THAT WORKED
+  // Query for team members - SECURED VERSION
   const { data: members, isLoading: membersLoading, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['team-members', targetCompanyId],
     queryFn: async () => {
       console.log('🔍 [useTeamMembers] Fetching team members...');
       
       try {
-        // For super admins - USE REAL AUTH USERS TABLE
-if (isSuperAdmin) {
-  console.log('🔍 [SUPER ADMIN] Fetching all users from auth.users');
-  
-  const { data: profilesData, error: profilesError } = await supabase
-    .from('auth.users')
-    .select('id, email, created_at, email_confirmed_at, last_sign_in_at')
-    .order('created_at', { ascending: false });
+        // For super admins - HARDCODED SECURITY CHECK
+        if (isSuperAdmin && user?.id === '53392e76-008c-4e46-8443-a6ebd6bd4504') {
+          console.log('🔒 [SECURITY] Double-checking super admin status...');
+          
+          // VERIFICACIÓN ADICIONAL DE SEGURIDAD
+          const { data: superAdminCheck } = await supabase
+            .from('super_admins')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (!superAdminCheck) {
+            console.log('🚫 [SECURITY] Super admin verification failed, restricting access');
+            return [];
+          }
+          
+          console.log('✅ [SECURITY] Super admin verified, proceeding with full access');
+          console.log('🔍 [SUPER ADMIN] Fetching all users from auth.users');
+          
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('auth.users')
+            .select('id, email, created_at, email_confirmed_at, last_sign_in_at')
+            .order('created_at', { ascending: false });
 
           if (profilesError) {
             console.error('❌ [SUPER ADMIN] Error:', profilesError);
@@ -66,26 +80,27 @@ if (isSuperAdmin) {
           console.log(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users`);
 
           return profilesData?.map(profile => ({
-  id: profile.id,
-  email: profile.email || 'No email',
-  full_name: profile.email?.split('@')[0] || 'User',
-  avatar_url: null,
-  role: 'member', // Rol por defecto
-  status: 'active' as const,
-  created_at: profile.created_at,
-  last_sign_in_at: profile.last_sign_in_at,
-  company_id: null,
-  email_confirmed_at: profile.email_confirmed_at,
-  user_details: {
-    name: profile.email?.split('@')[0] || 'User',
-    email: profile.email || 'No email'
-  }
-})) || [];
+            id: profile.id,
+            email: profile.email || 'No email',
+            full_name: profile.email?.split('@')[0] || 'User',
+            avatar_url: null,
+            role: 'member', // Rol por defecto
+            status: 'active' as const,
+            created_at: profile.created_at,
+            last_sign_in_at: profile.last_sign_in_at,
+            company_id: null,
+            email_confirmed_at: profile.email_confirmed_at,
+            user_details: {
+              name: profile.email?.split('@')[0] || 'User',
+              email: profile.email || 'No email'
+            }
+          })) || [];
         }
 
         // For company users, get confirmed members from company_members
         if (!targetCompanyId) return [];
 
+        console.log('🔍 [REGULAR USER] Fetching company team members only');
         return await getConfirmedTeamMembers(targetCompanyId);
       } catch (error) {
         console.error('❌ [useTeamMembers] Error fetching team members:', error);
