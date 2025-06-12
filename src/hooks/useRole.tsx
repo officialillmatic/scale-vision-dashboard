@@ -53,7 +53,7 @@ export function useRole() {
     return true; // All authenticated users can access basic features
   };
 
-  // ✅ AGREGAR ESTE OBJETO PARA COMPATIBILIDAD CON DASHBOARDSIDEBAR
+  // ✅ OBJETO PARA COMPATIBILIDAD CON DASHBOARDSIDEBAR
   const can = {
     superAdminAccess: isCompanyOwner || userRole === 'admin',
     adminAccess: isCompanyOwner || userRole === 'admin',
@@ -65,6 +65,6 @@ export function useRole() {
     userRole,
     loading,
     checkRole,
-    can, // ✅ AGREGAR ESTO PARA QUE EL SIDEBAR FUNCIONE
+    can, // ✅ ESTO ES LO QUE NECESITA EL SIDEBAR
   };
 }
