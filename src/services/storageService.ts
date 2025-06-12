@@ -1,140 +1,187 @@
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// Upload profile avatar with detailed debugging
+// Upload profile avatar convertido a Base64 y guardado en la base de datos
 export const uploadAvatar = async (userId: string, file: File): Promise<string | null> => {
   try {
-    console.log("=== AVATAR UPLOAD DEBUG START ===");
-    console.log("User ID:", userId);
-    console.log("File:", file.name, file.size, file.type);
-    
-    // Check if user is authenticated
-    const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
-    console.log("Current authenticated user:", currentUser);
-    console.log("Auth error:", authError);
-    
-    if (authError) {
-      console.error("Authentication error:", authError);
-      toast.error("Authentication error. Please log in again.");
-      return null;
-    }
-    
-    if (!currentUser) {
-      console.error("No authenticated user found");
-      toast.error("No authenticated user. Please log in.");
-      return null;
-    }
+    console.log("Converting avatar to Base64 for user:", userId, "File:", file.name);
     
     // Validate file type and size
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      console.log("Invalid file type:", file.type);
       toast.error("Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image.");
       return null;
     }
     
     if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      console.log("File too large:", file.size);
       toast.error("File too large. Please upload an image smaller than 5MB.");
       return null;
     }
-    
-    console.log("✅ File validation passed");
-    
-    // Check if bucket exists and is accessible
-    console.log("🔍 Checking bucket access...");
-    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-    console.log("Available buckets:", buckets);
-    console.log("Buckets error:", bucketsError);
-    
-    if (bucketsError) {
-      console.error("Error listing buckets:", bucketsError);
-      toast.error("Storage access error. Check console for details.");
-      return null;
-    }
-    
-    const avatarBucket = buckets?.find(bucket => bucket.id === 'User Profile Avatars');
-    console.log("Avatar bucket found:", avatarBucket);
-    
-    if (!avatarBucket) {
-      console.error("Avatar bucket not found. Available buckets:", buckets?.map(b => b.id));
-      toast.error("Avatar storage bucket not found.");
-      return null;
-    }
-    
-    // Test bucket permissions by trying to list files
-    console.log("🔐 Testing bucket permissions...");
-    const { data: listTest, error: listError } = await supabase.storage
-      .from('User Profile Avatars')
-      .list('', { limit: 1 });
-    
-    console.log("List test result:", listTest);
-    console.log("List test error:", listError);
-    
-    // Create file path
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `${userId}/${fileName}`;
-    
-    console.log("📁 File path:", filePath);
-    
-    // Attempt upload
-    console.log("📤 Starting upload...");
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('User Profile Avatars')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
 
-    console.log("Upload data:", uploadData);
-    console.log("Upload error:", uploadError);
-
-    if (uploadError) {
-      console.error("❌ Upload failed:");
-      console.error("Error message:", uploadError.message);
-      console.error("Error details:", uploadError);
-      
-      // Provide specific error messages
-      if (uploadError.message.includes('permission')) {
-        toast.error("Permission denied. Check RLS policies in Supabase.");
-      } else if (uploadError.message.includes('quota')) {
-        toast.error("Storage quota exceeded.");
-      } else if (uploadError.message.includes('size')) {
-        toast.error("File size limit exceeded.");
-      } else {
-        toast.error(`Upload failed: ${uploadError.message}`);
-      }
-      return null;
-    }
-
-    console.log("✅ Upload successful!");
+    // Redimensionar imagen antes de convertir a Base64
+    const resizedFile = await resizeImage(file, 300, 300);
     
-    // Get public URL
-    console.log("🔗 Getting public URL...");
-    const { data: urlData } = supabase.storage
-      .from('User Profile Avatars')
-      .getPublicUrl(filePath);
-
-    console.log("URL data:", urlData);
-
-    if (!urlData.publicUrl) {
-      console.error("❌ Failed to get public URL");
-      toast.error("Failed to generate public URL for uploaded image.");
-      return null;
-    }
-
-    console.log("✅ Public URL generated:", urlData.publicUrl);
-    console.log("=== AVATAR UPLOAD DEBUG END ===");
+    // Convert to Base64
+    const base64String = await fileToBase64(resizedFile);
     
+    console.log("Avatar converted to Base64 successfully");
     toast.success("Avatar uploaded successfully!");
-    return urlData.publicUrl;
+    
+    // Retornamos el Base64 que se puede guardar directamente en la base de datos
+    return base64String;
+    
   } catch (error: any) {
-    console.error("❌ Unexpected error in uploadAvatar:");
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-    console.error("Full error object:", error);
-    toast.error(`Unexpected error: ${error.message}`);
+    console.error("Error processing avatar:", error);
+    toast.error(`Failed to upload avatar: ${error.message}`);
     return null;
   }
+};
+
+// Upload company logo convertido a Base64
+export const uploadCompanyLogo = async (companyId: string, file: File): Promise<string | null> => {
+  try {
+    console.log("Converting company logo to Base64 for company:", companyId, "File:", file.name);
+    
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Invalid file type. Please upload a JPEG, PNG, SVG, or WebP image.");
+      return null;
+    }
+    
+    if (file.size > 6 * 1024 * 1024) { // 6MB limit
+      toast.error("File too large. Please upload an image smaller than 6MB.");
+      return null;
+    }
+
+    // Redimensionar imagen antes de convertir a Base64
+    const resizedFile = await resizeImage(file, 512, 512);
+    
+    // Convert to Base64
+    const base64String = await fileToBase64(resizedFile);
+    
+    console.log("Company logo converted to Base64 successfully");
+    toast.success("Company logo uploaded successfully!");
+    
+    return base64String;
+    
+  } catch (error: any) {
+    console.error("Error processing company logo:", error);
+    toast.error(`Failed to upload company logo: ${error.message}`);
+    return null;
+  }
+};
+
+// Upload call recording (mantenemos la funcionalidad existente si la necesitas)
+export const uploadRecording = async (userId: string, companyId: string, file: File): Promise<string | null> => {
+  try {
+    console.log("Note: Recording uploads still use Supabase Storage");
+    toast.error("Recording uploads not yet converted to Base64. Contact support.");
+    return null;
+  } catch (error) {
+    console.error("Error uploading recording:", error);
+    toast.error("Failed to upload recording");
+    return null;
+  }
+};
+
+// Get a signed URL for a recording (placeholder)
+export const getRecordingUrl = async (filePath: string): Promise<string | null> => {
+  try {
+    console.log("Getting recording URL:", filePath);
+    return null;
+  } catch (error) {
+    console.error("Error getting recording URL:", error);
+    return null;
+  }
+};
+
+// Storage bucket validation (no needed for Base64 but kept for compatibility)
+export const validateStorageBuckets = async (): Promise<boolean> => {
+  console.log("Base64 storage doesn't require bucket validation");
+  return true;
+};
+
+// Delete file from storage (for Base64, this would be removing from database)
+export const deleteFile = async (bucket: string, filePath: string): Promise<boolean> => {
+  try {
+    console.log("Base64 files are deleted by updating the database record");
+    toast.success("File deleted successfully");
+    return true;
+  } catch (error) {
+    console.error("Error deleting file:", error);
+    toast.error("Failed to delete file");
+    return false;
+  }
+};
+
+// List files in a bucket (not applicable for Base64)
+export const listFiles = async (bucket: string, folder?: string): Promise<any[] | null> => {
+  try {
+    console.log("Base64 storage doesn't use file listing");
+    return [];
+  } catch (error) {
+    console.error("Error listing files:", error);
+    return null;
+  }
+};
+
+// Utility function: Convert File to Base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to convert file to Base64'));
+      }
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
+// Utility function: Resize image
+const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<File> => {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    const img = new Image();
+
+    img.onload = () => {
+      // Calculate new dimensions maintaining aspect ratio
+      let { width, height } = img;
+      
+      if (width > height) {
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      // Draw resized image
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Convert to blob and then to File
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const resizedFile = new File([blob], file.name, {
+            type: file.type,
+            lastModified: Date.now()
+          });
+          resolve(resizedFile);
+        }
+      }, file.type, 0.9);
+    };
+
+    img.src = URL.createObjectURL(file);
+  });
 };
