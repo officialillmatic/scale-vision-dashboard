@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
 
 export const useSuperAdmin = () => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -8,31 +7,16 @@ export const useSuperAdmin = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    const checkSuperAdminStatus = async () => {
-      if (!user) {
-        setIsSuperAdmin(false);
-        setIsLoading(false);
-        return;
-      }
-
+    const checkSuperAdminStatus = () => {
       try {
-        console.log("[SUPER_ADMIN] Checking status for user:", user.id);
+        console.log("[SUPER_ADMIN] Checking status for user:", user?.id);
         
-        // Verificar en la tabla super_admins
-        const { data, error } = await supabase
-          .from('super_admins')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-          console.error('Error checking super admin status:', error);
-          setIsSuperAdmin(false);
-        } else {
-          const isAdmin = !!data;
-          console.log("[SUPER_ADMIN] Is SuperAdmin:", isAdmin);
-          setIsSuperAdmin(isAdmin);
-        }
+        // Verificar directamente por user_id (tu ID específico)
+        const superAdminUserId = '53392e76-008c-4e46-8443-a6ebd6bd4504';
+        
+        const isAdmin = user?.id === superAdminUserId;
+        console.log("[SUPER_ADMIN] Is SuperAdmin:", isAdmin);
+        setIsSuperAdmin(isAdmin);
       } catch (error) {
         console.error('Error checking super admin status:', error);
         setIsSuperAdmin(false);
@@ -41,7 +25,12 @@ export const useSuperAdmin = () => {
       }
     };
 
-    checkSuperAdminStatus();
+    if (user) {
+      checkSuperAdminStatus();
+    } else {
+      setIsSuperAdmin(false);
+      setIsLoading(false);
+    }
   }, [user]);
 
   return { isSuperAdmin, isLoading };
