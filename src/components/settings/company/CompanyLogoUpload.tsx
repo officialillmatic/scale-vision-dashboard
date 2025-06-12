@@ -32,11 +32,11 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
 
   const validateFile = useCallback((file: File): string | null => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      return `Formato no válido. Se aceptan: ${ACCEPTED_TYPES.map(t => t.split('/')[1].toUpperCase()).join(', ')}`;
+      return `Invalid format. Accepted: ${ACCEPTED_TYPES.map(t => t.split('/')[1].toUpperCase()).join(', ')}`;
     }
     
     if (file.size > MAX_FILE_SIZE) {
-      return `El archivo es demasiado grande. Máximo ${Math.floor(MAX_FILE_SIZE / (1024 * 1024))}MB permitido.`;
+      return `File too large. Maximum ${Math.floor(MAX_FILE_SIZE / (1024 * 1024))}MB allowed.`;
     }
     
     return null;
@@ -127,7 +127,7 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
         if (updated) {
           onLogoUpdate(logoUrl);
           await refreshCompany();
-          toast.success("Logo de empresa actualizado exitosamente");
+          toast.success("Company logo updated successfully");
           
           // Limpiar preview URL anterior
           if (previewUrl && previewUrl !== logoUrl) {
@@ -139,8 +139,8 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
       }
     } catch (error: any) {
       console.error("Error uploading logo:", error);
-      setError(error.message || "Error al subir el logo");
-      toast.error(error.message || "Error al subir el logo. Por favor, inténtalo de nuevo.");
+      setError(error.message || "Error uploading logo");
+      toast.error(error.message || "Error uploading logo. Please try again.");
       
       // Restaurar preview anterior
       setPreviewUrl(logoUrl);
@@ -178,7 +178,7 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
     setDragActive(false);
 
     if (!isCompanyOwner && !can.editSettings) {
-      toast.error("Solo los administradores de la empresa pueden cambiar el logo");
+      toast.error("Only company administrators can change the logo");
       return;
     }
 
@@ -190,7 +190,7 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
 
   const handleClick = () => {
     if (!isCompanyOwner && !can.editSettings) {
-      toast.error("Solo los administradores de la empresa pueden cambiar el logo");
+      toast.error("Only company administrators can change the logo");
       return;
     }
     fileInputRef.current?.click();
@@ -207,11 +207,11 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
         setPreviewUrl(null);
         onLogoUpdate('');
         await refreshCompany();
-        toast.success("Logo removido exitosamente");
+        toast.success("Logo removed successfully");
       }
     } catch (error: any) {
       console.error("Error removing logo:", error);
-      toast.error("Error al remover el logo");
+      toast.error("Error removing logo");
     } finally {
       setIsUploading(false);
     }
@@ -242,7 +242,7 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
               </div>
             )}
             <p className="text-sm text-gray-500 text-center">
-              Solo los administradores pueden cambiar el logo de la empresa
+              Only administrators can change the company logo
             </p>
           </div>
         }
@@ -284,7 +284,7 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
                   className="flex items-center space-x-2"
                 >
                   <Upload size={16} />
-                  <span>{previewUrl ? 'Cambiar logo' : 'Subir logo'}</span>
+                  <span>{previewUrl ? 'Change logo' : 'Upload logo'}</span>
                 </Button>
                 
                 {previewUrl && (
@@ -296,7 +296,7 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
                     className="flex items-center space-x-2"
                   >
                     <X size={16} />
-                    <span>Remover</span>
+                    <span>Remove</span>
                   </Button>
                 )}
               </div>
@@ -326,12 +326,12 @@ export function CompanyLogoUpload({ logoUrl, onLogoUpdate }: CompanyLogoUploadPr
             <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
             <p className="text-sm text-gray-600 mb-1">
               {dragActive 
-                ? 'Suelta la imagen aquí' 
-                : 'Arrastra tu logo aquí, o haz clic para seleccionar'
+                ? 'Drop the image here' 
+                : 'Drag your logo here, or click to select'
               }
             </p>
             <p className="text-xs text-gray-500">
-              Recomendamos un logo cuadrado de al menos 200x200 píxeles
+              We recommend a square logo of at least 200x200 pixels
             </p>
           </div>
 
