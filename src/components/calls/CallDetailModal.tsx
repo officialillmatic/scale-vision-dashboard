@@ -199,7 +199,8 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 2,
+      minimumFractionDigits: 4,    // ← CAMBIADO A 4
+      maximumFractionDigits: 4,    // ← AGREGAR ESTA LÍNEA
     }).format(amount);
   };
 
