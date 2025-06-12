@@ -9,14 +9,11 @@ export const useSuperAdmin = () => {
   useEffect(() => {
     const checkSuperAdminStatus = () => {
       try {
-        console.log("[SUPER_ADMIN] Checking status for user:", user?.id);
+        console.log("[SUPER_ADMIN] FORCED TO TRUE FOR TESTING");
+        console.log("[SUPER_ADMIN] User ID:", user?.id);
         
-        // Verificar directamente por user_id (tu ID específico)
-        const superAdminUserId = '53392e76-008c-4e46-8443-a6ebd6bd4504';
-        
-        const isAdmin = user?.id === superAdminUserId;
-        console.log("[SUPER_ADMIN] Is SuperAdmin:", isAdmin);
-        setIsSuperAdmin(isAdmin);
+        // TEMPORAL: Forzar siempre true para testing
+        setIsSuperAdmin(true);
       } catch (error) {
         console.error('Error checking super admin status:', error);
         setIsSuperAdmin(false);
@@ -25,13 +22,9 @@ export const useSuperAdmin = () => {
       }
     };
 
-    if (user) {
-      checkSuperAdminStatus();
-    } else {
-      setIsSuperAdmin(false);
-      setIsLoading(false);
-    }
-  }, [user]);
+    // Ejecutar inmediatamente sin esperar user
+    checkSuperAdminStatus();
+  }, []); // Sin dependencias para que se ejecute solo una vez
 
   return { isSuperAdmin, isLoading };
 };
