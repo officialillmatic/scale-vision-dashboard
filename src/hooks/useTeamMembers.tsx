@@ -57,7 +57,7 @@ export function useTeamMembers(companyId?: string) {
         // For super admins - VERIFICACIÓN CORREGIDA
         if (isSuperAdmin) {
           console.log('✅ [SECURITY] Super admin verified by hook, proceeding with full access');
-          console.log('🔍 [SUPER ADMIN] Fetching all users from auth.users');
+          console.log('🔍 [SUPER ADMIN] Fetching all users from profiles');
           
           const { data: profilesData, error: profilesError } = await supabase
             .from('auth.users')
