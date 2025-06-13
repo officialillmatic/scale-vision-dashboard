@@ -27,47 +27,7 @@ import AcceptInvitationPage from '@/pages/AcceptInvitationPage';
 import SuperAdminTeamNew from '@/pages/SuperAdminTeamNew';
 import SuperAdminCreditsNew from '@/pages/SuperAdminCreditsNew';
 
-import { useSuperAdmin } from '@/hooks/useSuperAdmin';
-
 const queryClient = new QueryClient();
-
-function RoleCheck({
-  children,
-  allowedRoles,
-}: {
-  children: React.ReactNode;
-  allowedRoles: string[];
-}) {
-  const { user, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-
-  if (!allowedRoles.includes(user.role)) {
-    return <div>Unauthorized</div>;
-  }
-
-  return children;
-}
-
-function SuperAdminRoute({ children }: { children: React.ReactNode }) {
-  const { isSuperAdmin, isLoading } = useSuperAdmin();
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (!isSuperAdmin) {
-    return <Navigate to="/" />;
-  }
-
-  return children;
-}
 
 function AppRoutes() {
   return (
@@ -116,13 +76,13 @@ function AppRoutes() {
             </ProtectedRoute>
           } 
         />
+        
+        {/* 🚨 SOLUCIÓN: Rutas super admin SIMPLIFICADAS - sin SuperAdminRoute wrapper */}
         <Route 
           path="/team" 
           element={
             <ProtectedRoute>
-              <SuperAdminRoute>
-                <TeamPage />
-              </SuperAdminRoute>
+              <TeamPage />
             </ProtectedRoute>
           } 
         />
@@ -130,9 +90,7 @@ function AppRoutes() {
           path="/admin/credits" 
           element={
             <ProtectedRoute>
-              <SuperAdminRoute>
-                <SuperAdminCreditPage />
-              </SuperAdminRoute>
+              <SuperAdminCreditPage />
             </ProtectedRoute>
           } 
         />
@@ -140,9 +98,7 @@ function AppRoutes() {
           path="/team-new" 
           element={
             <ProtectedRoute>
-              <SuperAdminRoute>
-                <TeamNew />
-              </SuperAdminRoute>
+              <TeamNew />
             </ProtectedRoute>
           } 
         />
@@ -152,9 +108,7 @@ function AppRoutes() {
           path="/super-admin/team" 
           element={
             <ProtectedRoute>
-              <SuperAdminRoute>
-                <SuperAdminTeamNew />
-              </SuperAdminRoute>
+              <SuperAdminTeamNew />
             </ProtectedRoute>
           } 
         />
@@ -162,9 +116,7 @@ function AppRoutes() {
           path="/super-admin/credits" 
           element={
             <ProtectedRoute>
-              <SuperAdminRoute>
-                <SuperAdminCreditsNew />
-              </SuperAdminRoute>
+              <SuperAdminCreditsNew />
             </ProtectedRoute>
           } 
         />

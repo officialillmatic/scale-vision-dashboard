@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { TeamMembers } from '@/components/team/TeamMembers';
@@ -19,16 +20,31 @@ const TeamPage = () => {
   const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
   const navigate = useNavigate();
   
-  // Super admins should have unrestricted access - skip redirection
+  // 🚨 SOLUCIÓN: Usar la misma lógica que funciona en DashboardPage
   useEffect(() => {
     // No hacer nada mientras está cargando
     if (isSuperAdminLoading) return;
     
-    // BYPASS TEMPORAL PARA aiagentsdevelopers@gmail.com
-    if (user && user.email !== 'aiagentsdevelopers@gmail.com' && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
+    console.log('🔍 [TeamPage] Checking access permissions...');
+    console.log('🔍 [TeamPage] User email:', user?.email);
+    console.log('🔍 [TeamPage] Is super admin:', isSuperAdmin);
+    console.log('🔍 [TeamPage] Is company owner:', isCompanyOwner);
+    console.log('🔍 [TeamPage] Can manage team:', can.manageTeam);
+    
+    // BYPASS ESPECÍFICO PARA SUPER ADMIN - igual que en dashboard
+    const hasAccess = isSuperAdmin || 
+                     user?.email === 'aiagentsdevelopers@gmail.com' || 
+                     user?.email === 'produpublicol@gmail.com' ||
+                     isCompanyOwner || 
+                     can.manageTeam;
+    
+    if (!hasAccess) {
+      console.log('❌ [TeamPage] Access denied, redirecting to dashboard');
       toast.error("You don't have permission to access team management");
       navigate('/dashboard');
       return;
+    } else {
+      console.log('✅ [TeamPage] Access granted');
     }
   }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
   
@@ -41,8 +57,14 @@ const TeamPage = () => {
     </DashboardLayout>;
   }
   
-  // BYPASS TEMPORAL: Super admins should never be blocked from accessing this page
-  if (user?.email !== 'aiagentsdevelopers@gmail.com' && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
+  // 🚨 SOLUCIÓN: Misma verificación de acceso que en el efecto
+  const hasAccess = isSuperAdmin || 
+                   user?.email === 'aiagentsdevelopers@gmail.com' || 
+                   user?.email === 'produpublicol@gmail.com' ||
+                   isCompanyOwner || 
+                   can.manageTeam;
+  
+  if (!hasAccess) {
     return <DashboardLayout>
       <Alert variant="destructive" className="border-red-200 bg-red-50">
         <AlertTriangle className="h-4 w-4" />
@@ -62,7 +84,7 @@ const TeamPage = () => {
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               Team Management 👥
             </h1>
-            {(isSuperAdmin || user?.email === 'aiagentsdevelopers@gmail.com') && (
+            {(isSuperAdmin || user?.email === 'aiagentsdevelopers@gmail.com' || user?.email === 'produpublicol@gmail.com') && (
               <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200 flex items-center gap-1">
                 <Crown className="h-3 w-3" />
                 SUPER ADMIN

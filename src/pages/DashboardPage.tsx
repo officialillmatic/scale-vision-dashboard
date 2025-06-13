@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSuperAdmin } from '@/hooks/useSuperAdmin'; // ✅ AGREGAR IMPORT
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 import { CreditBalance } from "@/components/credits/CreditBalance";
 
@@ -67,15 +67,14 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin(); // ✅ USAR EL HOOK
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
   
-  // ✅ DEBUGGING MEJORADO
+  // ✅ DEBUGGING MEJORADO - usar propiedades correctas
   console.log('=== DASHBOARD DEBUG UNIFICADO ===');
   console.log('User:', user);
   console.log('User email:', user?.email);
   console.log('User metadata role:', user?.user_metadata?.role);
-  console.log('Raw user metadata role:', user?.raw_user_meta_data?.role);
-  console.log('Raw app metadata role:', user?.raw_app_meta_data?.role);
+  console.log('App metadata role:', user?.app_metadata?.role);
   console.log('Is super admin (from hook):', isSuperAdmin);
   console.log('Super admin loading:', isSuperAdminLoading);
   console.log('=================================');
@@ -123,7 +122,7 @@ export default function DashboardPage() {
         fetchCallsData();
       }
     }
-  }, [user?.id, isSuperAdmin, isSuperAdminLoading]); // ✅ AGREGAR isSuperAdminLoading
+  }, [user?.id, isSuperAdmin, isSuperAdminLoading]);
 
   // 🤖 FUNCIONES DEL SUPER ADMIN
   const fetchAdminStats = async () => {
@@ -300,7 +299,7 @@ export default function DashboardPage() {
         return;
       }
 
-      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
+      const userAgentIds = userAgents.map(assignment => assignment.agents.retell_agent_id);
       console.log('👤 User agent IDs:', userAgentIds);
 
       // Obtener llamadas de esos agentes
