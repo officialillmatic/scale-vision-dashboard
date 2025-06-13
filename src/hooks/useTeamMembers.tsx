@@ -60,9 +60,9 @@ export function useTeamMembers(companyId?: string) {
           console.log('🔍 [SUPER ADMIN] Fetching all users from profiles');
           
           const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, email, created_at, email_confirmed_at, last_sign_in_at')
-            .order('created_at', { ascending: false });
+  .from('profiles')
+  .select('id, email, name, avatar_url, created_at, updated_at, role') // ⬅️ Usar los campos correctos de la vista
+  .order('created_at', { ascending: false });
 
           if (profilesError) {
             console.error('❌ [SUPER ADMIN] Error:', profilesError);
