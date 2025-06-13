@@ -25,11 +25,11 @@ const TeamPage = () => {
     if (isSuperAdminLoading) return;
     
     // BYPASS TEMPORAL PARA aiagentsdevelopers@gmail.com
-if (user && user.email !== 'aiagentsdevelopers@gmail.com' && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
-  toast.error("You don't have permission to access team management");
-  navigate('/dashboard');
-  return;
-}
+    if (user && user.email !== 'aiagentsdevelopers@gmail.com' && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
+      toast.error("You don't have permission to access team management");
+      navigate('/dashboard');
+      return;
+    }
   }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
   
   // Mostrar loading mientras verifica permisos
@@ -41,8 +41,8 @@ if (user && user.email !== 'aiagentsdevelopers@gmail.com' && !isSuperAdmin && !i
     </DashboardLayout>;
   }
   
-  // Super admins should never be blocked from accessing this page
-  if (!isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
+  // BYPASS TEMPORAL: Super admins should never be blocked from accessing this page
+  if (user?.email !== 'aiagentsdevelopers@gmail.com' && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
     return <DashboardLayout>
       <Alert variant="destructive" className="border-red-200 bg-red-50">
         <AlertTriangle className="h-4 w-4" />
@@ -62,7 +62,7 @@ if (user && user.email !== 'aiagentsdevelopers@gmail.com' && !isSuperAdmin && !i
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               Team Management 👥
             </h1>
-            {isSuperAdmin && (
+            {(isSuperAdmin || user?.email === 'aiagentsdevelopers@gmail.com') && (
               <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200 flex items-center gap-1">
                 <Crown className="h-3 w-3" />
                 SUPER ADMIN
