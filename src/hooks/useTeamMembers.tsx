@@ -60,8 +60,8 @@ export function useTeamMembers(companyId?: string) {
           console.log('🔍 [SUPER ADMIN] Fetching all users from auth.users');
           
           const { data: profilesData, error: profilesError } = await supabase
-  .from('profiles')
-  .select('id, email, full_name, created_at, updated_at')
+            .from('auth.users')
+            .select('id, email, created_at, email_confirmed_at, last_sign_in_at')
             .order('created_at', { ascending: false });
 
           if (profilesError) {
@@ -70,8 +70,10 @@ export function useTeamMembers(companyId?: string) {
           }
 
           console.log(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users`);
+console.log('🔍 [SUPER ADMIN] Sample user data:', profilesData?.[0]); // ⬅️ AGREGAR AQUÍ
+console.log('🔍 [SUPER ADMIN] All user data:', profilesData); // ⬅️ Y TAMBIÉN AQUÍ
 
-          return profilesData?.map(profile => ({
+return profilesData?.map(profile => ({
             id: profile.id,
             email: profile.email || 'No email',
             full_name: profile.email?.split('@')[0] || 'User',
