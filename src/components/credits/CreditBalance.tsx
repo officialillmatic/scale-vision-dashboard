@@ -34,6 +34,18 @@ interface CreditBalanceProps {
 
 export function CreditBalance({ onRequestRecharge, showActions = true }: CreditBalanceProps) {
   const { user } = useAuth();
+  
+  // 🔍 LOGS DE DEBUG AGREGADOS
+  console.log('=== CREDITBALANCE DEBUG ===');
+  console.log('Full user object:', user);
+  console.log('User ID:', user?.id);
+  console.log('User email:', user?.email);
+  console.log('User role:', user?.role);
+  console.log('User metadata:', user?.user_metadata);
+  console.log('User app_metadata:', user?.app_metadata);
+  console.log('Is super admin check:', user?.role === 'super_admin');
+  console.log('================================');
+  
   const [credits, setCredits] = useState<UserCredit | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,16 +138,18 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       setRefreshing(true);
       setError(null);
       
-      console.log('Fetching credits for user:', user.id);
+      console.log('🔍 Fetching credits for user:', user.id);
+      console.log('🔍 About to call supabase.rpc get_user_credits...');
       
       const { data, error: fetchError } = await supabase.rpc('get_user_credits', {
         target_user_id: user.id
       });
 
-      console.log('Credits fetch result:', { data, fetchError });
+      console.log('🔍 Credits fetch result:', { data, fetchError });
 
       if (fetchError) {
-        console.error('Error fetching user credits:', fetchError);
+        console.error('❌ Error fetching user credits:', fetchError);
+        console.error('❌ Error details:', fetchError.message, fetchError.code, fetchError.details);
         setError(`Error loading balance: ${fetchError.message}`);
       } else if (data) {
         setCredits({
@@ -146,9 +160,9 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
           is_blocked: data.is_blocked || false,
           updated_at: data.updated_at || new Date().toISOString()
         });
-        console.log('Credits loaded successfully:', data);
+        console.log('✅ Credits loaded successfully:', data);
       } else {
-        console.warn('No credit data returned from function');
+        console.warn('⚠️ No credit data returned from function');
         setCredits({
           id: '',
           current_balance: 0,
@@ -159,8 +173,9 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
         });
       }
     } catch (err: any) {
-      console.error('Unexpected error fetching credits:', err);
-      setError('Unexpected error occurred. Please try again.');
+      console.error('💥 Unexpected error fetching credits:', err);
+      console.error('💥 Error stack:', err.stack);
+      setError(`Unexpected error: ${err.message}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
