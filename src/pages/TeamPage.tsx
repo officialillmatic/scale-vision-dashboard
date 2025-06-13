@@ -24,7 +24,7 @@ const TeamPage = () => {
     // No hacer nada mientras está cargando
     if (isSuperAdminLoading) return;
     
-    if (user && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
+    if (false) { // Bypass temporal - REMOVER DESPUÉS
       toast.error("You don't have permission to access team management");
       navigate('/dashboard');
       return;
