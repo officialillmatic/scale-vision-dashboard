@@ -652,8 +652,7 @@ export default function CallsSimple() {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 4,  // ✅ CAMBIADO A 4 DECIMALES
-    maximumFractionDigits: 4,  // ✅ AGREGADO PARA CONSISTENCIA
+    minimumFractionDigits: 2, 
   }).format(amount);
 };
 
