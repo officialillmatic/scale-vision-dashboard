@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, CreditCard, AlertTriangle, Users } from "lucide-react";
+import { Phone, CreditCard } from "lucide-react";
 import { useRole } from "@/hooks/useRole.ts";
 
 const navigationItems = [
@@ -33,7 +33,6 @@ const navigationItems = [
     href: "/calls-simple",
     icon: () => <Phone className="h-6 w-6" />,
     label: "My Calls",
-    // 🔒 CAMBIO: Ocultar para super admin
     hiddenForSuperAdmin: true,
   },
   {
@@ -76,19 +75,6 @@ const superAdminNavigationItems = [
     href: "/admin/credits",
     icon: () => <CreditCard className="h-6 w-6" />,
     label: "Admin Credits",
-  },
-  // 🚨 NUEVAS PÁGINAS DE EMERGENCY - PARA TESTING
-  {
-    href: "/emergency-team",
-    icon: () => <Users className="h-6 w-6" />,
-    label: "🚨 Emergency Team",
-    isEmergency: true,
-  },
-  {
-    href: "/emergency-credits",
-    icon: () => <AlertTriangle className="h-6 w-6" />,
-    label: "🚨 Emergency Credits",
-    isEmergency: true,
   }
 ];
 
@@ -99,7 +85,7 @@ export function DashboardSidebar() {
   
   const collapsed = state === "collapsed";
 
-  // 🔒 CAMBIO: Filtrar items basado en permisos de super admin
+  // Filtrar items basado en permisos de super admin
   const filteredNavigationItems = navigationItems.filter(item => {
     // Si el item debe estar oculto para super admin Y el usuario tiene acceso de super admin, ocultarlo
     if (item.hiddenForSuperAdmin && can.superAdminAccess) {
@@ -110,7 +96,7 @@ export function DashboardSidebar() {
 
   // Build navigation items based on user permissions
   const allNavigationItems = [
-    ...filteredNavigationItems, // 🔒 CAMBIO: Usar items filtrados
+    ...filteredNavigationItems,
     // Add super admin items only if user has super admin access
     ...(can.superAdminAccess ? superAdminNavigationItems : [])
   ];
@@ -200,38 +186,26 @@ export function DashboardSidebar() {
                       "flex items-center rounded-xl w-full transition-all duration-200 group relative overflow-hidden font-medium",
                       // Mobile-friendly sizing and spacing
                       "py-3 px-4",
-                      // 🚨 ESTILO ESPECIAL PARA EMERGENCY ITEMS
-                      item.isEmergency 
-                        ? "bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 text-red-700 hover:from-red-100 hover:to-orange-100 hover:border-red-300"
-                        : location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))
-                          ? "bg-gradient-to-r from-brand-green/15 to-brand-green/5 text-brand-green font-semibold shadow-sm border border-brand-green/20" 
-                          : "hover:bg-gray-100/80 text-gray-700 hover:text-gray-900"
+                      // Estilo normal para todos los items
+                      location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))
+                        ? "bg-gradient-to-r from-brand-green/15 to-brand-green/5 text-brand-green font-semibold shadow-sm border border-brand-green/20" 
+                        : "hover:bg-gray-100/80 text-gray-700 hover:text-gray-900"
                     )}
                   >
                     <div className={cn(
                       "transition-transform duration-200 flex-shrink-0",
-                      // 🚨 ANIMACIÓN ESPECIAL PARA EMERGENCY
-                      item.isEmergency 
-                        ? "animate-pulse"
-                        : location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))
-                          ? "scale-110" 
-                          : "group-hover:scale-105"
+                      location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))
+                        ? "scale-110" 
+                        : "group-hover:scale-105"
                     )}>
                       <item.icon />
                     </div>
                     {!collapsed && (
-                      <span className={cn(
-                        "transition-all duration-200 ml-3 text-base sm:text-sm",
-                        // 🚨 ESTILO DE TEXTO PARA EMERGENCY
-                        item.isEmergency && "font-semibold"
-                      )}>
+                      <span className="transition-all duration-200 ml-3 text-base sm:text-sm">
                         {item.label}
                       </span>
                     )}
-                    {!collapsed && item.isEmergency && (
-                      <div className="absolute right-3 w-3 h-3 sm:w-2 sm:h-2 bg-red-500 rounded-full shadow-sm animate-pulse"></div>
-                    )}
-                    {!collapsed && !item.isEmergency && (location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))) && (
+                    {!collapsed && (location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))) && (
                       <div className="absolute right-3 w-3 h-3 sm:w-2 sm:h-2 bg-brand-green rounded-full shadow-sm"></div>
                     )}
                   </Link>
