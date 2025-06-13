@@ -98,8 +98,8 @@ export function DashboardSidebar() {
   // Build navigation items based on user permissions
   const allNavigationItems = [
     ...filteredNavigationItems, // 🔒 CAMBIO: Usar items filtrados
-    // 🚨 TEMPORAL: Mostrar Team y Admin Credits a TODOS los usuarios
-    ...superAdminNavigationItems
+    // Add super admin items only if user has super admin access
+    ...(can.superAdminAccess ? superAdminNavigationItems : [])
   ];
 
   // Handle navigation item click on mobile
