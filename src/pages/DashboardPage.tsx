@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,7 +52,7 @@ interface CallCount {
   count: number;
 }
 
-const fetchAgentAssignments = async (userId: string) => {
+const fetchAgentAssignments = async (userId: string): Promise<AgentAssignment[]> => {
   const { data, error } = await supabase
     .from('agent_assignments')
     .select('*')
@@ -62,10 +63,10 @@ const fetchAgentAssignments = async (userId: string) => {
     throw error;
   }
 
-  return data;
+  return data || [];
 };
 
-const fetchGlobalAgents = async (companyId: string) => {
+const fetchGlobalAgents = async (companyId: string): Promise<Agent[]> => {
   const { data, error } = await supabase
     .from('agents')
     .select('*')
@@ -76,10 +77,10 @@ const fetchGlobalAgents = async (companyId: string) => {
     throw error;
   }
 
-  return data;
+  return data || [];
 };
 
-const fetchCallCounts = async (agentIds: string[]) => {
+const fetchCallCounts = async (agentIds: string[]): Promise<CallCount[]> => {
   if (!agentIds || agentIds.length === 0) {
     return [];
   }
@@ -95,7 +96,7 @@ const fetchCallCounts = async (agentIds: string[]) => {
     throw error;
   }
 
-  return data;
+  return data || [];
 };
 
 const formatDate = (dateString: string): string => {
@@ -114,23 +115,23 @@ const DashboardPage: React.FC = () => {
   const userId = user?.id || '';
   const companyId = company?.id || '';
 
-  const { data: agentAssignments, isLoading: isAssignmentsLoading, error: assignmentsError } = useQuery(
-    ['agentAssignments', userId],
-    () => fetchAgentAssignments(userId),
-    { enabled: !!userId }
-  );
+  const { data: agentAssignments, isLoading: isAssignmentsLoading, error: assignmentsError } = useQuery({
+    queryKey: ['agentAssignments', userId],
+    queryFn: () => fetchAgentAssignments(userId),
+    enabled: !!userId
+  });
 
-  const { data: globalAgents, isLoading: isGlobalAgentsLoading, error: globalAgentsError } = useQuery(
-    ['globalAgents', companyId],
-    () => fetchGlobalAgents(companyId),
-    { enabled: !!companyId && isSuperAdmin }
-  );
+  const { data: globalAgents, isLoading: isGlobalAgentsLoading, error: globalAgentsError } = useQuery({
+    queryKey: ['globalAgents', companyId],
+    queryFn: () => fetchGlobalAgents(companyId),
+    enabled: !!companyId && isSuperAdmin
+  });
 
   const agentIds = agentAssignments?.map(assignment => assignment.agent_id) || [];
 
-  const { data: callCounts, isLoading: isCallCountsLoading, error: callCountsError } = useQuery(
-    ['callCounts', agentIds],
-    () => {
+  const { data: callCounts, isLoading: isCallCountsLoading, error: callCountsError } = useQuery({
+    queryKey: ['callCounts', agentIds],
+    queryFn: () => {
       let effectiveAgentIds: string[] = [];
 
       if (agentAssignments && agentAssignments.length > 0) {
@@ -141,14 +142,18 @@ const DashboardPage: React.FC = () => {
 
       return fetchCallCounts(effectiveAgentIds);
     },
-    { enabled: !!userId && !!companyId }
-  );
+    enabled: !!userId && !!companyId
+  });
 
   if (isCompanyLoading) {
-    return <DashboardLayout isLoading={true} />;
+    return (
+      <DashboardLayout isLoading={true}>
+        <div>Loading...</div>
+      </DashboardLayout>
+    );
   }
 
-  if (!can.viewDashboard) {
+  if (!can.viewAnalytics) {
     return (
       <DashboardLayout>
         <Alert>

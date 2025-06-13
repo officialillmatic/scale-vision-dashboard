@@ -11,7 +11,9 @@ export default function SuperAdminCreditsNew() {
 
   if (isLoading) {
     return (
-      <DashboardLayout isLoading={true} />
+      <DashboardLayout isLoading={true}>
+        <div>Loading...</div>
+      </DashboardLayout>
     );
   }
 
