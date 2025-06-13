@@ -25,6 +25,8 @@ import TeamPage from '@/pages/TeamPage';
 import ProfilePage from '@/pages/ProfilePage';
 import SupportPage from '@/pages/SupportPage';
 import AcceptInvitationPage from '@/pages/AcceptInvitationPage';
+import SuperAdminTeamNew from '@/pages/SuperAdminTeamNew';
+import SuperAdminCreditsNew from '@/pages/SuperAdminCreditsNew';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 const queryClient = new QueryClient();
@@ -140,6 +142,27 @@ function AppRoutes() {
             <ProtectedRoute>
               <SuperAdminRoute>
                 <TeamNew />
+              </SuperAdminRoute>
+            </ProtectedRoute>
+          } 
+        />
+        {/* New Super Admin Routes */}
+        <Route 
+          path="/super-admin/team" 
+          element={
+            <ProtectedRoute>
+              <SuperAdminRoute>
+                <SuperAdminTeamNew />
+              </SuperAdminRoute>
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/super-admin/credits" 
+          element={
+            <ProtectedRoute>
+              <SuperAdminRoute>
+                <SuperAdminCreditsNew />
               </SuperAdminRoute>
             </ProtectedRoute>
           } 
