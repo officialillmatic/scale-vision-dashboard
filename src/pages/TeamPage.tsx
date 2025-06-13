@@ -26,7 +26,7 @@ const TeamPage = () => {
     
     if (user && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
       toast.error("You don't have permission to access team management");
-      navigate('/dashboard');
+      
       return;
     }
   }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
