@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -31,6 +30,7 @@ interface Call {
   call_status: string;
   sentiment?: string;
   recording_url?: string;
+  agent_id?: string;
 }
 
 interface DashboardStats {
@@ -45,7 +45,16 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth(); // 🔒 CAMBIO DE SEGURIDAD: Usar usuario autenticado
+  const { user } = useAuth();
+  
+  // 🔍 DEBUG LOGS - Verificar usuario
+  console.log('=== DASHBOARD DEBUG ===');
+  console.log('User:', user);
+  console.log('User role:', user?.role);
+  console.log('User metadata role:', user?.user_metadata?.role);
+  console.log('Is super admin:', user?.user_metadata?.role === 'super_admin');
+  console.log('========================');
+  
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,12 +70,15 @@ export default function DashboardPage() {
   });
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
 
-  // 🔒 CAMBIO DE SEGURIDAD: Solo cargar datos si hay usuario autenticado
+  // ✅ VERIFICAR SI ES SUPER ADMIN
+  const isSuperAdmin = user?.user_metadata?.role === 'super_admin';
+
   useEffect(() => {
     if (user?.id) {
       fetchCallsData();
     }
   }, [user?.id]);
+
   // Load audio durations for better metrics
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
@@ -110,8 +122,8 @@ export default function DashboardPage() {
       minimumFractionDigits: 2,
     }).format(amount);
   };
+
   const fetchCallsData = async () => {
-    // 🔒 CAMBIO DE SEGURIDAD: Verificar que el usuario esté autenticado
     if (!user?.id) {
       setError("User not authenticated");
       setLoading(false);
@@ -122,44 +134,115 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
 
-      // 🔒 CAMBIO DE SEGURIDAD: Usar user.id en lugar del ID hardcodeado
-      const { data, error: fetchError } = await supabase
-        .from('calls')
-        .select('*')
-        .eq('user_id', user.id) // ⬅️ CAMBIO AQUÍ
-        .order('timestamp', { ascending: false });
+      console.log('🔍 Fetching calls data...');
+      console.log('🔍 Is super admin:', isSuperAdmin);
 
-      if (fetchError) {
-        setError(`Error: ${fetchError.message}`);
-        return;
+      let callsData;
+
+      if (isSuperAdmin) {
+        // 🌟 SUPER ADMIN: Ver TODAS las llamadas del sistema
+        console.log('🌟 Super Admin detected - fetching ALL calls');
+        
+        const { data, error: fetchError } = await supabase
+          .from('calls')
+          .select('*')
+          .order('timestamp', { ascending: false });
+
+        if (fetchError) {
+          console.error('❌ Error fetching calls for super admin:', fetchError);
+          setError(`Error: ${fetchError.message}`);
+          return;
+        }
+
+        callsData = data || [];
+        console.log('✅ Super admin calls loaded:', callsData.length);
+
+      } else {
+        // 👤 USUARIO NORMAL: Ver solo llamadas de sus agentes asignados
+        console.log('👤 Regular user detected - fetching user calls');
+
+        // Primero obtener agentes asignados al usuario
+        const { data: userAgents, error: agentsError } = await supabase
+          .from('user_agent_assignments')
+          .select(`
+            agent_id,
+            agents!inner (
+              id,
+              retell_agent_id
+            )
+          `)
+          .eq('user_id', user.id)
+          .eq('is_primary', true);
+
+        if (agentsError) {
+          console.error('❌ Error fetching user agents:', agentsError);
+          setError(`Error fetching agents: ${agentsError.message}`);
+          return;
+        }
+
+        if (!userAgents || userAgents.length === 0) {
+          console.log('⚠️ No agents assigned to user');
+          setCalls([]);
+          setStats({
+            totalCalls: 0,
+            totalCost: 0,
+            totalDuration: 0,
+            avgDuration: 0,
+            successRate: 0,
+            positiveRatio: 0,
+            callsToday: 0,
+            costToday: 0
+          });
+          setLoading(false);
+          return;
+        }
+
+        const userAgentIds = userAgents.map(assignment => assignment.agents.id);
+        console.log('👤 User agent IDs:', userAgentIds);
+
+        // Obtener llamadas de esos agentes
+        const { data, error: fetchError } = await supabase
+          .from('calls')
+          .select('*')
+          .in('agent_id', userAgentIds)
+          .order('timestamp', { ascending: false });
+
+        if (fetchError) {
+          console.error('❌ Error fetching calls for user:', fetchError);
+          setError(`Error: ${fetchError.message}`);
+          return;
+        }
+
+        callsData = data || [];
+        console.log('✅ User calls loaded:', callsData.length);
       }
 
-      setCalls(data || []);
+      setCalls(callsData);
 
       // Load audio durations for recent calls
-      if (data && data.length > 0) {
-        const recentCalls = data.slice(0, 10).filter(call => call.recording_url);
+      if (callsData && callsData.length > 0) {
+        const recentCalls = callsData.slice(0, 10).filter(call => call.recording_url);
         await Promise.all(recentCalls.map(call => loadAudioDuration(call)));
       }
 
       // Calculate comprehensive stats
-      if (data && data.length > 0) {
+      if (callsData && callsData.length > 0) {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        const totalCalls = data.length;
-        const totalCost = data.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
+        const totalCalls = callsData.length;
+        const totalCost = callsData.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+        const totalDuration = callsData.reduce((sum, call) => sum + getCallDuration(call), 0);
         const avgDuration = totalDuration / totalCalls;
         
-        const completedCalls = data.filter(call => call.call_status === 'completed' || call.call_status === 'ended').length;
+        const completedCalls = callsData.filter(call => call.call_status === 'completed' || call.call_status === 'ended').length;
         const successRate = (completedCalls / totalCalls) * 100;
         
-        const callsWithSentiment = data.filter(call => call.sentiment);
-        const positiveCalls = data.filter(call => call.sentiment === 'positive').length;
+        const callsWithSentiment = callsData.filter(call => call.sentiment);
+        const positiveCalls = callsData.filter(call => call.sentiment === 'positive').length;
         const positiveRatio = callsWithSentiment.length > 0 ? (positiveCalls / callsWithSentiment.length) * 100 : 0;
         
-        const todayCalls = data.filter(call => new Date(call.timestamp) >= today);
+        const todayCalls = callsData.filter(call => new Date(call.timestamp) >= today);
         const callsToday = todayCalls.length;
         const costToday = todayCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
 
@@ -173,14 +256,35 @@ export default function DashboardPage() {
           callsToday,
           costToday
         });
+
+        console.log('✅ Stats calculated:', {
+          totalCalls,
+          totalCost,
+          completedCalls,
+          successRate: successRate.toFixed(1) + '%'
+        });
+      } else {
+        // No calls found
+        setStats({
+          totalCalls: 0,
+          totalCost: 0,
+          totalDuration: 0,
+          avgDuration: 0,
+          successRate: 0,
+          positiveRatio: 0,
+          callsToday: 0,
+          costToday: 0
+        });
       }
 
     } catch (err: any) {
+      console.error('💥 Exception fetching calls data:', err);
       setError(`Exception: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
+
   // Prepare chart data
   const getChartData = () => {
     if (!calls.length) return [];
@@ -223,7 +327,7 @@ export default function DashboardPage() {
 
   const chartData = getChartData();
   const sentimentData = getSentimentData();
-  // 🔒 CAMBIO DE SEGURIDAD: Verificar autenticación antes de mostrar contenido
+
   if (!user) {
     return (
       <DashboardLayout>
@@ -263,14 +367,26 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">📊 Dashboard</h1>
-            <p className="text-gray-600 text-sm sm:text-base">Real-time analytics for your AI call system</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              📊 Dashboard {isSuperAdmin && <span className="text-blue-600">(Super Admin)</span>}
+            </h1>
+            <p className="text-gray-600 text-sm sm:text-base">
+              {isSuperAdmin 
+                ? "System-wide analytics for all users and agents" 
+                : "Real-time analytics for your AI call system"
+              }
+            </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs sm:text-sm">
               <Activity className="w-3 h-3 mr-1" />
               Live Data
             </Badge>
+            {isSuperAdmin && (
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs sm:text-sm">
+                🔒 Admin View
+              </Badge>
+            )}
             <Button
               onClick={fetchCallsData}
               disabled={loading}
