@@ -15,7 +15,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   company: Company | null;
-  userRole: string | null;
+  userRole?: string | null;
   loading: boolean;
   isLoading: boolean;
   isCompanyLoading: boolean;
@@ -28,7 +28,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Super admin user ID
+// Super admin configuration
 const SUPER_ADMIN_ID = '53392e76-008c-4e46-8443-a6ebd6bd4504';
 const SUPER_ADMIN_EMAIL = 'aiagentsdevelopers@gmail.com';
 
@@ -46,6 +46,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return currentUser.id === SUPER_ADMIN_ID || currentUser.email === SUPER_ADMIN_EMAIL;
   };
 
+  // Create virtual company for super admin
+  const createSuperAdminCompany = (userId: string): Company => {
+    return {
+      id: 'super-admin-virtual-company',
+      name: 'Super Admin Global Access',
+      owner_id: userId,
+      logo_url: undefined,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  };
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -55,12 +67,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         if (isSuperAdmin(session.user)) {
-          console.log('🔥 [AUTH] Super admin detected, skipping company fetch');
+          console.log('🔥 [AUTH] Super admin detected - setting virtual company');
           setUserRole('super_admin');
-          setCompany(null); // Super admins don't need company
-          setLoading(false); // ✅ Important: Set loading to false for super admins
+          setCompany(createSuperAdminCompany(session.user.id));
+          setLoading(false); // Super admin ready immediately
         } else {
-          console.log('🔥 [AUTH] Regular user, fetching company...');
+          console.log('🔥 [AUTH] Regular user, fetching real company...');
           fetchUserCompany(session.user.id);
         }
       } else {
@@ -78,10 +90,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         if (isSuperAdmin(session.user)) {
-          console.log('🔥 [AUTH] Super admin login detected');
+          console.log('🔥 [AUTH] Super admin login - setting virtual company');
           setUserRole('super_admin');
-          setCompany(null);
-          setLoading(false); // ✅ Important: Set loading to false immediately
+          setCompany(createSuperAdminCompany(session.user.id));
+          setLoading(false); // Immediate access for super admin
         } else {
           console.log('🔥 [AUTH] Regular user login, fetching company...');
           fetchUserCompany(session.user.id);
@@ -150,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // If no company found, create a default one for regular users
+      // Create default company for regular users
       console.log('⚠️ [AUTH] No company found, creating default company...');
       
       const { data: newCompany, error: createError } = await supabase
@@ -178,7 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserRole('member');
     } finally {
       setIsCompanyLoading(false);
-      setLoading(false); // ✅ Always set loading to false
+      setLoading(false);
     }
   };
 
@@ -230,6 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: user?.id,
     isSuperAdmin: isSuperAdmin(user),
     company: company?.id,
+    companyName: company?.name,
     userRole,
     loading,
     isCompanyLoading,
