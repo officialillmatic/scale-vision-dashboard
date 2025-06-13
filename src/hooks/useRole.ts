@@ -57,8 +57,15 @@ export const useRole = () => {
   };
   
   const can = useMemo(() => {
-    // Early return for loading states
-    if (isCompanyLoading || isSuperAdminLoading) {
+    console.log("🔥 [USE_ROLE] Computing permissions...");
+    console.log("🔥 [USE_ROLE] isSuperAdmin:", isSuperAdmin);
+    console.log("🔥 [USE_ROLE] isCompanyOwner:", isCompanyOwner);
+    console.log("🔥 [USE_ROLE] isCompanyLoading:", isCompanyLoading);
+    console.log("🔥 [USE_ROLE] isSuperAdminLoading:", isSuperAdminLoading);
+    
+    // Early return for loading states (BUT NOT FOR SUPER ADMINS)
+    if ((isCompanyLoading || isSuperAdminLoading) && !isSuperAdmin) {
+      console.log("🔥 [USE_ROLE] Still loading and not super admin, returning limited permissions");
       return {
         manageTeam: false,
         manageAgents: false,
@@ -80,7 +87,7 @@ export const useRole = () => {
       };
     }
     
-    // SUPER ADMINS GET ACCESS EVEN WITHOUT COMPANY
+    // SUPER ADMINS GET ACCESS EVEN WITHOUT COMPANY AND EVEN WHILE LOADING
     if (isSuperAdmin) {
       console.log("🔥 [USE_ROLE] Super admin detected, granting full access");
       return {
@@ -100,9 +107,11 @@ export const useRole = () => {
         inviteUsers: true,
         removeUsers: true,
         sendInvitations: true,
-        superAdminAccess: true
+        superAdminAccess: true // ← ESTO DEBE SER TRUE
       };
     }
+    
+    console.log("🔥 [USE_ROLE] Not super admin, computing regular permissions");
     
     return {
       // Team and agent management - Super admins and company owners get full access
@@ -137,7 +146,7 @@ export const useRole = () => {
   }, [isSuperAdmin, isCompanyOwner, user, userRole, company, isCompanyLoading, isSuperAdminLoading, checkRole]);
   
   // Debug logging
-  console.log("🎯 [USE_ROLE] Final state:", {
+  console.log("🔥 [USE_ROLE] Final state:", {
     isSuperAdmin,
     isCompanyOwner,
     superAdminAccess: can.superAdminAccess,
