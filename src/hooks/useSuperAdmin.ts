@@ -9,39 +9,41 @@ const SUPER_ADMIN_EMAILS = [
 export const useSuperAdmin = () => {
   const [user, setUser] = useState(null)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-  const [isLoading, setIsLoading] = useState(true) // ← MANTENER LOADING HASTA ESTAR SEGURO
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    let mounted = true // Evitar race conditions
+
+    const checkSuperAdmin = (user) => {
+      if (!user || !user.email) return false
+      
+      const isSuperFromMetadata = user.user_metadata?.role === 'super_admin'
+      const isSuperFromRawMetadata = user.raw_user_meta_data?.role === 'super_admin'
+      const isSuperFromEmail = SUPER_ADMIN_EMAILS.includes(user.email)
+      
+      return isSuperFromMetadata || isSuperFromRawMetadata || isSuperFromEmail
+    }
+
     const getUser = async () => {
       try {
         const { data: { user }, error } = await supabase.auth.getUser()
         
-        console.log('🔧 useSuperAdmin FIXED - Checking user:', user?.email)
+        console.log('🔧 useSuperAdmin STABLE - Checking user:', user?.email)
         
-        setUser(user)
-        
-        if (user && user.email) { // ← VERIFICAR QUE USER Y EMAIL EXISTAN
-          const isSuperFromMetadata = user.user_metadata?.role === 'super_admin'
-          const isSuperFromRawMetadata = user.raw_user_meta_data?.role === 'super_admin'
-          const isSuperFromEmail = SUPER_ADMIN_EMAILS.includes(user.email)
+        if (mounted) {
+          setUser(user)
+          const isSuper = checkSuperAdmin(user)
+          setIsSuperAdmin(isSuper)
+          setIsLoading(false)
           
-          const finalIsSuper = isSuperFromMetadata || isSuperFromRawMetadata || isSuperFromEmail
-          
-          console.log('🔧 useSuperAdmin FIXED - Final Result:', finalIsSuper)
-          
-          setIsSuperAdmin(finalIsSuper)
-        } else {
-          console.log('🔧 useSuperAdmin FIXED - No user yet, waiting...')
-          setIsSuperAdmin(false)
+          console.log('🔧 useSuperAdmin STABLE - Final Result:', isSuper)
         }
         
       } catch (error) {
-        console.error('🔧 useSuperAdmin FIXED - Error:', error)
-        setUser(null)
-        setIsSuperAdmin(false)
-      } finally {
-        // SOLO dejar de cargar si tenemos usuario O si es definitivamente null
-        if (user !== undefined) {
+        console.error('🔧 useSuperAdmin STABLE - Error:', error)
+        if (mounted) {
+          setUser(null)
+          setIsSuperAdmin(false)
           setIsLoading(false)
         }
       }
@@ -51,26 +53,27 @@ export const useSuperAdmin = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('🔧 useSuperAdmin FIXED - Auth change:', event, session?.user?.email)
+        console.log('🔧 useSuperAdmin STABLE - Auth change:', event, session?.user?.email)
         
-        if (session?.user && session.user.email) {
-          setUser(session.user)
-          const finalIsSuper = 
-            session.user.user_metadata?.role === 'super_admin' ||
-            session.user.raw_user_meta_data?.role === 'super_admin' ||
-            SUPER_ADMIN_EMAILS.includes(session.user.email)
-          setIsSuperAdmin(finalIsSuper)
-          setIsLoading(false) // ← AHORA SÍ dejar de cargar
-        } else if (session === null) {
-          // Usuario definitivamente no autenticado
-          setUser(null)
-          setIsSuperAdmin(false)
-          setIsLoading(false)
+        if (mounted) {
+          if (session?.user) {
+            setUser(session.user)
+            const isSuper = checkSuperAdmin(session.user)
+            setIsSuperAdmin(isSuper)
+            setIsLoading(false)
+          } else {
+            setUser(null)
+            setIsSuperAdmin(false)
+            setIsLoading(false)
+          }
         }
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   return { 
