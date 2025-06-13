@@ -63,109 +63,18 @@ export function SuperAdminCreditPanel() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      console.log('🔥 [ADMIN] Fetching users for super admin...');
-      
-      // ARREGLO: Usar consulta directa a las tablas auth.users y user_credits
-      // Primero obtenemos todos los usuarios
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-      
-      if (authError) {
-        console.error('❌ [ADMIN] Error fetching auth users:', authError);
-        // Fallback: intentar con tabla profiles si exists
-        const { data: profileUsers, error: profileError } = await supabase
-          .from('profiles')
-          .select('*');
-        
-        if (profileError) {
-          throw new Error('Unable to fetch users. Please check permissions.');
-        }
-        
-        // Procesar usuarios desde profiles
-        const processedUsers = await Promise.all(
-          (profileUsers || []).map(async (user: any) => {
-            // Obtener créditos del usuario
-            const { data: credits } = await supabase
-              .from('user_credits')
-              .select('*')
-              .eq('user_id', user.id)
-              .single();
-            
-            // Contar transacciones recientes
-            const { count: transactionCount } = await supabase
-              .from('credit_transactions')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', user.id);
-            
-            return {
-              user_id: user.id,
-              email: user.email || 'No email',
-              name: user.name || user.full_name || '',
-              current_balance: credits?.current_balance || 0,
-              warning_threshold: credits?.warning_threshold || 10,
-              critical_threshold: credits?.critical_threshold || 5,
-              is_blocked: credits?.is_blocked || false,
-              balance_status: getBalanceStatus(credits?.current_balance || 0, credits?.warning_threshold || 10, credits?.critical_threshold || 5),
-              recent_transactions_count: transactionCount || 0,
-              balance_updated_at: credits?.updated_at || new Date().toISOString(),
-              user_created_at: user.created_at || new Date().toISOString()
-            };
-          })
-        );
-        
-        console.log('✅ [ADMIN] Users fetched from profiles:', processedUsers.length);
-        setUsers(processedUsers);
-        return;
-      }
-      
-      // Procesar usuarios desde auth.users (método preferido)
-      const processedUsers = await Promise.all(
-        (authUsers.users || []).map(async (user: any) => {
-          // Obtener créditos del usuario
-          const { data: credits } = await supabase
-            .from('user_credits')
-            .select('*')
-            .eq('user_id', user.id)
-            .single();
-          
-          // Contar transacciones recientes
-          const { count: transactionCount } = await supabase
-            .from('credit_transactions')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id);
-          
-          return {
-            user_id: user.id,
-            email: user.email || 'No email',
-            name: user.user_metadata?.name || user.user_metadata?.full_name || '',
-            current_balance: credits?.current_balance || 0,
-            warning_threshold: credits?.warning_threshold || 10,
-            critical_threshold: credits?.critical_threshold || 5,
-            is_blocked: credits?.is_blocked || false,
-            balance_status: getBalanceStatus(credits?.current_balance || 0, credits?.warning_threshold || 10, credits?.critical_threshold || 5),
-            recent_transactions_count: transactionCount || 0,
-            balance_updated_at: credits?.updated_at || new Date().toISOString(),
-            user_created_at: user.created_at || new Date().toISOString()
-          };
-        })
-      );
-      
-      console.log('✅ [ADMIN] Users processed successfully:', processedUsers.length);
-      setUsers(processedUsers);
-      
+      const { data, error } = await supabase
+        .from('admin_user_credits_view')
+        .select('*')
+        .order('email');
+
+      if (error) throw error;
+      setUsers(data || []);
     } catch (error: any) {
-      console.error('❌ [ADMIN] Error in fetchUsers:', error);
       toast.error(`Failed to fetch users: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Función auxiliar para determinar el estado del balance
-  const getBalanceStatus = (balance: number, warningThreshold: number, criticalThreshold: number): string => {
-    if (balance <= 0) return 'blocked';
-    if (balance <= criticalThreshold) return 'critical';
-    if (balance <= warningThreshold) return 'warning';
-    return 'normal';
   };
 
   const filterUsers = () => {
