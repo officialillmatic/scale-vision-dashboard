@@ -33,6 +33,8 @@ const navigationItems = [
     href: "/calls-simple",
     icon: () => <Phone className="h-6 w-6" />,
     label: "My Calls",
+    // 🔒 CAMBIO: Ocultar para super admin
+    hiddenForSuperAdmin: true,
   },
   {
     href: "/analytics",
@@ -84,9 +86,18 @@ export function DashboardSidebar() {
   
   const collapsed = state === "collapsed";
 
+  // 🔒 CAMBIO: Filtrar items basado en permisos de super admin
+  const filteredNavigationItems = navigationItems.filter(item => {
+    // Si el item debe estar oculto para super admin Y el usuario tiene acceso de super admin, ocultarlo
+    if (item.hiddenForSuperAdmin && can.superAdminAccess) {
+      return false;
+    }
+    return true;
+  });
+
   // Build navigation items based on user permissions
   const allNavigationItems = [
-    ...navigationItems,
+    ...filteredNavigationItems, // 🔒 CAMBIO: Usar items filtrados
     // Add super admin items only if user has super admin access
     ...(can.superAdminAccess ? superAdminNavigationItems : [])
   ];
