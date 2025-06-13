@@ -19,8 +19,7 @@ const TeamPage = () => {
   const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
   const navigate = useNavigate();
   
-  // 🚨 TEMPORAL: Sin verificaciones de permisos
-  /*
+  // Super admins should have unrestricted access - skip redirection
   useEffect(() => {
     // No hacer nada mientras está cargando
     if (isSuperAdminLoading) return;
@@ -31,7 +30,6 @@ const TeamPage = () => {
       return;
     }
   }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
-  */
   
   // Mostrar loading mientras verifica permisos
   if (isSuperAdminLoading) {
@@ -42,8 +40,7 @@ const TeamPage = () => {
     </DashboardLayout>;
   }
   
-  // 🚨 TEMPORAL: Sin verificación de acceso
-  /*
+  // Super admins should never be blocked from accessing this page
   if (!isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
     return <DashboardLayout>
       <Alert variant="destructive" className="border-red-200 bg-red-50">
@@ -54,7 +51,6 @@ const TeamPage = () => {
       </Alert>
     </DashboardLayout>;
   }
-  */
   
   return (
     <DashboardLayout>
@@ -73,10 +69,6 @@ const TeamPage = () => {
             )}
             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
               Team Suite
-            </Badge>
-            {/* 🚨 TEMPORAL: Indicador de acceso sin restricciones */}
-            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">
-              🚨 TEMPORAL: Sin restricciones
             </Badge>
           </div>
           <p className="text-lg text-gray-600 font-medium">
