@@ -103,20 +103,20 @@ export function SuperAdminCreditPanel() {
           }
 
           // Transform fallback data to match expected format
-          const transformedData = fallbackData?.map(item => ({
-            user_id: item.user_id,
-            email: item.profiles?.[0]?.email || 'No email',
-name: item.profiles?.[0]?.name || 'No name',
-            current_balance: item.current_balance || 0,
-            warning_threshold: item.warning_threshold || 10,
-            critical_threshold: item.critical_threshold || 5,
-            is_blocked: item.is_blocked || false,
-            balance_status: item.current_balance <= (item.critical_threshold || 5) ? 'critical' : 
-                           item.current_balance <= (item.warning_threshold || 10) ? 'warning' : 'normal',
-            recent_transactions_count: 0,
-            balance_updated_at: item.updated_at,
-            user_created_at: item.created_at
-          })) || [];
+const transformedData = fallbackData?.map(item => ({
+  user_id: item.user_id,
+  email: item.profiles?.[0]?.email || 'No email',        // ⬅️ CAMBIO AQUÍ
+  name: item.profiles?.[0]?.name || 'No name',           // ⬅️ CAMBIO AQUÍ
+  current_balance: item.current_balance || 0,
+  warning_threshold: item.warning_threshold || 10,
+  critical_threshold: item.critical_threshold || 5,
+  is_blocked: item.is_blocked || false,
+  balance_status: item.current_balance <= (item.critical_threshold || 5) ? 'critical' : 
+                 item.current_balance <= (item.warning_threshold || 10) ? 'warning' : 'normal',
+  recent_transactions_count: 0,
+  balance_updated_at: item.updated_at,
+  user_created_at: item.created_at
+})) || [];
 
           console.log('✅ [SuperAdminCreditPanel] Using fallback data:', transformedData.length);
           setUsers(transformedData);
