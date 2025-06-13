@@ -104,20 +104,23 @@ export function SuperAdminCreditPanel() {
           }
 
           // Transform fallback data to match expected format
-          const transformedData = fallbackData?.map(item => ({
-            user_id: item.user_id,
-            email: Array.isArray(item.profiles) ? item.profiles[0]?.email || 'No email' : item.profiles?.email || 'No email',
-            name: Array.isArray(item.profiles) ? item.profiles[0]?.name || 'No name' : item.profiles?.name || 'No name',
-            current_balance: item.current_balance || 0,
-            warning_threshold: item.warning_threshold || 10,
-            critical_threshold: item.critical_threshold || 5,
-            is_blocked: item.is_blocked || false,
-            balance_status: item.current_balance <= (item.critical_threshold || 5) ? 'critical' : 
-                           item.current_balance <= (item.warning_threshold || 10) ? 'warning' : 'normal',
-            recent_transactions_count: 0,
-            balance_updated_at: item.updated_at,
-            user_created_at: item.created_at
-          })) || [];
+          const transformedData = fallbackData?.map(item => {
+            const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
+            return {
+              user_id: item.user_id,
+              email: profile?.email || 'No email',
+              name: profile?.name || 'No name',
+              current_balance: item.current_balance || 0,
+              warning_threshold: item.warning_threshold || 10,
+              critical_threshold: item.critical_threshold || 5,
+              is_blocked: item.is_blocked || false,
+              balance_status: item.current_balance <= (item.critical_threshold || 5) ? 'critical' : 
+                             item.current_balance <= (item.warning_threshold || 10) ? 'warning' : 'normal',
+              recent_transactions_count: 0,
+              balance_updated_at: item.updated_at,
+              user_created_at: item.created_at
+            };
+          }) || [];
 
           console.log('✅ [SuperAdminCreditPanel] Using fallback data:', transformedData.length);
           setUsers(transformedData);
@@ -330,6 +333,7 @@ export function SuperAdminCreditPanel() {
               onSelectAll={handleSelectAll}
               onAdjustCredit={handleAdjustCredit}
               onViewTransactions={handleViewTransactions}
+              getStatusBadgeColor={getStatusBadgeColor}
             />
           </CardContent>
         </Card>
@@ -338,7 +342,7 @@ export function SuperAdminCreditPanel() {
         {showAdjustmentModal && selectedUserId && (
           <CreditAdjustmentModal
             userId={selectedUserId}
-            isOpen={showAdjustmentModal}
+            open={showAdjustmentModal}
             onClose={() => setShowAdjustmentModal(false)}
             onSuccess={fetchUsers}
           />
@@ -346,8 +350,8 @@ export function SuperAdminCreditPanel() {
 
         {showBulkModal && (
           <BulkCreditModal
-            userIds={selectedUsers}
-            isOpen={showBulkModal}
+            selectedUserIds={selectedUsers}
+            open={showBulkModal}
             onClose={() => setShowBulkModal(false)}
             onSuccess={fetchUsers}
           />
@@ -356,7 +360,7 @@ export function SuperAdminCreditPanel() {
         {showTransactionModal && selectedUserId && (
           <TransactionHistoryModal
             userId={selectedUserId}
-            isOpen={showTransactionModal}
+            open={showTransactionModal}
             onClose={() => setShowTransactionModal(false)}
           />
         )}

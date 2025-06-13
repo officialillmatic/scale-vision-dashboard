@@ -36,7 +36,7 @@ interface UserCreditsListProps {
   onSelectAll: (selected: boolean) => void;
   onAdjustCredit: (userId: string) => void;
   onViewTransactions: (userId: string) => void;
-  getStatusBadgeColor: (status: string) => string;
+  getStatusBadgeColor?: (status: string) => string;
 }
 
 export function UserCreditsList({
@@ -49,6 +49,19 @@ export function UserCreditsList({
   onViewTransactions,
   getStatusBadgeColor
 }: UserCreditsListProps) {
+  
+  const defaultGetStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'blocked': return 'destructive';
+      case 'critical': return 'destructive';
+      case 'warning': return 'secondary';
+      case 'normal': return 'default';
+      default: return 'default';
+    }
+  };
+
+  const getBadgeColor = getStatusBadgeColor || defaultGetStatusBadgeColor;
+
   if (loading) {
     return (
       <Card>
@@ -119,7 +132,7 @@ export function UserCreditsList({
                   {user.name && (
                     <span className="text-xs text-gray-500">({user.name})</span>
                   )}
-                  <Badge variant={getStatusBadgeColor(user.balance_status) as any}>
+                  <Badge variant={getBadgeColor(user.balance_status) as any}>
                     {user.balance_status}
                   </Badge>
                   {user.is_blocked && (
