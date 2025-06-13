@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Phone, CreditCard } from "lucide-react";
-import { useRole } from "@/hooks/useRole";
+import { useRole } from "@/hooks/useRole.ts";
 
 const navigationItems = [
   {
