@@ -55,7 +55,7 @@ export function useTeamMembers(companyId?: string) {
         console.log('🔍 [DEBUG] IDs match:', user?.id === '53392e76-008c-4e46-8443-a6ebd6bd4504');
         
         // For super admins - HARDCODED SECURITY CHECK
-        if (isSuperAdmin && user?.id === '53392e76-008c-4e46-8443-a6ebd6bd4504') {
+        if (isSuperAdmin) {
           console.log('🔒 [SECURITY] Double-checking super admin status...');
           
           // VERIFICACIÓN ADICIONAL DE SEGURIDAD
