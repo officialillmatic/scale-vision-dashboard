@@ -71,14 +71,15 @@ export const RoleCheck: React.FC<RoleCheckProps> = ({
   }
   
   const hasPermission = () => {
-    // 🚀 LÓGICA CORREGIDA: Super admin siempre tiene acceso a todo
-    if (isSuperAdmin) {
+    // LÓGICA ORIGINAL (BACKUP)
+    // Super admin always has all permissions except for super admin only checks
+    if (isSuperAdmin && !superAdminOnly) {
       return true;
     }
     
-    // Si no es super admin pero es superAdminOnly, denegar acceso
+    // Super admin only check - only super admin can access
     if (superAdminOnly) {
-      return false;
+      return isSuperAdmin;
     }
     
     // Company owner always has admin permissions (except super admin only)
