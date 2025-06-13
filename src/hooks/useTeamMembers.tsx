@@ -54,25 +54,9 @@ export function useTeamMembers(companyId?: string) {
         console.log('🔍 [DEBUG] Expected ID:', '53392e76-008c-4e46-8443-a6ebd6bd4504');
         console.log('🔍 [DEBUG] IDs match:', user?.id === '53392e76-008c-4e46-8443-a6ebd6bd4504');
         
-        // For super admins - HARDCODED SECURITY CHECK
+        // For super admins - VERIFICACIÓN CORREGIDA
         if (isSuperAdmin) {
-          console.log('🔒 [SECURITY] Double-checking super admin status...');
-          
-          // VERIFICACIÓN DIRECTA - Sin consulta adicional a super_admins
-// const { data: superAdminCheck } = await supabase
-//   .from('super_admins')
-//   .select('user_id')
-//   .eq('user_id', user.id)
-//   .single();
-//   
-// if (!superAdminCheck) {
-//   console.log('🚫 [SECURITY] Super admin verification failed, restricting access');
-//   return [];
-// }
-
-console.log('✅ [SECURITY] Super admin verified by hook, proceeding with full access');
-          
-          console.log('✅ [SECURITY] Super admin verified, proceeding with full access');
+          console.log('✅ [SECURITY] Super admin verified by hook, proceeding with full access');
           console.log('🔍 [SUPER ADMIN] Fetching all users from auth.users');
           
           const { data: profilesData, error: profilesError } = await supabase
