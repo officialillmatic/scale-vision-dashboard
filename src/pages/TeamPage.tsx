@@ -24,11 +24,12 @@ const TeamPage = () => {
     // No hacer nada mientras está cargando
     if (isSuperAdminLoading) return;
     
-    if (false) { // Bypass temporal - REMOVER DESPUÉS
-      toast.error("You don't have permission to access team management");
-      navigate('/dashboard');
-      return;
-    }
+    // BYPASS TEMPORAL PARA aiagentsdevelopers@gmail.com
+if (user && user.email !== 'aiagentsdevelopers@gmail.com' && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
+  toast.error("You don't have permission to access team management");
+  navigate('/dashboard');
+  return;
+}
   }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
   
   // Mostrar loading mientras verifica permisos
