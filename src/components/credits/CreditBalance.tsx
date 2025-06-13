@@ -55,7 +55,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   const { agents, isLoadingAgents } = useAgents();
 
   // ✅ NUEVO: Verificación especial para super admin
-  if (user?.role === 'super_admin') {
+  if (user?.user_metadata?.role === 'super_admin') {
     return (
       <Card className="border border-black bg-blue-50 rounded-xl shadow-sm">
         <CardContent className="p-6">
