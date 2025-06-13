@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
-// 🚨 SOLUCIÓN: Usar el cliente supabase directo en lugar de auth-helpers
 import { supabase } from '@/integrations/supabase/client'
 
-// 🚨 SOLUCIÓN: Usar la misma lógica que funciona en emergency
+// 🚨 USAR LA MISMA LÓGICA QUE FUNCIONA EN EMERGENCY
 const SUPER_ADMIN_EMAILS = [
   'aiagentsdevelopers@gmail.com',
   'produpublicol@gmail.com'
@@ -14,14 +13,11 @@ export const useSuperAdmin = () => {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // 🔧 Obtener usuario directamente de supabase
     const getUser = async () => {
       try {
         const { data: { user }, error } = await supabase.auth.getUser()
         
-        console.log('🔍 useSuperAdmin - Checking user:', user?.email)
-        console.log('🔍 useSuperAdmin - User metadata:', user?.user_metadata)
-        console.log('🔍 useSuperAdmin - Raw metadata:', user?.raw_user_meta_data)
+        console.log('🔧 useSuperAdmin FIXED - Checking user:', user?.email)
         
         setUser(user)
         
@@ -33,18 +29,15 @@ export const useSuperAdmin = () => {
           
           const finalIsSuper = isSuperFromMetadata || isSuperFromRawMetadata || isSuperFromEmail
           
-          console.log('🔍 useSuperAdmin - From metadata:', isSuperFromMetadata)
-          console.log('🔍 useSuperAdmin - From raw metadata:', isSuperFromRawMetadata)
-          console.log('🔍 useSuperAdmin - From email:', isSuperFromEmail)
-          console.log('🔍 useSuperAdmin - Final Result:', finalIsSuper)
+          console.log('🔧 useSuperAdmin FIXED - Final Result:', finalIsSuper)
           
           setIsSuperAdmin(finalIsSuper)
         } else {
-          console.log('🔍 useSuperAdmin - No user')
           setIsSuperAdmin(false)
         }
+        
       } catch (error) {
-        console.error('🔍 useSuperAdmin - Error:', error)
+        console.error('🔧 useSuperAdmin FIXED - Error:', error)
         setUser(null)
         setIsSuperAdmin(false)
       } finally {
@@ -54,10 +47,10 @@ export const useSuperAdmin = () => {
 
     getUser()
 
-    // 🔧 Escuchar cambios de autenticación
+    // Escuchar cambios de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('🔍 useSuperAdmin - Auth change:', event, session?.user?.email)
+        console.log('🔧 useSuperAdmin FIXED - Auth change:', event, session?.user?.email)
         
         if (session?.user) {
           setUser(session.user)
@@ -77,13 +70,9 @@ export const useSuperAdmin = () => {
     return () => subscription.unsubscribe()
   }, [])
 
-  // 🔧 BACKWARDS COMPATIBILITY: Mantener las mismas propiedades que antes
   return { 
     isSuperAdmin, 
     isLoading,
-    // Alias para compatibilidad
-    isSuper: isSuperAdmin,
-    loading: isLoading,
     user 
   }
 }
