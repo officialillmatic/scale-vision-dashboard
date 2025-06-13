@@ -105,8 +105,8 @@ export function SuperAdminCreditPanel() {
           // Transform fallback data to match expected format
           const transformedData = fallbackData?.map(item => ({
             user_id: item.user_id,
-            email: item.profiles?.email || 'No email',
-            name: item.profiles?.name || 'No name',
+            email: item.profiles?.[0]?.email || 'No email',
+name: item.profiles?.[0]?.name || 'No name',
             current_balance: item.current_balance || 0,
             warning_threshold: item.warning_threshold || 10,
             critical_threshold: item.critical_threshold || 5,
