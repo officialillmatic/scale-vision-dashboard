@@ -26,9 +26,15 @@ import SupportPage from '@/pages/SupportPage';
 import AcceptInvitationPage from '@/pages/AcceptInvitationPage';
 import SuperAdminTeamNew from '@/pages/SuperAdminTeamNew';
 import SuperAdminCreditsNew from '@/pages/SuperAdminCreditsNew';
-// 🚨 IMPORTAR PÁGINAS DE EMERGENCY
+
+// 🚨 IMPORTAR PÁGINAS DE EMERGENCY (existentes)
 import EmergencyTeam from '@/pages/EmergencyTeam';
 import EmergencyCredits from '@/pages/EmergencyCredits';
+
+// 🔧 IMPORTAR NUEVAS PÁGINAS DE DEBUG
+import TeamPageSimple from '@/pages/TeamPageSimple';
+import SuperAdminCreditsPageSimple from '@/pages/SuperAdminCreditsPageSimple';
+
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useEmergencySuperAdmin } from '@/hooks/useEmergencySuperAdmin';
 
@@ -72,7 +78,7 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   return children;
 }
 
-// 🚨 NUEVA RUTA EMERGENCY QUE USA EL HOOK DE EMERGENCY
+// 🚨 RUTA EMERGENCY EXISTENTE
 function EmergencySuperAdminRoute({ children }: { children: React.ReactNode }) {
   const { isSuper, loading } = useEmergencySuperAdmin();
 
@@ -96,6 +102,45 @@ function EmergencySuperAdminRoute({ children }: { children: React.ReactNode }) {
           <button 
             onClick={() => window.history.back()} 
             className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Volver
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return children;
+}
+
+// 🔧 NUEVA RUTA DEBUG - MÁS SIMPLE QUE EMERGENCY
+function DebugAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">🔧 Verificando acceso debug...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Solo permitir acceso al email específico
+  const isDebugAdmin = user?.email === 'aiagentsdevelopers@gmail.com';
+
+  if (!isDebugAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center p-6 bg-blue-50 border border-blue-200 rounded-lg">
+          <h2 className="text-xl font-bold text-blue-800 mb-2">🔧 Acceso Debug Denegado</h2>
+          <p className="text-blue-600">Solo aiagentsdevelopers@gmail.com puede acceder a las páginas de debug.</p>
+          <p className="text-sm text-gray-500 mt-1">Usuario actual: {user?.email || 'No logueado'}</p>
+          <button 
+            onClick={() => window.history.back()} 
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             Volver
           </button>
@@ -184,7 +229,8 @@ function AppRoutes() {
             </ProtectedRoute>
           } 
         />
-        {/* New Super Admin Routes */}
+        
+        {/* Super Admin Routes */}
         <Route 
           path="/super-admin/team" 
           element={
@@ -206,7 +252,7 @@ function AppRoutes() {
           } 
         />
         
-        {/* 🚨 EMERGENCY ROUTES - PÁGINAS DE PRUEBA */}
+        {/* 🚨 EMERGENCY ROUTES - PÁGINAS EXISTENTES */}
         <Route 
           path="/emergency-team" 
           element={
@@ -228,6 +274,29 @@ function AppRoutes() {
           } 
         />
         
+        {/* 🔧 DEBUG ROUTES - NUEVAS PÁGINAS SIMPLIFICADAS */}
+        <Route 
+          path="/debug-team" 
+          element={
+            <ProtectedRoute>
+              <DebugAdminRoute>
+                <TeamPageSimple />
+              </DebugAdminRoute>
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/debug-credits" 
+          element={
+            <ProtectedRoute>
+              <DebugAdminRoute>
+                <SuperAdminCreditsPageSimple />
+              </DebugAdminRoute>
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Other protected routes */}
         <Route 
           path="/profile" 
           element={
