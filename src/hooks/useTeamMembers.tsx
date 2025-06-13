@@ -1,4 +1,5 @@
 
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -71,7 +72,7 @@ export function useTeamMembers(companyId?: string) {
           return profilesData?.map(profile => ({
             id: profile.id,
             email: profile.email || 'No email',
-            full_name: profile.email?.split('@')[0] || 'User',
+            full_name: profile.email?.split('@')?.[0] || 'User',
             avatar_url: profile.avatar_url,
             role: profile.role || 'member',
             status: 'active' as const,
@@ -80,7 +81,7 @@ export function useTeamMembers(companyId?: string) {
             company_id: null,
             email_confirmed_at: profile.created_at,
             user_details: {
-              name: profile.name || profile.email?.split('@')[0] || 'User',
+              name: profile.name || profile.email?.split('@')?.[0] || 'User',
               email: profile.email || 'No email'
             }
           })) || [];

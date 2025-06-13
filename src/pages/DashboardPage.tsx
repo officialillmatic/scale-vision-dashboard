@@ -291,7 +291,7 @@ export default function DashboardPage() {
         return;
       }
 
-      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
+      const userAgentIds = userAgents.map(assignment => assignment.agents?.id).filter(Boolean);
       console.log('👤 User agent IDs:', userAgentIds);
 
       // Obtener llamadas de esos agentes
