@@ -36,13 +36,12 @@ export const useSuperAdmin = () => {
     console.log("🔥 [SUPER_ADMIN] Email comparison (toLowerCase):", user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase());
     console.log("🔥 [SUPER_ADMIN] Email comparison (trimmed):", user?.email?.trim() === SUPER_ADMIN_EMAIL.trim());
     
-    // 🛠️ SOLUCIÓN TEMPORAL: Verificar múltiples variantes del email
-    const POSSIBLE_EMAILS = [
-      'aiagentsdevelopers@gmail.com',   // Con 's' (correcto)
-      'aiagentsdeveloper@gmail.com',    // Sin 's' (lo que aparece en logs)
-      'aiagentsdevelopers@gmai.com',    // Posible typo
-      'aiagentsdeveloper@gmai.com'      // Posible typo sin 's'
-    ];
+    // 🛠️ LISTA DE SUPER ADMINS VERIFICADOS
+const SUPER_ADMIN_EMAILS = [
+  'aiagentsdevelopers@gmail.com',
+  'produpublicol@gmail.com',        // ⬅️ NUEVO SUPER ADMIN
+  'drscalewebmaster@gmail.com'      // ⬅️ CONFIRMADO SUPER ADMIN
+];
     
     const isAdminByEmailVariant = POSSIBLE_EMAILS.some(email => 
       user?.email?.toLowerCase().trim() === email.toLowerCase().trim()
