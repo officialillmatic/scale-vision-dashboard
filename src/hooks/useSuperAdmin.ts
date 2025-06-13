@@ -8,37 +8,62 @@ export const useSuperAdmin = () => {
 
   useEffect(() => {
     const checkSuperAdminStatus = () => {
-      try {
-        console.log("🔥 [SUPER_ADMIN] ===================");
-        console.log("🔥 [SUPER_ADMIN] User object:", user);
-        console.log("🔥 [SUPER_ADMIN] User ID:", user?.id);
-        console.log("🔥 [SUPER_ADMIN] User email:", user?.email);
-        console.log("🔥 [SUPER_ADMIN] Expected ID:", '53392e76-008c-4e46-8443-a6ebd6bd4504');
-        console.log("🔥 [SUPER_ADMIN] Expected email:", 'aiagentsdevelopers@gmail.com');
-        console.log("🔥 [SUPER_ADMIN] ===================");
-        
-        // TU ID Y EMAIL ESPECÍFICOS
-        const SUPER_ADMIN_ID = '53392e76-008c-4e46-8443-a6ebd6bd4504';
-        onst SUPER_ADMIN_EMAIL = 'aiagentsdeveloper@gmail.com';
-        
-        // Verificar por ambos métodos
-        const isAdminById = user?.id === SUPER_ADMIN_ID;
-        const isAdminByEmail = user?.email === SUPER_ADMIN_EMAIL;
-        const isAdmin = isAdminById || isAdminByEmail;
-        
-        console.log("🔥 [SUPER_ADMIN] ID Match:", user?.id, "===", SUPER_ADMIN_ID, "=>", isAdminById);
-        console.log("🔥 [SUPER_ADMIN] Email Match:", user?.email, "===", SUPER_ADMIN_EMAIL, "=>", isAdminByEmail);
-        console.log("🔥 [SUPER_ADMIN] Final Result:", isAdmin);
-        console.log("🔥 [SUPER_ADMIN] ===================");
-        
-        setIsSuperAdmin(isAdmin);
-      } catch (error) {
-        console.error('🔥 [SUPER_ADMIN] Error checking super admin status:', error);
-        setIsSuperAdmin(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  try {
+    console.log("🔥 [SUPER_ADMIN] ===================");
+    console.log("🔥 [SUPER_ADMIN] User object:", user);
+    console.log("🔥 [SUPER_ADMIN] User ID:", user?.id);
+    console.log("🔥 [SUPER_ADMIN] User email:", user?.email);
+    console.log("🔥 [SUPER_ADMIN] User email length:", user?.email?.length);
+    console.log("🔥 [SUPER_ADMIN] User email char by char:", user?.email?.split(''));
+    console.log("🔥 [SUPER_ADMIN] Expected ID:", '53392e76-008c-4e46-8443-a6ebd6bd4504');
+    console.log("🔥 [SUPER_ADMIN] Expected email:", 'aiagentsdevelopers@gmail.com');
+    console.log("🔥 [SUPER_ADMIN] Expected email length:", 'aiagentsdevelopers@gmail.com'.length);
+    console.log("🔥 [SUPER_ADMIN] Expected email char by char:", 'aiagentsdevelopers@gmail.com'.split(''));
+    console.log("🔥 [SUPER_ADMIN] ===================");
+    
+    // TU ID Y EMAIL ESPECÍFICOS
+    const SUPER_ADMIN_ID = '53392e76-008c-4e46-8443-a6ebd6bd4504';
+    const SUPER_ADMIN_EMAIL = 'aiagentsdevelopers@gmail.com';
+    
+    // Verificar por ambos métodos
+    const isAdminById = user?.id === SUPER_ADMIN_ID;
+    const isAdminByEmail = user?.email === SUPER_ADMIN_EMAIL;
+    
+    // 🔍 DEBUGGING ADICIONAL - Verificar si hay caracteres ocultos
+    console.log("🔥 [SUPER_ADMIN] Raw user email JSON:", JSON.stringify(user?.email));
+    console.log("🔥 [SUPER_ADMIN] Raw expected email JSON:", JSON.stringify(SUPER_ADMIN_EMAIL));
+    console.log("🔥 [SUPER_ADMIN] Email comparison (strict):", user?.email === SUPER_ADMIN_EMAIL);
+    console.log("🔥 [SUPER_ADMIN] Email comparison (toLowerCase):", user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase());
+    console.log("🔥 [SUPER_ADMIN] Email comparison (trimmed):", user?.email?.trim() === SUPER_ADMIN_EMAIL.trim());
+    
+    // 🛠️ SOLUCIÓN TEMPORAL: Verificar múltiples variantes del email
+    const POSSIBLE_EMAILS = [
+      'aiagentsdevelopers@gmail.com',   // Con 's' (correcto)
+      'aiagentsdeveloper@gmail.com',    // Sin 's' (lo que aparece en logs)
+      'aiagentsdevelopers@gmai.com',    // Posible typo
+      'aiagentsdeveloper@gmai.com'      // Posible typo sin 's'
+    ];
+    
+    const isAdminByEmailVariant = POSSIBLE_EMAILS.some(email => 
+      user?.email?.toLowerCase().trim() === email.toLowerCase().trim()
+    );
+    
+    const isAdmin = isAdminById || isAdminByEmailVariant;
+    
+    console.log("🔥 [SUPER_ADMIN] ID Match:", user?.id, "===", SUPER_ADMIN_ID, "=>", isAdminById);
+    console.log("🔥 [SUPER_ADMIN] Email Match (original):", user?.email, "===", SUPER_ADMIN_EMAIL, "=>", isAdminByEmail);
+    console.log("🔥 [SUPER_ADMIN] Email Match (variants):", isAdminByEmailVariant);
+    console.log("🔥 [SUPER_ADMIN] Final Result:", isAdmin);
+    console.log("🔥 [SUPER_ADMIN] ===================");
+    
+    setIsSuperAdmin(isAdmin);
+  } catch (error) {
+    console.error('🔥 [SUPER_ADMIN] Error checking super admin status:', error);
+    setIsSuperAdmin(false);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
     // Agregar delay para asegurar que el usuario esté completamente cargado
     const timer = setTimeout(() => {
