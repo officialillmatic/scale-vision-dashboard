@@ -48,6 +48,12 @@ export function useTeamMembers(companyId?: string) {
       console.log('🔍 [useTeamMembers] Fetching team members...');
       
       try {
+        // DEBUG LOGS AGREGADOS
+        console.log('🔍 [DEBUG] isSuperAdmin:', isSuperAdmin);
+        console.log('🔍 [DEBUG] user?.id:', user?.id);
+        console.log('🔍 [DEBUG] Expected ID:', '53392e76-008c-4e46-8443-a6ebd6bd4504');
+        console.log('🔍 [DEBUG] IDs match:', user?.id === '53392e76-008c-4e46-8443-a6ebd6bd4504');
+        
         // For super admins - HARDCODED SECURITY CHECK
         if (isSuperAdmin && user?.id === '53392e76-008c-4e46-8443-a6ebd6bd4504') {
           console.log('🔒 [SECURITY] Double-checking super admin status...');
