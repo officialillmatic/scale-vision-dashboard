@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useRole } from '@/hooks/useRole';
 import { Role } from '@/hooks/useRole';
@@ -72,14 +71,14 @@ export const RoleCheck: React.FC<RoleCheckProps> = ({
   }
   
   const hasPermission = () => {
-    // Super admin always has all permissions except for super admin only checks
-    if (isSuperAdmin && !superAdminOnly) {
+    // 🚀 LÓGICA CORREGIDA: Super admin siempre tiene acceso a todo
+    if (isSuperAdmin) {
       return true;
     }
     
-    // Super admin only check - only super admin can access
+    // Si no es super admin pero es superAdminOnly, denegar acceso
     if (superAdminOnly) {
-      return isSuperAdmin;
+      return false;
     }
     
     // Company owner always has admin permissions (except super admin only)
