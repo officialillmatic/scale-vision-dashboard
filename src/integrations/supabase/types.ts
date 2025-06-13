@@ -1062,6 +1062,7 @@ export type Database = {
           email: string
           id: string
           name: string | null
+          role: string | null
           updated_at: string
         }
         Insert: {
@@ -1070,6 +1071,7 @@ export type Database = {
           email: string
           id: string
           name?: string | null
+          role?: string | null
           updated_at?: string
         }
         Update: {
@@ -1078,6 +1080,7 @@ export type Database = {
           email?: string
           id?: string
           name?: string | null
+          role?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1347,28 +1350,10 @@ export type Database = {
           avatar_url: string | null
           created_at: string | null
           email: string | null
-          full_name: string | null
           id: string | null
+          name: string | null
           role: string | null
           updated_at: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          created_at?: string | null
-          email?: string | null
-          full_name?: string | null
-          id?: string | null
-          role?: never
-          updated_at?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          created_at?: string | null
-          email?: string | null
-          full_name?: string | null
-          id?: string | null
-          role?: never
-          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1693,11 +1678,11 @@ export type Database = {
         Returns: boolean
       }
       is_company_owner_direct: {
-        Args: { p_company_id: string }
+        Args: { target_company_id: string }
         Returns: boolean
       }
       is_super_admin: {
-        Args: { check_user_id?: string }
+        Args: Record<PropertyKey, never> | { user_uuid: string }
         Returns: boolean
       }
       is_super_admin_safe: {
@@ -1737,7 +1722,7 @@ export type Database = {
         Returns: boolean
       }
       user_is_company_admin: {
-        Args: { p_user_id: string; p_company_id: string }
+        Args: { user_uuid: string; target_company_id: string }
         Returns: boolean
       }
       user_is_company_member: {

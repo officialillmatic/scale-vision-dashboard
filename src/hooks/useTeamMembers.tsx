@@ -6,7 +6,6 @@ import { createInvitation } from "@/services/invitation/invitationActions";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { getConfirmedTeamMembers, getTrulyPendingInvitations } from "@/services/teamMigration";
-import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 export interface TeamMember {
   id: string;
@@ -35,7 +34,7 @@ export interface TeamInvitation {
 }
 
 export function useTeamMembers(companyId?: string) {
-const { company } = useAuth();
+  const { company, user } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { toast } = useToast();
   const [isInviting, setIsInviting] = useState(false);
@@ -61,9 +60,9 @@ const { company } = useAuth();
           console.log('🔍 [SUPER ADMIN] Fetching all users from profiles');
           
           const { data: profilesData, error: profilesError } = await supabase
-  .from('profiles')
-  .select('id, email, name, avatar_url, created_at, updated_at, role') // ⬅️ Usar los campos correctos de la vista
-  .order('created_at', { ascending: false });
+            .from('profiles')
+            .select('id, email, name, avatar_url, created_at, updated_at, role')
+            .order('created_at', { ascending: false });
 
           if (profilesError) {
             console.error('❌ [SUPER ADMIN] Error:', profilesError);
@@ -71,22 +70,22 @@ const { company } = useAuth();
           }
 
           console.log(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users`);
-console.log('🔍 [SUPER ADMIN] Sample user data:', profilesData?.[0]); // ⬅️ AGREGAR AQUÍ
-console.log('🔍 [SUPER ADMIN] All user data:', profilesData); // ⬅️ Y TAMBIÉN AQUÍ
+          console.log('🔍 [SUPER ADMIN] Sample user data:', profilesData?.[0]);
+          console.log('🔍 [SUPER ADMIN] All user data:', profilesData);
 
-return profilesData?.map(profile => ({
+          return profilesData?.map(profile => ({
             id: profile.id,
             email: profile.email || 'No email',
             full_name: profile.email?.split('@')[0] || 'User',
-            avatar_url: null,
-            role: 'member', // Rol por defecto
+            avatar_url: profile.avatar_url,
+            role: profile.role || 'member',
             status: 'active' as const,
             created_at: profile.created_at,
-            last_sign_in_at: profile.last_sign_in_at,
+            last_sign_in_at: null, // This field doesn't exist in profiles table
             company_id: null,
-            email_confirmed_at: profile.email_confirmed_at,
+            email_confirmed_at: profile.created_at, // Use created_at as fallback
             user_details: {
-              name: profile.email?.split('@')[0] || 'User',
+              name: profile.name || profile.email?.split('@')[0] || 'User',
               email: profile.email || 'No email'
             }
           })) || [];
