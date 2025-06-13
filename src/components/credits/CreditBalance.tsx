@@ -39,8 +39,54 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // NUEVO: Usar el hook de agentes para obtener tarifas reales
+  // NUEVO IMPORT
   const { agents, isLoadingAgents } = useAgents();
+
+  // ✅ NUEVO: Verificación especial para super admin
+  if (user?.role === 'super_admin') {
+    return (
+      <Card className="border border-black bg-blue-50 rounded-xl shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-xl bg-blue-100 border border-blue-200">
+                <Shield className="h-6 w-6 text-blue-700" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-blue-900">Super Admin Account</h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  You have full access to manage all user credits and system administration
+                </p>
+              </div>
+            </div>
+            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 font-semibold">
+              Administrator
+            </Badge>
+          </div>
+          
+          <div className="mt-4 pt-4 border-t border-blue-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                <span className="text-sm font-medium text-blue-700">
+                  All system features available
+                </span>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.location.href = '/admin/credits'}
+                className="border-blue-300 text-blue-700 hover:bg-blue-100"
+              >
+                <Info className="h-4 w-4 mr-2" />
+                Manage User Credits
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // NUEVA FUNCIÓN: Calcular tarifa promedio de agentes asignados al usuario
   const calculateAverageRate = (): number => {
