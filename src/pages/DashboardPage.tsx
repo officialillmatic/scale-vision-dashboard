@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSuperAdmin } from '@/hooks/useSuperAdmin'; // ✅ AGREGAR IMPORT
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 import { CreditBalance } from "@/components/credits/CreditBalance";
 
@@ -66,15 +67,18 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin(); // ✅ USAR EL HOOK
   
-  // ✅ VERIFICAR SI ES SUPER ADMIN
-  const isSuperAdmin = user?.user_metadata?.role === 'super_admin';
-  
-  console.log('=== DASHBOARD DEBUG ===');
+  // ✅ DEBUGGING MEJORADO
+  console.log('=== DASHBOARD DEBUG UNIFICADO ===');
   console.log('User:', user);
+  console.log('User email:', user?.email);
   console.log('User metadata role:', user?.user_metadata?.role);
-  console.log('Is super admin:', isSuperAdmin);
-  console.log('========================');
+  console.log('Raw user metadata role:', user?.raw_user_meta_data?.role);
+  console.log('Raw app metadata role:', user?.raw_app_meta_data?.role);
+  console.log('Is super admin (from hook):', isSuperAdmin);
+  console.log('Super admin loading:', isSuperAdminLoading);
+  console.log('=================================');
   
   // Estados para usuarios normales
   const [calls, setCalls] = useState<Call[]>([]);
@@ -107,14 +111,19 @@ export default function DashboardPage() {
   const [userDistribution, setUserDistribution] = useState<any[]>([]);
 
   useEffect(() => {
+    // ✅ ESPERAR A QUE TERMINE DE CARGAR LA VERIFICACIÓN DE SUPER ADMIN
+    if (isSuperAdminLoading) return;
+    
     if (user?.id) {
       if (isSuperAdmin) {
+        console.log('✅ Loading ADMIN dashboard for:', user.email);
         fetchAdminStats();
       } else {
+        console.log('✅ Loading USER dashboard for:', user.email);
         fetchCallsData();
       }
     }
-  }, [user?.id, isSuperAdmin]);
+  }, [user?.id, isSuperAdmin, isSuperAdminLoading]); // ✅ AGREGAR isSuperAdminLoading
 
   // 🤖 FUNCIONES DEL SUPER ADMIN
   const fetchAdminStats = async () => {
@@ -445,12 +454,15 @@ export default function DashboardPage() {
     );
   }
 
-  if (loading) {
+  // ✅ MOSTRAR LOADING MIENTRAS VERIFICA SUPER ADMIN
+  if (isSuperAdminLoading || loading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
           <LoadingSpinner size="lg" />
-          <span className="ml-3 text-gray-600">Loading dashboard...</span>
+          <span className="ml-3 text-gray-600">
+            {isSuperAdminLoading ? 'Verificando permisos...' : 'Loading dashboard...'}
+          </span>
         </div>
       </DashboardLayout>
     );
@@ -461,6 +473,14 @@ export default function DashboardPage() {
     return (
       <DashboardLayout>
         <div className="w-full space-y-4 sm:space-y-6">
+          {/* Debug Badge - Remover en producción */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="flex gap-2">
+              <Badge variant="destructive">DEBUG: Super Admin Activo</Badge>
+              <Badge variant="outline">Email: {user?.email}</Badge>
+            </div>
+          )}
+
           {/* Super Admin Account Balance */}
           <div className="w-full">
             <CreditBalance 
