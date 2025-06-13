@@ -13,9 +13,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, CreditCard, Crown, Users, Shield } from "lucide-react";
+import { Phone, CreditCard } from "lucide-react";
 import { useRole } from "@/hooks/useRole.ts";
-import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 
 const navigationItems = [
   {
@@ -34,7 +33,7 @@ const navigationItems = [
     href: "/calls-simple",
     icon: () => <Phone className="h-6 w-6" />,
     label: "My Calls",
-    // 🔒 Solo se oculta para super admin (usuarios normales SÍ la ven)
+    // 🔒 CAMBIO: Ocultar para super admin
     hiddenForSuperAdmin: true,
   },
   {
@@ -59,7 +58,7 @@ const navigationItems = [
   },
 ];
 
-// Super admin only navigation items - ORIGINAL (problemático)
+// Super admin only navigation items
 const superAdminNavigationItems = [
   {
     href: "/team",
@@ -71,34 +70,12 @@ const superAdminNavigationItems = [
         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
-    label: "Team (Legacy)",
-    badge: "Issues",
-    variant: "secondary" as const
+    label: "Team",
   },
   {
     href: "/admin/credits",
     icon: () => <CreditCard className="h-6 w-6" />,
-    label: "Admin Credits (Legacy)",
-    badge: "Issues",
-    variant: "secondary" as const
-  }
-];
-
-// 🚀 NUEVAS páginas Super Admin - SIN PROBLEMAS
-const superAdminNewNavigationItems = [
-  {
-    href: "/super-admin/team",
-    icon: () => <Users className="h-6 w-6" />,
-    label: "Team 2",
-    badge: "New",
-    variant: "default" as const
-  },
-  {
-    href: "/super-admin/credits",
-    icon: () => <CreditCard className="h-6 w-6" />,
-    label: "Admin Credits 2", 
-    badge: "New",
-    variant: "default" as const
+    label: "Admin Credits",
   }
 ];
 
@@ -106,14 +83,13 @@ export function DashboardSidebar() {
   const location = useLocation();
   const { state, isMobile, setOpenMobile } = useSidebar();
   const { can } = useRole();
-  const { isSuperAdmin } = useSuperAdmin(); // 🔒 VERIFICACIÓN DIRECTA SUPER ADMIN
   
   const collapsed = state === "collapsed";
 
   // 🔒 CAMBIO: Filtrar items basado en permisos de super admin
   const filteredNavigationItems = navigationItems.filter(item => {
-    // Si el item debe estar oculto para super admin Y el usuario ES super admin, ocultarlo
-    if (item.hiddenForSuperAdmin && isSuperAdmin) {
+    // Si el item debe estar oculto para super admin Y el usuario tiene acceso de super admin, ocultarlo
+    if (item.hiddenForSuperAdmin && can.superAdminAccess) {
       return false;
     }
     return true;
@@ -122,13 +98,8 @@ export function DashboardSidebar() {
   // Build navigation items based on user permissions
   const allNavigationItems = [
     ...filteredNavigationItems, // 🔒 CAMBIO: Usar items filtrados
-    // Add super admin items only if user has VERIFIED super admin access
-    ...(isSuperAdmin ? [
-      // 🚀 NUEVAS páginas primero (recomendadas)
-      ...superAdminNewNavigationItems,
-      // Legacy pages después (con indicador de problemas)
-      ...superAdminNavigationItems
-    ] : [])
+    // Add super admin items only if user has super admin access
+    ...(can.superAdminAccess ? superAdminNavigationItems : [])
   ];
 
   // Handle navigation item click on mobile
@@ -205,17 +176,6 @@ export function DashboardSidebar() {
 
       <SidebarContent className="overflow-auto px-3 py-4 sm:px-4 sm:py-6 bg-white">
         <SidebarGroup>
-          {/* 🚀 Super Admin Badge */}
-          {isSuperAdmin && !collapsed && (
-            <div className="mb-4 p-3 bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Crown className="h-4 w-4 text-red-600" />
-                <span className="text-sm font-semibold text-red-800">Super Administrator</span>
-              </div>
-              <p className="text-xs text-red-700 mt-1">Enhanced system access</p>
-            </div>
-          )}
-
           <SidebarMenu className="space-y-3 sm:space-y-2">
             {allNavigationItems.map((item) => (
               <SidebarMenuItem key={item.href}>
@@ -241,19 +201,9 @@ export function DashboardSidebar() {
                       <item.icon />
                     </div>
                     {!collapsed && (
-                      <div className="flex items-center justify-between w-full ml-3">
-                        <span className="transition-all duration-200 text-base sm:text-sm">
-                          {item.label}
-                        </span>
-                        {(item as any).badge && (
-                          <Badge 
-                            variant={(item as any).variant || "default"} 
-                            className="text-xs ml-2"
-                          >
-                            {(item as any).badge}
-                          </Badge>
-                        )}
-                      </div>
+                      <span className="transition-all duration-200 ml-3 text-base sm:text-sm">
+                        {item.label}
+                      </span>
                     )}
                     {!collapsed && (location.pathname === item.href || (item.href !== "/dashboard" && location.pathname.startsWith(item.href))) && (
                       <div className="absolute right-3 w-3 h-3 sm:w-2 sm:h-2 bg-brand-green rounded-full shadow-sm"></div>
