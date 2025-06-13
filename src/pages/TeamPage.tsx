@@ -20,16 +20,15 @@ const TeamPage = () => {
   const navigate = useNavigate();
   
   // Super admins should have unrestricted access - skip redirection
-  useEffect(() => {
-    // No hacer nada mientras está cargando
-    if (isSuperAdminLoading) return;
-    
-    if (user && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
-      toast.error("You don't have permission to access team management");
-      navigate('/dashboard');
-      return;
-    }
-  }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
+  // useEffect(() => {
+//   if (isSuperAdminLoading) return;
+//   
+//   if (user && !isSuperAdmin && !isCompanyOwner && !can.manageTeam) {
+//     toast.error("You don't have permission to access team management");
+//     navigate('/dashboard');
+//     return;
+//   }
+// }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
   
   // Mostrar loading mientras verifica permisos
   if (isSuperAdminLoading) {
