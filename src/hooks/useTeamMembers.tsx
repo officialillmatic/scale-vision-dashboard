@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,7 +35,7 @@ export interface TeamInvitation {
 }
 
 export function useTeamMembers(companyId?: string) {
-  const { company, user } = useAuth();
+  const { company } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { toast } = useToast();
   const [isInviting, setIsInviting] = useState(false);
@@ -48,12 +49,6 @@ export function useTeamMembers(companyId?: string) {
       console.log('🔍 [useTeamMembers] Fetching team members...');
       
       try {
-        // DEBUG LOGS AGREGADOS
-        console.log('🔍 [DEBUG] isSuperAdmin:', isSuperAdmin);
-        console.log('🔍 [DEBUG] user?.id:', user?.id);
-        console.log('🔍 [DEBUG] Expected ID:', '53392e76-008c-4e46-8443-a6ebd6bd4504');
-        console.log('🔍 [DEBUG] IDs match:', user?.id === '53392e76-008c-4e46-8443-a6ebd6bd4504');
-        
         // For super admins - VERIFICACIÓN CORREGIDA
         if (isSuperAdmin) {
           console.log('✅ [SECURITY] Super admin verified by hook, proceeding with full access');
@@ -81,9 +76,9 @@ export function useTeamMembers(companyId?: string) {
             role: profile.role || 'member',
             status: 'active' as const,
             created_at: profile.created_at,
-            last_sign_in_at: null, // This field doesn't exist in profiles table
+            last_sign_in_at: null,
             company_id: null,
-            email_confirmed_at: profile.created_at, // Use created_at as fallback
+            email_confirmed_at: profile.created_at,
             user_details: {
               name: profile.name || profile.email?.split('@')[0] || 'User',
               email: profile.email || 'No email'
@@ -102,7 +97,7 @@ export function useTeamMembers(companyId?: string) {
       }
     },
     enabled: !!targetCompanyId || isSuperAdmin,
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchInterval: 10000,
   });
 
   // Query for truly pending invitations
@@ -119,7 +114,7 @@ export function useTeamMembers(companyId?: string) {
       }
     },
     enabled: !!targetCompanyId,
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchInterval: 10000,
   });
 
   // Set up real-time updates
@@ -258,7 +253,7 @@ export function useTeamMembers(companyId?: string) {
 
   return {
     members: members || [],
-    teamMembers: members || [], // Backward compatibility alias
+    teamMembers: members || [],
     invitations: invitations || [],
     isLoading: membersLoading || invitationsLoading,
     error: membersError,
