@@ -96,11 +96,11 @@ export function DashboardSidebar() {
   });
 
   // Build navigation items based on user permissions
-  onst allNavigationItems = [
-  ...filteredNavigationItems, 
-  // 🚨 TEMPORAL: Mostrar Team y Admin Credits a todos
-  ...superAdminNavigationItems  // ⬅️ CAMBIO AQUÍ
-];
+  const allNavigationItems = [
+    ...filteredNavigationItems, // 🔒 CAMBIO: Usar items filtrados
+    // 🚨 TEMPORAL: Mostrar Team y Admin Credits a TODOS los usuarios
+    ...superAdminNavigationItems
+  ];
 
   // Handle navigation item click on mobile
   const handleMobileNavClick = () => {
