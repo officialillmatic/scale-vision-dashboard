@@ -96,11 +96,11 @@ export function DashboardSidebar() {
   });
 
   // Build navigation items based on user permissions
-  const allNavigationItems = [
-    ...filteredNavigationItems, // 🔒 CAMBIO: Usar items filtrados
-    // Add super admin items only if user has super admin access
-    ...(can.superAdminAccess ? superAdminNavigationItems : [])
-  ];
+  onst allNavigationItems = [
+  ...filteredNavigationItems, 
+  // 🚨 TEMPORAL: Mostrar Team y Admin Credits a todos
+  ...superAdminNavigationItems  // ⬅️ CAMBIO AQUÍ
+];
 
   // Handle navigation item click on mobile
   const handleMobileNavClick = () => {
