@@ -60,8 +60,8 @@ export function useTeamMembers(companyId?: string) {
           console.log('🔍 [SUPER ADMIN] Fetching all users from auth.users');
           
           const { data: profilesData, error: profilesError } = await supabase
-            .from('auth.users')
-            .select('id, email, created_at, email_confirmed_at, last_sign_in_at')
+  .from('profiles')
+  .select('id, email, full_name, created_at, updated_at')
             .order('created_at', { ascending: false });
 
           if (profilesError) {
