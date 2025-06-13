@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 
-// 🚨 USAR LA MISMA LÓGICA QUE FUNCIONA EN EMERGENCY
 const SUPER_ADMIN_EMAILS = [
   'aiagentsdevelopers@gmail.com',
   'produpublicol@gmail.com'
@@ -10,7 +9,7 @@ const SUPER_ADMIN_EMAILS = [
 export const useSuperAdmin = () => {
   const [user, setUser] = useState(null)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true) // ← MANTENER LOADING HASTA ESTAR SEGURO
 
   useEffect(() => {
     const getUser = async () => {
@@ -21,8 +20,7 @@ export const useSuperAdmin = () => {
         
         setUser(user)
         
-        if (user) {
-          // 🚨 USAR LA MISMA LÓGICA QUE FUNCIONA
+        if (user && user.email) { // ← VERIFICAR QUE USER Y EMAIL EXISTAN
           const isSuperFromMetadata = user.user_metadata?.role === 'super_admin'
           const isSuperFromRawMetadata = user.raw_user_meta_data?.role === 'super_admin'
           const isSuperFromEmail = SUPER_ADMIN_EMAILS.includes(user.email)
@@ -33,6 +31,7 @@ export const useSuperAdmin = () => {
           
           setIsSuperAdmin(finalIsSuper)
         } else {
+          console.log('🔧 useSuperAdmin FIXED - No user yet, waiting...')
           setIsSuperAdmin(false)
         }
         
@@ -41,29 +40,33 @@ export const useSuperAdmin = () => {
         setUser(null)
         setIsSuperAdmin(false)
       } finally {
-        setIsLoading(false)
+        // SOLO dejar de cargar si tenemos usuario O si es definitivamente null
+        if (user !== undefined) {
+          setIsLoading(false)
+        }
       }
     }
 
     getUser()
 
-    // Escuchar cambios de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log('🔧 useSuperAdmin FIXED - Auth change:', event, session?.user?.email)
         
-        if (session?.user) {
+        if (session?.user && session.user.email) {
           setUser(session.user)
           const finalIsSuper = 
             session.user.user_metadata?.role === 'super_admin' ||
             session.user.raw_user_meta_data?.role === 'super_admin' ||
             SUPER_ADMIN_EMAILS.includes(session.user.email)
           setIsSuperAdmin(finalIsSuper)
-        } else {
+          setIsLoading(false) // ← AHORA SÍ dejar de cargar
+        } else if (session === null) {
+          // Usuario definitivamente no autenticado
           setUser(null)
           setIsSuperAdmin(false)
+          setIsLoading(false)
         }
-        setIsLoading(false)
       }
     )
 
