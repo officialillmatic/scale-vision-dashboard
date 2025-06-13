@@ -1,32 +1,23 @@
+
 import { createClient } from '@supabase/supabase-js'
+import { Database } from './types'
 
-// 🚨 USAR LAS MISMAS CREDENCIALES QUE FUNCIONAN EN EMERGENCY
-const supabaseUrl = 'https://jqkkhwoybcenxqpvodev.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// 🔧 DEBUGGING
-console.log('🔧 Fixed Supabase Client:')
-console.log('URL:', supabaseUrl)
-console.log('Key:', supabaseAnonKey?.substring(0, 20) + '...')
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables')
+}
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'scale-vision-dashboard-fixed',
-    },
-  },
-})
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 
-// 🧪 TEST inmediato
-supabase.auth.getUser().then(({ data, error }) => {
-  console.log('🔧 Fixed client auth test:', data?.user?.email, error)
-})
-
-supabase.from('user_profiles').select('id').limit(1).then(({ data, error }) => {
-  console.log('🔧 Fixed client query test:', data?.length || 0, 'records', error?.message || 'no error')
-})
+export const hasValidSupabaseCredentials = () => {
+  return !!(supabaseUrl && 
+           supabaseAnonKey && 
+           supabaseUrl.startsWith('https://') && 
+           supabaseUrl.includes('.supabase.co') && 
+           !supabaseUrl.includes('your-project-ref') &&
+           supabaseAnonKey.startsWith('eyJ') && 
+           supabaseAnonKey.length > 100 && 
+           !supabaseAnonKey.includes('your-anon-key'))
+}

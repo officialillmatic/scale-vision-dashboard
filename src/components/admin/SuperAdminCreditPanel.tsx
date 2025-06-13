@@ -343,7 +343,7 @@ export function SuperAdminCreditPanel() {
           <CreditAdjustmentModal
             userId={selectedUserId}
             open={showAdjustmentModal}
-            onClose={() => setShowAdjustmentModal(false)}
+            onOpenChange={setShowAdjustmentModal}
             onSuccess={fetchUsers}
           />
         )}
@@ -352,7 +352,7 @@ export function SuperAdminCreditPanel() {
           <BulkCreditModal
             selectedUserIds={selectedUsers}
             open={showBulkModal}
-            onClose={() => setShowBulkModal(false)}
+            onOpenChange={setShowBulkModal}
             onSuccess={fetchUsers}
           />
         )}
@@ -361,7 +361,7 @@ export function SuperAdminCreditPanel() {
           <TransactionHistoryModal
             userId={selectedUserId}
             open={showTransactionModal}
-            onClose={() => setShowTransactionModal(false)}
+            onOpenChange={setShowTransactionModal}
           />
         )}
       </div>
