@@ -6,6 +6,7 @@ import { createInvitation } from "@/services/invitation/invitationActions";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { getConfirmedTeamMembers, getTrulyPendingInvitations } from "@/services/teamMigration";
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 export interface TeamMember {
   id: string;
@@ -34,8 +35,8 @@ export interface TeamInvitation {
 }
 
 export function useTeamMembers(companyId?: string) {
-  const { company, user } = useAuth();
-  const isSuperAdmin = user?.user_metadata?.role === 'super_admin';
+const { company } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
   const { toast } = useToast();
   const [isInviting, setIsInviting] = useState(false);
   
