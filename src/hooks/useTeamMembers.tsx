@@ -35,7 +35,7 @@ export interface TeamInvitation {
 
 export function useTeamMembers(companyId?: string) {
   const { company, user } = useAuth();
-  const { isSuperAdmin } = useSuperAdmin();
+  const isSuperAdmin = user?.user_metadata?.role === 'super_admin';
   const { toast } = useToast();
   const [isInviting, setIsInviting] = useState(false);
   
