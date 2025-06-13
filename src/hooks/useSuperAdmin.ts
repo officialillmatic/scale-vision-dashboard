@@ -43,7 +43,7 @@ const SUPER_ADMIN_EMAILS = [
   'drscalewebmaster@gmail.com'      // ⬅️ CONFIRMADO SUPER ADMIN
 ];
     
-    const isAdminByEmailVariant = POSSIBLE_EMAILS.some(email => 
+    const isAdminByEmailVariant = SUPER_ADMIN_EMAILS.some(email => 
       user?.email?.toLowerCase().trim() === email.toLowerCase().trim()
     );
     
