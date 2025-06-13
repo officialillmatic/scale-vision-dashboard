@@ -19,7 +19,7 @@ export const useSuperAdmin = () => {
         
         // TU ID Y EMAIL ESPECÍFICOS
         const SUPER_ADMIN_ID = '53392e76-008c-4e46-8443-a6ebd6bd4504';
-        const SUPER_ADMIN_EMAIL = 'aiagentsdevelopers@gmail.com';
+        onst SUPER_ADMIN_EMAIL = 'aiagentsdeveloper@gmail.com';
         
         // Verificar por ambos métodos
         const isAdminById = user?.id === SUPER_ADMIN_ID;
