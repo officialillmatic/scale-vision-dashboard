@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
-// 🚨 CAMBIO: Usar componente emergency que funciona
-import { EmergencyTeamMembers } from '@/components/EmergencyTeamMembers';
+import { TeamMembers } from '@/components/team/TeamMembers';
 import { TeamAgents } from '@/components/team/TeamAgents';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Users, Bot, Crown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRole } from '@/hooks/useRole';
-// 🚨 CAMBIO: Usar hook emergency que funciona
-import { useEmergencySuperAdmin } from '@/hooks/useEmergencySuperAdmin';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -18,8 +16,7 @@ const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
   const { user } = useAuth();
   const { isCompanyOwner, can } = useRole();
-  // 🚨 CAMBIO: Usar hook emergency con nombres diferentes
-  const { isSuper: isSuperAdmin, loading: isSuperAdminLoading } = useEmergencySuperAdmin();
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
   const navigate = useNavigate();
   
   // Super admins should have unrestricted access - skip redirection
@@ -38,7 +35,7 @@ const TeamPage = () => {
   if (isSuperAdminLoading) {
     return <DashboardLayout>
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-gray-600">🚨 Loading emergency permissions...</div>
+        <div className="text-lg text-gray-600">Loading permissions...</div>
       </div>
     </DashboardLayout>;
   }
@@ -73,10 +70,6 @@ const TeamPage = () => {
             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
               Team Suite
             </Badge>
-            {/* 🚨 BADGE EMERGENCY PARA INDICAR QUE ESTÁ USANDO SISTEMA CORREGIDO */}
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              🚨 Emergency Fix Active
-            </Badge>
           </div>
           <p className="text-lg text-gray-600 font-medium">
             Manage your team members and AI agent assignments
@@ -107,12 +100,10 @@ const TeamPage = () => {
             
             <div className="p-6">
               <TabsContent value="members" className="space-y-6 mt-0">
-                {/* 🚨 CAMBIO: Usar componente emergency que funciona */}
-                <EmergencyTeamMembers />
+                <TeamMembers />
               </TabsContent>
               
               <TabsContent value="agents" className="space-y-6 mt-0">
-                {/* 🔧 NOTA: TeamAgents lo dejamos igual por ahora, solo arreglamos Team Members */}
                 <TeamAgents />
               </TabsContent>
             </div>
