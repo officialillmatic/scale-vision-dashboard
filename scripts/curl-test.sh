@@ -6,6 +6,7 @@
 
 SUPABASE_URL="https://jqkkhwoybcenxqpvodev.supabase.co"
 ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8"
+SUPER_ADMIN_UUID=${SUPER_ADMIN_UUID:-"replace-with-super-admin-uuid"}
 
 echo "🔍 Testing Production API Endpoints"
 echo "=================================="
@@ -28,7 +29,7 @@ curl -s -w "\nStatus: %{http_code}\n" \
   -H "Authorization: Bearer $ANON_KEY" \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
-  "$SUPABASE_URL/rest/v1/company_members?select=*&user_id=eq.53392e76-008c-4e46-8443-a6ebd6bd4504"
+  "$SUPABASE_URL/rest/v1/company_members?select=*&user_id=eq.$SUPER_ADMIN_UUID"
 
 echo ""
 
