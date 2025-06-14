@@ -6,7 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { UserAgentAssignment } from '@/services/agent/userAgentAssignmentQueries';
+import {
+  UserAgentAssignment,
+  updateUserAgentAssignmentPrimary,
+  removeUserAgentAssignment
+} from '@/services/agent/userAgentAssignmentQueries';
 import { Users, MoreHorizontal, Trash2, Plus } from 'lucide-react';
 
 interface AssignmentsManagementTableProps {
@@ -20,8 +24,8 @@ export function AssignmentsManagementTable({ assignments, isLoading, onRefresh }
 
   const handleTogglePrimary = async (assignment: UserAgentAssignment, isPrimary: boolean) => {
     try {
-      // TODO: Implement toggle primary functionality
-      console.log('Toggle primary for assignment:', assignment.id, isPrimary);
+      await updateUserAgentAssignmentPrimary(assignment.id, isPrimary, assignment.user_id);
+      onRefresh();
     } catch (error) {
       console.error('Failed to toggle primary status:', error);
     }
@@ -31,8 +35,7 @@ export function AssignmentsManagementTable({ assignments, isLoading, onRefresh }
     if (window.confirm('Are you sure you want to remove this assignment?')) {
       setRemovingId(assignment.id);
       try {
-        // TODO: Implement remove functionality
-        console.log('Remove assignment:', assignment.id);
+        await removeUserAgentAssignment(assignment.id);
         onRefresh();
       } catch (error) {
         console.error('Failed to remove assignment:', error);

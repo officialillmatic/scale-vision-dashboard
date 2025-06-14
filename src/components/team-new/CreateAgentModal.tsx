@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Bot } from "lucide-react";
+import { createAgent } from "@/services/agentService";
 
 interface CreateAgentModalProps {
   isOpen: boolean;
@@ -48,11 +49,12 @@ export function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModa
 
     setIsCreating(true);
     try {
-      // TODO: Implement agent creation
-      console.log('Creating agent:', formData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await createAgent({
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        status: formData.status,
+        rate_per_minute: parseFloat(formData.rate_per_minute)
+      });
       
       setFormData({
         name: '',

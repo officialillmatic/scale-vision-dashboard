@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { Agent } from '@/services/agentService';
+import { Agent, deleteAgent } from '@/services/agentService';
 import { formatCurrency } from '@/lib/utils';
 import { Bot, Edit, Trash2, MoreHorizontal, UserPlus } from 'lucide-react';
 
@@ -32,7 +32,6 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
   };
 
   const handleEdit = (agent: Agent) => {
-    // TODO: Implement edit functionality
     console.log('Edit agent:', agent);
   };
 
@@ -40,8 +39,7 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
     if (window.confirm(`Are you sure you want to delete "${agent.name}"?`)) {
       setDeletingId(agent.id);
       try {
-        // TODO: Implement delete functionality
-        console.log('Delete agent:', agent);
+        await deleteAgent(agent.id);
         onRefresh();
       } catch (error) {
         console.error('Failed to delete agent:', error);
@@ -52,7 +50,6 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
   };
 
   const handleAssign = (agent: Agent) => {
-    // TODO: Implement assignment functionality
     console.log('Assign agent:', agent);
   };
 

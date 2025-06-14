@@ -66,15 +66,21 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  
+
   // ✅ VERIFICAR SI ES SUPER ADMIN
   const isSuperAdmin = user?.user_metadata?.role === 'super_admin';
-  
-  console.log('=== DASHBOARD DEBUG ===');
-  console.log('User:', user);
-  console.log('User metadata role:', user?.user_metadata?.role);
-  console.log('Is super admin:', isSuperAdmin);
-  console.log('========================');
+
+  const debug = (...args: any[]) => {
+    if (import.meta.env.DEV) {
+      console.log(...args);
+    }
+  };
+
+  debug('=== DASHBOARD DEBUG ===');
+  debug('User:', user);
+  debug('User metadata role:', user?.user_metadata?.role);
+  debug('Is super admin:', isSuperAdmin);
+  debug('========================');
   
   // Estados para usuarios normales
   const [calls, setCalls] = useState<Call[]>([]);
@@ -122,7 +128,7 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
 
-      console.log('🔍 Fetching admin statistics...');
+      debug('🔍 Fetching admin statistics...');
 
       // Ejecutar todas las consultas en paralelo
       const [
@@ -141,7 +147,7 @@ export default function DashboardPage() {
         supabase.from('credit_transactions').select('id', { count: 'exact' })
       ]);
 
-      console.log('📊 Admin raw results:', {
+      debug('📊 Admin raw results:', {
         users: usersResult,
         agents: agentsResult,
         companies: companiesResult,
@@ -175,7 +181,7 @@ export default function DashboardPage() {
       setAdminStats(calculatedAdminStats);
       prepareAdminChartData(usersResult.data || [], creditsResult.data || []);
 
-      console.log('✅ Admin stats calculated:', calculatedAdminStats);
+      debug('✅ Admin stats calculated:', calculatedAdminStats);
 
     } catch (err: any) {
       console.error('💥 Error fetching admin stats:', err);
@@ -231,7 +237,7 @@ export default function DashboardPage() {
         audio.addEventListener('error', () => resolve());
       });
     } catch (error) {
-      console.log('Error loading audio duration:', error);
+      debug('Error loading audio duration:', error);
     }
   };
 
@@ -253,7 +259,7 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
 
-      console.log('🔍 Fetching calls data for regular user...');
+      debug('🔍 Fetching calls data for regular user...');
 
       // 👤 USUARIO NORMAL: Ver solo llamadas de sus agentes asignados
       const { data: userAgents, error: agentsError } = await supabase
@@ -275,7 +281,7 @@ export default function DashboardPage() {
       }
 
       if (!userAgents || userAgents.length === 0) {
-        console.log('⚠️ No agents assigned to user');
+        debug('⚠️ No agents assigned to user');
         setCalls([]);
         setStats({
           totalCalls: 0,
@@ -292,7 +298,7 @@ export default function DashboardPage() {
       }
 
       const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-      console.log('👤 User agent IDs:', userAgentIds);
+      debug('👤 User agent IDs:', userAgentIds);
 
       // Obtener llamadas de esos agentes
       const { data, error: fetchError } = await supabase
@@ -308,7 +314,7 @@ export default function DashboardPage() {
       }
 
       const callsData = data || [];
-      console.log('✅ User calls loaded:', callsData.length);
+      debug('✅ User calls loaded:', callsData.length);
 
       setCalls(callsData);
 
@@ -350,7 +356,7 @@ export default function DashboardPage() {
           costToday
         });
 
-        console.log('✅ User stats calculated:', {
+        debug('✅ User stats calculated:', {
           totalCalls,
           totalCost,
           completedCalls,
