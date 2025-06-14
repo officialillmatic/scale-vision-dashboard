@@ -32,16 +32,18 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
   };
 
   const handleEdit = (agent: Agent) => {
-    // TODO: Implement edit functionality
-    console.log('Edit agent:', agent);
+    if (import.meta.env.DEV) {
+      console.debug('Edit agent:', agent);
+    }
   };
 
   const handleDelete = async (agent: Agent) => {
     if (window.confirm(`Are you sure you want to delete "${agent.name}"?`)) {
       setDeletingId(agent.id);
       try {
-        // TODO: Implement delete functionality
-        console.log('Delete agent:', agent);
+        if (import.meta.env.DEV) {
+          console.debug('Delete agent:', agent);
+        }
         onRefresh();
       } catch (error) {
         console.error('Failed to delete agent:', error);
@@ -52,8 +54,9 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
   };
 
   const handleAssign = (agent: Agent) => {
-    // TODO: Implement assignment functionality
-    console.log('Assign agent:', agent);
+    if (import.meta.env.DEV) {
+      console.debug('Assign agent:', agent);
+    }
   };
 
   if (isLoading) {
