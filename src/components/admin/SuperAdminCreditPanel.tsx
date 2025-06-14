@@ -314,13 +314,34 @@ export function SuperAdminCreditPanel() {
 
   return (
     <div className="space-y-6 p-6">
+      {/* Banner identificador de nueva versión */}
+      <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+            <span className="text-green-600 font-bold text-sm">✨</span>
+          </div>
+          <div>
+            <h3 className="font-semibold text-green-900">Nueva Versión del Panel de Créditos</h3>
+            <p className="text-sm text-green-700">
+              Esta es la versión actualizada con integración completa al sistema de balances y llamadas en tiempo real.
+            </p>
+          </div>
+          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+            v2.0 - Renovado
+          </Badge>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <h1 className="text-3xl font-bold">Panel de Gestión de Créditos</h1>
+          <h1 className="text-3xl font-bold">🚀 Panel de Gestión de Créditos</h1>
           <Badge variant="default" className="bg-blue-50 text-blue-700 border-blue-200">
             <Shield className="w-3 h-3 mr-1" />
             Super Admin
+          </Badge>
+          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+            🔄 Sincronizado con Llamadas
           </Badge>
         </div>
         <Button onClick={fetchUsers} disabled={loading} variant="outline">
