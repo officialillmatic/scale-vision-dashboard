@@ -78,66 +78,111 @@ export function SuperAdminCreditPanel() {
       console.log('🔍 [SuperAdminCreditPanel] Fetching users...');
       console.log('🔍 [SuperAdminCreditPanel] Is super admin:', isSuperAdmin);
       
-      // Permitir acceso de solo lectura a todos los usuarios autenticados
-      const { data, error } = await supabase
+      // Primero intentar la vista admin si existe y tiene datos
+      const { data: adminViewData, error: adminViewError } = await supabase
         .from('admin_user_credits_view')
         .select('*')
         .order('email');
 
-      if (error) {
-        console.error('❌ [SuperAdminCreditPanel] Error with admin view:', error);
-        
-        // Fallback: Query user_credits directly with profiles join
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('user_credits')
-          .select(`
-            user_id,
-            current_balance,
-            warning_threshold,
-            critical_threshold,
-            is_blocked,
-            updated_at,
-            created_at,
-            profiles!user_credits_user_id_fkey (
-              email,
-              name
-            )
-          `)
-          .order('created_at');
-
-        if (fallbackError) {
-          console.error('❌ [SuperAdminCreditPanel] Fallback error:', fallbackError);
-          throw fallbackError;
-        }
-
-        // Transform fallback data to match expected format
-        const transformedData = fallbackData?.map(item => {
-          const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
-          return {
-            user_id: item.user_id,
-            email: profile?.email || 'No email',
-            name: profile?.name || 'No name',
-            current_balance: item.current_balance || 0,
-            warning_threshold: item.warning_threshold || 10,
-            critical_threshold: item.critical_threshold || 5,
-            is_blocked: item.is_blocked || false,
-            balance_status: item.current_balance <= (item.critical_threshold || 5) ? 'critical' : 
-                           item.current_balance <= (item.warning_threshold || 10) ? 'warning' : 'normal',
-            recent_transactions_count: 0,
-            balance_updated_at: item.updated_at,
-            user_created_at: item.created_at
-          };
-        }) || [];
-
-        console.log('✅ [SuperAdminCreditPanel] Using fallback data:', transformedData.length);
-        setUsers(transformedData);
-      } else {
-        console.log('✅ [SuperAdminCreditPanel] Using admin view data:', data?.length);
-        setUsers(data || []);
+      if (adminViewData && adminViewData.length > 0 && !adminViewError) {
+        console.log('✅ [SuperAdminCreditPanel] Using admin view data:', adminViewData.length);
+        setUsers(adminViewData);
+        return;
       }
+
+      console.log('⚠️ [SuperAdminCreditPanel] Admin view failed or empty, trying fallback:', adminViewError);
+      
+      // Fallback: Usar user_profiles en lugar de profiles
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('user_credits')
+        .select(`
+          user_id,
+          current_balance,
+          warning_threshold,
+          critical_threshold,
+          is_blocked,
+          updated_at,
+          created_at
+        `);
+
+      if (fallbackError) {
+        console.error('❌ [SuperAdminCreditPanel] Fallback user_credits error:', fallbackError);
+        throw fallbackError;
+      }
+
+      // Obtener los profiles por separado
+      const userIds = fallbackData?.map(item => item.user_id) || [];
+      let profilesData: any[] = [];
+      
+      if (userIds.length > 0) {
+        const { data: userProfilesData, error: profilesError } = await supabase
+          .from('user_profiles')
+          .select('id, email, name')
+          .in('id', userIds);
+
+        if (profilesError) {
+          console.warn('⚠️ [SuperAdminCreditPanel] user_profiles error, trying users table:', profilesError);
+          
+          // Intentar con la tabla users como segundo recurso
+          const { data: usersData, error: usersError } = await supabase
+            .from('users')
+            .select('id, email, name, full_name')
+            .in('id', userIds);
+
+          if (usersError) {
+            console.warn('⚠️ [SuperAdminCreditPanel] users table error, trying app_users:', usersError);
+            
+            // Intentar con app_users como tercer recurso
+            const { data: appUsersData, error: appUsersError } = await supabase
+              .from('app_users')
+              .select('id, email, full_name')
+              .in('id', userIds);
+
+            if (!appUsersError && appUsersData) {
+              profilesData = appUsersData.map(user => ({
+                id: user.id,
+                email: user.email,
+                name: user.full_name
+              }));
+            }
+          } else if (usersData) {
+            profilesData = usersData.map(user => ({
+              id: user.id,
+              email: user.email,
+              name: user.name || user.full_name
+            }));
+          }
+        } else if (userProfilesData) {
+          profilesData = userProfilesData;
+        }
+      }
+
+      // Combinar datos de créditos con perfiles
+      const transformedData = fallbackData?.map(item => {
+        const profile = profilesData?.find(p => p.id === item.user_id);
+        return {
+          user_id: item.user_id,
+          email: profile?.email || `user-${item.user_id.slice(0, 8)}@unknown.com`,
+          name: profile?.name || 'Unknown User',
+          current_balance: item.current_balance || 0,
+          warning_threshold: item.warning_threshold || 10,
+          critical_threshold: item.critical_threshold || 5,
+          is_blocked: item.is_blocked || false,
+          balance_status: item.current_balance <= (item.critical_threshold || 5) ? 'critical' : 
+                         item.current_balance <= (item.warning_threshold || 10) ? 'warning' : 'normal',
+          recent_transactions_count: 0,
+          balance_updated_at: item.updated_at,
+          user_created_at: item.created_at
+        };
+      }) || [];
+
+      console.log('✅ [SuperAdminCreditPanel] Using combined data:', transformedData.length);
+      setUsers(transformedData);
+
     } catch (error: any) {
       console.error('❌ [SuperAdminCreditPanel] Failed to fetch users:', error);
       toast.error(`Failed to fetch users: ${error.message}`);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
