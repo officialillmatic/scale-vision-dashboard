@@ -28,7 +28,9 @@ export const useSuperAdmin = () => {
           // 🚨 CORREGIR: Usar user_metadata y app_metadata correctamente
           const isSuperFromUserMetadata = user.user_metadata?.role === 'super_admin'
           const isSuperFromAppMetadata = user.app_metadata?.role === 'super_admin'
-          const isSuperFromEmail = SUPER_ADMIN_EMAILS.includes(user.email)
+          const isSuperFromEmail = SUPER_ADMIN_EMAILS.includes(
+            user.email?.toLowerCase() ?? ''
+          )
           
           const finalIsSuper = isSuperFromUserMetadata || isSuperFromAppMetadata || isSuperFromEmail
           
@@ -63,7 +65,7 @@ export const useSuperAdmin = () => {
           const finalIsSuper = 
             session.user.user_metadata?.role === 'super_admin' ||
             session.user.app_metadata?.role === 'super_admin' ||
-            SUPER_ADMIN_EMAILS.includes(session.user.email)
+            SUPER_ADMIN_EMAILS.includes(session.user.email?.toLowerCase() ?? '')
           setIsSuperAdmin(finalIsSuper)
         } else {
           setUser(null)
