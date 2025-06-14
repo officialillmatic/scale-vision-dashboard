@@ -4,8 +4,10 @@
 # Webhook Authentication Test Script
 # Tests the Retell webhook authentication with proper headers
 
-SUPABASE_URL="https://jqkkhwoybcenxqpvodev.supabase.co"
-RETELL_SECRET="your_retell_secret_here"  # This should be replaced with actual secret
+if [ -z "$SUPABASE_URL" ] || [ -z "$RETELL_SECRET" ]; then
+  echo "SUPABASE_URL and RETELL_SECRET environment variables must be set" >&2
+  exit 1
+fi
 
 echo "🔐 Testing Retell Webhook Authentication"
 echo "========================================"
