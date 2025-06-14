@@ -23,7 +23,9 @@ export const useEmergencySuperAdmin = () => {
         setUser(user)
         
         if (user) {
-          const isSuperFromEmail = SUPER_ADMIN_EMAILS.includes(user.email)
+          const isSuperFromEmail = SUPER_ADMIN_EMAILS.includes(
+            user.email?.toLowerCase() ?? ''
+          )
           const isSuperFromUserMetadata = user.user_metadata?.role === 'super_admin'
           const isSuperFromAppMetadata = user.app_metadata?.role === 'super_admin'
           
@@ -52,7 +54,7 @@ export const useEmergencySuperAdmin = () => {
         if (session?.user) {
           setUser(session.user)
           const finalIsSuper = 
-            SUPER_ADMIN_EMAILS.includes(session.user.email) ||
+            SUPER_ADMIN_EMAILS.includes(session.user.email?.toLowerCase() ?? '') ||
             session.user.user_metadata?.role === 'super_admin' ||
             session.user.app_metadata?.role === 'super_admin'
           setIsSuper(finalIsSuper)
