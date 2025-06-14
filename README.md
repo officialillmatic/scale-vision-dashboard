@@ -71,3 +71,12 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Troubleshooting "Failed to fetch" errors
+
+If the dashboard shows a `Failed to fetch` message when contacting Supabase:
+
+1. Ensure your internet connection is active.
+2. Verify the `.env` file contains valid `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` values.
+3. Restart the development server after updating environment variables.
+4. Check that Supabase is reachable from your network (no VPN/firewall restrictions).
