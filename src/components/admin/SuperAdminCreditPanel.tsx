@@ -4,26 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { 
-  Search, 
-  DollarSign, 
   Users, 
   AlertTriangle, 
-  History, 
-  Filter,
   RefreshCw,
-  Plus,
-  Minus,
-  Download
 } from 'lucide-react';
-import { RoleCheck } from '@/components/auth/RoleCheck';
 import { UserCreditsList } from './UserCreditsList';
 import { CreditAdjustmentModal } from './CreditAdjustmentModal';
 import { BulkCreditModal } from './BulkCreditModal';
@@ -45,10 +33,8 @@ interface UserCredit {
 
 export function SuperAdminCreditPanel() {
   const [users, setUsers] = useState<UserCredit[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<UserCredit[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -56,12 +42,13 @@ export function SuperAdminCreditPanel() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const { isSuperAdmin } = useSuperAdmin();
   const { user } = useAuth();
-const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
-const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
+  const SUPER_ADMIN_EMAILS = ["aiagentsdevelopers@gmail.com", "produpublicol@gmail.com"];
+  const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
 
-console.log("🔥 [SUPER_ADMIN_PANEL] User email:", user?.email);
-console.log("🔥 [SUPER_ADMIN_PANEL] isSuperAdmin:", isSuperAdmin);
-console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
+  console.log("🔥 [SUPER_ADMIN_PANEL] User email:", user?.email);
+  console.log("🔥 [SUPER_ADMIN_PANEL] isSuperAdmin:", isSuperAdmin);
+  console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
+
 
   useEffect(() => {
     fetchUsers();
@@ -69,7 +56,6 @@ console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
 
   useEffect(() => {
     filterUsers();
-  }, [users, searchQuery, statusFilter]);
 
   const fetchUsers = async () => {
     try {
@@ -158,11 +144,8 @@ console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
       );
     }
 
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(user => user.balance_status === statusFilter);
     }
 
-    setFilteredUsers(filtered);
   };
 
   const handleUserSelection = (userId: string, selected: boolean) => {
@@ -191,7 +174,6 @@ console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
     setShowTransactionModal(true);
   };
 
-  const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case 'blocked': return 'destructive';
       case 'critical': return 'destructive';
@@ -214,24 +196,170 @@ console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
 
   const stats = getStatusStats();
 
+  if (!isSuperAdmin && !isEmailSuperAdmin) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center">
+            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
+            <p className="text-muted-foreground">
+              You need super administrator privileges to access this panel.
+            </p>
+            <p className="text-xs text-gray-400 mt-2">
+              Debug: Email={user?.email}, isSuperAdmin={isSuperAdmin}, isEmailSuperAdmin={isEmailSuperAdmin}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    if (!isSuperAdmin && !isEmailSuperAdmin) {
-  return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
-          <p className="text-muted-foreground">
-            You need super administrator privileges to access this panel.
-          </p>
-          <p className="text-xs text-gray-400 mt-2">
-            Debug: Email={user?.email}, isSuperAdmin={isSuperAdmin}, isEmailSuperAdmin={isEmailSuperAdmin}
-          </p>
+    <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Credit Management</h1>
+            <p className="text-gray-600 mt-1">Manage user credit balances and transactions</p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={fetchUsers} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Total Users</p>
+                  <p className="text-2xl font-bold">{stats.total}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <div>
+                  <p className="text-sm text-gray-600">Normal</p>
+                  <p className="text-2xl font-bold">{stats.normal}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                <div>
+                  <p className="text-sm text-gray-600">Warning</p>
+                  <p className="text-2xl font-bold">{stats.warning}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                <div>
+                  <p className="text-sm text-gray-600">Critical</p>
+                  <p className="text-2xl font-bold">{stats.critical}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                <div>
+                  <p className="text-sm text-gray-600">Blocked</p>
+                  <p className="text-2xl font-bold">{stats.blocked}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Panel */}
+        <Card>
+          <CardHeader>
+            <CardTitle>User Credits</CardTitle>
+            <div className="flex gap-4 items-center">
+              <div className="flex-1">
+                <Input
+                  placeholder="Search by email or name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="max-w-sm"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+              >
+                <option value="all">All Status</option>
+                <option value="normal">Normal</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+          </CardHeader>
+          
+          <CardContent>
+            <UserCreditsList
+              users={filteredUsers}
+              loading={loading}
+              selectedUsers={selectedUsers}
+              onUserSelection={handleUserSelection}
+              onSelectAll={handleSelectAll}
+              onAdjustCredit={handleAdjustCredit}
+              onViewTransactions={handleViewTransactions}
+              getStatusBadgeColor={getStatusBadgeColor}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Modals */}
+        {showAdjustmentModal && selectedUserId && (
+          <CreditAdjustmentModal
+            userId={selectedUserId}
+            open={showAdjustmentModal}
+            onOpenChange={setShowAdjustmentModal}
+            onSuccess={fetchUsers}
+          />
+        )}
+
+        {showBulkModal && (
+          <BulkCreditModal
+            selectedUserIds={selectedUsers}
+            open={showBulkModal}
+            onOpenChange={setShowBulkModal}
+            onSuccess={fetchUsers}
+          />
+        )}
+
+        {showTransactionModal && selectedUserId && (
+          <TransactionHistoryModal
+            userId={selectedUserId}
+            open={showTransactionModal}
+            onOpenChange={setShowTransactionModal}
+          />
+        )}
+      </div>
   );
 }
