@@ -11,7 +11,7 @@ export const useRole = () => {
     authContext = useAuth();
   } catch (error) {
     console.error("[USE_ROLE] Auth context not available:", error);
-    throw error; // Re-throw to let parent components handle
+    throw error;
   }
   
   const { company, user, userRole, isCompanyOwner, isCompanyLoading } = authContext;
@@ -27,11 +27,28 @@ export const useRole = () => {
   
   const { isSuperAdmin, isLoading: isSuperAdminLoading } = superAdminContext;
   
+  // 🚨 BYPASS TEMPORAL: Verificación específica para emails de super admin
+  const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
+  const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
+  
+  console.log("🔥 [USE_ROLE] BYPASS DEBUG:");
+  console.log("🔥 [USE_ROLE] User email:", user?.email);
+  console.log("🔥 [USE_ROLE] isSuperAdmin from hook:", isSuperAdmin);
+  console.log("🔥 [USE_ROLE] isEmailSuperAdmin:", isEmailSuperAdmin);
+  console.log("🔥 [USE_ROLE] isCompanyOwner:", isCompanyOwner);
+  console.log("🔥 [USE_ROLE] company:", company);
+  console.log("🔥 [USE_ROLE] userRole:", userRole);
+  console.log("🔥 [USE_ROLE] isCompanyLoading:", isCompanyLoading);
+  console.log("🔥 [USE_ROLE] isSuperAdminLoading:", isSuperAdminLoading);
+  
   const checkRole = (role: Role): boolean => {
     if (!user) return false;
     
-    // Super admins always have all privileges
-    if (isSuperAdmin) return true;
+    // 🚨 BYPASS: Super admins siempre tienen privilegios (verificación por email también)
+    if (isSuperAdmin || isEmailSuperAdmin) {
+      console.log("🔥 [USE_ROLE] checkRole - Super admin access granted");
+      return true;
+    }
     
     // Company owners always have admin privileges
     if (isCompanyOwner) return true;
@@ -40,9 +57,9 @@ export const useRole = () => {
     if (isCompanyLoading || isSuperAdminLoading) return false;
     
     // Regular users need a company and role (except super admins)
-    if (!company && !isSuperAdmin) return false;
+    if (!company && !isSuperAdmin && !isEmailSuperAdmin) return false;
     
-    if (!userRole && !isSuperAdmin) {
+    if (!userRole && !isSuperAdmin && !isEmailSuperAdmin) {
       console.log("No userRole found and not super admin, returning false");
       return false;
     }
@@ -59,12 +76,35 @@ export const useRole = () => {
   const can = useMemo(() => {
     console.log("🔥 [USE_ROLE] Computing permissions...");
     console.log("🔥 [USE_ROLE] isSuperAdmin:", isSuperAdmin);
+    console.log("🔥 [USE_ROLE] isEmailSuperAdmin:", isEmailSuperAdmin);
     console.log("🔥 [USE_ROLE] isCompanyOwner:", isCompanyOwner);
-    console.log("🔥 [USE_ROLE] isCompanyLoading:", isCompanyLoading);
-    console.log("🔥 [USE_ROLE] isSuperAdminLoading:", isSuperAdminLoading);
     
-    // Early return for loading states (BUT NOT FOR SUPER ADMINS)
-    if ((isCompanyLoading || isSuperAdminLoading) && !isSuperAdmin) {
+    // 🚨 BYPASS: Super admins por email o hook obtienen acceso completo INMEDIATAMENTE
+    if (isSuperAdmin || isEmailSuperAdmin) {
+      console.log("🔥 [USE_ROLE] BYPASS - Super admin detected, granting FULL access");
+      return {
+        manageTeam: true,
+        manageAgents: true,
+        viewAgents: true,
+        createAgents: true,
+        assignAgents: true,
+        deleteAgents: true,
+        viewCalls: true,
+        uploadCalls: true,
+        manageBalances: true,
+        viewBalance: true,
+        accessBillingSettings: true,
+        editSettings: true,
+        uploadCompanyLogo: true,
+        inviteUsers: true,
+        removeUsers: true,
+        sendInvitations: true,
+        superAdminAccess: true
+      };
+    }
+    
+    // Early return for loading states (SOLO para usuarios normales)
+    if ((isCompanyLoading || isSuperAdminLoading)) {
       console.log("🔥 [USE_ROLE] Still loading and not super admin, returning limited permissions");
       return {
         manageTeam: false,
@@ -87,72 +127,55 @@ export const useRole = () => {
       };
     }
     
-    // SUPER ADMINS GET ACCESS EVEN WITHOUT COMPANY AND EVEN WHILE LOADING
-    if (isSuperAdmin) {
-      console.log("🔥 [USE_ROLE] Super admin detected, granting full access");
-      return {
-        manageTeam: true,
-        manageAgents: true,
-        viewAgents: true,
-        createAgents: true,
-        assignAgents: true,
-        deleteAgents: true,
-        viewCalls: true,
-        uploadCalls: true,
-        manageBalances: true,
-        viewBalance: true,
-        accessBillingSettings: true,
-        editSettings: true,
-        uploadCompanyLogo: true,
-        inviteUsers: true,
-        removeUsers: true,
-        sendInvitations: true,
-        superAdminAccess: true // ← ESTO DEBE SER TRUE
-      };
-    }
-    
     console.log("🔥 [USE_ROLE] Not super admin, computing regular permissions");
     
     return {
-      // Team and agent management - Super admins and company owners get full access
-      manageTeam: isSuperAdmin || isCompanyOwner,
-      manageAgents: isSuperAdmin || isCompanyOwner, 
-      viewAgents: isSuperAdmin || isCompanyOwner || checkRole('viewer'), 
-      createAgents: isSuperAdmin || isCompanyOwner,
-      assignAgents: isSuperAdmin || isCompanyOwner,
-      deleteAgents: isSuperAdmin || isCompanyOwner,
+      // Team and agent management
+      manageTeam: isCompanyOwner,
+      manageAgents: isCompanyOwner, 
+      viewAgents: isCompanyOwner || checkRole('viewer'), 
+      createAgents: isCompanyOwner,
+      assignAgents: isCompanyOwner,
+      deleteAgents: isCompanyOwner,
       
-      // Call management - simplified permissions
-      viewCalls: isSuperAdmin || isCompanyOwner || checkRole('viewer'),
-      uploadCalls: isSuperAdmin || isCompanyOwner,
+      // Call management
+      viewCalls: isCompanyOwner || checkRole('viewer'),
+      uploadCalls: isCompanyOwner,
       
-      // Billing management - Super admins and company owners get full access
-      manageBalances: isSuperAdmin || isCompanyOwner,
-      viewBalance: isSuperAdmin || isCompanyOwner || checkRole('viewer'),
-      accessBillingSettings: isSuperAdmin || isCompanyOwner,
+      // Billing management
+      manageBalances: isCompanyOwner,
+      viewBalance: isCompanyOwner || checkRole('viewer'),
+      accessBillingSettings: isCompanyOwner,
       
-      // Settings - Company owners and super admins only
-      editSettings: isSuperAdmin || isCompanyOwner,
-      uploadCompanyLogo: isSuperAdmin || isCompanyOwner,
-      inviteUsers: isSuperAdmin || isCompanyOwner,
-      removeUsers: isSuperAdmin || isCompanyOwner,
+      // Settings
+      editSettings: isCompanyOwner,
+      uploadCompanyLogo: isCompanyOwner,
+      inviteUsers: isCompanyOwner,
+      removeUsers: isCompanyOwner,
       
       // Invitations
-      sendInvitations: isSuperAdmin || isCompanyOwner,
+      sendInvitations: isCompanyOwner,
       
       // Super admin privileges
-      superAdminAccess: isSuperAdmin
+      superAdminAccess: false
     };
-  }, [isSuperAdmin, isCompanyOwner, user, userRole, company, isCompanyLoading, isSuperAdminLoading, checkRole]);
+  }, [isSuperAdmin, isEmailSuperAdmin, isCompanyOwner, user, userRole, company, isCompanyLoading, isSuperAdminLoading, checkRole]);
   
   // Debug logging
   console.log("🔥 [USE_ROLE] Final state:", {
     isSuperAdmin,
+    isEmailSuperAdmin,
     isCompanyOwner,
     superAdminAccess: can.superAdminAccess,
+    manageTeam: can.manageTeam,
     company: company?.id,
-    user: user?.id
+    user: user?.email
   });
   
-  return { isSuperAdmin, isCompanyOwner, checkRole, can };
+  return { 
+    isSuperAdmin: isSuperAdmin || isEmailSuperAdmin, // 🚨 BYPASS: Combinar ambas verificaciones
+    isCompanyOwner, 
+    checkRole, 
+    can 
+  };
 };
