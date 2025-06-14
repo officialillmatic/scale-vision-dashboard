@@ -16,86 +16,63 @@ const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
   const { user } = useAuth();
   const { isCompanyOwner, can } = useRole();
-  const { user } = useAuth();
-const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
-const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
-const { isSuperAdmin: hookSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
-const isSuperAdmin = hookSuperAdmin || isEmailSuperAdmin;
+  const SUPER_ADMIN_EMAILS = [
+    'aiagentsdevelopers@gmail.com',
+    'produpublicol@gmail.com'
+  ];
+  const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
+  const { isSuperAdmin: hookSuperAdmin, isLoading: isSuperAdminLoading } =
+    useSuperAdmin();
+  const isSuperAdmin = hookSuperAdmin || isEmailSuperAdmin;
 
-console.log("🔥 [TEAM_PAGE] User email:", user?.email);
-console.log("🔥 [TEAM_PAGE] Hook result:", hookSuperAdmin);
-console.log("🔥 [TEAM_PAGE] Email check:", isEmailSuperAdmin);
-console.log("🔥 [TEAM_PAGE] Final isSuperAdmin:", isSuperAdmin);
   const navigate = useNavigate();
   
-  // 🚨 RESTRICCIONES TEMPORALMENTE DESHABILITADAS
-  // TODO: Restaurar verificaciones de permisos cuando RLS esté funcionando
-  
-  /*
-  // 🔒 VERIFICACIONES ORIGINALES (COMENTADAS TEMPORALMENTE)
+  // Check access permissions once loading completes
   useEffect(() => {
-    // No hacer nada mientras está cargando
     if (isSuperAdminLoading) return;
-    
-    console.log('🔍 [TeamPage] Checking access permissions...');
-    console.log('🔍 [TeamPage] User email:', user?.email);
-    console.log('🔍 [TeamPage] Is super admin:', isSuperAdmin);
-    console.log('🔍 [TeamPage] Is company owner:', isCompanyOwner);
-    console.log('🔍 [TeamPage] Can manage team:', can.manageTeam);
-    
-    // BYPASS ESPECÍFICO PARA SUPER ADMIN - igual que en dashboard
-    const hasAccess = isSuperAdmin || 
-                     user?.email === 'aiagentsdevelopers@gmail.com' || 
-                     user?.email === 'produpublicol@gmail.com' ||
-                     isCompanyOwner || 
-                     can.manageTeam;
-    
+
+    const hasAccess =
+      isSuperAdmin ||
+      user?.email === 'aiagentsdevelopers@gmail.com' ||
+      user?.email === 'produpublicol@gmail.com' ||
+      isCompanyOwner ||
+      can.manageTeam;
+
     if (!hasAccess) {
-      console.log('❌ [TeamPage] Access denied, redirecting to dashboard');
       toast.error("You don't have permission to access team management");
       navigate('/dashboard');
-      return;
-    } else {
-      console.log('✅ [TeamPage] Access granted');
     }
   }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
-  */
-  
-  // 🟢 ACCESO TEMPORAL PARA TODOS LOS USUARIOS
-  useEffect(() => {
-    console.log('🌟 [TeamPage] MODO SIN RESTRICCIONES - Acceso concedido a todos los usuarios');
-    console.log('🔍 [TeamPage] User email:', user?.email);
-    console.log('🔍 [TeamPage] Is super admin:', isSuperAdmin);
-  }, [user, isSuperAdmin]);
-  
-  // 🟢 SIN LOADING DE PERMISOS - Acceso directo
-  // if (isSuperAdminLoading) {
-  //   return <DashboardLayout>
-  //     <div className="flex items-center justify-center h-64">
-  //       <div className="text-lg text-gray-600">Loading permissions...</div>
-  //     </div>
-  //   </DashboardLayout>;
-  // }
-  
-  // 🚨 VERIFICACIÓN DE ACCESO DESHABILITADA - TODOS TIENEN ACCESO
-  /*
-  const hasAccess = isSuperAdmin || 
-                   user?.email === 'aiagentsdevelopers@gmail.com' || 
-                   user?.email === 'produpublicol@gmail.com' ||
-                   isCompanyOwner || 
-                   can.manageTeam;
-  
-  if (!hasAccess) {
-    return <DashboardLayout>
-      <Alert variant="destructive" className="border-red-200 bg-red-50">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>
-          You don't have permission to access this page.
-        </AlertDescription>
-      </Alert>
-    </DashboardLayout>;
+
+  if (isSuperAdminLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-gray-600">Loading permissions...</div>
+        </div>
+      </DashboardLayout>
+    );
   }
-  */
+
+  const hasAccess =
+    isSuperAdmin ||
+    user?.email === 'aiagentsdevelopers@gmail.com' ||
+    user?.email === 'produpublicol@gmail.com' ||
+    isCompanyOwner ||
+    can.manageTeam;
+
+  if (!hasAccess) {
+    return (
+      <DashboardLayout>
+        <Alert variant="destructive" className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            You don't have permission to access this page.
+          </AlertDescription>
+        </Alert>
+      </DashboardLayout>
+    );
+  }
   
   return (
     <DashboardLayout>
@@ -115,11 +92,6 @@ console.log("🔥 [TEAM_PAGE] Final isSuperAdmin:", isSuperAdmin);
               </Badge>
             )}
             
-            {/* 🟢 BADGE TEMPORAL INDICANDO MODO SIN RESTRICCIONES */}
-            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-              🌟 ACCESO TEMPORAL COMPLETO
-            </Badge>
-            
             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
               Team Suite
             </Badge>
@@ -127,15 +99,6 @@ console.log("🔥 [TEAM_PAGE] Final isSuperAdmin:", isSuperAdmin);
           <p className="text-lg text-gray-600 font-medium">
             Manage your team members and AI agent assignments
           </p>
-          
-          {/* 🟢 AVISO TEMPORAL */}
-          <Alert className="border-yellow-200 bg-yellow-50">
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <AlertDescription className="text-yellow-800">
-              <strong>Modo temporal:</strong> Restricciones de permisos deshabilitadas para testing. 
-              Todos los usuarios tienen acceso completo.
-            </AlertDescription>
-          </Alert>
         </div>
         
         {/* Tabs Section */}

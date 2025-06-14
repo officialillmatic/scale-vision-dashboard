@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { createAgent } from '@/services/agentService';
 import {
   Dialog,
   DialogContent,
@@ -48,12 +49,13 @@ export function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModa
 
     setIsCreating(true);
     try {
-      // TODO: Implement agent creation
-      console.log('Creating agent:', formData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await createAgent({
+        name: formData.name,
+        description: formData.description,
+        status: formData.status,
+        rate_per_minute: parseFloat(formData.rate_per_minute)
+      });
+
       setFormData({
         name: '',
         description: '',
