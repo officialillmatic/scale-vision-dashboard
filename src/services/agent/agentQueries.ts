@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { safeSupabaseRequest } from "@/integrations/supabase/safe-request";
 import { Agent, UserAgent } from "./agentTypes";
 
 export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
@@ -6,10 +7,12 @@ export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
     console.log('🔍 [fetchAgents] Called with companyId:', companyId);
     
     // TEMPORAL: Sin filtro de company_id para debugging
-    const { data, error } = await supabase
-      .from("agents")
-      .select("*")
-      .eq("status", "active");
+    const { data, error } = await safeSupabaseRequest(
+      supabase
+        .from("agents")
+        .select("*")
+        .eq("status", "active")
+    );
       // COMENTAR TEMPORALMENTE: .eq("company_id", companyId);
     
     console.log('🔍 [fetchAgents] Raw data from agents table:', data);
@@ -55,7 +58,7 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
     }
     
     console.log('🔍 [fetchUserAgents] Executing query with company_id:', companyId);
-    const { data, error } = await query;
+    const { data, error } = await safeSupabaseRequest(query);
     
     if (error) {
       console.error("[AGENT_SERVICE] Error fetching user agents:", error);
@@ -83,7 +86,7 @@ export const fetchUserAccessibleAgents = async (userId: string, companyId?: stri
       query = query.eq("company_id", companyId);
     }
     
-    const { data, error } = await query;
+    const { data, error } = await safeSupabaseRequest(query);
     
     if (error) {
       console.error("[AGENT_SERVICE] Error fetching user accessible agents:", error);
@@ -115,14 +118,16 @@ export const fetchCompanyUserAgents = async (companyId: string): Promise<UserAge
   try {
     console.log('🔍 [fetchCompanyUserAgents] Fetching for company:', companyId);
     
-    const { data, error } = await supabase
-      .from("user_agents")
-      .select(`
+    const { data, error } = await safeSupabaseRequest(
+      supabase
+        .from("user_agents")
+        .select(`
         *,
         agent:agents!inner(*),
         user_details:user_profiles!inner(id, email, name, avatar_url)
       `)
-      .eq("company_id", companyId);
+        .eq("company_id", companyId)
+    );
       
     if (error) {
       console.error("[AGENT_SERVICE] Error fetching company user agents:", error);
