@@ -5,6 +5,8 @@
 
 This guide provides comprehensive instructions for setting up environment variables for development and production deployments.
 
+Use the provided `.env.example` file as the single template for all environment variables.
+
 ## Quick Setup
 
 1. **Copy the template**: `cp .env.example .env`
