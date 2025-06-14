@@ -4,8 +4,12 @@
 # Production API Test Script
 # Tests the three failing endpoints with proper headers
 
-SUPABASE_URL="https://jqkkhwoybcenxqpvodev.supabase.co"
-ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8"
+if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+  echo "SUPABASE_URL and SUPABASE_ANON_KEY environment variables must be set" >&2
+  exit 1
+fi
+
+ANON_KEY="$SUPABASE_ANON_KEY"
 
 echo "🔍 Testing Production API Endpoints"
 echo "=================================="
