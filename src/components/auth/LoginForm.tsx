@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
+import { supabase, hasValidSupabaseCredentials } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
