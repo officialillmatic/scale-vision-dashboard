@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { TeamInvitations } from './TeamInvitations';
 import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
@@ -16,6 +17,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 export function TeamMembers() {
   const { company } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
+const companyIdToUse = isSuperAdmin ? undefined : company?.id;
+
+console.log("🔥 [TEAM_MEMBERS] isSuperAdmin:", isSuperAdmin);
+console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   
   const { 
@@ -25,7 +31,7 @@ export function TeamMembers() {
     isInviting,
     handleInvite,
     fetchInvitations
-  } = useTeamMembers(company?.id);
+  } = useTeamMembers(companyIdToUse);
 
   const openInviteDialog = () => {
     setIsInviteDialogOpen(true);
