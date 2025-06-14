@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { supabase } from "@/integrations/supabase/client";
 import { handleError } from "@/lib/errorHandling";
 import { InvitationRole } from "./types";
@@ -8,14 +9,14 @@ export const createInvitation = async (
   role: InvitationRole
 ): Promise<boolean> => {
   try {
-    console.log("🚀 [CREATE_INVITATION] Starting...", { companyId, email, role });
+    debugLog("🚀 [CREATE_INVITATION] Starting...", { companyId, email, role });
     
     // Step 1: Create invitation in database
-    console.log("📝 [DATABASE] Creating token...");
+    debugLog("📝 [DATABASE] Creating token...");
     const token = crypto.randomUUID();
-    console.log("📝 [DATABASE] Token created:", token);
+    debugLog("📝 [DATABASE] Token created:", token);
     
-    console.log("📝 [DATABASE] Inserting into company_invitations_raw...");
+    debugLog("📝 [DATABASE] Inserting into company_invitations_raw...");
     const { data: invitation, error: dbError } = await supabase
       .from("company_invitations_raw")
       .insert({
@@ -29,18 +30,18 @@ export const createInvitation = async (
       .select()
       .single();
 
-    console.log("📝 [DATABASE] Insert result:", { invitation, dbError });
+    debugLog("📝 [DATABASE] Insert result:", { invitation, dbError });
 
     if (dbError) {
       console.error("❌ [DATABASE] Error:", dbError);
       throw dbError;
     }
 
-    console.log("✅ [DATABASE] Invitation created successfully:", invitation);
+    debugLog("✅ [DATABASE] Invitation created successfully:", invitation);
 
     // Step 2: Send email via Edge Function
-    console.log("📧 [EMAIL] About to call Edge Function...");
-    console.log("📧 [EMAIL] Payload:", {
+    debugLog("📧 [EMAIL] About to call Edge Function...");
+    debugLog("📧 [EMAIL] Payload:", {
       email: email,
       role: role,
       token: token,
@@ -56,16 +57,16 @@ export const createInvitation = async (
       }
     });
 
-    console.log("📧 [EMAIL] Edge Function response:", { emailData, emailError });
+    debugLog("📧 [EMAIL] Edge Function response:", { emailData, emailError });
 
     if (emailError) {
       console.error("❌ [EMAIL] Error:", emailError);
       console.warn("⚠️ [EMAIL] Invitation created but email failed to send");
     } else {
-      console.log("✅ [EMAIL] Email sent successfully:", emailData);
+      debugLog("✅ [EMAIL] Email sent successfully:", emailData);
     }
 
-    console.log("🎉 [CREATE_INVITATION] Process completed successfully");
+    debugLog("🎉 [CREATE_INVITATION] Process completed successfully");
     return true;
   } catch (error) {
     console.error("💥 [CREATE_INVITATION] Unexpected error:", error);
@@ -78,7 +79,7 @@ export const createInvitation = async (
 
 export const resendInvitation = async (invitationId: string): Promise<boolean> => {
   try {
-    console.log("Resending invitation...");
+    debugLog("Resending invitation...");
     
     // Step 1: Get invitation details from database
     const { data: invitation, error: fetchError } = await supabase
@@ -105,7 +106,7 @@ export const resendInvitation = async (invitationId: string): Promise<boolean> =
       throw emailError;
     }
 
-    console.log("Invitation resent successfully:", emailData);
+    debugLog("Invitation resent successfully:", emailData);
     return true;
   } catch (error) {
     console.error("Error resending invitation:", error);
@@ -118,7 +119,7 @@ export const resendInvitation = async (invitationId: string): Promise<boolean> =
 
 export const cancelInvitation = async (invitationId: string): Promise<boolean> => {
   try {
-    console.log("Cancelling invitation:", invitationId);
+    debugLog("Cancelling invitation:", invitationId);
     
     // Update status to 'cancelled' instead of deleting
     const { error } = await supabase
@@ -131,7 +132,7 @@ export const cancelInvitation = async (invitationId: string): Promise<boolean> =
       throw error;
     }
 
-    console.log("Invitation cancelled successfully");
+    debugLog("Invitation cancelled successfully");
     return true;
   } catch (error) {
     console.error("Error canceling invitation:", error);
@@ -144,7 +145,7 @@ export const cancelInvitation = async (invitationId: string): Promise<boolean> =
 
 export const deleteInvitation = async (invitationId: string): Promise<boolean> => {
   try {
-    console.log("Deleting invitation:", invitationId);
+    debugLog("Deleting invitation:", invitationId);
     
     const { error } = await supabase
       .from("company_invitations_raw")
@@ -156,7 +157,7 @@ export const deleteInvitation = async (invitationId: string): Promise<boolean> =
       throw error;
     }
 
-    console.log("Invitation deleted successfully");
+    debugLog("Invitation deleted successfully");
     return true;
   } catch (error) {
     console.error("Error deleting invitation:", error);

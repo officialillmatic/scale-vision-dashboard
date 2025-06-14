@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,8 +68,8 @@ export function SuperAdminCreditPanel() {
     try {
       setLoading(true);
       
-      console.log('🔍 [SuperAdminCreditPanel] Fetching users...');
-      console.log('🔍 [SuperAdminCreditPanel] Is super admin:', isSuperAdmin);
+      debugLog('🔍 [SuperAdminCreditPanel] Fetching users...');
+      debugLog('🔍 [SuperAdminCreditPanel] Is super admin:', isSuperAdmin);
       
       // For super admins, try to fetch from the admin view first, fallback to direct query if needed
       if (isSuperAdmin) {
@@ -122,14 +123,14 @@ export function SuperAdminCreditPanel() {
             };
           }) || [];
 
-          console.log('✅ [SuperAdminCreditPanel] Using fallback data:', transformedData.length);
+          debugLog('✅ [SuperAdminCreditPanel] Using fallback data:', transformedData.length);
           setUsers(transformedData);
         } else {
-          console.log('✅ [SuperAdminCreditPanel] Using admin view data:', data?.length);
+          debugLog('✅ [SuperAdminCreditPanel] Using admin view data:', data?.length);
           setUsers(data || []);
         }
       } else {
-        console.log('❌ [SuperAdminCreditPanel] Not a super admin, no access');
+        debugLog('❌ [SuperAdminCreditPanel] Not a super admin, no access');
         setUsers([]);
       }
     } catch (error: any) {

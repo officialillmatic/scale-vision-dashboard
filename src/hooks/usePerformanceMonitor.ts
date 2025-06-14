@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useEffect, useState } from 'react';
 
@@ -33,7 +34,7 @@ export const usePerformanceMonitor = (componentName: string) => {
         
         // Log performance for development
         if (process.env.NODE_ENV === 'development') {
-          console.log(`[PERFORMANCE] ${componentName}: ${executionTime.toFixed(2)}ms`);
+          debugLog(`[PERFORMANCE] ${componentName}: ${executionTime.toFixed(2)}ms`);
         }
       }
     };

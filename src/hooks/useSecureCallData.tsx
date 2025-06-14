@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useQuery } from "@tanstack/react-query";
 import { retellService } from "@/utils/retellAbstraction";
@@ -10,7 +11,7 @@ export const useSecureCallData = (limit: number = 100) => {
   const { checkRateLimit, logSecurityEvent } = useSecurityMonitor();
 
   // LOG DE DEBUG AL INICIO
-  console.log("[HOOK_EXECUTION] useSecureCallData ejecutándose", { 
+  debugLog("[HOOK_EXECUTION] useSecureCallData ejecutándose", { 
     user: user?.id, 
     company: company?.id,
     userExists: !!user?.id,
@@ -26,13 +27,13 @@ export const useSecureCallData = (limit: number = 100) => {
   } = useQuery({
     queryKey: ["secure-calls", user?.id, limit],
     queryFn: async () => {
-      console.log("[DEBUG] User ID:", user?.id, "Company:", company);
+      debugLog("[DEBUG] User ID:", user?.id, "Company:", company);
       
       // CAMBIO: Usar un fallback temporal para testing
       const userId = user?.id || "efe4f9c1-8322-4ce7-8193-69bd8c982d03"; // El ID que vimos antes
       
       if (!userId) {
-        console.log("[SECURE_CALL_DATA] Missing user ID - returning empty array");
+        debugLog("[SECURE_CALL_DATA] Missing user ID - returning empty array");
         return [];
       }
 
@@ -40,28 +41,28 @@ export const useSecureCallData = (limit: number = 100) => {
       try {
         const rateLimitOk = await checkRateLimit('fetch_calls');
         if (!rateLimitOk) {
-          console.log("[SECURE_CALL_DATA] Rate limit exceeded");
+          debugLog("[SECURE_CALL_DATA] Rate limit exceeded");
           await logSecurityEvent('rate_limit_exceeded', 'Call data fetch rate limit exceeded');
           toast.error("Rate limit exceeded. Please wait before trying again.");
           throw new Error("Rate limit exceeded");
         }
       } catch (rateLimitError) {
-        console.log("[SECURE_CALL_DATA] Rate limit check failed, continuing anyway:", rateLimitError);
+        debugLog("[SECURE_CALL_DATA] Rate limit check failed, continuing anyway:", rateLimitError);
       }
 
-      console.log("[SECURE_CALL_DATA] Fetching secure call data for user:", userId);
+      debugLog("[SECURE_CALL_DATA] Fetching secure call data for user:", userId);
       
       try {
         // USAR userId (que puede ser fallback) en lugar de user.id
         const callData = await retellService.getCallData(userId, limit);
         
-        console.log("[SECURE_CALL_DATA] Successfully fetched calls:", callData);
+        debugLog("[SECURE_CALL_DATA] Successfully fetched calls:", callData);
         
         // Log successful access
         try {
           await logSecurityEvent('call_data_access', `Successfully fetched ${callData.length} calls`);
         } catch (logError) {
-          console.log("[SECURE_CALL_DATA] Logging failed but continuing:", logError);
+          debugLog("[SECURE_CALL_DATA] Logging failed but continuing:", logError);
         }
         
         return callData;
@@ -72,7 +73,7 @@ export const useSecureCallData = (limit: number = 100) => {
         try {
           await logSecurityEvent('call_data_access_failed', error.message);
         } catch (logError) {
-          console.log("[SECURE_CALL_DATA] Error logging failed:", logError);
+          debugLog("[SECURE_CALL_DATA] Error logging failed:", logError);
         }
         
         if (error.message?.includes("permission denied")) {
@@ -89,7 +90,7 @@ export const useSecureCallData = (limit: number = 100) => {
     enabled: true, // CAMBIO: Siempre habilitado para testing
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: (failureCount, error: any) => {
-      console.log("[SECURE_CALL_DATA] Retry attempt:", failureCount, "Error:", error?.message);
+      debugLog("[SECURE_CALL_DATA] Retry attempt:", failureCount, "Error:", error?.message);
       // Don't retry rate limit or permission errors
       if (error?.message?.includes("rate limit") || 
           error?.message?.includes("permission denied")) {
@@ -100,7 +101,7 @@ export const useSecureCallData = (limit: number = 100) => {
   });
 
   // LOG DE DEBUG DESPUÉS DEL useQuery
-  console.log("[HOOK_STATE] Hook state:", { 
+  debugLog("[HOOK_STATE] Hook state:", { 
     calls: calls.length, 
     isLoading, 
     error: error?.message,
@@ -108,7 +109,7 @@ export const useSecureCallData = (limit: number = 100) => {
   });
 
   const syncCallsSecurely = async () => {
-    console.log("[SYNC_CALLS] Starting sync for user:", user?.id);
+    debugLog("[SYNC_CALLS] Starting sync for user:", user?.id);
     
     const userId = user?.id || "efe4f9c1-8322-4ce7-8193-69bd8c982d03";
     
@@ -126,14 +127,14 @@ export const useSecureCallData = (limit: number = 100) => {
         return;
       }
     } catch (rateLimitError) {
-      console.log("[SYNC_CALLS] Rate limit check failed, continuing anyway:", rateLimitError);
+      debugLog("[SYNC_CALLS] Rate limit check failed, continuing anyway:", rateLimitError);
     }
 
     try {
       await logSecurityEvent('call_sync_started', 'User initiated call sync');
       const result = await retellService.syncCalls();
       
-      console.log("[SYNC_CALLS] Sync result:", result);
+      debugLog("[SYNC_CALLS] Sync result:", result);
       
       await logSecurityEvent('call_sync_completed', `Synced ${result.synced_calls} calls`);
       toast.success(`Successfully synced ${result.synced_calls} calls`);
@@ -148,7 +149,7 @@ export const useSecureCallData = (limit: number = 100) => {
   };
 
   const testConnectionSecurely = async () => {
-    console.log("[TEST_CONNECTION] Starting test for user:", user?.id);
+    debugLog("[TEST_CONNECTION] Starting test for user:", user?.id);
     
     const userId = user?.id || "efe4f9c1-8322-4ce7-8193-69bd8c982d03";
     
@@ -165,14 +166,14 @@ export const useSecureCallData = (limit: number = 100) => {
         return;
       }
     } catch (rateLimitError) {
-      console.log("[TEST_CONNECTION] Rate limit check failed, continuing anyway:", rateLimitError);
+      debugLog("[TEST_CONNECTION] Rate limit check failed, continuing anyway:", rateLimitError);
     }
 
     try {
       await logSecurityEvent('connection_test_started', 'User initiated connection test');
       const isConnected = await retellService.testConnection();
       
-      console.log("[TEST_CONNECTION] Connection test result:", isConnected);
+      debugLog("[TEST_CONNECTION] Connection test result:", isConnected);
       
       if (isConnected) {
         await logSecurityEvent('connection_test_success', 'Connection test successful');

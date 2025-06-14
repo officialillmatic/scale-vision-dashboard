@@ -1,9 +1,10 @@
+import { debugLog } from "@/lib/debug";
 
 import { supabase } from "@/integrations/supabase/client";
 
 export const migrateRegisteredUsers = async (companyId: string) => {
   try {
-    console.log('🔄 Starting migration of registered users to company_members...');
+    debugLog('🔄 Starting migration of registered users to company_members...');
     
     // Get all confirmed users from profiles (simplified)
     const { data: confirmedUsers, error: usersError } = await supabase
@@ -15,7 +16,7 @@ export const migrateRegisteredUsers = async (companyId: string) => {
       return false;
     }
 
-    console.log(`Found ${confirmedUsers?.length || 0} confirmed users`);
+    debugLog(`Found ${confirmedUsers?.length || 0} confirmed users`);
 
     // Get existing company members
     const { data: existingMembers, error: membersError } = await supabase
@@ -28,16 +29,16 @@ export const migrateRegisteredUsers = async (companyId: string) => {
       return false;
     }
 
-    console.log(`Found ${existingMembers?.length || 0} existing company members`);
+    debugLog(`Found ${existingMembers?.length || 0} existing company members`);
 
     // Find users who need to be added to company_members
     const existingUserIds = new Set(existingMembers?.map(m => m.user_id) || []);
     const usersToAdd = confirmedUsers?.filter(user => !existingUserIds.has(user.id)) || [];
 
-    console.log(`Need to migrate ${usersToAdd.length} users to company_members`);
+    debugLog(`Need to migrate ${usersToAdd.length} users to company_members`);
 
     if (usersToAdd.length === 0) {
-      console.log('✅ No users need migration');
+      debugLog('✅ No users need migration');
       return true;
     }
 
@@ -59,9 +60,9 @@ export const migrateRegisteredUsers = async (companyId: string) => {
       return false;
     }
 
-    console.log(`✅ Successfully migrated ${usersToAdd.length} users to company_members`);
+    debugLog(`✅ Successfully migrated ${usersToAdd.length} users to company_members`);
     usersToAdd.forEach(user => {
-      console.log(`   - Added: ${user.email}`);
+      debugLog(`   - Added: ${user.email}`);
     });
 
     return true;
@@ -73,7 +74,7 @@ export const migrateRegisteredUsers = async (companyId: string) => {
 
 export const getConfirmedTeamMembers = async (companyId: string) => {
   try {
-    console.log('🔍 Fetching confirmed team members from company_members...');
+    debugLog('🔍 Fetching confirmed team members from company_members...');
     
     // First, try to get members with user_id JOIN
     const { data: membersWithUserId, error: joinError } = await supabase
@@ -111,7 +112,7 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
     // For email-only members, get their profile data
     const emailOnlyResults = [];
     if (membersWithEmail?.length) {
-      console.log(`Processing ${membersWithEmail.length} email-only members...`);
+      debugLog(`Processing ${membersWithEmail.length} email-only members...`);
       for (const member of membersWithEmail) {
         if (member.email) {
           const { data: profile, error: profileError } = await supabase
@@ -130,9 +131,9 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
               ...member,
               profiles: profile
             });
-            console.log(`   - Found profile for: ${member.email}`);
+            debugLog(`   - Found profile for: ${member.email}`);
           } else {
-            console.log(`   - No profile found for: ${member.email}`);
+            debugLog(`   - No profile found for: ${member.email}`);
           }
         }
       }
@@ -141,9 +142,9 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
     // Combine both results
     const allMembers = [...(membersWithUserId || []), ...emailOnlyResults];
     
-    console.log(`Found ${allMembers.length} confirmed team members total`);
-    console.log(`- With user_id: ${membersWithUserId?.length || 0}`);
-    console.log(`- Email-only: ${emailOnlyResults.length}`);
+    debugLog(`Found ${allMembers.length} confirmed team members total`);
+    debugLog(`- With user_id: ${membersWithUserId?.length || 0}`);
+    debugLog(`- Email-only: ${emailOnlyResults.length}`);
     
     return allMembers.map(member => ({
       id: member.profiles.id,
@@ -168,7 +169,7 @@ export const getConfirmedTeamMembers = async (companyId: string) => {
 
 export const getTrulyPendingInvitations = async (companyId: string) => {
   try {
-    console.log('🔍 Fetching truly pending invitations (ENHANCED DEBUG)...');
+    debugLog('🔍 Fetching truly pending invitations (ENHANCED DEBUG)...');
     
     // Get all pending invitations
     const { data: invitations, error: invitationsError } = await supabase
@@ -186,28 +187,28 @@ export const getTrulyPendingInvitations = async (companyId: string) => {
       return [];
     }
 
-    console.log('🔍 [DEBUG] All invitations:', invitations?.map(i => i.email));
+    debugLog('🔍 [DEBUG] All invitations:', invitations?.map(i => i.email));
 
     // Get all profiles
     const { data: allProfiles } = await supabase
       .from('profiles')
       .select('email');
 
-    console.log('🔍 [DEBUG] All profile emails:', allProfiles?.map(p => p.email));
+    debugLog('🔍 [DEBUG] All profile emails:', allProfiles?.map(p => p.email));
 
     const profileEmails = new Set(allProfiles?.map(p => p.email?.toLowerCase()) || []);
     
-    console.log('🔍 [DEBUG] Checking each invitation:');
+    debugLog('🔍 [DEBUG] Checking each invitation:');
     
     const trulyPending = invitations?.filter(invitation => {
       const hasProfile = profileEmails.has(invitation.email.toLowerCase());
-      console.log(`  📧 ${invitation.email}: ${hasProfile ? '❌ HAS PROFILE (should be removed)' : '✅ NO PROFILE (truly pending)'}`);
+      debugLog(`  📧 ${invitation.email}: ${hasProfile ? '❌ HAS PROFILE (should be removed)' : '✅ NO PROFILE (truly pending)'}`);
       return !hasProfile;
     }) || [];
 
-    console.log('🔍 [DEBUG] Final truly pending:', trulyPending.map(tp => tp.email));
+    debugLog('🔍 [DEBUG] Final truly pending:', trulyPending.map(tp => tp.email));
 
-    console.log(`🎯 RESULT: ${trulyPending.length} truly pending invitations (filtered from ${invitations?.length || 0} total)`);
+    debugLog(`🎯 RESULT: ${trulyPending.length} truly pending invitations (filtered from ${invitations?.length || 0} total)`);
     
     // Debug specific users
     const problemUsers = ['elbazardelasventas@gmail.com', 'familiajyn2024@gmail.com'];
@@ -215,11 +216,11 @@ export const getTrulyPendingInvitations = async (companyId: string) => {
       const isInPending = trulyPending.some(inv => inv.email.toLowerCase() === email.toLowerCase());
       const hasProfile = profileEmails.has(email.toLowerCase());
       const wasInOriginal = invitations?.some(inv => inv.email.toLowerCase() === email.toLowerCase());
-      console.log(`🔍 Problem user ${email}:`);
-      console.log(`   - Was in original invitations: ${wasInOriginal}`);
-      console.log(`   - Has profile: ${hasProfile}`);
-      console.log(`   - In final pending list: ${isInPending}`);
-      console.log(`   - Should be migrated: ${hasProfile && wasInOriginal && !isInPending}`);
+      debugLog(`🔍 Problem user ${email}:`);
+      debugLog(`   - Was in original invitations: ${wasInOriginal}`);
+      debugLog(`   - Has profile: ${hasProfile}`);
+      debugLog(`   - In final pending list: ${isInPending}`);
+      debugLog(`   - Should be migrated: ${hasProfile && wasInOriginal && !isInPending}`);
     });
     
     return trulyPending.map(invitation => ({
@@ -235,7 +236,7 @@ export const getTrulyPendingInvitations = async (companyId: string) => {
 // New function for manual migration
 export const manualMigratePendingUsers = async (companyId: string) => {
   try {
-    console.log('🚀 MANUAL MIGRATION: Starting...');
+    debugLog('🚀 MANUAL MIGRATION: Starting...');
     
     // Get all profiles
     const { data: profiles } = await supabase
@@ -250,14 +251,14 @@ export const manualMigratePendingUsers = async (companyId: string) => {
       .eq('status', 'pending');
     
     if (!profiles || !pending) {
-      console.log('❌ Could not fetch data for migration');
+      debugLog('❌ Could not fetch data for migration');
       return { success: false, message: 'Could not fetch data' };
     }
     
     const profileEmails = new Set(profiles.map(p => p.email?.toLowerCase()));
     const toMigrate = pending.filter(p => profileEmails.has(p.email.toLowerCase()));
     
-    console.log('🔍 Users to migrate:', toMigrate.map(u => u.email));
+    debugLog('🔍 Users to migrate:', toMigrate.map(u => u.email));
     
     if (toMigrate.length === 0) {
       return { success: true, message: 'No users need migration', count: 0 };
@@ -297,7 +298,7 @@ export const manualMigratePendingUsers = async (companyId: string) => {
       console.error('❌ Error updating invitations:', updateError);
     }
     
-    console.log(`✅ Successfully migrated ${memberInserts.length} users`);
+    debugLog(`✅ Successfully migrated ${memberInserts.length} users`);
     return { 
       success: true, 
       message: `Migrated ${memberInserts.length} users`, 

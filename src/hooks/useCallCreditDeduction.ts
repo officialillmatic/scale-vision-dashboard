@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -136,7 +137,7 @@ export function useCallCreditDeduction() {
         toast.warning(`Low balance warning! You have $${newBalance.toFixed(2)} remaining. Consider recharging soon.`);
       }
 
-      console.log(`Credits deducted successfully: $${callCostData.cost.toFixed(2)}. Remaining balance: $${newBalance.toFixed(2)}`);
+      debugLog(`Credits deducted successfully: $${callCostData.cost.toFixed(2)}. Remaining balance: $${newBalance.toFixed(2)}`);
 
       return { 
         success: true, 

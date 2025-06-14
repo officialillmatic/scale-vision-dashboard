@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface UserAgentAssignment {
@@ -49,7 +50,7 @@ const fetchAgentsLocal = async (companyId?: string) => {
 
 export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]> => {
   try {
-    console.log('🔍 [fetchUserAgentAssignments] Starting fetch - using correct agent queries');
+    debugLog('🔍 [fetchUserAgentAssignments] Starting fetch - using correct agent queries');
     
     // Usar consulta básica sin JOINs para evitar errores de relación
     const { data: assignments, error } = await supabase
@@ -70,26 +71,26 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
     }
 
     if (!assignments || assignments.length === 0) {
-      console.log('🔍 [fetchUserAgentAssignments] No assignments found');
+      debugLog('🔍 [fetchUserAgentAssignments] No assignments found');
       return [];
     }
 
-    console.log('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments, enriching...');
+    debugLog('🔍 [fetchUserAgentAssignments] Found', assignments.length, 'assignments, enriching...');
 
     // 🔧 USAR fetchAgentsLocal (la tabla correcta agents)
     const allAgents = await fetchAgentsLocal(); // Función que consulta agents
-    console.log('🔍 [fetchUserAgentAssignments] Fetched agents:', allAgents.length, 'agents');
-    console.log('🔍 [fetchUserAgentAssignments] Agent details:', allAgents);
+    debugLog('🔍 [fetchUserAgentAssignments] Fetched agents:', allAgents.length, 'agents');
+    debugLog('🔍 [fetchUserAgentAssignments] Agent details:', allAgents);
 
     // Crear un mapa de agentes para lookup rápido
     const agentsMap = new Map(allAgents.map((agent: any) => [agent.id, agent]));
-    console.log('🔍 [fetchUserAgentAssignments] Agents map keys:', Array.from(agentsMap.keys()));
+    debugLog('🔍 [fetchUserAgentAssignments] Agents map keys:', Array.from(agentsMap.keys()));
 
     // Enriquecer datos con consultas separadas para usuarios y usar el mapa para agentes
     const enrichedAssignments: UserAgentAssignment[] = [];
     
     for (const assignment of assignments) {
-      console.log('🔍 [fetchUserAgentAssignments] Processing assignment:', assignment);
+      debugLog('🔍 [fetchUserAgentAssignments] Processing assignment:', assignment);
       
       // Obtener usuario desde profiles (tabla que funciona)
       const { data: userDetails, error: userError } = await supabase
@@ -105,12 +106,12 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
       // 🔧 USAR EL MAPA DE AGENTES (de la función que funciona)
       const agentDetails = agentsMap.get(assignment.agent_id);
       
-      console.log('🔍 [fetchUserAgentAssignments] User details for', assignment.user_id, ':', userDetails);
-      console.log('🔍 [fetchUserAgentAssignments] Agent details for', assignment.agent_id, ':', agentDetails);
+      debugLog('🔍 [fetchUserAgentAssignments] User details for', assignment.user_id, ':', userDetails);
+      debugLog('🔍 [fetchUserAgentAssignments] Agent details for', assignment.agent_id, ':', agentDetails);
       
       if (!agentDetails) {
-        console.log('⚠️ [fetchUserAgentAssignments] No agent found for agent_id:', assignment.agent_id);
-        console.log('⚠️ [fetchUserAgentAssignments] Available agent IDs:', Array.from(agentsMap.keys()));
+        debugLog('⚠️ [fetchUserAgentAssignments] No agent found for agent_id:', assignment.agent_id);
+        debugLog('⚠️ [fetchUserAgentAssignments] Available agent IDs:', Array.from(agentsMap.keys()));
       }
 
       enrichedAssignments.push({
@@ -135,8 +136,8 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
       });
     }
 
-    console.log('🔍 [fetchUserAgentAssignments] Final enriched assignments:', enrichedAssignments.length);
-    console.log('🔍 [fetchUserAgentAssignments] Final data:', enrichedAssignments);
+    debugLog('🔍 [fetchUserAgentAssignments] Final enriched assignments:', enrichedAssignments.length);
+    debugLog('🔍 [fetchUserAgentAssignments] Final data:', enrichedAssignments);
     return enrichedAssignments;
   } catch (error: any) {
     console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error in fetchUserAgentAssignments:", error);
@@ -147,15 +148,15 @@ export const fetchUserAgentAssignments = async (): Promise<UserAgentAssignment[]
 // New function to fetch assignments for the current authenticated user
 export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssignment[]> => {
   try {
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Starting fetch for current user');
+    debugLog('🔍 [fetchCurrentUserAgentAssignments] Starting fetch for current user');
     
     // Get current user first and log it
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Current user from auth:', user?.id);
-    console.log('🔍 [fetchCurrentUserAgentAssignments] User error:', userError);
+    debugLog('🔍 [fetchCurrentUserAgentAssignments] Current user from auth:', user?.id);
+    debugLog('🔍 [fetchCurrentUserAgentAssignments] User error:', userError);
     
     if (!user?.id) {
-      console.log('🔍 [fetchCurrentUserAgentAssignments] No authenticated user found');
+      debugLog('🔍 [fetchCurrentUserAgentAssignments] No authenticated user found');
       return [];
     }
 
@@ -173,8 +174,8 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
       .eq('user_id', user.id)
       .order("assigned_at", { ascending: false });
 
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Query result:', assignments);
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Query error:', error);
+    debugLog('🔍 [fetchCurrentUserAgentAssignments] Query result:', assignments);
+    debugLog('🔍 [fetchCurrentUserAgentAssignments] Query error:', error);
 
     if (error) {
       console.error('❌ [fetchCurrentUserAgentAssignments] Error:', error);
@@ -182,11 +183,11 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
     }
 
     if (!assignments || assignments.length === 0) {
-      console.log('🔍 [fetchCurrentUserAgentAssignments] No assignments found for current user');
+      debugLog('🔍 [fetchCurrentUserAgentAssignments] No assignments found for current user');
       return [];
     }
 
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Found', assignments.length, 'assignments for current user');
+    debugLog('🔍 [fetchCurrentUserAgentAssignments] Found', assignments.length, 'assignments for current user');
 
     // 🔧 USAR fetchAgentsLocal también aquí
     const allAgents = await fetchAgentsLocal();
@@ -196,7 +197,7 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
     const enrichedAssignments: UserAgentAssignment[] = [];
     
     for (const assignment of assignments) {
-      console.log('🔍 [fetchCurrentUserAgentAssignments] Processing assignment:', assignment);
+      debugLog('🔍 [fetchCurrentUserAgentAssignments] Processing assignment:', assignment);
       
       // Obtener usuario desde profiles (tabla que funciona)
       const { data: userDetails, error: userError } = await supabase
@@ -212,8 +213,8 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
       // 🔧 USAR EL MAPA DE AGENTES
       const agentDetails = agentsMap.get(assignment.agent_id);
 
-      console.log('🔍 [fetchCurrentUserAgentAssignments] User details:', userDetails);
-      console.log('🔍 [fetchCurrentUserAgentAssignments] Agent details:', agentDetails);
+      debugLog('🔍 [fetchCurrentUserAgentAssignments] User details:', userDetails);
+      debugLog('🔍 [fetchCurrentUserAgentAssignments] Agent details:', agentDetails);
 
       enrichedAssignments.push({
         id: assignment.id,
@@ -237,7 +238,7 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
       });
     }
 
-    console.log('🔍 [fetchCurrentUserAgentAssignments] Final enriched assignments:', enrichedAssignments);
+    debugLog('🔍 [fetchCurrentUserAgentAssignments] Final enriched assignments:', enrichedAssignments);
     return enrichedAssignments;
   } catch (error: any) {
     console.error("❌ [USER_AGENT_ASSIGNMENT_SERVICE] Error in fetchCurrentUserAgentAssignments:", error);
@@ -247,7 +248,7 @@ export const fetchCurrentUserAgentAssignments = async (): Promise<UserAgentAssig
 
 export const removeUserAgentAssignment = async (assignmentId: string): Promise<boolean> => {
   try {
-    console.log('🔍 [removeUserAgentAssignment] Removing assignment:', assignmentId);
+    debugLog('🔍 [removeUserAgentAssignment] Removing assignment:', assignmentId);
     
     const { error } = await supabase
       .from("user_agent_assignments")
@@ -259,7 +260,7 @@ export const removeUserAgentAssignment = async (assignmentId: string): Promise<b
       throw error;
     }
 
-    console.log('🔍 [removeUserAgentAssignment] Assignment removed successfully');
+    debugLog('🔍 [removeUserAgentAssignment] Assignment removed successfully');
     return true;
   } catch (error: any) {
     console.error("[USER_AGENT_ASSIGNMENT_SERVICE] Error in removeUserAgentAssignment:", error);
@@ -273,7 +274,7 @@ export const updateUserAgentAssignmentPrimary = async (
   userId: string
 ): Promise<boolean> => {
   try {
-    console.log('🔍 [updateUserAgentAssignmentPrimary] Updating assignment:', assignmentId, 'isPrimary:', isPrimary);
+    debugLog('🔍 [updateUserAgentAssignmentPrimary] Updating assignment:', assignmentId, 'isPrimary:', isPrimary);
     
     // If setting as primary, first unset all other primary assignments for this user
     if (isPrimary) {
@@ -293,7 +294,7 @@ export const updateUserAgentAssignmentPrimary = async (
       throw error;
     }
 
-    console.log('🔍 [updateUserAgentAssignmentPrimary] Assignment updated successfully');
+    debugLog('🔍 [updateUserAgentAssignmentPrimary] Assignment updated successfully');
     return true;
   } catch (error: any) {
     console.error("[USER_AGENT_ASSIGNMENT_SERVICE] Error in updateUserAgentAssignmentPrimary:", error);
@@ -307,7 +308,7 @@ export const createUserAgentAssignment = async (
   isPrimary: boolean = false
 ): Promise<boolean> => {
   try {
-    console.log('🔍 [createUserAgentAssignment] Creating assignment:', { userId, agentId, isPrimary });
+    debugLog('🔍 [createUserAgentAssignment] Creating assignment:', { userId, agentId, isPrimary });
 
     // ✅ VALIDAR QUE EL AGENTE EXISTE EN LA TABLA agents
     const { data: agentExists, error: agentError } = await supabase
@@ -321,7 +322,7 @@ export const createUserAgentAssignment = async (
       throw new Error(`Agent with ID ${agentId} not found in agents table`);
     }
 
-    console.log('🔍 [createUserAgentAssignment] Agent validated successfully');
+    debugLog('🔍 [createUserAgentAssignment] Agent validated successfully');
 
     // If setting as primary, first unset all other primary assignments for this user
     if (isPrimary) {
@@ -346,7 +347,7 @@ export const createUserAgentAssignment = async (
       throw error;
     }
 
-    console.log('🔍 [createUserAgentAssignment] Assignment created successfully');
+    debugLog('🔍 [createUserAgentAssignment] Assignment created successfully');
     return true;
   } catch (error: any) {
     console.error("[USER_AGENT_ASSIGNMENT_SERVICE] Error in createUserAgentAssignment:", error);

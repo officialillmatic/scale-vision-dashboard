@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { useState } from "react";
 import { ProductionDashboardLayout } from "@/components/dashboard/ProductionDashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,7 @@ import { useSecureCallData } from "@/hooks/useSecureCallData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 export default function CallsPage() {
-  console.log("🔥 CALLS PAGE RENDERIZADA - USANDO SECURE HOOK");
+  debugLog("🔥 CALLS PAGE RENDERIZADA - USANDO SECURE HOOK");
   
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
@@ -50,7 +51,7 @@ export default function CallsPage() {
     agent: null // Será mapeado si es necesario
   }));
 
-  console.log("🔥 CALLS PAGE - SECURE HOOK DATA:", {
+  debugLog("🔥 CALLS PAGE - SECURE HOOK DATA:", {
     secureCalls: secureCalls?.length || 0,
     secureLoading,
     secureError: secureError?.message,
@@ -58,7 +59,7 @@ export default function CallsPage() {
   });
 
   const handleSyncComplete = () => {
-    console.log('[CALLS_PAGE] Sync completed, refreshing call data...');
+    debugLog('[CALLS_PAGE] Sync completed, refreshing call data...');
     // El useSecureCallData debería refrescar automáticamente
   };
 
@@ -83,8 +84,8 @@ export default function CallsPage() {
 
   // Debug handler para cambios de pestaña
   const handleTabChange = (value: string) => {
-    console.log("🔍 PESTAÑA SELECCIONADA:", value);
-    console.log("🔍 TIMESTAMP:", new Date().toISOString());
+    debugLog("🔍 PESTAÑA SELECCIONADA:", value);
+    debugLog("🔍 TIMESTAMP:", new Date().toISOString());
   };
 
   return (
@@ -204,7 +205,7 @@ export default function CallsPage() {
 
           <TabsContent value="calls">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: calls (Call History) - CON SECURE HOOK");
+              debugLog("🔍 RENDERIZANDO TAB: calls (Call History) - CON SECURE HOOK");
               return (
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="border-b border-gray-100">
@@ -238,7 +239,7 @@ export default function CallsPage() {
                         isLoading={secureLoading}
                         searchTerm={searchTerm}
                         date={selectedDate}
-                        onSelectCall={(call) => console.log('Selected call:', call)}
+                        onSelectCall={(call) => debugLog('Selected call:', call)}
                       />
                     )}
                   </CardContent>
@@ -249,9 +250,9 @@ export default function CallsPage() {
 
           <TabsContent value="production-calls">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: production-calls");
-              console.log("🔍 A PUNTO DE RENDERIZAR ProductionCallsTable");
-              console.log("🔍 COMPONENTE ProductionCallsTable:", ProductionCallsTable);
+              debugLog("🔍 RENDERIZANDO TAB: production-calls");
+              debugLog("🔍 A PUNTO DE RENDERIZAR ProductionCallsTable");
+              debugLog("🔍 COMPONENTE ProductionCallsTable:", ProductionCallsTable);
               return (
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="border-b border-gray-100">
@@ -271,7 +272,7 @@ export default function CallsPage() {
 
           <TabsContent value="analytics">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: analytics");
+              debugLog("🔍 RENDERIZANDO TAB: analytics");
               return (
                 <Card className="border-0 shadow-sm">
                   <CardContent className="p-6">
@@ -288,42 +289,42 @@ export default function CallsPage() {
 
           <TabsContent value="debug">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: debug");
+              debugLog("🔍 RENDERIZANDO TAB: debug");
               return <SyncDebugPanel />;
             })()}
           </TabsContent>
 
           <TabsContent value="test">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: test");
+              debugLog("🔍 RENDERIZANDO TAB: test");
               return <SyncTestPanel />;
             })()}
           </TabsContent>
 
           <TabsContent value="sync-debug">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: sync-debug");
+              debugLog("🔍 RENDERIZANDO TAB: sync-debug");
               return <CallSyncDebugPanel />;
             })()}
           </TabsContent>
 
           <TabsContent value="data-debug">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: data-debug");
+              debugLog("🔍 RENDERIZANDO TAB: data-debug");
               return <CallDataDebugPanel />;
             })()}
           </TabsContent>
 
           <TabsContent value="webhook-debug">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: webhook-debug");
+              debugLog("🔍 RENDERIZANDO TAB: webhook-debug");
               return <WebhookDiagnostics />;
             })()}
           </TabsContent>
 
           <TabsContent value="settings">
             {(() => {
-              console.log("🔍 RENDERIZANDO TAB: settings");
+              debugLog("🔍 RENDERIZANDO TAB: settings");
               return (
                 <Card className="border-0 shadow-sm">
                   <CardContent className="p-6">

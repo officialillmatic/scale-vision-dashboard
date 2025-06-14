@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState, useEffect } from 'react'
 import { emergencySupabase } from '@/integrations/supabase/emergency-client'
@@ -18,7 +19,7 @@ export const useEmergencySuperAdmin = () => {
       try {
         const { data: { user }, error } = await emergencySupabase.auth.getUser()
         
-        console.log('🚨 Emergency: Checking user:', user?.email)
+        debugLog('🚨 Emergency: Checking user:', user?.email)
         
         setUser(user)
         
@@ -29,7 +30,7 @@ export const useEmergencySuperAdmin = () => {
           
           const finalIsSuper = isSuperFromEmail || isSuperFromUserMetadata || isSuperFromAppMetadata
           
-          console.log('🚨 Emergency: Is super admin:', finalIsSuper)
+          debugLog('🚨 Emergency: Is super admin:', finalIsSuper)
           setIsSuper(finalIsSuper)
         } else {
           setIsSuper(false)
@@ -47,7 +48,7 @@ export const useEmergencySuperAdmin = () => {
 
     const { data: { subscription } } = emergencySupabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('🚨 Emergency: Auth change:', event, session?.user?.email)
+        debugLog('🚨 Emergency: Auth change:', event, session?.user?.email)
         
         if (session?.user) {
           setUser(session.user)

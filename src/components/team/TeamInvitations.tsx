@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -54,7 +55,7 @@ export function TeamInvitations() {
   // Listen for new team member registrations to refresh the invitations list
   useEffect(() => {
     const handleTeamMemberRegistered = (event: CustomEvent) => {
-      console.log('🔄 [TeamInvitations] Team member registered, refreshing invitations...', event.detail);
+      debugLog('🔄 [TeamInvitations] Team member registered, refreshing invitations...', event.detail);
       setTimeout(() => {
         refetch();
       }, 2000); // Esperar 2 segundos para que la base de datos se actualice
@@ -100,7 +101,7 @@ export function TeamInvitations() {
   };
 
   const handleForceRefresh = async () => {
-    console.log('🔄 [DEBUG] Force refreshing invitations...');
+    debugLog('🔄 [DEBUG] Force refreshing invitations...');
     setIsProcessing('force-refresh');
     
     try {
@@ -109,7 +110,7 @@ export function TeamInvitations() {
       
       // También debug de datos directos
       if (company?.id) {
-        console.log('🔍 [DEBUG] Checking database directly...');
+        debugLog('🔍 [DEBUG] Checking database directly...');
         
         // Check invitations raw
         const { data: rawInvitations } = await supabase
@@ -118,7 +119,7 @@ export function TeamInvitations() {
           .eq('company_id', company.id)
           .eq('status', 'pending');
         
-        console.log('📋 [DEBUG] Raw pending invitations in DB:', rawInvitations?.length || 0);
+        debugLog('📋 [DEBUG] Raw pending invitations in DB:', rawInvitations?.length || 0);
         
         // Check confirmed users
         const { data: confirmedUsers } = await supabase
@@ -126,7 +127,7 @@ export function TeamInvitations() {
           .select('email, email_confirmed_at')
           .not('email_confirmed_at', 'is', null);
         
-        console.log('👥 [DEBUG] Confirmed users in DB:', confirmedUsers?.length || 0);
+        debugLog('👥 [DEBUG] Confirmed users in DB:', confirmedUsers?.length || 0);
         
         // Check overlap
         const pendingEmails = rawInvitations?.map(inv => inv.email.toLowerCase()) || [];
@@ -137,7 +138,7 @@ export function TeamInvitations() {
           console.warn('⚠️ [DEBUG] PROBLEM FOUND - Confirmed users still in pending invitations:', overlap);
           toast.error(`Found ${overlap.length} confirmed users still in pending invitations!`);
         } else {
-          console.log('✅ [DEBUG] No overlap found - system working correctly');
+          debugLog('✅ [DEBUG] No overlap found - system working correctly');
           toast.success('No synchronization issues found');
         }
       }

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { useState, useEffect } from 'react'
 import { emergencySupabase } from '@/integrations/supabase/emergency-client'
 import { useEmergencySuperAdmin } from '@/hooks/useEmergencySuperAdmin'
@@ -14,7 +15,7 @@ export const EmergencyTeamMembers = () => {
       return
     }
 
-    console.log('🚨 Emergency: Fetching team members...')
+    debugLog('🚨 Emergency: Fetching team members...')
     setLoading(true)
     setError(null)
 
@@ -36,9 +37,9 @@ export const EmergencyTeamMembers = () => {
           `)
           .order('created_at', { ascending: false })
           
-        console.log('🚨 Strategy 1 result:', result)
+        debugLog('🚨 Strategy 1 result:', result)
       } catch (err) {
-        console.log('🚨 Strategy 1 failed:', err)
+        debugLog('🚨 Strategy 1 failed:', err)
       }
 
       // Estrategia 2: Solo profiles si la primera falla
@@ -49,15 +50,15 @@ export const EmergencyTeamMembers = () => {
             .select('id, email, full_name, role, created_at')
             .order('created_at', { ascending: false })
             
-          console.log('🚨 Strategy 2 result:', result)
+          debugLog('🚨 Strategy 2 result:', result)
         } catch (err) {
-          console.log('🚨 Strategy 2 failed:', err)
+          debugLog('🚨 Strategy 2 failed:', err)
         }
       }
 
       // Estrategia 3: Auth users como último recurso
       if (!result || result.error) {
-        console.log('🚨 All strategies failed, using auth users...')
+        debugLog('🚨 All strategies failed, using auth users...')
         
         // Crear datos mock basados en el usuario actual
         const mockData = [
@@ -73,11 +74,11 @@ export const EmergencyTeamMembers = () => {
         
         setMembers(mockData)
         setError(null)
-        console.log('🚨 Using mock data:', mockData)
+        debugLog('🚨 Using mock data:', mockData)
       } else {
         setMembers(result.data || [])
         setError(result.error?.message || null)
-        console.log('🚨 Members loaded:', result.data?.length)
+        debugLog('🚨 Members loaded:', result.data?.length)
       }
 
     } catch (err) {

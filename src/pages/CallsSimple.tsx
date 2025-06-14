@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -69,7 +70,7 @@ const processPendingCallCosts = async (
   calculateCallCost: (call: Call) => number,
   getCallDuration: (call: Call) => number
 ) => {
-  console.log('🔍 Checking for calls that need cost calculation...');
+  debugLog('🔍 Checking for calls that need cost calculation...');
   
   const pendingCalls = calls.filter(call => {
     const duration = getCallDuration(call);
@@ -85,18 +86,18 @@ const processPendingCallCosts = async (
   });
 
   if (pendingCalls.length === 0) {
-    console.log('✅ All calls have proper costs calculated');
+    debugLog('✅ All calls have proper costs calculated');
     return;
   }
 
-  console.log(`🎯 Found ${pendingCalls.length} calls that need cost calculation`);
+  debugLog(`🎯 Found ${pendingCalls.length} calls that need cost calculation`);
 
   for (const call of pendingCalls) {
     const calculatedCost = calculateCallCost(call);
     
     if (calculatedCost > 0) {
       try {
-        console.log(`💾 Updating cost for call ${call.call_id}: $${calculatedCost.toFixed(4)}`);
+        debugLog(`💾 Updating cost for call ${call.call_id}: $${calculatedCost.toFixed(4)}`);
         
         const { error } = await supabase
           .from('calls')
@@ -107,7 +108,7 @@ const processPendingCallCosts = async (
           .eq('id', call.id);
 
         if (!error) {
-          console.log(`✅ Successfully updated cost for call ${call.call_id}`);
+          debugLog(`✅ Successfully updated cost for call ${call.call_id}`);
           setCalls(prevCalls => 
             prevCalls.map(c => 
               c.id === call.id 
@@ -124,7 +125,7 @@ const processPendingCallCosts = async (
     }
   }
 
-  console.log('🎉 Finished processing pending call costs');
+  debugLog('🎉 Finished processing pending call costs');
 };
 
 // COMPONENTE FILTRO DE AGENTES
@@ -285,20 +286,20 @@ export default function CallsSimple() {
     
     if (call.call_agent?.rate_per_minute) {
       agentRate = call.call_agent.rate_per_minute;
-      console.log(`💰 Using call_agent rate: $${agentRate}/min`);
+      debugLog(`💰 Using call_agent rate: $${agentRate}/min`);
     } else if (call.agents?.rate_per_minute) {
       agentRate = call.agents.rate_per_minute;
-      console.log(`💰 Using agents rate: $${agentRate}/min`);
+      debugLog(`💰 Using agents rate: $${agentRate}/min`);
     }
     
     if (agentRate === 0) {
-      console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
+      debugLog(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
       return call.cost_usd || 0;
     }
     
     const calculatedCost = durationMinutes * agentRate;
     
-    console.log(`🧮 COST CALCULATION:
+    debugLog(`🧮 COST CALCULATION:
       📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
       💵 Rate: $${agentRate}/min
       🎯 Calculated: $${calculatedCost.toFixed(4)}
@@ -343,7 +344,7 @@ export default function CallsSimple() {
         });
       });
     } catch (error) {
-      console.log(`❌ Error loading audio duration:`, error);
+      debugLog(`❌ Error loading audio duration:`, error);
     }
   };
 
@@ -488,8 +489,8 @@ export default function CallsSimple() {
   };
 
   const fetchCalls = async () => {
-    console.log("🚀 FETCHCALLS STARTED - DEBUG TEST");
-    console.log("🚀 USER ID:", user?.id);
+    debugLog("🚀 FETCHCALLS STARTED - DEBUG TEST");
+    debugLog("🚀 USER ID:", user?.id);
     if (!user?.id) {
       setError("User not authenticated");
       setLoading(false);
@@ -500,7 +501,7 @@ export default function CallsSimple() {
       setLoading(true);
       setError(null);
 
-      console.log("🔍 Fetching calls for user:", user.id);
+      debugLog("🔍 Fetching calls for user:", user.id);
 
       const { data: userAgents, error: agentsError } = await supabase
         .from('user_agent_assignments')
@@ -523,7 +524,7 @@ export default function CallsSimple() {
       }
 
       if (!userAgents || userAgents.length === 0) {
-        console.log("⚠️ No agents assigned to this user");
+        debugLog("⚠️ No agents assigned to this user");
         setCalls([]);
         setStats({
           total: 0,
@@ -536,7 +537,7 @@ export default function CallsSimple() {
       }
 
       const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-      console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
+      debugLog(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
 
       const { data: callsData, error: callsError } = await supabase
         .from('calls')
@@ -554,7 +555,7 @@ export default function CallsSimple() {
         return;
       }
 
-      console.log("✅ Calls fetched successfully:", callsData?.length || 0);
+      debugLog("✅ Calls fetched successfully:", callsData?.length || 0);
 
       const data = callsData?.map(call => {
         let matchedAgent = null;
@@ -570,11 +571,11 @@ export default function CallsSimple() {
             name: userAgentAssignment.agents.name,
             rate_per_minute: userAgentAssignment.agents.rate_per_minute
           };
-          console.log(`✅ Found agent with rate: ${matchedAgent.name} - $${matchedAgent.rate_per_minute}/min`);
+          debugLog(`✅ Found agent with rate: ${matchedAgent.name} - $${matchedAgent.rate_per_minute}/min`);
         }
 
         if (!matchedAgent) {
-          console.log(`❌ No agent found for call ${call.call_id} with agent_id: ${call.agent_id}`);
+          debugLog(`❌ No agent found for call ${call.call_id} with agent_id: ${call.agent_id}`);
         }
 
         return {
@@ -619,11 +620,11 @@ export default function CallsSimple() {
   };
 
   const handleCallClick = (call: Call) => {
-    console.log("🎯 CLICKED CALL:", call);
-    console.log("🎯 CLICKED CALL SUMMARY:", call.call_summary);
+    debugLog("🎯 CLICKED CALL:", call);
+    debugLog("🎯 CLICKED CALL SUMMARY:", call.call_summary);
     const originalCall = calls.find(c => c.id === call.id) || call;
-    console.log("🎯 ORIGINAL CALL FOUND:", originalCall);
-    console.log("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
+    debugLog("🎯 ORIGINAL CALL FOUND:", originalCall);
+    debugLog("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
     setSelectedCall(originalCall);
     setIsModalOpen(true);
   };

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { supabase } from "@/integrations/supabase/client";
 import { CallsTable } from "@/types/supabase";
 
@@ -22,7 +23,7 @@ export type CallData = Omit<CallsTable, 'timestamp' | 'start_time'> & {
 };
 
 export const fetchCalls = async (userId?: string): Promise<CallData[]> => {
-  console.log("[CALL_SERVICE] Fetching calls for user:", userId);
+  debugLog("[CALL_SERVICE] Fetching calls for user:", userId);
   
   try {
     // ✅ CORREGIDO: Consulta simple sin JOINs problemáticos
@@ -45,7 +46,7 @@ export const fetchCalls = async (userId?: string): Promise<CallData[]> => {
     }
 
     if (!data) {
-      console.log("[CALL_SERVICE] No data returned");
+      debugLog("[CALL_SERVICE] No data returned");
       return [];
     }
 
@@ -85,7 +86,7 @@ export const fetchCalls = async (userId?: string): Promise<CallData[]> => {
       });
     }
 
-    console.log("[CALL_SERVICE] Successfully fetched and enriched", enrichedCalls.length, "calls");
+    debugLog("[CALL_SERVICE] Successfully fetched and enriched", enrichedCalls.length, "calls");
     return enrichedCalls;
     
   } catch (error: any) {
@@ -93,7 +94,7 @@ export const fetchCalls = async (userId?: string): Promise<CallData[]> => {
     
     // Provide more specific error information
     if (error.code === "PGRST301") {
-      console.log("[CALL_SERVICE] No calls found - returning empty array");
+      debugLog("[CALL_SERVICE] No calls found - returning empty array");
       return [];
     }
     

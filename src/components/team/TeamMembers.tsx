@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
@@ -42,7 +43,7 @@ export function TeamMembers() {
   };
 
   const handleEditRole = (member: any) => {
-    console.log('Edit role for:', member.email);
+    debugLog('Edit role for:', member.email);
     alert(`Edit role for ${member.email}\nCurrent role: ${member.role}`);
   };
 
@@ -55,16 +56,16 @@ export function TeamMembers() {
     if (!confirmed) return;
     
     try {
-      console.log('🗑️ Cleaning user for re-invite:', member.email);
-      console.log('🗑️ Member ID:', member.id);
+      debugLog('🗑️ Cleaning user for re-invite:', member.email);
+      debugLog('🗑️ Member ID:', member.id);
       
       // Use cleanup function that preserves auth account
       const { data, error } = await supabase.rpc('cleanup_user_for_reinvite', {
         user_id_to_clean: member.id
       });
       
-      console.log('🗑️ Cleanup result:', data);
-      console.log('🗑️ Cleanup error:', error);
+      debugLog('🗑️ Cleanup result:', data);
+      debugLog('🗑️ Cleanup error:', error);
       
       if (error) {
         console.error('❌ RPC Error:', error);
@@ -73,7 +74,7 @@ export function TeamMembers() {
       
       if (data && data.success) {
         toast.success(`${member.email} removed from team (can be re-invited)`);
-        console.log('✅ User cleaned successfully, refreshing page...');
+        debugLog('✅ User cleaned successfully, refreshing page...');
         // Force refresh after successful cleanup
         setTimeout(() => {
           window.location.reload();

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 
 import { useQuery } from "@tanstack/react-query";
@@ -47,13 +48,13 @@ export function useTeamMembers(companyId?: string) {
   const { data: members, isLoading: membersLoading, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['team-members', targetCompanyId],
     queryFn: async () => {
-      console.log('🔍 [useTeamMembers] Fetching team members...');
+      debugLog('🔍 [useTeamMembers] Fetching team members...');
       
       try {
         // For super admins - VERIFICACIÓN CORREGIDA
         if (isSuperAdmin) {
-          console.log('✅ [SECURITY] Super admin verified by hook, proceeding with full access');
-          console.log('🔍 [SUPER ADMIN] Fetching all users from profiles');
+          debugLog('✅ [SECURITY] Super admin verified by hook, proceeding with full access');
+          debugLog('🔍 [SUPER ADMIN] Fetching all users from profiles');
           
           const { data: profilesData, error: profilesError } = await supabase
             .from('profiles')
@@ -65,9 +66,9 @@ export function useTeamMembers(companyId?: string) {
             throw profilesError;
           }
 
-          console.log(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users`);
-          console.log('🔍 [SUPER ADMIN] Sample user data:', profilesData?.[0]);
-          console.log('🔍 [SUPER ADMIN] All user data:', profilesData);
+          debugLog(`✅ [SUPER ADMIN] Found ${profilesData?.length || 0} users`);
+          debugLog('🔍 [SUPER ADMIN] Sample user data:', profilesData?.[0]);
+          debugLog('🔍 [SUPER ADMIN] All user data:', profilesData);
 
           return profilesData?.map(profile => ({
             id: profile.id,
@@ -90,7 +91,7 @@ export function useTeamMembers(companyId?: string) {
         // For company users, get confirmed members from company_members
         if (!targetCompanyId) return [];
 
-        console.log('🔍 [REGULAR USER] Fetching company team members only');
+        debugLog('🔍 [REGULAR USER] Fetching company team members only');
         return await getConfirmedTeamMembers(targetCompanyId);
       } catch (error) {
         console.error('❌ [useTeamMembers] Error fetching team members:', error);
@@ -122,7 +123,7 @@ export function useTeamMembers(companyId?: string) {
   useEffect(() => {
     if (!targetCompanyId) return;
 
-    console.log('🔔 [useTeamMembers] Setting up real-time updates for team members...');
+    debugLog('🔔 [useTeamMembers] Setting up real-time updates for team members...');
     
     const channel = supabase
       .channel('team-sync')
@@ -135,7 +136,7 @@ export function useTeamMembers(companyId?: string) {
           filter: `company_id=eq.${targetCompanyId}`,
         },
         (payload) => {
-          console.log('🔄 [useTeamMembers] Company member changed, refreshing:', payload);
+          debugLog('🔄 [useTeamMembers] Company member changed, refreshing:', payload);
           refetchMembers();
           refetchInvitations();
         }
@@ -148,7 +149,7 @@ export function useTeamMembers(companyId?: string) {
           table: 'profiles',
         },
         (payload) => {
-          console.log('🔄 [useTeamMembers] Profile updated, refreshing team data:', payload);
+          debugLog('🔄 [useTeamMembers] Profile updated, refreshing team data:', payload);
           refetchMembers();
           refetchInvitations();
         }
@@ -156,17 +157,17 @@ export function useTeamMembers(companyId?: string) {
       .subscribe();
 
     return () => {
-      console.log('🔌 [useTeamMembers] Cleaning up real-time subscription');
+      debugLog('🔌 [useTeamMembers] Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [targetCompanyId, refetchMembers, refetchInvitations]);
 
   // Enhanced invitation handling function
   const handleInvite = async (email: string, role: 'admin' | 'member' | 'viewer'): Promise<boolean> => {
-    console.log('🚀 [handleInvite] Starting invitation process...');
-    console.log('📧 [handleInvite] Email:', email);
-    console.log('👤 [handleInvite] Role:', role);
-    console.log('🏢 [handleInvite] Company ID:', targetCompanyId);
+    debugLog('🚀 [handleInvite] Starting invitation process...');
+    debugLog('📧 [handleInvite] Email:', email);
+    debugLog('👤 [handleInvite] Role:', role);
+    debugLog('🏢 [handleInvite] Company ID:', targetCompanyId);
 
     if (!targetCompanyId) {
       console.error('❌ [handleInvite] No company ID available');
@@ -210,11 +211,11 @@ export function useTeamMembers(companyId?: string) {
     setIsInviting(true);
 
     try {
-      console.log('📤 [handleInvite] Calling createInvitation...');
+      debugLog('📤 [handleInvite] Calling createInvitation...');
       const success = await createInvitation(targetCompanyId, email, role);
       
       if (success) {
-        console.log('✅ [handleInvite] Invitation sent successfully');
+        debugLog('✅ [handleInvite] Invitation sent successfully');
         toast({
           title: "Invitation Sent",
           description: `Invitation sent to ${email} successfully`,
@@ -248,7 +249,7 @@ export function useTeamMembers(companyId?: string) {
   };
 
   const fetchInvitations = async () => {
-    console.log('🔄 [fetchInvitations] Force refreshing all data...');
+    debugLog('🔄 [fetchInvitations] Force refreshing all data...');
     await Promise.all([refetchMembers(), refetchInvitations()]);
   };
 

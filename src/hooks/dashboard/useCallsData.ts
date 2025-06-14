@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,12 +15,12 @@ export const useCallsData = () => {
     queryKey: ['dashboard-calls', companyId, user?.id],
     queryFn: async (): Promise<CallData[]> => {
       if (!companyId || !user?.id) {
-        console.log("[DASHBOARD] Missing company ID or user ID");
+        debugLog("[DASHBOARD] Missing company ID or user ID");
         return [];
       }
       
       try {
-        console.log("[DASHBOARD] Fetching calls for company:", companyId);
+        debugLog("[DASHBOARD] Fetching calls for company:", companyId);
         
         // Use the explicit foreign key alias to disambiguate the join
         const { data, error } = await supabase
@@ -42,11 +43,11 @@ export const useCallsData = () => {
         }
         
         if (!data) {
-          console.log("[DASHBOARD] No call data returned");
+          debugLog("[DASHBOARD] No call data returned");
           return [];
         }
         
-        console.log(`[DASHBOARD] Successfully fetched ${data.length} calls`);
+        debugLog(`[DASHBOARD] Successfully fetched ${data.length} calls`);
         
         // Transform the data to match our CallData interface
         return data.map(call => ({
@@ -77,7 +78,7 @@ export const useCallsData = () => {
       if (!companyId || !user?.id) return [];
       
       try {
-        console.log("[DASHBOARD] Fetching previous period calls for company:", companyId);
+        debugLog("[DASHBOARD] Fetching previous period calls for company:", companyId);
         
         // Get data from one week before
         const oneWeekAgo = subDays(new Date(), 7);
@@ -104,7 +105,7 @@ export const useCallsData = () => {
           return [];
         }
         
-        console.log(`[DASHBOARD] Successfully fetched ${data?.length || 0} previous calls`);
+        debugLog(`[DASHBOARD] Successfully fetched ${data?.length || 0} previous calls`);
         
         return (data || []).map(call => ({
           ...call,

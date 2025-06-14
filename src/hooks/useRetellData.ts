@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { retellService, DashboardMetrics, RetellCall, TimeBasedCallData, AgentMetrics } from '@/lib/retellService';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,7 +53,7 @@ export function useRetellData(): RetellDataState {
   // Fetch all data for the dashboard
   const fetchData = useCallback(async (showLoading = true) => {
     if (!user?.id || isUnmountedRef.current) {
-      console.log('[RETELL_DATA] No user or component unmounted, skipping fetch');
+      debugLog('[RETELL_DATA] No user or component unmounted, skipping fetch');
       return;
     }
 
@@ -61,7 +62,7 @@ export function useRetellData(): RetellDataState {
         setState(prev => ({ ...prev, loading: true, error: null }));
       }
 
-      console.log('[RETELL_DATA] Fetching dashboard data for user:', user.id);
+      debugLog('[RETELL_DATA] Fetching dashboard data for user:', user.id);
 
       // Get user's primary agent first
       const userAgent = await retellService.getUserAgent(user.id);
@@ -78,7 +79,7 @@ export function useRetellData(): RetellDataState {
         return;
       }
 
-      console.log('[RETELL_DATA] Found agent:', agentId);
+      debugLog('[RETELL_DATA] Found agent:', agentId);
 
       // Fetch all data in parallel
       const [metrics, calls, timeData, agentMetrics] = await Promise.all([
@@ -100,7 +101,7 @@ export function useRetellData(): RetellDataState {
           error: null,
         }));
 
-        console.log('[RETELL_DATA] Successfully loaded data:', {
+        debugLog('[RETELL_DATA] Successfully loaded data:', {
           metrics: !!metrics,
           callsCount: calls.length,
           timeDataPoints: timeData.length,
@@ -135,10 +136,10 @@ export function useRetellData(): RetellDataState {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
-      console.log('[RETELL_DATA] Starting call sync...');
+      debugLog('[RETELL_DATA] Starting call sync...');
       const syncedCount = await retellService.syncCallsToCache(user.id);
       
-      console.log('[RETELL_DATA] Synced', syncedCount, 'calls');
+      debugLog('[RETELL_DATA] Synced', syncedCount, 'calls');
       toast.success(`Synced ${syncedCount} calls successfully`);
       
       // Refresh data after sync
@@ -165,7 +166,7 @@ export function useRetellData(): RetellDataState {
     // Set up 5-minute auto-refresh
     refreshIntervalRef.current = setInterval(() => {
       if (!state.loading) {
-        console.log('[RETELL_DATA] Auto-refreshing data...');
+        debugLog('[RETELL_DATA] Auto-refreshing data...');
         fetchData(false);
       }
     }, 5 * 60 * 1000); // 5 minutes
@@ -230,7 +231,7 @@ export function useRetellAnalytics(
     showLoading = true
   ) => {
     if (!user?.id || isUnmountedRef.current) {
-      console.log('[RETELL_ANALYTICS] No user or component unmounted, skipping fetch');
+      debugLog('[RETELL_ANALYTICS] No user or component unmounted, skipping fetch');
       return;
     }
 
@@ -239,7 +240,7 @@ export function useRetellAnalytics(
         setState(prev => ({ ...prev, loading: true, error: null }));
       }
 
-      console.log('[RETELL_ANALYTICS] Fetching analytics data for user:', user.id);
+      debugLog('[RETELL_ANALYTICS] Fetching analytics data for user:', user.id);
 
       // Get user's primary agent
       const userAgent = await retellService.getUserAgent(user.id);
@@ -259,7 +260,7 @@ export function useRetellAnalytics(
       const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 
-      console.log('[RETELL_ANALYTICS] Date range:', { start, end, daysDiff });
+      debugLog('[RETELL_ANALYTICS] Date range:', { start, end, daysDiff });
 
       // Fetch analytics data
       const [calls, timeData, metrics] = await Promise.all([
@@ -292,7 +293,7 @@ export function useRetellAnalytics(
           error: null,
         }));
 
-        console.log('[RETELL_ANALYTICS] Successfully loaded analytics data:', {
+        debugLog('[RETELL_ANALYTICS] Successfully loaded analytics data:', {
           callsCount: filteredCalls.length,
           timeDataPoints: filteredTimeData.length,
           metrics: !!metrics,

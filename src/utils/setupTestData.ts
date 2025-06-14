@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -10,7 +11,7 @@ export async function setupTestAgentUserLink() {
       .limit(1);
 
     if (agentsError || !agents || agents.length === 0) {
-      console.log('No agents found - creating test agent');
+      debugLog('No agents found - creating test agent');
       
       // Create a test agent
       const { data: newAgent, error: createError } = await supabase
@@ -30,7 +31,7 @@ export async function setupTestAgentUserLink() {
         return false;
       }
       
-      console.log('Created test agent:', newAgent);
+      debugLog('Created test agent:', newAgent);
       return true;
     }
 
@@ -68,7 +69,7 @@ export async function setupTestAgentUserLink() {
         return false;
       }
 
-      console.log('Created user-agent link successfully');
+      debugLog('Created user-agent link successfully');
     }
 
     return true;

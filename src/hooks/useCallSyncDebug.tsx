@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -52,13 +53,13 @@ export const useCallSyncDebug = () => {
     const retellApiKey = import.meta.env.VITE_RETELL_API_KEY || 'key_not_found';
     const apiUrl = 'https://api.retellai.com/v2/list-calls';
     
-    console.log(`[${testName}] === EXACT API CALL DEBUG ===`);
-    console.log(`[${testName}] API URL:`, apiUrl);
-    console.log(`[${testName}] Request method: POST`);
-    console.log(`[${testName}] Authorization header:`, `Bearer ${retellApiKey.substring(0, 15)}...`);
-    console.log(`[${testName}] Content-Type: application/json`);
-    console.log(`[${testName}] Request body:`, JSON.stringify(requestBody, null, 2));
-    console.log(`[${testName}] === END API CALL DEBUG ===`);
+    debugLog(`[${testName}] === EXACT API CALL DEBUG ===`);
+    debugLog(`[${testName}] API URL:`, apiUrl);
+    debugLog(`[${testName}] Request method: POST`);
+    debugLog(`[${testName}] Authorization header:`, `Bearer ${retellApiKey.substring(0, 15)}...`);
+    debugLog(`[${testName}] Content-Type: application/json`);
+    debugLog(`[${testName}] Request body:`, JSON.stringify(requestBody, null, 2));
+    debugLog(`[${testName}] === END API CALL DEBUG ===`);
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -69,8 +70,8 @@ export const useCallSyncDebug = () => {
       body: JSON.stringify(requestBody)
     });
 
-    console.log(`[${testName}] Response status:`, response.status);
-    console.log(`[${testName}] Response headers:`, Object.fromEntries(response.headers.entries()));
+    debugLog(`[${testName}] Response status:`, response.status);
+    debugLog(`[${testName}] Response headers:`, Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -79,8 +80,8 @@ export const useCallSyncDebug = () => {
     }
 
     const data = await response.json();
-    console.log(`[${testName}] Raw API Response:`, JSON.stringify(data, null, 2));
-    console.log(`[${testName}] Calls found:`, data.calls?.length || 0);
+    debugLog(`[${testName}] Raw API Response:`, JSON.stringify(data, null, 2));
+    debugLog(`[${testName}] Calls found:`, data.calls?.length || 0);
     
     return data;
   };
@@ -97,7 +98,7 @@ export const useCallSyncDebug = () => {
       return;
     }
 
-    console.log("[DEBUG_API_TEST] Testing direct Retell API call from frontend...");
+    debugLog("[DEBUG_API_TEST] Testing direct Retell API call from frontend...");
     setLoading('directApi', true);
     
     try {
@@ -147,7 +148,7 @@ export const useCallSyncDebug = () => {
       return;
     }
 
-    console.log("[DEBUG] Testing database insertion...");
+    debugLog("[DEBUG] Testing database insertion...");
     setLoading('database', true);
     
     try {
@@ -170,7 +171,7 @@ export const useCallSyncDebug = () => {
         revenue: 3.40
       };
 
-      console.log("[DEBUG] Test call data:", JSON.stringify(testCall, null, 2));
+      debugLog("[DEBUG] Test call data:", JSON.stringify(testCall, null, 2));
 
       const { data, error } = await supabase
         .from('retell_calls')
@@ -192,7 +193,7 @@ export const useCallSyncDebug = () => {
         return;
       }
 
-      console.log("[DEBUG] Database insertion successful:", data);
+      debugLog("[DEBUG] Database insertion successful:", data);
       
       const result = {
         success: true,
@@ -231,11 +232,11 @@ export const useCallSyncDebug = () => {
       return;
     }
 
-    console.log("[DEBUG] Testing edge function with bypass validation...");
+    debugLog("[DEBUG] Testing edge function with bypass validation...");
     setLoading('edgeFunction', true);
     
     try {
-      console.log("[DEBUG] Calling supabase.functions.invoke('sync-calls')...");
+      debugLog("[DEBUG] Calling supabase.functions.invoke('sync-calls')...");
       
       const { data, error } = await supabase.functions.invoke('sync-calls', {
         body: { 
@@ -247,7 +248,7 @@ export const useCallSyncDebug = () => {
         }
       });
 
-      console.log("[DEBUG] Edge function response:", { data, error });
+      debugLog("[DEBUG] Edge function response:", { data, error });
 
       if (error) {
         console.error("[DEBUG] Edge function error:", error);
@@ -264,7 +265,7 @@ export const useCallSyncDebug = () => {
         return;
       }
 
-      console.log("[DEBUG] Edge function success:", data);
+      debugLog("[DEBUG] Edge function success:", data);
       
       const result = {
         success: true,
@@ -303,11 +304,11 @@ export const useCallSyncDebug = () => {
       return;
     }
 
-    console.log("[DEBUG] Testing API connectivity through edge function...");
+    debugLog("[DEBUG] Testing API connectivity through edge function...");
     setLoading('apiConnectivity', true);
     
     try {
-      console.log("[DEBUG] Calling edge function with test=true...");
+      debugLog("[DEBUG] Calling edge function with test=true...");
       
       const { data, error } = await supabase.functions.invoke('sync-calls', {
         body: { test: true },
@@ -316,7 +317,7 @@ export const useCallSyncDebug = () => {
         }
       });
 
-      console.log("[DEBUG] API connectivity response:", { data, error });
+      debugLog("[DEBUG] API connectivity response:", { data, error });
 
       if (error) {
         console.error("[DEBUG] API connectivity error:", error);
@@ -333,7 +334,7 @@ export const useCallSyncDebug = () => {
         return;
       }
 
-      console.log("[DEBUG] API connectivity success:", data);
+      debugLog("[DEBUG] API connectivity success:", data);
       
       const result = {
         success: true,

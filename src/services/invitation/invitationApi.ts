@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { supabase } from "@/integrations/supabase/client";
 import { handleError } from "@/lib/errorHandling";
 import type { CompanyInvitation, InvitationCheckResult } from "./types";
@@ -5,14 +6,14 @@ import { getTrulyPendingInvitations } from "@/services/teamMigration";
 
 export const fetchCompanyInvitations = async (companyId: string): Promise<CompanyInvitation[]> => {
   try {
-    console.log('🔍 [DEBUG] Fetching truly pending invitations for company:', companyId);
+    debugLog('🔍 [DEBUG] Fetching truly pending invitations for company:', companyId);
     
     // Use the new migration service to get truly pending invitations
     const trulyPendingInvitations = await getTrulyPendingInvitations(companyId);
     
-    console.log('📋 [DEBUG] Final truly pending invitations:', trulyPendingInvitations.length);
+    debugLog('📋 [DEBUG] Final truly pending invitations:', trulyPendingInvitations.length);
     trulyPendingInvitations.forEach(inv => {
-      console.log(`   - ${inv.email} (${inv.id}) - SHOWING IN PENDING`);
+      debugLog(`   - ${inv.email} (${inv.id}) - SHOWING IN PENDING`);
     });
 
     return trulyPendingInvitations;
@@ -27,7 +28,7 @@ export const fetchCompanyInvitations = async (companyId: string): Promise<Compan
 
 export const checkInvitation = async (token: string): Promise<InvitationCheckResult> => {
   try {
-    console.log("🔍 Checking invitation with token:", token);
+    debugLog("🔍 Checking invitation with token:", token);
     
     // Get invitation with company info in a single query using LEFT JOIN
     const { data: result, error: queryError } = await supabase
@@ -51,11 +52,11 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
       };
     }
 
-    console.log("✅ Invitation found:", result);
+    debugLog("✅ Invitation found:", result);
 
     // Check if invitation has expired
     if (new Date(result.expires_at) < new Date()) {
-      console.log("⏰ Invitation has expired");
+      debugLog("⏰ Invitation has expired");
       return {
         valid: false,
         error: "This invitation has expired"
@@ -65,7 +66,7 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
     // If company info is not available due to RLS, use fallback
     const companyName = result.companies?.name || "Dr. Scale AI";
 
-    console.log("✅ Valid invitation found with company:", companyName);
+    debugLog("✅ Valid invitation found with company:", companyName);
     
     return {
       valid: true,
@@ -86,7 +87,7 @@ export const checkInvitation = async (token: string): Promise<InvitationCheckRes
 
 export const acceptInvitation = async (token: string, userId: string): Promise<boolean> => {
   try {
-    console.log("🎯 Accepting invitation...", { token, userId });
+    debugLog("🎯 Accepting invitation...", { token, userId });
 
     // First, verify the invitation is still valid
     const invitationCheck = await checkInvitation(token);
@@ -106,7 +107,7 @@ export const acceptInvitation = async (token: string, userId: string): Promise<b
       .single();
 
     if (existingMember) {
-      console.log("ℹ️ User is already a member, just updating invitation status");
+      debugLog("ℹ️ User is already a member, just updating invitation status");
       // Update invitation status to accepted
       await supabase
         .from("company_invitations_raw")
@@ -149,7 +150,7 @@ export const acceptInvitation = async (token: string, userId: string): Promise<b
       // Don't fail here since the user was already added
     }
 
-    console.log("✅ Invitation accepted successfully");
+    debugLog("✅ Invitation accepted successfully");
     return true;
   } catch (error) {
     console.error("💥 Error accepting invitation:", error);

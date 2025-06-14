@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,10 +19,10 @@ export function UserAgentDashboard() {
   const { userCalls, isLoading: isLoadingCalls } = useCurrentUserCalls();
   const { balance, remainingMinutes, isLowBalance } = useUserBalance();
 
-  console.log('🔍 [UserAgentDashboard] Current user:', user?.id);
-  console.log('🔍 [UserAgentDashboard] Current company:', company?.id);
-  console.log('🔍 [UserAgentDashboard] User agent assignments:', userAgentAssignments);
-  console.log('🔍 [UserAgentDashboard] User calls:', userCalls?.length);
+  debugLog('🔍 [UserAgentDashboard] Current user:', user?.id);
+  debugLog('🔍 [UserAgentDashboard] Current company:', company?.id);
+  debugLog('🔍 [UserAgentDashboard] User agent assignments:', userAgentAssignments);
+  debugLog('🔍 [UserAgentDashboard] User calls:', userCalls?.length);
 
   // Find the primary agent for the current authenticated user
   const primaryAgent = userAgentAssignments?.find(assignment => 
@@ -31,8 +32,8 @@ export function UserAgentDashboard() {
   // If no primary agent, get the first assigned agent
   const assignedAgent = primaryAgent || userAgentAssignments?.[0];
 
-  console.log('🔍 [UserAgentDashboard] Primary agent found:', primaryAgent);
-  console.log('🔍 [UserAgentDashboard] Assigned agent found:', assignedAgent);
+  debugLog('🔍 [UserAgentDashboard] Primary agent found:', primaryAgent);
+  debugLog('🔍 [UserAgentDashboard] Assigned agent found:', assignedAgent);
 
   // Calculate metrics from user's calls
   const totalCallDuration = userCalls?.reduce((total, call) => total + (call.duration_sec || 0), 0) || 0;

@@ -1,9 +1,10 @@
+import { debugLog } from "@/lib/debug";
 import { toast } from "sonner";
 
 // Upload profile avatar convertido a Base64 y guardado en la base de datos
 export const uploadAvatar = async (userId: string, file: File): Promise<string | null> => {
   try {
-    console.log("Converting avatar to Base64 for user:", userId, "File:", file.name);
+    debugLog("Converting avatar to Base64 for user:", userId, "File:", file.name);
     
     // Validate file type and size
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -23,7 +24,7 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
     // Convert to Base64
     const base64String = await fileToBase64(resizedFile);
     
-    console.log("Avatar converted to Base64 successfully");
+    debugLog("Avatar converted to Base64 successfully");
     toast.success("Avatar uploaded successfully!");
     
     // Retornamos el Base64 que se puede guardar directamente en la base de datos
@@ -39,7 +40,7 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
 // Upload company logo convertido a Base64
 export const uploadCompanyLogo = async (companyId: string, file: File): Promise<string | null> => {
   try {
-    console.log("Converting company logo to Base64 for company:", companyId, "File:", file.name);
+    debugLog("Converting company logo to Base64 for company:", companyId, "File:", file.name);
     
     // Validate file type and size
     const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp'];
@@ -59,7 +60,7 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
     // Convert to Base64
     const base64String = await fileToBase64(resizedFile);
     
-    console.log("Company logo converted to Base64 successfully");
+    debugLog("Company logo converted to Base64 successfully");
     toast.success("Company logo uploaded successfully!");
     
     return base64String;
@@ -74,7 +75,7 @@ export const uploadCompanyLogo = async (companyId: string, file: File): Promise<
 // Upload call recording (mantenemos la funcionalidad existente si la necesitas)
 export const uploadRecording = async (userId: string, companyId: string, file: File): Promise<string | null> => {
   try {
-    console.log("Note: Recording uploads still use Supabase Storage");
+    debugLog("Note: Recording uploads still use Supabase Storage");
     toast.error("Recording uploads not yet converted to Base64. Contact support.");
     return null;
   } catch (error) {
@@ -87,7 +88,7 @@ export const uploadRecording = async (userId: string, companyId: string, file: F
 // Get a signed URL for a recording (placeholder)
 export const getRecordingUrl = async (filePath: string): Promise<string | null> => {
   try {
-    console.log("Getting recording URL:", filePath);
+    debugLog("Getting recording URL:", filePath);
     return null;
   } catch (error) {
     console.error("Error getting recording URL:", error);
@@ -97,14 +98,14 @@ export const getRecordingUrl = async (filePath: string): Promise<string | null> 
 
 // Storage bucket validation (no needed for Base64 but kept for compatibility)
 export const validateStorageBuckets = async (): Promise<boolean> => {
-  console.log("Base64 storage doesn't require bucket validation");
+  debugLog("Base64 storage doesn't require bucket validation");
   return true;
 };
 
 // Delete file from storage (for Base64, this would be removing from database)
 export const deleteFile = async (bucket: string, filePath: string): Promise<boolean> => {
   try {
-    console.log("Base64 files are deleted by updating the database record");
+    debugLog("Base64 files are deleted by updating the database record");
     toast.success("File deleted successfully");
     return true;
   } catch (error) {
@@ -117,7 +118,7 @@ export const deleteFile = async (bucket: string, filePath: string): Promise<bool
 // List files in a bucket (not applicable for Base64)
 export const listFiles = async (bucket: string, folder?: string): Promise<any[] | null> => {
   try {
-    console.log("Base64 storage doesn't use file listing");
+    debugLog("Base64 storage doesn't use file listing");
     return [];
   } catch (error) {
     console.error("Error listing files:", error);

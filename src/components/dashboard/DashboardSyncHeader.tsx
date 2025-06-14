@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React from "react";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,7 @@ export function DashboardSyncHeader() {
   const handleTestConnection = async () => {
     setIsTesting(true);
     try {
-      console.log('[DASHBOARD_SYNC_HEADER] Testing API connection...');
+      debugLog('[DASHBOARD_SYNC_HEADER] Testing API connection...');
       const result = await retellAgentSyncService.testConnection();
       
       if (result.success) {
@@ -49,11 +50,11 @@ export function DashboardSyncHeader() {
   const handleTestAgentsApi = async () => {
     setIsTestingAgents(true);
     try {
-      console.log('[DASHBOARD_SYNC_HEADER] Testing agents API...');
+      debugLog('[DASHBOARD_SYNC_HEADER] Testing agents API...');
       const result = await retellApiDebugger.testAgentsAndDisplayResults();
       
       // Additional detailed logging for debugging
-      console.log('[DASHBOARD_SYNC_HEADER] Agents API test result:', {
+      debugLog('[DASHBOARD_SYNC_HEADER] Agents API test result:', {
         success: result.success,
         status: result.status,
         agentCount: Array.isArray(result.response) ? result.response.length : 

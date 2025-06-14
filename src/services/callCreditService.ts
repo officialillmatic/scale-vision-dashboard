@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useCallCreditDeduction } from '@/hooks/useCallCreditDeduction';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,11 +25,11 @@ export class CallCreditService {
 
   async processCallCompletion(callData: CallCompletionData): Promise<boolean> {
     try {
-      console.log(`Processing call completion for ${callData.callId}, cost: $${callData.cost}`);
+      debugLog(`Processing call completion for ${callData.callId}, cost: $${callData.cost}`);
 
       // Only process completed calls that have a cost
       if (callData.status !== 'completed' || callData.cost <= 0) {
-        console.log('Skipping credit deduction - call not completed or no cost');
+        debugLog('Skipping credit deduction - call not completed or no cost');
         return true;
       }
 
@@ -45,7 +46,7 @@ export class CallCreditService {
       }
 
       if (credits.is_blocked) {
-        console.log('User account is blocked, cannot process charges');
+        debugLog('User account is blocked, cannot process charges');
         return false;
       }
 
@@ -84,7 +85,7 @@ export class CallCreditService {
         // Don't fail the process if transaction logging fails
       }
 
-      console.log(`Call credit processing completed. New balance: $${Math.max(0, newBalance).toFixed(2)}`);
+      debugLog(`Call credit processing completed. New balance: $${Math.max(0, newBalance).toFixed(2)}`);
       return true;
 
     } catch (error) {

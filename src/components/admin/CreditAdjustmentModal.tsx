@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -43,7 +44,7 @@ export function CreditAdjustmentModal({
 
     setIsLoading(true);
     try {
-      console.log('Calling admin_update_user_credits with:', {
+      debugLog('Calling admin_update_user_credits with:', {
         target_user_id: userId,
         amount_change: finalAmount,
         description_text: description || `Admin balance ${isPositive ? 'credit' : 'debit'}: ${Math.abs(finalAmount)}`
@@ -55,7 +56,7 @@ export function CreditAdjustmentModal({
         description_text: description || `Admin balance ${isPositive ? 'credit' : 'debit'}: ${Math.abs(finalAmount)}`
       });
 
-      console.log('admin_update_user_credits response:', { data, error });
+      debugLog('admin_update_user_credits response:', { data, error });
 
       if (error) {
         console.error('Credit adjustment error:', error);
@@ -65,7 +66,7 @@ export function CreditAdjustmentModal({
 
       if (data && data.length > 0) {
         const result = data[0];
-        console.log('Result from function:', result);
+        debugLog('Result from function:', result);
         
         if (result.success) {
           toast.success(`Credits ${isPositive ? 'added' : 'deducted'} successfully. New balance: $${result.new_balance}`);

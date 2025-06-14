@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React from 'react';
 import { useForm } from 'react-hook-form';
@@ -54,7 +55,7 @@ export function AgentDialog({
   }, [form, isOpen, agent]);
 
   const handleSubmit = async (values: AgentFormValues) => {
-    console.log('🔍 [AgentDialog] Submitting agent data:', values);
+    debugLog('🔍 [AgentDialog] Submitting agent data:', values);
     const success = await onSubmit(values);
     if (success) {
       form.reset();

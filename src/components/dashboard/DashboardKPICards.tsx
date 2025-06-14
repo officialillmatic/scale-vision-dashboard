@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,7 +12,7 @@ export function DashboardKPICards() {
   const { isSuperAdmin } = useSuperAdmin();
   const { isCompanyOwner, can } = useRole();
 
-  console.log('🔍 [DashboardKPICards] Current user role check:', {
+  debugLog('🔍 [DashboardKPICards] Current user role check:', {
     userId: user?.id,
     isSuperAdmin,
     isCompanyOwner,

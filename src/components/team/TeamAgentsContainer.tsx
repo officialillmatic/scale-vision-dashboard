@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from 'react';
 import { useAgents } from '@/hooks/useAgents';
@@ -68,7 +69,7 @@ export function TeamAgentsContainer() {
   };
 
   const handleOpenAssignDialog = (agent?: Agent) => {
-    console.log('🔍 [TeamAgentsContainer] Opening assignment dialog for agent:', agent?.name);
+    debugLog('🔍 [TeamAgentsContainer] Opening assignment dialog for agent:', agent?.name);
     setSelectedAgent(agent || null);
     setIsAssignDialogOpen(true);
   };
@@ -91,7 +92,7 @@ export function TeamAgentsContainer() {
   };
 
   const handleAssignmentSubmit = async (userId: string, agentId: string, isPrimary: boolean) => {
-    console.log('🔍 [TeamAgentsContainer] Creating assignment:', { userId, agentId, isPrimary });
+    debugLog('🔍 [TeamAgentsContainer] Creating assignment:', { userId, agentId, isPrimary });
     await handleCreateAssignment(userId, agentId, isPrimary);
     handleCloseAssignDialog();
   };

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -52,7 +53,7 @@ export const LoginForm = () => {
     }
     
     try {
-      console.log("Attempting to sign in with Supabase...");
+      debugLog("Attempting to sign in with Supabase...");
       const { error, data } = await supabase.auth.signInWithPassword({
         email: values.email.trim(),
         password: values.password,
@@ -63,7 +64,7 @@ export const LoginForm = () => {
         throw error;
       }
       
-      console.log("Login successful:", data);
+      debugLog("Login successful:", data);
       toast.success("Successfully signed in");
       navigate("/dashboard");
     } catch (error: any) {

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSuperAdmin } from './useSuperAdmin';
@@ -43,7 +44,7 @@ export const useRole = () => {
     if (!company && !isSuperAdmin) return false;
     
     if (!userRole && !isSuperAdmin) {
-      console.log("No userRole found and not super admin, returning false");
+      debugLog("No userRole found and not super admin, returning false");
       return false;
     }
     
@@ -57,15 +58,15 @@ export const useRole = () => {
   };
   
   const can = useMemo(() => {
-    console.log("🔥 [USE_ROLE] Computing permissions...");
-    console.log("🔥 [USE_ROLE] isSuperAdmin:", isSuperAdmin);
-    console.log("🔥 [USE_ROLE] isCompanyOwner:", isCompanyOwner);
-    console.log("🔥 [USE_ROLE] isCompanyLoading:", isCompanyLoading);
-    console.log("🔥 [USE_ROLE] isSuperAdminLoading:", isSuperAdminLoading);
+    debugLog("🔥 [USE_ROLE] Computing permissions...");
+    debugLog("🔥 [USE_ROLE] isSuperAdmin:", isSuperAdmin);
+    debugLog("🔥 [USE_ROLE] isCompanyOwner:", isCompanyOwner);
+    debugLog("🔥 [USE_ROLE] isCompanyLoading:", isCompanyLoading);
+    debugLog("🔥 [USE_ROLE] isSuperAdminLoading:", isSuperAdminLoading);
     
     // Early return for loading states (BUT NOT FOR SUPER ADMINS)
     if ((isCompanyLoading || isSuperAdminLoading) && !isSuperAdmin) {
-      console.log("🔥 [USE_ROLE] Still loading and not super admin, returning limited permissions");
+      debugLog("🔥 [USE_ROLE] Still loading and not super admin, returning limited permissions");
       return {
         manageTeam: false,
         manageAgents: false,
@@ -89,7 +90,7 @@ export const useRole = () => {
     
     // SUPER ADMINS GET ACCESS EVEN WITHOUT COMPANY AND EVEN WHILE LOADING
     if (isSuperAdmin) {
-      console.log("🔥 [USE_ROLE] Super admin detected, granting full access");
+      debugLog("🔥 [USE_ROLE] Super admin detected, granting full access");
       return {
         manageTeam: true,
         manageAgents: true,
@@ -111,7 +112,7 @@ export const useRole = () => {
       };
     }
     
-    console.log("🔥 [USE_ROLE] Not super admin, computing regular permissions");
+    debugLog("🔥 [USE_ROLE] Not super admin, computing regular permissions");
     
     return {
       // Team and agent management - Super admins and company owners get full access
@@ -146,7 +147,7 @@ export const useRole = () => {
   }, [isSuperAdmin, isCompanyOwner, user, userRole, company, isCompanyLoading, isSuperAdminLoading, checkRole]);
   
   // Debug logging
-  console.log("🔥 [USE_ROLE] Final state:", {
+  debugLog("🔥 [USE_ROLE] Final state:", {
     isSuperAdmin,
     isCompanyOwner,
     superAdminAccess: can.superAdminAccess,

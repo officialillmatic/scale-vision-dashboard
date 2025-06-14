@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -81,7 +82,7 @@ const calculateCallCost = (call: Call, audioDurationParam?: number) => {
   const durationMinutes = getCallDuration(call) / 60;
   const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || 0;
   
-  console.log(`💰 Modal calculateCallCost: duration=${getCallDuration(call)}s, rate=$${agentRate}/min, result=$${(durationMinutes * agentRate).toFixed(2)}`);
+  debugLog(`💰 Modal calculateCallCost: duration=${getCallDuration(call)}s, rate=$${agentRate}/min, result=$${(durationMinutes * agentRate).toFixed(2)}`);
   
   if (agentRate === 0) {
     console.warn(`Modal: No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
@@ -144,7 +145,7 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   const getCallDuration = (call: any) => {
     // First try to get duration from passed audio duration
     if (audioDuration) {
-      console.log(`🎵 Modal - Using passed audio duration: ${audioDuration}s`);
+      debugLog(`🎵 Modal - Using passed audio duration: ${audioDuration}s`);
       return audioDuration;
     }
     
@@ -160,12 +161,12 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     
     for (const field of possibleFields) {
       if (call[field] && call[field] > 0) {
-        console.log(`🎵 Modal - Found non-zero duration in field '${field}':`, call[field]);
+        debugLog(`🎵 Modal - Found non-zero duration in field '${field}':`, call[field]);
         return call[field];
       }
     }
     
-    console.log("🎵 Modal - No duration found, using 0");
+    debugLog("🎵 Modal - No duration found, using 0");
     return 0;
   };
 
@@ -281,16 +282,16 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   const agentName = getAgentName(call.agent_id);
 
   // Console log for debugging
-  console.log("🎵 Call data in modal:", call);
-  console.log("📝 Call summary field:", call.call_summary);
-  console.log("📝 Call summary type:", typeof call.call_summary);
-  console.log("📝 Call summary length:", call.call_summary?.length);
-  console.log("📝 Call summary is null?:", call.call_summary === null);
-  console.log("📝 Call summary is undefined?:", call.call_summary === undefined);
-  console.log("🎵 Recording URL:", call.recording_url);
-  console.log("🎵 Duration sec:", call.duration_sec, typeof call.duration_sec);
-  console.log("🎵 Raw call object keys:", Object.keys(call));
-  console.log("💰 Modal cost calculation:", {
+  debugLog("🎵 Call data in modal:", call);
+  debugLog("📝 Call summary field:", call.call_summary);
+  debugLog("📝 Call summary type:", typeof call.call_summary);
+  debugLog("📝 Call summary length:", call.call_summary?.length);
+  debugLog("📝 Call summary is null?:", call.call_summary === null);
+  debugLog("📝 Call summary is undefined?:", call.call_summary === undefined);
+  debugLog("🎵 Recording URL:", call.recording_url);
+  debugLog("🎵 Duration sec:", call.duration_sec, typeof call.duration_sec);
+  debugLog("🎵 Raw call object keys:", Object.keys(call));
+  debugLog("💰 Modal cost calculation:", {
     original_cost: call.cost_usd,
     calculated_cost: calculateCallCost(call),
     agent_rate: call.call_agent?.rate_per_minute || call.agents?.rate_per_minute

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -35,7 +36,7 @@ export function RegisterForm() {
   useEffect(() => {
     // Pre-fill email from URL parameter
     if (emailParam) {
-      console.log('📧 Pre-filling email from URL:', emailParam);
+      debugLog('📧 Pre-filling email from URL:', emailParam);
       form.setValue('email', emailParam);
     }
 
@@ -44,14 +45,14 @@ export function RegisterForm() {
       if (invitationToken) {
         setInvitationLoading(true);
         try {
-          console.log('🔍 Verifying invitation token:', invitationToken);
+          debugLog('🔍 Verifying invitation token:', invitationToken);
           const result = await checkInvitation(invitationToken);
-          console.log('✅ Invitation verification result:', result);
+          debugLog('✅ Invitation verification result:', result);
           setInvitation(result);
           
           // Pre-fill email field if we have it from invitation
           if (result.valid && result.invitation?.email) {
-            console.log('📧 Pre-filling email from invitation:', result.invitation.email);
+            debugLog('📧 Pre-filling email from invitation:', result.invitation.email);
             form.setValue('email', result.invitation.email);
           }
         } catch (error) {
@@ -70,9 +71,9 @@ export function RegisterForm() {
     setIsLoading(true);
     
     try {
-      console.log('🚀 [RegisterForm] Starting registration process...');
-      console.log('📧 [RegisterForm] Email:', values.email);
-      console.log('🎫 [RegisterForm] Has invitation token:', Boolean(invitationToken));
+      debugLog('🚀 [RegisterForm] Starting registration process...');
+      debugLog('📧 [RegisterForm] Email:', values.email);
+      debugLog('🎫 [RegisterForm] Has invitation token:', Boolean(invitationToken));
       
       // If we have an invitation but emails don't match
       if (invitation?.valid && invitation.invitation?.email && invitation.invitation.email !== values.email) {
@@ -90,11 +91,11 @@ export function RegisterForm() {
         throw error;
       }
       
-      console.log('✅ [RegisterForm] User created successfully:', data.user?.id);
+      debugLog('✅ [RegisterForm] User created successfully:', data.user?.id);
       
       // If we have a valid invitation token, accept it
       if (invitation?.valid && invitationToken && data.user) {
-        console.log('🎯 [RegisterForm] Accepting invitation...');
+        debugLog('🎯 [RegisterForm] Accepting invitation...');
         const accepted = await acceptInvitation(invitationToken, data.user.id);
         if (accepted) {
           toast.success(`Welcome to ${invitation.company?.name}! Your account is ready.`, {
@@ -105,7 +106,7 @@ export function RegisterForm() {
           });
           
           // CRITICAL: Trigger team list refresh immediately and with delays
-          console.log('🔄 [RegisterForm] Broadcasting team refresh event immediately...');
+          debugLog('🔄 [RegisterForm] Broadcasting team refresh event immediately...');
           
           // Immediate broadcast
           window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
@@ -119,7 +120,7 @@ export function RegisterForm() {
           
           // Additional broadcasts with delays to ensure sync
           setTimeout(() => {
-            console.log('🔄 [RegisterForm] Broadcasting delayed refresh (2s)...');
+            debugLog('🔄 [RegisterForm] Broadcasting delayed refresh (2s)...');
             window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
               detail: { 
                 email: values.email, 
@@ -131,7 +132,7 @@ export function RegisterForm() {
           }, 2000);
           
           setTimeout(() => {
-            console.log('🔄 [RegisterForm] Broadcasting delayed refresh (5s)...');
+            debugLog('🔄 [RegisterForm] Broadcasting delayed refresh (5s)...');
             window.dispatchEvent(new CustomEvent('teamMemberRegistered', {
               detail: { 
                 email: values.email, 

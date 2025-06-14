@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,27 +37,27 @@ export const useRetellCalls = () => {
   const { data: retellCalls = [], isLoading, error, refetch } = useQuery({
     queryKey: ['retell-calls', user?.id],
     queryFn: async (): Promise<RetellCall[]> => {
-      console.log('🔍 [useRetellCalls] === STARTING CORRECTED QUERY ===');
-      console.log('🔍 [useRetellCalls] User context:', {
+      debugLog('🔍 [useRetellCalls] === STARTING CORRECTED QUERY ===');
+      debugLog('🔍 [useRetellCalls] User context:', {
         userId: user?.id,
         userEmail: user?.email,
         hasUser: !!user
       });
 
       if (!user?.id) {
-        console.log('❌ [useRetellCalls] No user ID available');
+        debugLog('❌ [useRetellCalls] No user ID available');
         return [];
       }
 
       try {
         // STEP 1: Get user agent assignments
-        console.log('🔍 [useRetellCalls] === STEP 1: USER AGENT ASSIGNMENTS ===');
+        debugLog('🔍 [useRetellCalls] === STEP 1: USER AGENT ASSIGNMENTS ===');
         const { data: userAgents, error: agentsError } = await supabase
           .from('user_agent_assignments')
           .select('agent_id')
           .eq('user_id', user.id);
 
-        console.log('🔍 [useRetellCalls] User agent assignments:', {
+        debugLog('🔍 [useRetellCalls] User agent assignments:', {
           data: userAgents,
           error: agentsError,
           count: userAgents?.length || 0
@@ -68,21 +69,21 @@ export const useRetellCalls = () => {
         }
 
         if (!userAgents || userAgents.length === 0) {
-          console.log('⚠️ [useRetellCalls] No agents assigned to user');
+          debugLog('⚠️ [useRetellCalls] No agents assigned to user');
           return [];
         }
 
         const agentIds = userAgents.map(ua => ua.agent_id);
-        console.log('🔍 [useRetellCalls] User assigned agent IDs:', agentIds);
+        debugLog('🔍 [useRetellCalls] User assigned agent IDs:', agentIds);
 
         // STEP 2: Get retell_agents data for matching - CORREGIDO USAR retell_agent_id
-        console.log('🔍 [useRetellCalls] === STEP 2: RETELL AGENTS DATA ===');
+        debugLog('🔍 [useRetellCalls] === STEP 2: RETELL AGENTS DATA ===');
         const { data: retellAgents, error: retellAgentsError } = await supabase
           .from('retell_agents')
           .select('id, name, description, retell_agent_id')
           .in('id', agentIds);
 
-        console.log('🔍 [useRetellCalls] Retell agents:', {
+        debugLog('🔍 [useRetellCalls] Retell agents:', {
           data: retellAgents,
           error: retellAgentsError,
           count: retellAgents?.length || 0
@@ -106,20 +107,20 @@ export const useRetellCalls = () => {
           }
         });
 
-        console.log('🔍 [useRetellCalls] Agent mapping created:', {
+        debugLog('🔍 [useRetellCalls] Agent mapping created:', {
           mapSize: agentMap.size,
           agentKeys: Array.from(agentMap.keys())
         });
 
         // STEP 3: Get calls using retell_agent_id matching - CORREGIDO TABLA
-        console.log('🔍 [useRetellCalls] === STEP 3: CALLS FROM CORRECT TABLE ===');
+        debugLog('🔍 [useRetellCalls] === STEP 3: CALLS FROM CORRECT TABLE ===');
         
         // Get the retell_agent_id values to match against calls.agent_id
         const retellAgentIds = retellAgents?.map(a => a.retell_agent_id).filter(Boolean) || [];
-        console.log('🔍 [useRetellCalls] Retell agent IDs to match:', retellAgentIds);
+        debugLog('🔍 [useRetellCalls] Retell agent IDs to match:', retellAgentIds);
 
         if (retellAgentIds.length === 0) {
-          console.log('⚠️ [useRetellCalls] No retell agent IDs to match');
+          debugLog('⚠️ [useRetellCalls] No retell agent IDs to match');
           return [];
         }
 
@@ -151,7 +152,7 @@ export const useRetellCalls = () => {
           .order('timestamp', { ascending: false })
           .limit(100);
 
-        console.log('🔍 [useRetellCalls] Calls query result:', {
+        debugLog('🔍 [useRetellCalls] Calls query result:', {
           data: calls,
           error: callsError,
           count: calls?.length || 0,
@@ -164,12 +165,12 @@ export const useRetellCalls = () => {
         }
 
         // STEP 4: Transform and combine data - CORREGIDO CAMPOS
-        console.log('🔍 [useRetellCalls] === STEP 4: DATA TRANSFORMATION ===');
+        debugLog('🔍 [useRetellCalls] === STEP 4: DATA TRANSFORMATION ===');
         
         const transformedCalls = (calls || []).map(call => {
           const agent = agentMap.get(call.agent_id);
           
-          console.log('🔍 [useRetellCalls] Transforming call:', {
+          debugLog('🔍 [useRetellCalls] Transforming call:', {
             callId: call.call_id,
             callAgentId: call.agent_id,
             foundAgent: !!agent,
@@ -200,9 +201,9 @@ export const useRetellCalls = () => {
           };
         });
 
-        console.log('🔍 [useRetellCalls] === FINAL RESULT ===');
-        console.log(`✅ [useRetellCalls] Successfully transformed ${transformedCalls.length} calls`);
-        console.log('🔍 [useRetellCalls] Sample transformed call:', transformedCalls[0]);
+        debugLog('🔍 [useRetellCalls] === FINAL RESULT ===');
+        debugLog(`✅ [useRetellCalls] Successfully transformed ${transformedCalls.length} calls`);
+        debugLog('🔍 [useRetellCalls] Sample transformed call:', transformedCalls[0]);
         
         return transformedCalls;
       } catch (error: any) {
@@ -216,7 +217,7 @@ export const useRetellCalls = () => {
     refetchOnWindowFocus: true
   });
 
-  console.log('🔍 [useRetellCalls] === HOOK FINAL STATE ===', {
+  debugLog('🔍 [useRetellCalls] === HOOK FINAL STATE ===', {
     retellCallsLength: retellCalls?.length || 0,
     isLoading,
     hasError: !!error,

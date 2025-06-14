@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,7 @@ export function SyncTestPanel() {
         updated_at: new Date().toISOString(),
       };
 
-      console.log('[TEST_PANEL] Attempting database insertion with data:', testCall);
+      debugLog('[TEST_PANEL] Attempting database insertion with data:', testCall);
 
       const { data, error } = await supabase
         .from('retell_calls')
@@ -83,7 +84,7 @@ export function SyncTestPanel() {
         toast.error(`Database test failed: ${error.message}`);
         setTestData({ error: error.message, details: error });
       } else {
-        console.log('[TEST_PANEL] Database insertion successful:', data);
+        debugLog('[TEST_PANEL] Database insertion successful:', data);
         setResults(prev => ({ ...prev, database: 'success' }));
         toast.success('Database insertion test passed!');
         setTestData({ success: true, insertedRecord: data[0] });
@@ -104,7 +105,7 @@ export function SyncTestPanel() {
     setResults(prev => ({ ...prev, api: 'idle' }));
 
     try {
-      console.log('[TEST_PANEL] Testing direct Retell API call...');
+      debugLog('[TEST_PANEL] Testing direct Retell API call...');
       
       // Note: This will fail due to CORS, but we can see the network request
       const response = await fetch('https://api.retellai.com/v2/list-calls', {
@@ -120,7 +121,7 @@ export function SyncTestPanel() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('[TEST_PANEL] Direct API call successful:', data);
+        debugLog('[TEST_PANEL] Direct API call successful:', data);
         setResults(prev => ({ ...prev, api: 'success' }));
         toast.success('Direct API call successful!');
         setTestData({ apiResponse: data });
@@ -128,7 +129,7 @@ export function SyncTestPanel() {
         throw new Error(`API responded with status: ${response.status}`);
       }
     } catch (error: any) {
-      console.log('[TEST_PANEL] Direct API call failed (expected due to CORS):', error);
+      debugLog('[TEST_PANEL] Direct API call failed (expected due to CORS):', error);
       setResults(prev => ({ ...prev, api: 'error' }));
       toast.info('Direct API call failed (CORS expected) - this confirms we need the edge function');
       setTestData({ error: 'CORS error - edge function required', details: error.message });
@@ -143,7 +144,7 @@ export function SyncTestPanel() {
     setResults(prev => ({ ...prev, edgeFunction: 'idle' }));
 
     try {
-      console.log('[TEST_PANEL] Testing edge function with debug mode...');
+      debugLog('[TEST_PANEL] Testing edge function with debug mode...');
       
       const { data, error } = await supabase.functions.invoke('sync-calls', {
         body: { 
@@ -163,7 +164,7 @@ export function SyncTestPanel() {
         toast.error(`Edge function test failed: ${error.message}`);
         setTestData({ error: error.message, details: error });
       } else {
-        console.log('[TEST_PANEL] Edge function test successful:', data);
+        debugLog('[TEST_PANEL] Edge function test successful:', data);
         setResults(prev => ({ ...prev, edgeFunction: 'success' }));
         toast.success('Edge function test passed!');
         setTestData({ edgeFunctionResponse: data });

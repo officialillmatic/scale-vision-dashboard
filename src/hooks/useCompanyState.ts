@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
@@ -31,12 +32,12 @@ export const useCompanyState = (user: User | null) => {
   const { isSuperAdmin } = useSuperAdmin();
 
   const loadCompanyData = async (userId: string) => {
-    console.log("[COMPANY_STATE] Loading company data for user:", userId);
+    debugLog("[COMPANY_STATE] Loading company data for user:", userId);
     setIsCompanyLoading(true);
     
     try {
       const companyData = await fetchCompany(userId);
-      console.log("[COMPANY_STATE] Company data loaded:", companyData);
+      debugLog("[COMPANY_STATE] Company data loaded:", companyData);
       setCompany(companyData);
       
       if (companyData) {
@@ -55,7 +56,7 @@ export const useCompanyState = (user: User | null) => {
               .maybeSingle();
             
             if (memberError) {
-              console.log("[COMPANY_STATE] Error fetching member role:", memberError);
+              debugLog("[COMPANY_STATE] Error fetching member role:", memberError);
               // Set default role for fallback
               setUserRole('viewer');
             } else if (memberData) {
@@ -89,7 +90,7 @@ export const useCompanyState = (user: User | null) => {
             console.error("[COMPANY_STATE] Error loading company members:", membersError);
             setCompanyMembers([]);
           } else {
-            console.log("[COMPANY_STATE] Successfully loaded company members:", membersData?.length || 0);
+            debugLog("[COMPANY_STATE] Successfully loaded company members:", membersData?.length || 0);
             setCompanyMembers(membersData || []);
           }
         } catch (error) {

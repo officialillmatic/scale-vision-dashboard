@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Loader2, CheckCircle, AlertCircle } from "lucide-react";
@@ -27,7 +28,7 @@ export function CallTableSyncButton({ onSyncComplete, disabled }: CallTableSyncB
       return;
     }
 
-    console.log('[SYNC_BUTTON] Testing direct API connectivity...');
+    debugLog('[SYNC_BUTTON] Testing direct API connectivity...');
     setIsTesting(true);
 
     try {
@@ -51,7 +52,7 @@ export function CallTableSyncButton({ onSyncComplete, disabled }: CallTableSyncB
       }
 
       const data = await response.json();
-      console.log('[SYNC_BUTTON] Test completed successfully:', data);
+      debugLog('[SYNC_BUTTON] Test completed successfully:', data);
       toast.success(`API test successful - found ${data.calls?.length || 0} calls`);
 
     } catch (error: any) {

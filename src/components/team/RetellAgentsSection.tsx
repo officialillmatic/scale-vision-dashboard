@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,20 +26,20 @@ export function RetellAgentsSection() {
   } = useRetellAgentSync();
 
   const handleRefresh = () => {
-    console.log('🔍 [RetellAgentsSection] Manual refresh triggered');
+    debugLog('🔍 [RetellAgentsSection] Manual refresh triggered');
     refetchRetellAgents();
     toast.info('Refreshing agents list...');
   };
 
   const handleSync = () => {
-    console.log('🔍 [RetellAgentsSection] Sync triggered');
+    debugLog('🔍 [RetellAgentsSection] Sync triggered');
     triggerSync();
   };
 
   // Auto-refresh after successful sync
   React.useEffect(() => {
     if (latestSync?.sync_status === 'completed') {
-      console.log('🔍 [RetellAgentsSection] Sync completed, refreshing agents list');
+      debugLog('🔍 [RetellAgentsSection] Sync completed, refreshing agents list');
       refetchRetellAgents();
     }
   }, [latestSync?.sync_status, refetchRetellAgents]);

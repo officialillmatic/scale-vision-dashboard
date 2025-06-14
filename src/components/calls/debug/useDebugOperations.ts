@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,7 +43,7 @@ export function useDebugOperations() {
 
     try {
       // Test 1: Database connectivity and permissions
-      console.log("[DEBUG] Testing database connectivity...");
+      debugLog("[DEBUG] Testing database connectivity...");
       try {
         const { data: callsData, error: callsError } = await supabase
           .from('calls')
@@ -71,7 +72,7 @@ export function useDebugOperations() {
       }
 
       // Test 2: Agent-Company relationships
-      console.log("[DEBUG] Testing agent relationships...");
+      debugLog("[DEBUG] Testing agent relationships...");
       try {
         const { data: relationships, error: relError } = await supabase
           .from('user_agents')
@@ -96,7 +97,7 @@ export function useDebugOperations() {
       }
 
       // Test 3: Webhook connectivity
-      console.log("[DEBUG] Testing webhook endpoint...");
+      debugLog("[DEBUG] Testing webhook endpoint...");
       try {
         const { data: webhookData, error: webhookError } = await supabase.functions.invoke('webhook-monitor');
         debugResults.webhookTest = {
@@ -109,7 +110,7 @@ export function useDebugOperations() {
       }
 
       // Test 4: Retell API connectivity
-      console.log("[DEBUG] Testing Retell API connectivity...");
+      debugLog("[DEBUG] Testing Retell API connectivity...");
       try {
         const { data: retellData, error: retellError } = await supabase.functions.invoke('fetch-retell-calls', {
           body: { limit: 3 }

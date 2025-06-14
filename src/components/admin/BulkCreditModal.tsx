@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -49,7 +50,7 @@ export function BulkCreditModal({
 
       for (const userId of selectedUserIds) {
         try {
-          console.log(`Processing user ${userId} with amount ${finalAmount}`);
+          debugLog(`Processing user ${userId} with amount ${finalAmount}`);
           
           const { data, error } = await supabase.rpc('admin_update_user_credits', {
             target_user_id: userId,
@@ -57,7 +58,7 @@ export function BulkCreditModal({
             description_text: description || `Bulk admin ${isPositive ? 'credit' : 'debit'}: ${Math.abs(finalAmount)}`
           });
 
-          console.log(`User ${userId} result:`, { data, error });
+          debugLog(`User ${userId} result:`, { data, error });
 
           if (error) {
             errorCount++;
@@ -74,16 +75,16 @@ export function BulkCreditModal({
         }
       }
 
-      console.log(`Bulk operation completed: ${successCount} success, ${errorCount} errors`);
+      debugLog(`Bulk operation completed: ${successCount} success, ${errorCount} errors`);
 
       if (errorCount === 0) {
         toast.success(`Successfully ${isPositive ? 'added' : 'deducted'} credits for ${successCount} users`);
       } else if (successCount > 0) {
         toast.warning(`Partially completed: ${successCount} succeeded, ${errorCount} failed`);
-        console.log('Errors:', errors);
+        debugLog('Errors:', errors);
       } else {
         toast.error(`All updates failed. First error: ${errors[0]}`);
-        console.log('All errors:', errors);
+        debugLog('All errors:', errors);
       }
 
       if (successCount > 0) {

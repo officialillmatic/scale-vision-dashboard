@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -39,22 +40,22 @@ export const usePermissionDebug = () => {
   
   const debugPermissions = () => {
     console.group('🔒 Permission Diagnostics');
-    console.log('👤 User:', user?.id);
-    console.log('🏢 Company:', company?.id);
-    console.log('🚀 Is Super Admin:', isSuperAdmin);
-    console.log('👑 Is Company Owner:', isCompanyOwner);
+    debugLog('👤 User:', user?.id);
+    debugLog('🏢 Company:', company?.id);
+    debugLog('🚀 Is Super Admin:', isSuperAdmin);
+    debugLog('👑 Is Company Owner:', isCompanyOwner);
     
-    console.log('📋 Role Checks:');
-    console.log('  - Is Admin:', checkRole('admin'));
-    console.log('  - Is Member:', checkRole('member'));
-    console.log('  - Is Viewer:', checkRole('viewer'));
+    debugLog('📋 Role Checks:');
+    debugLog('  - Is Admin:', checkRole('admin'));
+    debugLog('  - Is Member:', checkRole('member'));
+    debugLog('  - Is Viewer:', checkRole('viewer'));
     
-    console.log('🔐 Capability Checks:');
+    debugLog('🔐 Capability Checks:');
     Object.entries(can).forEach(([key, value]) => {
-      console.log(`  - ${key}:`, value);
+      debugLog(`  - ${key}:`, value);
     });
     
-    console.log('✅ RLS Policy Optimization: Using (select auth.uid()) pattern for better performance');
+    debugLog('✅ RLS Policy Optimization: Using (select auth.uid()) pattern for better performance');
     console.groupEnd();
   };
   
@@ -68,10 +69,10 @@ export const usePermissionDebug = () => {
 export const usePerformanceDiagnostics = () => {
   const runPerformanceCheck = () => {
     console.group('⚡ Performance Diagnostics');
-    console.log('📊 RLS Policy Status: Optimized with (select auth.uid()) pattern');
-    console.log('🔍 Auth Function Calls: Single evaluation per query');
-    console.log('💾 Database Indexes: Optimized for company_id and user_id lookups');
-    console.log('🎯 Query Performance: auth_rls_initplan issues resolved');
+    debugLog('📊 RLS Policy Status: Optimized with (select auth.uid()) pattern');
+    debugLog('🔍 Auth Function Calls: Single evaluation per query');
+    debugLog('💾 Database Indexes: Optimized for company_id and user_id lookups');
+    debugLog('🎯 Query Performance: auth_rls_initplan issues resolved');
     console.groupEnd();
   };
   

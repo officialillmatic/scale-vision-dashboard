@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -19,10 +20,10 @@ export function useRetellAgentsData() {
     retry: 2
   });
 
-  console.log('🔍 [useRetellAgentsData] retellAgents result:', retellAgents);
-  console.log('🔍 [useRetellAgentsData] retellAgents length:', retellAgents?.length);
-  console.log('🔍 [useRetellAgentsData] retellAgentsError:', retellAgentsError);
-  console.log('🔍 [useRetellAgentsData] isLoadingRetellAgents:', isLoadingRetellAgents);
+  debugLog('🔍 [useRetellAgentsData] retellAgents result:', retellAgents);
+  debugLog('🔍 [useRetellAgentsData] retellAgents length:', retellAgents?.length);
+  debugLog('🔍 [useRetellAgentsData] retellAgentsError:', retellAgentsError);
+  debugLog('🔍 [useRetellAgentsData] isLoadingRetellAgents:', isLoadingRetellAgents);
 
   return {
     retellAgents: retellAgents || [],

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ export function UserContextDebug() {
   const runSpecificUserQueries = async () => {
     if (!user?.id) return;
 
-    console.log('🔍 [UserContextDebug] Running queries for alexbuenhombre2012@gmail.com...');
+    debugLog('🔍 [UserContextDebug] Running queries for alexbuenhombre2012@gmail.com...');
 
     try {
       // Get this specific user's profile
@@ -23,7 +24,7 @@ export function UserContextDebug() {
         .eq('email', 'alexbuenhombre2012@gmail.com')
         .single();
 
-      console.log('🔍 User profile for alexbuenhombre2012@gmail.com:', userProfile);
+      debugLog('🔍 User profile for alexbuenhombre2012@gmail.com:', userProfile);
 
       if (userProfile) {
         // Get agent assignments for this user
@@ -65,7 +66,7 @@ export function UserContextDebug() {
           timestamp: new Date().toISOString()
         });
 
-        console.log('🔍 [UserContextDebug] Complete debug info:', {
+        debugLog('🔍 [UserContextDebug] Complete debug info:', {
           userProfile,
           assignments: assignments?.length,
           userCalls: userCalls?.length,

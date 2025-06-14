@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { supabase } from '@/lib/supabase';
 import { retellApiDebugger } from './retellApiDebugger';
@@ -63,7 +64,7 @@ class RetellAgentSyncService {
    * Test API connection using comprehensive endpoint discovery
    */
   async testConnection(): Promise<any> {
-    console.log('[RETELL_AGENT_SYNC] Testing API connection with endpoint discovery...');
+    debugLog('[RETELL_AGENT_SYNC] Testing API connection with endpoint discovery...');
     return await retellApiDebugger.testAndDisplayResults();
   }
 
@@ -88,7 +89,7 @@ class RetellAgentSyncService {
 
       if (profileError && profileError.code === 'PGRST116') {
         // Profile doesn't exist, create it
-        console.log('[RETELL_AGENT_SYNC] Creating user profile for:', user.email);
+        debugLog('[RETELL_AGENT_SYNC] Creating user profile for:', user.email);
         
         const { error: insertError } = await supabase
           .from('user_profiles')
@@ -104,7 +105,7 @@ class RetellAgentSyncService {
           return { user: null, error: insertError };
         }
 
-        console.log('[RETELL_AGENT_SYNC] User profile created successfully');
+        debugLog('[RETELL_AGENT_SYNC] User profile created successfully');
       } else if (profileError) {
         console.error('[RETELL_AGENT_SYNC] Error checking user profile:', profileError);
         return { user: null, error: profileError };
@@ -121,7 +122,7 @@ class RetellAgentSyncService {
    * Fetch agents from Retell AI API using endpoint discovery
    */
   private async fetchRetellAgents(): Promise<RetellAgent[]> {
-    console.log('[RETELL_AGENT_SYNC] Fetching agents using endpoint discovery...');
+    debugLog('[RETELL_AGENT_SYNC] Fetching agents using endpoint discovery...');
     
     // Use the API debugger to find working endpoint and fetch agents
     const apiResult = await retellApiDebugger.testAllEndpoints();
@@ -130,7 +131,7 @@ class RetellAgentSyncService {
       throw new Error(`Failed to find working API endpoint: ${apiResult.error}`);
     }
 
-    console.log('[RETELL_AGENT_SYNC] Using working endpoint:', apiResult.endpoint);
+    debugLog('[RETELL_AGENT_SYNC] Using working endpoint:', apiResult.endpoint);
     
     // Extract agents from the response
     let agentsArray = [];
@@ -175,7 +176,7 @@ class RetellAgentSyncService {
       responsiveness: agent.responsiveness,
     }));
 
-    console.log('[RETELL_AGENT_SYNC] Successfully fetched and mapped', retellAgents.length, 'agents');
+    debugLog('[RETELL_AGENT_SYNC] Successfully fetched and mapped', retellAgents.length, 'agents');
     return retellAgents;
   }
 
@@ -206,7 +207,7 @@ class RetellAgentSyncService {
    * Force a sync of agents from Retell AI
    */
   async forceSync(): Promise<AgentSyncResult> {
-    console.log('[RETELL_AGENT_SYNC] Starting force sync...');
+    debugLog('[RETELL_AGENT_SYNC] Starting force sync...');
 
     // Ensure user profile exists
     const { user, error: userError } = await this.ensureUserProfile();
@@ -214,7 +215,7 @@ class RetellAgentSyncService {
       throw new Error(`Authentication required: ${userError?.message || 'User not found'}`);
     }
 
-    console.log('[RETELL_AGENT_SYNC] ✅ User authenticated:', user.email);
+    debugLog('[RETELL_AGENT_SYNC] ✅ User authenticated:', user.email);
 
     // Test API connection first
     const connectionTest = await retellApiDebugger.testApiConnection();
@@ -223,7 +224,7 @@ class RetellAgentSyncService {
       throw new Error(`API connection failed: ${connectionTest.error}`);
     }
 
-    console.log('[RETELL_AGENT_SYNC] ✅ API connection test passed');
+    debugLog('[RETELL_AGENT_SYNC] ✅ API connection test passed');
 
     const syncStartTime = new Date().toISOString();
 
@@ -255,7 +256,7 @@ class RetellAgentSyncService {
       const retellAgents = await this.fetchRetellAgents();
       stats.total_agents_fetched = retellAgents.length;
 
-      console.log('[RETELL_AGENT_SYNC] Fetched', retellAgents.length, 'agents from Retell API');
+      debugLog('[RETELL_AGENT_SYNC] Fetched', retellAgents.length, 'agents from Retell API');
 
       // Update sync stats with fetched count
       await supabase
@@ -299,7 +300,7 @@ class RetellAgentSyncService {
               console.error('[RETELL_AGENT_SYNC] Error updating agent', retellAgent.agent_id, ':', updateError);
             } else {
               stats.agents_updated++;
-              console.log('[RETELL_AGENT_SYNC] Updated agent:', retellAgent.agent_name);
+              debugLog('[RETELL_AGENT_SYNC] Updated agent:', retellAgent.agent_name);
             }
           } else {
             // Create new agent
@@ -311,7 +312,7 @@ class RetellAgentSyncService {
               console.error('[RETELL_AGENT_SYNC] Error creating agent', retellAgent.agent_id, ':', insertError);
             } else {
               stats.agents_created++;
-              console.log('[RETELL_AGENT_SYNC] Created agent:', retellAgent.agent_name);
+              debugLog('[RETELL_AGENT_SYNC] Created agent:', retellAgent.agent_name);
             }
           }
         } catch (agentError) {
@@ -337,7 +338,7 @@ class RetellAgentSyncService {
           console.error('[RETELL_AGENT_SYNC] Error deactivating agent', agent.agent_id, ':', deactivateError);
         } else {
           stats.agents_deactivated++;
-          console.log('[RETELL_AGENT_SYNC] Deactivated agent:', agent.name);
+          debugLog('[RETELL_AGENT_SYNC] Deactivated agent:', agent.name);
         }
       }
 
@@ -352,7 +353,7 @@ class RetellAgentSyncService {
         })
         .eq('id', syncId);
 
-      console.log('[RETELL_AGENT_SYNC] Synchronization completed successfully:', stats);
+      debugLog('[RETELL_AGENT_SYNC] Synchronization completed successfully:', stats);
 
       return {
         ...stats,
@@ -380,7 +381,7 @@ class RetellAgentSyncService {
 
   async getSyncStats(limit: number = 10): Promise<SyncStats[]> {
     try {
-      console.log('[RETELL_AGENT_SYNC] Fetching sync stats...');
+      debugLog('[RETELL_AGENT_SYNC] Fetching sync stats...');
       
       const { data, error } = await supabase
         .from('retell_sync_stats')
@@ -393,7 +394,7 @@ class RetellAgentSyncService {
         throw new Error(`Failed to fetch sync stats: ${error.message}`);
       }
 
-      console.log('[RETELL_AGENT_SYNC] Fetched', data?.length || 0, 'sync stats records');
+      debugLog('[RETELL_AGENT_SYNC] Fetched', data?.length || 0, 'sync stats records');
       return data || [];
     } catch (error: any) {
       console.error('[RETELL_AGENT_SYNC] Error in getSyncStats:', error);
@@ -403,7 +404,7 @@ class RetellAgentSyncService {
 
   async getUnassignedAgents(): Promise<any[]> {
     try {
-      console.log('[RETELL_AGENT_SYNC] Fetching unassigned agents...');
+      debugLog('[RETELL_AGENT_SYNC] Fetching unassigned agents...');
       
       const { data: allAgents, error: allAgentsError } = await supabase
         .from('retell_agents')
@@ -425,7 +426,7 @@ class RetellAgentSyncService {
         !assignedAgentIds.has(agent.retell_agent_id)
       );
       
-      console.log('[RETELL_AGENT_SYNC] Found', unassigned.length, 'unassigned agents');
+      debugLog('[RETELL_AGENT_SYNC] Found', unassigned.length, 'unassigned agents');
       return unassigned;
     } catch (error: any) {
       console.error('[RETELL_AGENT_SYNC] Error in getUnassignedAgents:', error);
@@ -453,7 +454,7 @@ export async function ensureUserProfile(): Promise<{ user: any; error: any }> {
 
     if (profileError && profileError.code === 'PGRST116') {
       // Profile doesn't exist, create it
-      console.log('[RETELL_AGENT_SYNC] Creating user profile for:', user.email);
+      debugLog('[RETELL_AGENT_SYNC] Creating user profile for:', user.email);
       
       const { error: insertError } = await supabase
         .from('user_profiles')
@@ -469,7 +470,7 @@ export async function ensureUserProfile(): Promise<{ user: any; error: any }> {
         return { user: null, error: insertError };
       }
 
-      console.log('[RETELL_AGENT_SYNC] User profile created successfully');
+      debugLog('[RETELL_AGENT_SYNC] User profile created successfully');
     } else if (profileError) {
       console.error('[RETELL_AGENT_SYNC] Error checking user profile:', profileError);
       return { user: null, error: profileError };

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -77,7 +78,7 @@ export function useDashboardData() {
           
           // Handle specific error types gracefully
           if (error.code === 'PGRST301' || error.message?.includes('no rows')) {
-            console.log('No calls found for dashboard - returning empty metrics');
+            debugLog('No calls found for dashboard - returning empty metrics');
           } else if (error.message?.includes('permission denied')) {
             console.error('Permission denied for dashboard data');
           }

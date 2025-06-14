@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,13 +39,13 @@ export function useAgents() {
   });
 
   // LOGS DE DEBUG
-  console.log('🔍 [useAgents] Raw allAgents data:', allAgents);
-  console.log('🔍 [useAgents] allAgents length:', allAgents?.length);
-  console.log('🔍 [useAgents] agentsError:', agentsError);
-  console.log('🔍 [useAgents] isLoadingAgents:', isLoadingAgents);
-  console.log('🔍 [useAgents] company?.id:', company?.id);
-  console.log('🔍 [useAgents] isSuperAdmin:', isSuperAdmin);
-  console.log('🔍 [useAgents] Query enabled:', !!company?.id || isSuperAdmin);
+  debugLog('🔍 [useAgents] Raw allAgents data:', allAgents);
+  debugLog('🔍 [useAgents] allAgents length:', allAgents?.length);
+  debugLog('🔍 [useAgents] agentsError:', agentsError);
+  debugLog('🔍 [useAgents] isLoadingAgents:', isLoadingAgents);
+  debugLog('🔍 [useAgents] company?.id:', company?.id);
+  debugLog('🔍 [useAgents] isSuperAdmin:', isSuperAdmin);
+  debugLog('🔍 [useAgents] Query enabled:', !!company?.id || isSuperAdmin);
 
   const {
     data: userAgents,
@@ -54,8 +55,8 @@ export function useAgents() {
   } = useQuery({
     queryKey: ['user-agents', company?.id, isSuperAdmin],
     queryFn: () => {
-      console.log('🔍 [useAgents] Calling fetchUserAgents with company?.id:', company?.id);
-      console.log('🔍 [useAgents] isSuperAdmin:', isSuperAdmin);
+      debugLog('🔍 [useAgents] Calling fetchUserAgents with company?.id:', company?.id);
+      debugLog('🔍 [useAgents] isSuperAdmin:', isSuperAdmin);
       return fetchUserAgents(isSuperAdmin ? undefined : company?.id);
     },
     enabled: !!company?.id || isSuperAdmin,
@@ -63,11 +64,11 @@ export function useAgents() {
     refetchOnWindowFocus: true
   });
 
-  console.log('🔍 [useAgents] userAgents result:', userAgents);
-  console.log('🔍 [useAgents] userAgents length:', userAgents?.length);
-  console.log('🔍 [useAgents] userAgentsError:', userAgentsError);
-  console.log('🔍 [useAgents] company object:', company);
-  console.log('🔍 [useAgents] isLoadingUserAgents:', isLoadingUserAgents);
+  debugLog('🔍 [useAgents] userAgents result:', userAgents);
+  debugLog('🔍 [useAgents] userAgents length:', userAgents?.length);
+  debugLog('🔍 [useAgents] userAgentsError:', userAgentsError);
+  debugLog('🔍 [useAgents] company object:', company);
+  debugLog('🔍 [useAgents] isLoadingUserAgents:', isLoadingUserAgents);
   
   // Filter agents based on user role - super admins see all
   const agents = allAgents ? (isSuperAdmin || isAdmin 
@@ -81,36 +82,36 @@ export function useAgents() {
   ) : [];
 
   // LOG DE DEBUG PARA AGENTS FILTRADOS
-  console.log('🔍 [useAgents] Filtered agents:', agents);
-  console.log('🔍 [useAgents] isAdmin:', isAdmin);
-  console.log('🔍 [useAgents] user?.id:', user?.id);
+  debugLog('🔍 [useAgents] Filtered agents:', agents);
+  debugLog('🔍 [useAgents] isAdmin:', isAdmin);
+  debugLog('🔍 [useAgents] user?.id:', user?.id);
 
   // FUNCIONES CORREGIDAS PARA NOMBRES DE AGENTES
   const getAgentName = (agentId: string): string => {
-    console.log('🔍 [getAgentName] Looking for agent ID:', agentId);
-    console.log('🔍 [getAgentName] Available custom agents:', agents);
-    console.log('🔍 [getAgentName] Raw allAgents for search:', allAgents);
+    debugLog('🔍 [getAgentName] Looking for agent ID:', agentId);
+    debugLog('🔍 [getAgentName] Available custom agents:', agents);
+    debugLog('🔍 [getAgentName] Raw allAgents for search:', allAgents);
     
     // CORREGIDO: Buscar por 'id' en lugar de 'retell_agent_id'
     const agent = agents?.find(a => a.id === agentId);
-    console.log('🔍 [getAgentName] Found custom agent:', agent);
+    debugLog('🔍 [getAgentName] Found custom agent:', agent);
     
     if (agent) {
-      console.log('🎯 [getAgentName] Returning agent name:', agent.name);
+      debugLog('🎯 [getAgentName] Returning agent name:', agent.name);
       return agent.name;
     }
     
     // FALLBACK: Buscar en allAgents sin filtros (por si hay problema de permisos)
     const agentInAll = allAgents?.find(a => a.id === agentId);
-    console.log('🔍 [getAgentName] Found in allAgents (unfiltered):', agentInAll);
+    debugLog('🔍 [getAgentName] Found in allAgents (unfiltered):', agentInAll);
     
     if (agentInAll) {
-      console.log('🎯 [getAgentName] Returning name from allAgents:', agentInAll.name);
+      debugLog('🎯 [getAgentName] Returning name from allAgents:', agentInAll.name);
       return agentInAll.name;
     }
     
     // Fallback para IDs que no están en el sistema
-    console.log('⚠️ [getAgentName] No custom agent found, using fallback');
+    debugLog('⚠️ [getAgentName] No custom agent found, using fallback');
     if (agentId.length > 8) {
       return `Agent ${agentId.substring(0, 8)}`;
     }
@@ -118,7 +119,7 @@ export function useAgents() {
   };
 
   const getAgent = (agentId: string): Agent | undefined => {
-    console.log('🔍 [getAgent] Looking for agent ID:', agentId);
+    debugLog('🔍 [getAgent] Looking for agent ID:', agentId);
     
     // CORREGIDO: Buscar por 'id' primero en agents filtrados
     let agent = agents?.find(agent => agent.id === agentId);
@@ -128,7 +129,7 @@ export function useAgents() {
       agent = allAgents?.find(agent => agent.id === agentId);
     }
     
-    console.log('🔍 [getAgent] Found custom agent:', agent);
+    debugLog('🔍 [getAgent] Found custom agent:', agent);
     return agent;
   };
 
@@ -153,8 +154,8 @@ export function useAgents() {
     
     // Obtener agent_ids únicos de las llamadas
     const uniqueAgentIds = [...new Set(calls.map(call => call.agent_id))];
-    console.log('🔍 [getUniqueAgentsFromCalls] Unique agent IDs from calls:', uniqueAgentIds);
-    console.log('🔍 [getUniqueAgentsFromCalls] Available agents to search in:', agents);
+    debugLog('🔍 [getUniqueAgentsFromCalls] Unique agent IDs from calls:', uniqueAgentIds);
+    debugLog('🔍 [getUniqueAgentsFromCalls] Available agents to search in:', agents);
     
     return uniqueAgentIds
       .map(agentId => {
@@ -166,7 +167,7 @@ export function useAgents() {
           agent = allAgents?.find(a => a.id === agentId);
         }
         
-        console.log(`🔍 [getUniqueAgentsFromCalls] For agent ID ${agentId}, found custom agent:`, agent);
+        debugLog(`🔍 [getUniqueAgentsFromCalls] For agent ID ${agentId}, found custom agent:`, agent);
         
         return {
           id: agentId, // Para el filtro, usamos el agent_id

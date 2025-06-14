@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface AssignmentUser {
@@ -16,7 +17,7 @@ export interface AssignmentAgent {
 
 export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
   try {
-    console.log('🔍 [fetchAvailableUsers] Starting fetch - checking auth status');
+    debugLog('🔍 [fetchAvailableUsers] Starting fetch - checking auth status');
     
     // Check if we have a session
     const { data: session } = await supabase.auth.getSession();
@@ -25,15 +26,15 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
       throw new Error('No active session - please log in');
     }
     
-    console.log('🔍 [fetchAvailableUsers] Session found, user ID:', session.session.user.id);
-    console.log('🔍 [fetchAvailableUsers] Fetching ALL users from profiles table with exact query');
+    debugLog('🔍 [fetchAvailableUsers] Session found, user ID:', session.session.user.id);
+    debugLog('🔍 [fetchAvailableUsers] Fetching ALL users from profiles table with exact query');
     
     // Use the exact query requested - no WHERE clauses, no filters
     const { data, error } = await supabase
       .from('profiles')
       .select('id, full_name, email, role');
 
-    console.log('🔍 [fetchAvailableUsers] Raw Supabase response:', { data, error });
+    debugLog('🔍 [fetchAvailableUsers] Raw Supabase response:', { data, error });
 
     if (error) {
       console.error('🔍 [fetchAvailableUsers] Supabase error:', error);
@@ -46,9 +47,9 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
       throw new Error(`Database error: ${error.message}`);
     }
 
-    console.log('🔍 [fetchAvailableUsers] Query successful!');
-    console.log('🔍 [fetchAvailableUsers] Raw data returned:', data);
-    console.log('🔍 [fetchAvailableUsers] Total users fetched:', data?.length || 0);
+    debugLog('🔍 [fetchAvailableUsers] Query successful!');
+    debugLog('🔍 [fetchAvailableUsers] Raw data returned:', data);
+    debugLog('🔍 [fetchAvailableUsers] Total users fetched:', data?.length || 0);
     
     if (!data) {
       console.warn('🔍 [fetchAvailableUsers] Data is null/undefined');
@@ -70,7 +71,7 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
       if (countError) {
         console.error('🔍 [fetchAvailableUsers] Error checking user count:', countError);
       } else {
-        console.log('🔍 [fetchAvailableUsers] Total rows in profiles table:', count);
+        debugLog('🔍 [fetchAvailableUsers] Total rows in profiles table:', count);
       }
       
       return [];
@@ -78,7 +79,7 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
     
     // Log each user for debugging
     data.forEach((user, index) => {
-      console.log(`🔍 [fetchAvailableUsers] User ${index + 1}:`, {
+      debugLog(`🔍 [fetchAvailableUsers] User ${index + 1}:`, {
         id: user.id,
         email: user.email,
         full_name: user.full_name,
@@ -95,8 +96,8 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
       full_name: user.full_name // Keep as is, can be null
     }));
 
-    console.log('🔍 [fetchAvailableUsers] Transformed users:', transformedUsers);
-    console.log('🔍 [fetchAvailableUsers] Final count:', transformedUsers.length);
+    debugLog('🔍 [fetchAvailableUsers] Transformed users:', transformedUsers);
+    debugLog('🔍 [fetchAvailableUsers] Final count:', transformedUsers.length);
     
     return transformedUsers;
   } catch (error: any) {
@@ -108,7 +109,7 @@ export const fetchAvailableUsers = async (): Promise<AssignmentUser[]> => {
 
 export const fetchAvailableAgents = async (): Promise<AssignmentAgent[]> => {
   try {
-    console.log('🔍 [fetchAvailableAgents] Fetching agents from agents table (CORRECTED)');
+    debugLog('🔍 [fetchAvailableAgents] Fetching agents from agents table (CORRECTED)');
     
     const { data, error } = await supabase
       .from("agents")  // ✅ CAMBIADO DE "retell_agents" A "agents"
@@ -121,8 +122,8 @@ export const fetchAvailableAgents = async (): Promise<AssignmentAgent[]> => {
       throw error;
     }
 
-    console.log('🔍 [fetchAvailableAgents] Agents fetched from agents table:', data?.length || 0, 'agents');
-    console.log('🔍 [fetchAvailableAgents] Agent details:', data);
+    debugLog('🔍 [fetchAvailableAgents] Agents fetched from agents table:', data?.length || 0, 'agents');
+    debugLog('🔍 [fetchAvailableAgents] Agent details:', data);
     return data || [];
   } catch (error: any) {
     console.error("[ASSIGNMENT_HELPERS] Error in fetchAvailableAgents:", error);

@@ -1,9 +1,10 @@
+import { debugLog } from "@/lib/debug";
 
 import { supabase } from "@/lib/supabase";
 import { EnhancedCallData } from "@/lib/types/call-enhanced";
 
 export async function fetchEnhancedCalls(companyId?: string | null): Promise<EnhancedCallData[]> {
-  console.log("[CALL_SERVICE] Fetching enhanced calls with companyId:", companyId);
+  debugLog("[CALL_SERVICE] Fetching enhanced calls with companyId:", companyId);
   
   try {
     let query = supabase
@@ -31,11 +32,11 @@ export async function fetchEnhancedCalls(companyId?: string | null): Promise<Enh
     }
 
     if (!data) {
-      console.log("[CALL_SERVICE] No data returned from query");
+      debugLog("[CALL_SERVICE] No data returned from query");
       return [];
     }
 
-    console.log(`[CALL_SERVICE] Successfully fetched ${data.length} calls`);
+    debugLog(`[CALL_SERVICE] Successfully fetched ${data.length} calls`);
 
     // Transform the data to match EnhancedCallData interface
     const enhancedCalls: EnhancedCallData[] = data.map((call) => ({

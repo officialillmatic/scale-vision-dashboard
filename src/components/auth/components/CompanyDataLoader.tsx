@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +16,7 @@ export const CompanyDataLoader: React.FC<CompanyDataLoaderProps> = ({ children }
     // trigger a refresh to ensure we have the latest data
     if (user && !isLoading && isCompanyLoading) {
       const timer = setTimeout(() => {
-        console.log("[COMPANY_DATA_LOADER] Triggering company data refresh");
+        debugLog("[COMPANY_DATA_LOADER] Triggering company data refresh");
         refreshCompany();
       }, 2000);
 
