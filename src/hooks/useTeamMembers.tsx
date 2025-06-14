@@ -56,7 +56,7 @@ export function useTeamMembers(companyId?: string) {
           console.log('🔍 [SUPER ADMIN] Fetching all users from profiles');
           
           const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
+            .from('user_profiles')
             .select('id, email, name, avatar_url, created_at, updated_at, role')
             .order('created_at', { ascending: false });
 
@@ -192,7 +192,7 @@ export function useTeamMembers(companyId?: string) {
 
     // Check if email is already in profiles
     const { data: existingUser } = await supabase
-      .from('profiles')
+      .from('user_profiles')
       .select('email')
       .eq('email', email.toLowerCase())
       .maybeSingle();
