@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,9 @@ import {
   History, 
   Edit3, 
   AlertTriangle,
-  User
+  User,
+  Eye,
+  Lock
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 
@@ -36,6 +37,7 @@ interface UserCreditsListProps {
   onSelectAll: (selected: boolean) => void;
   onAdjustCredit: (userId: string) => void;
   onViewTransactions: (userId: string) => void;
+  isSuperAdmin: boolean; // Nueva prop para determinar permisos
   getStatusBadgeColor?: (status: string) => string;
 }
 
@@ -47,6 +49,7 @@ export function UserCreditsList({
   onSelectAll,
   onAdjustCredit,
   onViewTransactions,
+  isSuperAdmin,
   getStatusBadgeColor
 }: UserCreditsListProps) {
   
@@ -105,12 +108,21 @@ export function UserCreditsList({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Checkbox
-              checked={allSelected}
-              onCheckedChange={onSelectAll}
-              className={someSelected ? "data-[state=checked]:bg-primary/50" : ""}
-            />
+            {/* Solo mostrar checkbox de selección múltiple para super admins */}
+            {isSuperAdmin && (
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={onSelectAll}
+                className={someSelected ? "data-[state=checked]:bg-primary/50" : ""}
+              />
+            )}
             Users ({users.length})
+            {!isSuperAdmin && (
+              <Badge variant="outline" className="ml-2 text-xs">
+                <Eye className="h-3 w-3 mr-1" />
+                Read Only
+              </Badge>
+            )}
           </CardTitle>
         </div>
       </CardHeader>
@@ -121,10 +133,13 @@ export function UserCreditsList({
             className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center space-x-4 flex-1">
-              <Checkbox
-                checked={selectedUsers.includes(user.user_id)}
-                onCheckedChange={(checked) => onUserSelection(user.user_id, checked as boolean)}
-              />
+              {/* Solo mostrar checkbox individual para super admins */}
+              {isSuperAdmin && (
+                <Checkbox
+                  checked={selectedUsers.includes(user.user_id)}
+                  onCheckedChange={(checked) => onUserSelection(user.user_id, checked as boolean)}
+                />
+              )}
               
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -151,21 +166,39 @@ export function UserCreditsList({
             </div>
 
             <div className="flex items-center gap-2 ml-4">
+              {/* Botón de historial - disponible para todos */}
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => onViewTransactions(user.user_id)}
+                title="View transaction history"
               >
                 <History className="h-4 w-4 mr-1" />
                 History
               </Button>
-              <Button
-                size="sm"
-                onClick={() => onAdjustCredit(user.user_id)}
-              >
-                <Edit3 className="h-4 w-4 mr-1" />
-                Adjust
-              </Button>
+              
+              {/* Botón de ajuste - solo para super admins */}
+              {isSuperAdmin ? (
+                <Button
+                  size="sm"
+                  onClick={() => onAdjustCredit(user.user_id)}
+                  title="Adjust user credits"
+                >
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  Adjust
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled
+                  title="Super admin privileges required"
+                  className="opacity-50 cursor-not-allowed"
+                >
+                  <Lock className="h-4 w-4 mr-1" />
+                  Adjust
+                </Button>
+              )}
             </div>
           </div>
         ))}
