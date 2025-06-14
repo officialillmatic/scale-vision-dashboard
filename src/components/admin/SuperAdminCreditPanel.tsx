@@ -3,8 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,16 +16,12 @@ import {
   Filter,
   RefreshCw,
   Plus,
-  Minus,
-  Download,
-  Eye,
-  Shield,
-  Info
+  Edit3,
+  TrendingDown,
+  TrendingUp,
+  Phone,
+  Shield
 } from 'lucide-react';
-import { UserCreditsList } from './UserCreditsList';
-import { CreditAdjustmentModal } from './CreditAdjustmentModal';
-import { BulkCreditModal } from './BulkCreditModal';
-import { TransactionHistoryModal } from './TransactionHistoryModal';
 
 interface UserCredit {
   user_id: string;
@@ -38,9 +32,19 @@ interface UserCredit {
   critical_threshold: number;
   is_blocked: boolean;
   balance_status: string;
-  recent_transactions_count: number;
+  total_spent: number;
+  total_calls: number;
+  recent_calls: number;
+  last_call_date: string | null;
   balance_updated_at: string;
   user_created_at: string;
+}
+
+interface CreditAdjustment {
+  userId: string;
+  amount: number;
+  description: string;
+  type: 'add' | 'subtract';
 }
 
 export function SuperAdminCreditPanel() {
@@ -50,22 +54,24 @@ export function SuperAdminCreditPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  const [showTransactionModal, setShowTransactionModal] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [adjustmentModal, setAdjustmentModal] = useState<{
+    open: boolean;
+    userId?: string;
+    currentBalance?: number;
+  }>({ open: false });
+  const [bulkModal, setBulkModal] = useState(false);
+
   const { user } = useAuth();
 
-  // Definir super admins
+  // Super admin emails - expandir según necesidad
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
   const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
 
-  console.log("🔥 [SUPER_ADMIN_PANEL] User email:", user?.email);
-  console.log("🔥 [SUPER_ADMIN_PANEL] isSuperAdmin:", isSuperAdmin);
-
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (user) {
+      fetchUsers();
+    }
+  }, [user]);
 
   useEffect(() => {
     filterUsers();
@@ -74,115 +80,114 @@ export function SuperAdminCreditPanel() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      
-      console.log('🔍 [SuperAdminCreditPanel] Fetching users...');
-      console.log('🔍 [SuperAdminCreditPanel] Is super admin:', isSuperAdmin);
-      
-      // Primero intentar la vista admin si existe y tiene datos
-      const { data: adminViewData, error: adminViewError } = await supabase
-        .from('admin_user_credits_view')
-        .select('*')
-        .order('email');
+      console.log('🔍 Fetching user credit data...');
 
-      if (adminViewData && adminViewData.length > 0 && !adminViewError) {
-        console.log('✅ [SuperAdminCreditPanel] Using admin view data:', adminViewData.length);
-        setUsers(adminViewData);
+      // Obtener todos los usuarios con créditos
+      const { data: creditsData, error: creditsError } = await supabase
+        .from('user_credits')
+        .select('*');
+
+      if (creditsError) {
+        console.error('Error fetching credits:', creditsError);
+        toast.error('Error al cargar créditos de usuarios');
         return;
       }
 
-      console.log('⚠️ [SuperAdminCreditPanel] Admin view failed or empty, trying fallback:', adminViewError);
+      // Obtener información de usuarios desde múltiples fuentes
+      const userIds = creditsData?.map(c => c.user_id) || [];
       
-      // Fallback: Usar user_profiles en lugar de profiles
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('user_credits')
-        .select(`
-          user_id,
-          current_balance,
-          warning_threshold,
-          critical_threshold,
-          is_blocked,
-          updated_at,
-          created_at
-        `);
-
-      if (fallbackError) {
-        console.error('❌ [SuperAdminCreditPanel] Fallback user_credits error:', fallbackError);
-        throw fallbackError;
-      }
-
-      // Obtener los profiles por separado
-      const userIds = fallbackData?.map(item => item.user_id) || [];
-      let profilesData: any[] = [];
+      // Intentar obtener perfiles de usuarios
+      let userProfiles: any[] = [];
       
-      if (userIds.length > 0) {
-        const { data: userProfilesData, error: profilesError } = await supabase
-          .from('user_profiles')
-          .select('id, email, name')
+      // Probar user_profiles primero
+      const { data: profilesData } = await supabase
+        .from('user_profiles')
+        .select('id, email, name')
+        .in('id', userIds);
+
+      if (profilesData && profilesData.length > 0) {
+        userProfiles = profilesData;
+      } else {
+        // Fallback a users table
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, email, name, full_name')
           .in('id', userIds);
-
-        if (profilesError) {
-          console.warn('⚠️ [SuperAdminCreditPanel] user_profiles error, trying users table:', profilesError);
-          
-          // Intentar con la tabla users como segundo recurso
-          const { data: usersData, error: usersError } = await supabase
-            .from('users')
-            .select('id, email, name, full_name')
-            .in('id', userIds);
-
-          if (usersError) {
-            console.warn('⚠️ [SuperAdminCreditPanel] users table error, trying app_users:', usersError);
-            
-            // Intentar con app_users como tercer recurso
-            const { data: appUsersData, error: appUsersError } = await supabase
-              .from('app_users')
-              .select('id, email, full_name')
-              .in('id', userIds);
-
-            if (!appUsersError && appUsersData) {
-              profilesData = appUsersData.map(user => ({
-                id: user.id,
-                email: user.email,
-                name: user.full_name
-              }));
-            }
-          } else if (usersData) {
-            profilesData = usersData.map(user => ({
-              id: user.id,
-              email: user.email,
-              name: user.name || user.full_name
-            }));
-          }
-        } else if (userProfilesData) {
-          profilesData = userProfilesData;
+        
+        if (usersData) {
+          userProfiles = usersData.map(u => ({
+            id: u.id,
+            email: u.email,
+            name: u.name || u.full_name
+          }));
         }
       }
 
-      // Combinar datos de créditos con perfiles
-      const transformedData = fallbackData?.map(item => {
-        const profile = profilesData?.find(p => p.id === item.user_id);
-        return {
-          user_id: item.user_id,
-          email: profile?.email || `user-${item.user_id.slice(0, 8)}@unknown.com`,
-          name: profile?.name || 'Unknown User',
-          current_balance: item.current_balance || 0,
-          warning_threshold: item.warning_threshold || 10,
-          critical_threshold: item.critical_threshold || 5,
-          is_blocked: item.is_blocked || false,
-          balance_status: item.current_balance <= (item.critical_threshold || 5) ? 'critical' : 
-                         item.current_balance <= (item.warning_threshold || 10) ? 'warning' : 'normal',
-          recent_transactions_count: 0,
-          balance_updated_at: item.updated_at,
-          user_created_at: item.created_at
-        };
-      }) || [];
+      // Obtener estadísticas de llamadas para cada usuario
+      const { data: callsData } = await supabase
+        .from('calls')
+        .select('user_id, cost_usd, timestamp')
+        .in('user_id', userIds);
 
-      console.log('✅ [SuperAdminCreditPanel] Using combined data:', transformedData.length);
-      setUsers(transformedData);
+      // Obtener transacciones de créditos
+      const { data: transactionsData } = await supabase
+        .from('credit_transactions')
+        .select('user_id, amount, transaction_type, created_at')
+        .in('user_id', userIds);
+
+      // Combinar todos los datos
+      const combinedData: UserCredit[] = creditsData.map(credit => {
+        const profile = userProfiles.find(p => p.id === credit.user_id);
+        const userCalls = callsData?.filter(c => c.user_id === credit.user_id) || [];
+        const userTransactions = transactionsData?.filter(t => t.user_id === credit.user_id) || [];
+        
+        // Calcular estadísticas
+        const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+        const recentCalls = userCalls.filter(call => {
+          const callDate = new Date(call.timestamp);
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          return callDate >= weekAgo;
+        }).length;
+
+        const lastCall = userCalls.length > 0 
+          ? userCalls.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
+          : null;
+
+        // Determinar estado del balance
+        const balance = credit.current_balance || 0;
+        const criticalThreshold = credit.critical_threshold || 5;
+        const warningThreshold = credit.warning_threshold || 10;
+        
+        let balanceStatus = 'normal';
+        if (credit.is_blocked) balanceStatus = 'blocked';
+        else if (balance <= criticalThreshold) balanceStatus = 'critical';
+        else if (balance <= warningThreshold) balanceStatus = 'warning';
+
+        return {
+          user_id: credit.user_id,
+          email: profile?.email || `user-${credit.user_id.slice(0, 8)}@unknown.com`,
+          name: profile?.name || 'Usuario Desconocido',
+          current_balance: balance,
+          warning_threshold: warningThreshold,
+          critical_threshold: criticalThreshold,
+          is_blocked: credit.is_blocked || false,
+          balance_status: balanceStatus,
+          total_spent: totalSpent,
+          total_calls: userCalls.length,
+          recent_calls: recentCalls,
+          last_call_date: lastCall?.timestamp || null,
+          balance_updated_at: credit.updated_at || credit.created_at,
+          user_created_at: credit.created_at
+        };
+      });
+
+      console.log('✅ Loaded users with credits:', combinedData.length);
+      setUsers(combinedData);
 
     } catch (error: any) {
-      console.error('❌ [SuperAdminCreditPanel] Failed to fetch users:', error);
-      toast.error(`Failed to fetch users: ${error.message}`);
-      setUsers([]);
+      console.error('❌ Error fetching users:', error);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -192,9 +197,11 @@ export function SuperAdminCreditPanel() {
     let filtered = users;
 
     if (searchQuery) {
+      const query = searchQuery.toLowerCase();
       filtered = filtered.filter(user => 
-        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (user.name && user.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        user.email.toLowerCase().includes(query) ||
+        user.name.toLowerCase().includes(query) ||
+        user.user_id.includes(query)
       );
     }
 
@@ -206,110 +213,131 @@ export function SuperAdminCreditPanel() {
   };
 
   const handleUserSelection = (userId: string, selected: boolean) => {
-    if (selected) {
-      setSelectedUsers(prev => [...prev, userId]);
-    } else {
-      setSelectedUsers(prev => prev.filter(id => id !== userId));
-    }
+    setSelectedUsers(prev => 
+      selected 
+        ? [...prev, userId]
+        : prev.filter(id => id !== userId)
+    );
   };
 
   const handleSelectAll = (selected: boolean) => {
-    if (selected) {
-      setSelectedUsers(filteredUsers.map(user => user.user_id));
-    } else {
-      setSelectedUsers([]);
+    setSelectedUsers(selected ? filteredUsers.map(u => u.user_id) : []);
+  };
+
+  const handleAdjustCredit = async (userId: string, amount: number, description: string, type: 'add' | 'subtract') => {
+    try {
+      const adjustmentAmount = type === 'subtract' ? -Math.abs(amount) : Math.abs(amount);
+      
+      const { data, error } = await supabase.rpc('admin_adjust_user_credits', {
+        p_user_id: userId,
+        p_amount: adjustmentAmount,
+        p_description: description,
+        p_admin_id: user?.id || 'unknown'
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success(`Créditos ${type === 'add' ? 'agregados' : 'descontados'} exitosamente`);
+      fetchUsers(); // Recargar datos
+      
+    } catch (error: any) {
+      console.error('Error adjusting credits:', error);
+      toast.error(`Error al ajustar créditos: ${error.message}`);
     }
   };
 
-  const handleAdjustCredit = (userId: string) => {
-    if (!isSuperAdmin) {
-      toast.error('Solo super administradores pueden ajustar créditos');
-      return;
-    }
-    setSelectedUserId(userId);
-    setShowAdjustmentModal(true);
-  };
-
-  const handleViewTransactions = (userId: string) => {
-    setSelectedUserId(userId);
-    setShowTransactionModal(true);
-  };
-
-  const getStatusBadgeColor = (status: string) => {
+  const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'blocked': return 'destructive';
       case 'critical': return 'destructive';
       case 'warning': return 'secondary';
       case 'normal': return 'default';
-      default: return 'default';
+      default: return 'outline';
     }
   };
 
-  const getStatusStats = () => {
-    const stats = {
-      total: users.length,
-      normal: users.filter(u => u.balance_status === 'normal').length,
-      warning: users.filter(u => u.balance_status === 'warning').length,
-      critical: users.filter(u => u.balance_status === 'critical').length,
-      blocked: users.filter(u => u.is_blocked).length,
-    };
-    return stats;
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'blocked': return <AlertTriangle className="w-3 h-3" />;
+      case 'critical': return <TrendingDown className="w-3 h-3" />;
+      case 'warning': return <AlertTriangle className="w-3 h-3" />;
+      case 'normal': return <TrendingUp className="w-3 h-3" />;
+      default: return null;
+    }
   };
 
-  const stats = getStatusStats();
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Nunca';
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const stats = {
+    total: users.length,
+    normal: users.filter(u => u.balance_status === 'normal').length,
+    warning: users.filter(u => u.balance_status === 'warning').length,
+    critical: users.filter(u => u.balance_status === 'critical').length,
+    blocked: users.filter(u => u.is_blocked).length,
+    totalBalance: users.reduce((sum, u) => sum + u.current_balance, 0),
+    totalSpent: users.reduce((sum, u) => sum + u.total_spent, 0),
+    totalCalls: users.reduce((sum, u) => sum + u.total_calls, 0)
+  };
+
+  if (!isSuperAdmin) {
+    return (
+      <Card className="max-w-md mx-auto mt-8">
+        <CardContent className="p-6 text-center">
+          <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Acceso Denegado</h3>
+          <p className="text-muted-foreground">
+            Se requieren privilegios de super administrador para acceder a este panel.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header con badges informativos */}
-      <div className="flex flex-col space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <h2 className="text-2xl font-bold">Credit Management Panel</h2>
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              <Eye className="w-3 h-3 mr-1" />
-              Open Access
-            </Badge>
-            {isSuperAdmin && (
-              <Badge variant="default" className="bg-blue-50 text-blue-700 border-blue-200">
-                <Shield className="w-3 h-3 mr-1" />
-                Super Admin
-              </Badge>
-            )}
-          </div>
-          <Button onClick={fetchUsers} disabled={loading} variant="outline">
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <h1 className="text-3xl font-bold">Panel de Gestión de Créditos</h1>
+          <Badge variant="default" className="bg-blue-50 text-blue-700 border-blue-200">
+            <Shield className="w-3 h-3 mr-1" />
+            Super Admin
+          </Badge>
         </div>
-
-        {/* Aviso informativo */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-blue-900">
-                Panel de Acceso Libre
-              </p>
-              <p className="text-sm text-blue-700">
-                {isSuperAdmin 
-                  ? "Tienes privilegios completos: puedes ver, editar y gestionar todos los créditos de usuarios."
-                  : "Acceso de solo lectura: puedes ver información de créditos pero no realizar modificaciones."
-                }
-              </p>
-            </div>
-          </div>
-        </div>
+        <Button onClick={fetchUsers} disabled={loading} variant="outline">
+          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Actualizar
+        </Button>
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
               <Users className="h-4 w-4 text-blue-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-xs text-muted-foreground">Total Usuarios</p>
+                <p className="text-xl font-bold">{stats.total}</p>
               </div>
             </div>
           </CardContent>
@@ -318,10 +346,10 @@ export function SuperAdminCreditPanel() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 rounded bg-green-500" />
+              <div className="w-3 h-3 rounded bg-green-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Normal</p>
-                <p className="text-2xl font-bold text-green-600">{stats.normal}</p>
+                <p className="text-xs text-muted-foreground">Normal</p>
+                <p className="text-xl font-bold text-green-600">{stats.normal}</p>
               </div>
             </div>
           </CardContent>
@@ -330,10 +358,10 @@ export function SuperAdminCreditPanel() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 rounded bg-yellow-500" />
+              <div className="w-3 h-3 rounded bg-yellow-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Warning</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.warning}</p>
+                <p className="text-xs text-muted-foreground">Advertencia</p>
+                <p className="text-xl font-bold text-yellow-600">{stats.warning}</p>
               </div>
             </div>
           </CardContent>
@@ -342,10 +370,10 @@ export function SuperAdminCreditPanel() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 rounded bg-red-500" />
+              <div className="w-3 h-3 rounded bg-red-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Critical</p>
-                <p className="text-2xl font-bold text-red-600">{stats.critical}</p>
+                <p className="text-xs text-muted-foreground">Crítico</p>
+                <p className="text-xl font-bold text-red-600">{stats.critical}</p>
               </div>
             </div>
           </CardContent>
@@ -356,15 +384,39 @@ export function SuperAdminCreditPanel() {
             <div className="flex items-center space-x-2">
               <AlertTriangle className="h-4 w-4 text-red-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Blocked</p>
-                <p className="text-2xl font-bold text-red-600">{stats.blocked}</p>
+                <p className="text-xs text-muted-foreground">Bloqueados</p>
+                <p className="text-xl font-bold text-red-600">{stats.blocked}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <DollarSign className="h-4 w-4 text-green-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Balance Total</p>
+                <p className="text-lg font-bold text-green-600">{formatCurrency(stats.totalBalance)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Phone className="h-4 w-4 text-purple-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Total Llamadas</p>
+                <p className="text-xl font-bold text-purple-600">{stats.totalCalls}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters and Actions */}
+      {/* Filters */}
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
@@ -372,10 +424,10 @@ export function SuperAdminCreditPanel() {
               <div className="flex items-center space-x-2">
                 <Search className="w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by email or name..."
+                  placeholder="Buscar por email, nombre o ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64"
+                  className="w-80"
                 />
               </div>
               
@@ -386,87 +438,346 @@ export function SuperAdminCreditPanel() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="border rounded px-3 py-2"
                 >
-                  <option value="all">All Status</option>
+                  <option value="all">Todos los Estados</option>
                   <option value="normal">Normal</option>
-                  <option value="warning">Warning</option>
-                  <option value="critical">Critical</option>
+                  <option value="warning">Advertencia</option>
+                  <option value="critical">Crítico</option>
+                  <option value="blocked">Bloqueado</option>
                 </select>
               </div>
             </div>
 
-            {isSuperAdmin && (
-              <div className="flex items-center space-x-2">
-                <Button 
-                  onClick={() => setShowBulkModal(true)}
-                  disabled={selectedUsers.length === 0}
-                  variant="outline"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Bulk Actions ({selectedUsers.length})
-                </Button>
-                <Button onClick={fetchUsers} disabled={loading}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center space-x-2">
+              <Button 
+                onClick={() => setBulkModal(true)}
+                disabled={selectedUsers.length === 0}
+                variant="outline"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Acción Masiva ({selectedUsers.length})
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
         <CardContent>
-          <UserCreditsList
-            users={filteredUsers}
-            loading={loading}
-            selectedUsers={selectedUsers}
-            onUserSelection={handleUserSelection}
-            onSelectAll={handleSelectAll}
-            onAdjustCredit={handleAdjustCredit}
-            onViewTransactions={handleViewTransactions}
-            isSuperAdmin={isSuperAdmin}
-          />
+          {loading ? (
+            <div className="text-center py-8">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p>Cargando usuarios...</p>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No se encontraron usuarios</h3>
+              <p className="text-gray-600">Intenta ajustar los filtros de búsqueda.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+                <Checkbox
+                  checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                  onCheckedChange={handleSelectAll}
+                />
+                <span className="font-medium">Seleccionar todos ({filteredUsers.length})</span>
+              </div>
+
+              {filteredUsers.map((user) => (
+                <div
+                  key={user.user_id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center space-x-4 flex-1">
+                    <Checkbox
+                      checked={selectedUsers.includes(user.user_id)}
+                      onCheckedChange={(checked) => handleUserSelection(user.user_id, checked as boolean)}
+                    />
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <p className="font-medium text-sm truncate">{user.email}</p>
+                        <span className="text-xs text-gray-500">({user.name})</span>
+                        
+                        <Badge variant={getStatusBadgeVariant(user.balance_status)}>
+                          {getStatusIcon(user.balance_status)}
+                          <span className="ml-1 capitalize">{user.balance_status}</span>
+                        </Badge>
+                        
+                        {user.is_blocked && (
+                          <Badge variant="destructive">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Bloqueado
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                        <span>Balance: <strong className="text-green-600">{formatCurrency(user.current_balance)}</strong></span>
+                        <span>Gastado: <strong className="text-red-600">{formatCurrency(user.total_spent)}</strong></span>
+                        <span>Llamadas: <strong>{user.total_calls}</strong> (recientes: {user.recent_calls})</span>
+                        <span>Última llamada: <strong>{formatDate(user.last_call_date)}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 ml-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAdjustmentModal({
+                        open: true,
+                        userId: user.user_id,
+                        currentBalance: user.current_balance
+                      })}
+                    >
+                      <Edit3 className="h-4 w-4 mr-1" />
+                      Ajustar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Modales */}
-      {showAdjustmentModal && selectedUserId && (
+      {/* Modal de Ajuste Individual */}
+      {adjustmentModal.open && (
         <CreditAdjustmentModal
-          userId={selectedUserId}
-          isOpen={showAdjustmentModal}
-          onClose={() => {
-            setShowAdjustmentModal(false);
-            setSelectedUserId(null);
-          }}
-          onSuccess={() => {
-            fetchUsers();
-            setShowAdjustmentModal(false);
-            setSelectedUserId(null);
-          }}
+          userId={adjustmentModal.userId!}
+          currentBalance={adjustmentModal.currentBalance!}
+          onClose={() => setAdjustmentModal({ open: false })}
+          onAdjust={handleAdjustCredit}
         />
       )}
 
-      {showBulkModal && (
+      {/* Modal de Acción Masiva */}
+      {bulkModal && (
         <BulkCreditModal
           selectedUserIds={selectedUsers}
-          isOpen={showBulkModal}
-          onClose={() => setShowBulkModal(false)}
+          onClose={() => setBulkModal(false)}
+          onAdjust={handleAdjustCredit}
           onSuccess={() => {
             fetchUsers();
-            setShowBulkModal(false);
             setSelectedUsers([]);
           }}
         />
       )}
+    </div>
+  );
+}
 
-      {showTransactionModal && selectedUserId && (
-        <TransactionHistoryModal
-          userId={selectedUserId}
-          isOpen={showTransactionModal}
-          onClose={() => {
-            setShowTransactionModal(false);
-            setSelectedUserId(null);
-          }}
-        />
-      )}
+// Modal de Ajuste Individual
+function CreditAdjustmentModal({ 
+  userId, 
+  currentBalance, 
+  onClose, 
+  onAdjust 
+}: {
+  userId: string;
+  currentBalance: number;
+  onClose: () => void;
+  onAdjust: (userId: string, amount: number, description: string, type: 'add' | 'subtract') => Promise<void>;
+}) {
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState<'add' | 'subtract'>('add');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || !description) return;
+
+    setLoading(true);
+    try {
+      await onAdjust(userId, parseFloat(amount), description, type);
+      onClose();
+    } catch (error) {
+      // Error ya manejado en onAdjust
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-96">
+        <CardHeader>
+          <CardTitle>Ajustar Créditos</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Balance actual: <strong>${currentBalance.toFixed(2)}</strong>
+          </p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Tipo de Ajuste</label>
+              <div className="flex space-x-2">
+                <Button
+                  type="button"
+                  variant={type === 'add' ? 'default' : 'outline'}
+                  onClick={() => setType('add')}
+                  className="flex-1"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Agregar
+                </Button>
+                <Button
+                  type="button"
+                  variant={type === 'subtract' ? 'default' : 'outline'}
+                  onClick={() => setType('subtract')}
+                  className="flex-1"
+                >
+                  <TrendingDown className="w-4 h-4 mr-1" />
+                  Descontar
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Cantidad (USD)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Descripción</label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Motivo del ajuste..."
+                required
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : 'Aplicar Ajuste'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Modal de Acción Masiva
+function BulkCreditModal({ 
+  selectedUserIds, 
+  onClose, 
+  onAdjust,
+  onSuccess 
+}: {
+  selectedUserIds: string[];
+  onClose: () => void;
+  onAdjust: (userId: string, amount: number, description: string, type: 'add' | 'subtract') => Promise<void>;
+  onSuccess: () => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState<'add' | 'subtract'>('add');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || !description) return;
+
+    setLoading(true);
+    try {
+      // Aplicar ajuste a cada usuario seleccionado
+      for (const userId of selectedUserIds) {
+        await onAdjust(userId, parseFloat(amount), description, type);
+      }
+      toast.success(`Ajuste aplicado a ${selectedUserIds.length} usuarios`);
+      onSuccess();
+      onClose();
+    } catch (error) {
+      // Error ya manejado en onAdjust
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-96">
+        <CardHeader>
+          <CardTitle>Ajuste Masivo de Créditos</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Aplicar a <strong>{selectedUserIds.length}</strong> usuarios seleccionados
+          </p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Tipo de Ajuste</label>
+              <div className="flex space-x-2">
+                <Button
+                  type="button"
+                  variant={type === 'add' ? 'default' : 'outline'}
+                  onClick={() => setType('add')}
+                  className="flex-1"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Agregar
+                </Button>
+                <Button
+                  type="button"
+                  variant={type === 'subtract' ? 'default' : 'outline'}
+                  onClick={() => setType('subtract')}
+                  className="flex-1"
+                >
+                  <TrendingDown className="w-4 h-4 mr-1" />
+                  Descontar
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Cantidad por Usuario (USD)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Descripción</label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Motivo del ajuste masivo..."
+                required
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : `Aplicar a ${selectedUserIds.length} usuarios`}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
