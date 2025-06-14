@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { 
   Search, 
   DollarSign, 
@@ -54,7 +53,6 @@ export function SuperAdminCreditPanel() {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const { isSuperAdmin } = useSuperAdmin();
   const { user } = useAuth();
 const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
 const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
@@ -79,7 +77,8 @@ console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
       console.log('🔍 [SuperAdminCreditPanel] Is super admin:', isSuperAdmin);
       
       // For super admins, try to fetch from the admin view first, fallback to direct query if needed
-      if (isSuperAdmin) {
+      / Permitir acceso de solo lectura a todos los usuarios autenticados
+if (true) {
         const { data, error } = await supabase
           .from('admin_user_credits_view')
           .select('*')
