@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -53,7 +54,7 @@ export function NewAssignmentDialog({
   // When dialog opens with a selected agent, find the corresponding retell_agent
   useEffect(() => {
     if (isOpen && selectedAgent) {
-      console.log('🔍 [NewAssignmentDialog] Selected agent:', selectedAgent);
+      debugLog('🔍 [NewAssignmentDialog] Selected agent:', selectedAgent);
       
       // Find the corresponding retell_agent based on retell_agent_id
       const matchingRetellAgent = availableAgents.find(agent => 
@@ -61,7 +62,7 @@ export function NewAssignmentDialog({
       );
       
       if (matchingRetellAgent) {
-        console.log('🔍 [NewAssignmentDialog] Found matching retell agent:', matchingRetellAgent);
+        debugLog('🔍 [NewAssignmentDialog] Found matching retell agent:', matchingRetellAgent);
         setSelectedAgentId(matchingRetellAgent.id);
       } else {
         console.warn('🔍 [NewAssignmentDialog] No matching retell agent found for:', selectedAgent.retell_agent_id);
@@ -71,7 +72,7 @@ export function NewAssignmentDialog({
 
   // Debug available users when they change
   useEffect(() => {
-    console.log('🔍 [NewAssignmentDialog] Available users updated:', {
+    debugLog('🔍 [NewAssignmentDialog] Available users updated:', {
       count: availableUsers.length,
       users: availableUsers.map(user => ({
         id: user.id,
@@ -89,7 +90,7 @@ export function NewAssignmentDialog({
       return;
     }
     
-    console.log('🔍 [NewAssignmentDialog] Submitting assignment:', {
+    debugLog('🔍 [NewAssignmentDialog] Submitting assignment:', {
       userId: selectedUserId,
       agentId: selectedAgentId,
       isPrimary
@@ -113,7 +114,7 @@ export function NewAssignmentDialog({
 
   const handleRefreshUsers = () => {
     if (onRefreshUsers) {
-      console.log('🔍 [NewAssignmentDialog] Triggering manual user refresh');
+      debugLog('🔍 [NewAssignmentDialog] Triggering manual user refresh');
       onRefreshUsers();
     }
   };
@@ -122,7 +123,7 @@ export function NewAssignmentDialog({
   const hasUsersError = !!usersError;
   const hasUsers = availableUsers.length > 0;
 
-  console.log('🔍 [NewAssignmentDialog] Render state:', {
+  debugLog('🔍 [NewAssignmentDialog] Render state:', {
     isOpen,
     isLoading,
     availableUsersCount: availableUsers.length,

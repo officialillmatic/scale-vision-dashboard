@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,13 +21,13 @@ export const useUserDashboardMetrics = () => {
   const { data: metrics, isLoading } = useQuery({
     queryKey: ['user-dashboard-metrics', user?.id, userCalls?.length],
     queryFn: (): UserDashboardMetrics => {
-      console.log('🔍 [useUserDashboardMetrics] Computing metrics for calls:', {
+      debugLog('🔍 [useUserDashboardMetrics] Computing metrics for calls:', {
         userCallsLength: userCalls?.length,
         sampleCall: userCalls?.[0]
       });
 
       if (!userCalls || userCalls.length === 0) {
-        console.log('⚠️ [useUserDashboardMetrics] No user calls data');
+        debugLog('⚠️ [useUserDashboardMetrics] No user calls data');
         return {
           totalCalls: 0,
           totalCost: 0,
@@ -64,14 +65,14 @@ export const useUserDashboardMetrics = () => {
         totalRevenue
       };
 
-      console.log('✅ [useUserDashboardMetrics] Computed metrics:', metrics);
+      debugLog('✅ [useUserDashboardMetrics] Computed metrics:', metrics);
       return metrics;
     },
     enabled: !isLoadingCalls && !!userCalls,
     staleTime: 1000 * 60 * 2 // 2 minutes
   });
 
-  console.log('🔍 [useUserDashboardMetrics] Hook state:', {
+  debugLog('🔍 [useUserDashboardMetrics] Hook state:', {
     metricsAvailable: !!metrics,
     isLoading: isLoading || isLoadingCalls,
     userCallsLength: userCalls?.length || 0

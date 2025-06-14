@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,7 @@ export const WebhookDiagnostics = () => {
 
     try {
       // 1. Verificar configuración de variables de entorno
-      console.log("🔍 [WEBHOOK_DIAGNOSTICS] Checking environment configuration...");
+      debugLog("🔍 [WEBHOOK_DIAGNOSTICS] Checking environment configuration...");
       
       // 2. Verificar URL del webhook
       try {
@@ -191,7 +192,7 @@ export const WebhookDiagnostics = () => {
         toast.error(`Webhook registration failed: ${error.message}`);
       } else {
         toast.success("Webhook registration completed");
-        console.log("Webhook registration result:", data);
+        debugLog("Webhook registration result:", data);
         // Re-run diagnostics after registration
         setTimeout(runDiagnostics, 2000);
       }

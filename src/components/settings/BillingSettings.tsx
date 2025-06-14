@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,7 +35,7 @@ export function BillingSettings() {
 
     setIsUpdating(true);
     try {
-      console.log('Calling admin_update_user_credits from BillingSettings:', {
+      debugLog('Calling admin_update_user_credits from BillingSettings:', {
         target_user_id: selectedUserId,
         amount_change: numericAmount,
         description_text: description || `Admin balance adjustment: ${numericAmount > 0 ? '+' : ''}${numericAmount}`
@@ -47,7 +48,7 @@ export function BillingSettings() {
         description_text: description || `Admin balance adjustment: ${numericAmount > 0 ? '+' : ''}${numericAmount}`
       });
 
-      console.log('admin_update_user_credits response:', { data, error });
+      debugLog('admin_update_user_credits response:', { data, error });
 
       if (error) {
         console.error('Balance update error:', error);

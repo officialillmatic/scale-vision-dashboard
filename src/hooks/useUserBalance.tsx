@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -28,7 +29,7 @@ export function useUserBalance() {
     queryFn: async () => {
       if (!userId || !companyId) return null;
       
-      console.log('Fetching user balance for:', { userId, companyId });
+      debugLog('Fetching user balance for:', { userId, companyId });
       
       // First get the credit balance using the optimized secure function
       const { data: creditData, error: creditError } = await supabase.rpc('get_user_credits', {
@@ -40,7 +41,7 @@ export function useUserBalance() {
         throw creditError;
       }
 
-      console.log('Credit data fetched:', creditData);
+      debugLog('Credit data fetched:', creditData);
 
       // Then get recent transactions using the user_balances based function
       const { data: detailedData, error: detailedError } = await supabase
@@ -54,7 +55,7 @@ export function useUserBalance() {
         // Continue with just credit data if detailed data fails
       }
 
-      console.log('Detailed data fetched:', detailedData);
+      debugLog('Detailed data fetched:', detailedData);
 
       // Combine the data from both sources
       if (creditData) {

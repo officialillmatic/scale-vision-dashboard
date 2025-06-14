@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -34,13 +35,13 @@ export const useDirectCallSync = () => {
 
     const apiUrl = 'https://api.retellai.com/v2/list-calls';
     
-    console.log("[DIRECT_SYNC] === EXACT API CALL DEBUG ===");
-    console.log("[DIRECT_SYNC] API URL:", apiUrl);
-    console.log("[DIRECT_SYNC] Request method: POST");
-    console.log("[DIRECT_SYNC] Authorization header:", `Bearer ${retellApiKey.substring(0, 15)}...`);
-    console.log("[DIRECT_SYNC] Content-Type: application/json");
-    console.log("[DIRECT_SYNC] Request body:", JSON.stringify(requestBody, null, 2));
-    console.log("[DIRECT_SYNC] === END API CALL DEBUG ===");
+    debugLog("[DIRECT_SYNC] === EXACT API CALL DEBUG ===");
+    debugLog("[DIRECT_SYNC] API URL:", apiUrl);
+    debugLog("[DIRECT_SYNC] Request method: POST");
+    debugLog("[DIRECT_SYNC] Authorization header:", `Bearer ${retellApiKey.substring(0, 15)}...`);
+    debugLog("[DIRECT_SYNC] Content-Type: application/json");
+    debugLog("[DIRECT_SYNC] Request body:", JSON.stringify(requestBody, null, 2));
+    debugLog("[DIRECT_SYNC] === END API CALL DEBUG ===");
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -51,8 +52,8 @@ export const useDirectCallSync = () => {
       body: JSON.stringify(requestBody)
     });
 
-    console.log("[DIRECT_SYNC] Response status:", response.status);
-    console.log("[DIRECT_SYNC] Response headers:", Object.fromEntries(response.headers.entries()));
+    debugLog("[DIRECT_SYNC] Response status:", response.status);
+    debugLog("[DIRECT_SYNC] Response headers:", Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -61,61 +62,61 @@ export const useDirectCallSync = () => {
     }
 
     const data = await response.json();
-    console.log("[DIRECT_SYNC] Raw API Response:", JSON.stringify(data, null, 2));
-    console.log("[DIRECT_SYNC] Raw response type:", typeof data);
-    console.log("[DIRECT_SYNC] Raw response keys:", Object.keys(data || {}));
+    debugLog("[DIRECT_SYNC] Raw API Response:", JSON.stringify(data, null, 2));
+    debugLog("[DIRECT_SYNC] Raw response type:", typeof data);
+    debugLog("[DIRECT_SYNC] Raw response keys:", Object.keys(data || {}));
     
     // Debug the calls array specifically
     if (data && data.calls) {
-      console.log("[DIRECT_SYNC] Calls array found:", Array.isArray(data.calls));
-      console.log("[DIRECT_SYNC] Calls array length:", data.calls.length);
-      console.log("[DIRECT_SYNC] First call structure:", data.calls[0] ? JSON.stringify(data.calls[0], null, 2) : "No calls");
+      debugLog("[DIRECT_SYNC] Calls array found:", Array.isArray(data.calls));
+      debugLog("[DIRECT_SYNC] Calls array length:", data.calls.length);
+      debugLog("[DIRECT_SYNC] First call structure:", data.calls[0] ? JSON.stringify(data.calls[0], null, 2) : "No calls");
     } else {
-      console.log("[DIRECT_SYNC] NO CALLS ARRAY FOUND in response");
-      console.log("[DIRECT_SYNC] Available properties:", Object.keys(data || {}));
+      debugLog("[DIRECT_SYNC] NO CALLS ARRAY FOUND in response");
+      debugLog("[DIRECT_SYNC] Available properties:", Object.keys(data || {}));
     }
     
     return data;
   };
 
   const syncCallsDirectly = async (): Promise<DirectSyncResult> => {
-    console.log("[DIRECT_SYNC] Starting direct call sync...");
+    debugLog("[DIRECT_SYNC] Starting direct call sync...");
     
     // Step 1: Use EXACT same API call format as Direct API Test
-    console.log("[DIRECT_SYNC] Fetching calls from Retell API using EXACT same format as test...");
+    debugLog("[DIRECT_SYNC] Fetching calls from Retell API using EXACT same format as test...");
     
     // This is the EXACT same request body as the working Direct API Test
     const requestBody = { limit: 50 };
     const apiData = await makeRetellAPICall(requestBody);
     
     // ENHANCED PARSING DEBUG
-    console.log("[DIRECT_SYNC] === PARSING DEBUG START ===");
-    console.log("[DIRECT_SYNC] API Data type:", typeof apiData);
-    console.log("[DIRECT_SYNC] API Data:", JSON.stringify(apiData, null, 2));
+    debugLog("[DIRECT_SYNC] === PARSING DEBUG START ===");
+    debugLog("[DIRECT_SYNC] API Data type:", typeof apiData);
+    debugLog("[DIRECT_SYNC] API Data:", JSON.stringify(apiData, null, 2));
     
     // Check for calls array in different possible locations
     let calls = [];
     if (apiData && apiData.calls && Array.isArray(apiData.calls)) {
       calls = apiData.calls;
-      console.log("[DIRECT_SYNC] Found calls in apiData.calls");
+      debugLog("[DIRECT_SYNC] Found calls in apiData.calls");
     } else if (apiData && Array.isArray(apiData)) {
       calls = apiData;
-      console.log("[DIRECT_SYNC] API data itself is an array");
+      debugLog("[DIRECT_SYNC] API data itself is an array");
     } else if (apiData && apiData.data && Array.isArray(apiData.data)) {
       calls = apiData.data;
-      console.log("[DIRECT_SYNC] Found calls in apiData.data");
+      debugLog("[DIRECT_SYNC] Found calls in apiData.data");
     } else {
-      console.log("[DIRECT_SYNC] NO CALLS ARRAY FOUND - checking all properties:");
+      debugLog("[DIRECT_SYNC] NO CALLS ARRAY FOUND - checking all properties:");
       if (apiData && typeof apiData === 'object') {
         Object.keys(apiData).forEach(key => {
-          console.log(`[DIRECT_SYNC] Property ${key}:`, typeof apiData[key], Array.isArray(apiData[key]) ? `Array length: ${apiData[key].length}` : 'Not an array');
+          debugLog(`[DIRECT_SYNC] Property ${key}:`, typeof apiData[key], Array.isArray(apiData[key]) ? `Array length: ${apiData[key].length}` : 'Not an array');
         });
       }
     }
     
-    console.log(`[DIRECT_SYNC] EXTRACTED CALLS: ${calls.length} items`);
-    console.log("[DIRECT_SYNC] First call extracted:", calls[0] ? JSON.stringify(calls[0], null, 2) : "No calls");
-    console.log("[DIRECT_SYNC] === PARSING DEBUG END ===");
+    debugLog(`[DIRECT_SYNC] EXTRACTED CALLS: ${calls.length} items`);
+    debugLog("[DIRECT_SYNC] First call extracted:", calls[0] ? JSON.stringify(calls[0], null, 2) : "No calls");
+    debugLog("[DIRECT_SYNC] === PARSING DEBUG END ===");
 
     // Step 2: Get user context
     const userId = await getUserId();
@@ -129,28 +130,28 @@ export const useDirectCallSync = () => {
       throw new Error("No company found for user");
     }
 
-    console.log("[DIRECT_SYNC] User context:", { userId, companyId });
+    debugLog("[DIRECT_SYNC] User context:", { userId, companyId });
 
     // Step 3: Process and insert calls
     let syncedCalls = 0;
     let processedCalls = 0;
     const errors: string[] = [];
 
-    console.log("[DIRECT_SYNC] === PROCESSING CALLS START ===");
+    debugLog("[DIRECT_SYNC] === PROCESSING CALLS START ===");
     for (const call of calls) {
       try {
         processedCalls++;
-        console.log(`[DIRECT_SYNC] Processing call ${processedCalls}/${calls.length}:`, call.call_id || 'NO_CALL_ID');
+        debugLog(`[DIRECT_SYNC] Processing call ${processedCalls}/${calls.length}:`, call.call_id || 'NO_CALL_ID');
         
         // Validate call has required data
         if (!call.call_id) {
-          console.log("[DIRECT_SYNC] Skipping call - no call_id:", JSON.stringify(call, null, 2));
+          debugLog("[DIRECT_SYNC] Skipping call - no call_id:", JSON.stringify(call, null, 2));
           errors.push(`Call ${processedCalls}: Missing call_id`);
           continue;
         }
         
         // Check if call already exists
-        console.log(`[DIRECT_SYNC] Checking if call ${call.call_id} already exists...`);
+        debugLog(`[DIRECT_SYNC] Checking if call ${call.call_id} already exists...`);
         const { data: existingCall, error: checkError } = await supabase
           .from('retell_calls')
           .select('id')
@@ -164,11 +165,11 @@ export const useDirectCallSync = () => {
         }
 
         if (existingCall) {
-          console.log(`[DIRECT_SYNC] Call ${call.call_id} already exists, skipping`);
+          debugLog(`[DIRECT_SYNC] Call ${call.call_id} already exists, skipping`);
           continue;
         }
 
-        console.log(`[DIRECT_SYNC] Call ${call.call_id} is new, preparing to insert...`);
+        debugLog(`[DIRECT_SYNC] Call ${call.call_id} is new, preparing to insert...`);
         
         // Map call data for insertion - ENHANCED MAPPING
         const mappedCall = {
@@ -210,10 +211,10 @@ export const useDirectCallSync = () => {
           updated_at: new Date().toISOString(),
         };
 
-        console.log(`[DIRECT_SYNC] Mapped call data for ${call.call_id}:`, JSON.stringify(mappedCall, null, 2));
+        debugLog(`[DIRECT_SYNC] Mapped call data for ${call.call_id}:`, JSON.stringify(mappedCall, null, 2));
 
         // Insert the call
-        console.log(`[DIRECT_SYNC] Inserting call ${call.call_id} into database...`);
+        debugLog(`[DIRECT_SYNC] Inserting call ${call.call_id} into database...`);
         const { error: insertError } = await supabase
           .from('retell_calls')
           .insert(mappedCall);
@@ -224,7 +225,7 @@ export const useDirectCallSync = () => {
           continue;
         }
 
-        console.log(`[DIRECT_SYNC] Successfully synced call ${call.call_id}`);
+        debugLog(`[DIRECT_SYNC] Successfully synced call ${call.call_id}`);
         syncedCalls++;
 
       } catch (callError: any) {
@@ -232,7 +233,7 @@ export const useDirectCallSync = () => {
         errors.push(`Processing error for ${call.call_id || 'unknown'}: ${callError.message}`);
       }
     }
-    console.log("[DIRECT_SYNC] === PROCESSING CALLS END ===");
+    debugLog("[DIRECT_SYNC] === PROCESSING CALLS END ===");
 
     const result: DirectSyncResult = {
       success: true,
@@ -243,7 +244,7 @@ export const useDirectCallSync = () => {
       timestamp: new Date().toISOString()
     };
 
-    console.log("[DIRECT_SYNC] Sync completed:", result);
+    debugLog("[DIRECT_SYNC] Sync completed:", result);
     return result;
   };
 

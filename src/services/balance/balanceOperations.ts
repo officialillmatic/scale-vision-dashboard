@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -65,7 +66,7 @@ export const updateUserBalance = async (
       if (transactionType === 'deposit') {
         toast.success(`Successfully added $${amount.toFixed(2)} to user balance`);
       } else if (transactionType === 'deduction') {
-        console.log(`Deducted $${amount.toFixed(2)} from user balance for service usage`);
+        debugLog(`Deducted $${amount.toFixed(2)} from user balance for service usage`);
       } else {
         toast.success(`Successfully adjusted user balance by $${amount.toFixed(2)}`);
       }

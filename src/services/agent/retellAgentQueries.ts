@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -20,7 +21,7 @@ export interface RetellAgent {
 
 export const fetchRetellAgents = async (): Promise<RetellAgent[]> => {
   try {
-    console.log('🔍 [fetchRetellAgents] Fetching agents from retell_agents table');
+    debugLog('🔍 [fetchRetellAgents] Fetching agents from retell_agents table');
     
     const { data, error } = await supabase
       .from("retell_agents")
@@ -33,8 +34,8 @@ export const fetchRetellAgents = async (): Promise<RetellAgent[]> => {
       throw error;
     }
 
-    console.log('🔍 [fetchRetellAgents] Raw data received:', data);
-    console.log('🔍 [fetchRetellAgents] Number of agents:', data?.length || 0);
+    debugLog('🔍 [fetchRetellAgents] Raw data received:', data);
+    debugLog('🔍 [fetchRetellAgents] Number of agents:', data?.length || 0);
 
     return data || [];
   } catch (error: any) {

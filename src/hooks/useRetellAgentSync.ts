@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -49,7 +50,7 @@ export function useRetellAgentSync() {
         `Sync completed! ${totalProcessed} agents processed (${data.agents_created} created, ${data.agents_updated} updated, ${data.agents_deactivated} deactivated)`
       );
       
-      console.log('🔍 [useRetellAgentSync] Sync completed, queries invalidated');
+      debugLog('🔍 [useRetellAgentSync] Sync completed, queries invalidated');
     },
     onError: (error: any) => {
       console.error('[USE_RETELL_AGENT_SYNC] Sync error:', error);

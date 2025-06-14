@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +21,7 @@ export function SyncDebugPanel() {
     };
 
     try {
-      console.log('[SYNC_DEBUG] Starting diagnostics...');
+      debugLog('[SYNC_DEBUG] Starting diagnostics...');
 
       // Test 1: Check Supabase connection
       try {
@@ -60,13 +61,13 @@ export function SyncDebugPanel() {
 
       // Test 3: Test sync-calls edge function connectivity
       try {
-        console.log('[SYNC_DEBUG] Testing edge function...');
+        debugLog('[SYNC_DEBUG] Testing edge function...');
         const { data, error } = await supabase.functions.invoke('sync-calls', {
           body: { test: true },
           headers: { 'Content-Type': 'application/json' }
         });
 
-        console.log('[SYNC_DEBUG] Edge function response:', { data, error });
+        debugLog('[SYNC_DEBUG] Edge function response:', { data, error });
 
         results.tests.push({
           name: 'Sync Function Test',
@@ -143,7 +144,7 @@ export function SyncDebugPanel() {
 
     setDiagnostics(results);
     setIsRunning(false);
-    console.log('[SYNC_DEBUG] Diagnostics completed:', results);
+    debugLog('[SYNC_DEBUG] Diagnostics completed:', results);
   };
 
   const getIcon = (iconName: string, status: string) => {

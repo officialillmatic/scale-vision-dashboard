@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState, useEffect, useMemo } from 'react';
 
@@ -45,7 +46,7 @@ export function useRetellAgents() {
   const agents = useMemo(() => {
     if (rawAgents.length === 0) return [];
     
-    console.log(`[USE_RETELL_AGENTS] Starting deduplication of ${rawAgents.length} raw agents`);
+    debugLog(`[USE_RETELL_AGENTS] Starting deduplication of ${rawAgents.length} raw agents`);
     
     // Robust deduplication using Map with agent_id as key
     const uniqueAgentsMap = new Map();
@@ -56,7 +57,7 @@ export function useRetellAgents() {
     });
     const uniqueAgents = Array.from(uniqueAgentsMap.values());
     
-    console.log(`[USE_RETELL_AGENTS] Deduplicated ${rawAgents.length} raw agents to ${uniqueAgents.length} unique agents`);
+    debugLog(`[USE_RETELL_AGENTS] Deduplicated ${rawAgents.length} raw agents to ${uniqueAgents.length} unique agents`);
     
     return uniqueAgents;
   }, [rawAgents]);
@@ -66,7 +67,7 @@ export function useRetellAgents() {
     const apiKey = import.meta.env.VITE_RETELL_API_KEY;
     
     try {
-      console.log(`[USE_RETELL_AGENTS] Testing endpoint: ${fullUrl}`);
+      debugLog(`[USE_RETELL_AGENTS] Testing endpoint: ${fullUrl}`);
       
       const response = await fetch(fullUrl, {
         method: 'GET',
@@ -85,7 +86,7 @@ export function useRetellAgents() {
         responseData = { raw_response: responseText };
       }
 
-      console.log(`[USE_RETELL_AGENTS] ${fullUrl} - Status: ${response.status}`);
+      debugLog(`[USE_RETELL_AGENTS] ${fullUrl} - Status: ${response.status}`);
 
       return {
         success: response.ok,
@@ -115,7 +116,7 @@ export function useRetellAgents() {
 
     // Prevent multiple simultaneous calls
     if (isLoading) {
-      console.log('[USE_RETELL_AGENTS] Already loading, skipping fetch');
+      debugLog('[USE_RETELL_AGENTS] Already loading, skipping fetch');
       return;
     }
 
@@ -123,7 +124,7 @@ export function useRetellAgents() {
     setError(null);
 
     try {
-      console.log('[USE_RETELL_AGENTS] Starting endpoint discovery...');
+      debugLog('[USE_RETELL_AGENTS] Starting endpoint discovery...');
       
       // Test all possible endpoint combinations
       const possibleBaseUrls = [
@@ -151,7 +152,7 @@ export function useRetellAgents() {
           if (result.success && result.data) {
             workingEndpoint = `${baseUrl}${endpoint}`;
             workingData = result.data;
-            console.log(`[USE_RETELL_AGENTS] ✅ Found working endpoint: ${workingEndpoint}`);
+            debugLog(`[USE_RETELL_AGENTS] ✅ Found working endpoint: ${workingEndpoint}`);
             break;
           }
           
@@ -166,7 +167,7 @@ export function useRetellAgents() {
         throw new Error('No working endpoint found for Retell AI agents API');
       }
 
-      console.log('[USE_RETELL_AGENTS] Raw API response:', workingData);
+      debugLog('[USE_RETELL_AGENTS] Raw API response:', workingData);
 
       // Handle different response formats
       let agentsArray = [];
@@ -199,7 +200,7 @@ export function useRetellAgents() {
         });
         
         setRawAgents(agentOptions);
-        console.log(`[USE_RETELL_AGENTS] Successfully loaded ${agentOptions.length} agents from ${workingEndpoint}`);
+        debugLog(`[USE_RETELL_AGENTS] Successfully loaded ${agentOptions.length} agents from ${workingEndpoint}`);
       } else {
         console.warn('[USE_RETELL_AGENTS] No agents found in API response');
         setRawAgents([]);

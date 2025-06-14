@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { createClient } from '@supabase/supabase-js'
 
 // TUS CREDENCIALES REALES - HARDCODEADAS
@@ -23,5 +24,5 @@ export const emergencySupabase = createClient(
 
 // Test inmediato
 emergencySupabase.auth.getUser().then(({ data, error }) => {
-  console.log('🚨 Emergency client test:', data?.user?.email, error)
+  debugLog('🚨 Emergency client test:', data?.user?.email, error)
 })

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,20 +12,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const ProductionCallsTable = () => {
-  console.log("🚨 COMPONENTE INICIADO - ProductionCallsTable");
+  debugLog("🚨 COMPONENTE INICIADO - ProductionCallsTable");
   
-  console.log("🔥 COMPONENT RENDERIZADO - ProductionCallsTable");
+  debugLog("🔥 COMPONENT RENDERIZADO - ProductionCallsTable");
   
   const { calls, isLoading, error, syncCallsSecurely } = useSecureCallData();
   
-  console.log("🔍 PASO 1: Después de obtener datos del hook", {
+  debugLog("🔍 PASO 1: Después de obtener datos del hook", {
     calls: calls?.length || 0,
     isLoading,
     error: error?.message || null,
     callsArray: calls
   });
   
-  console.log("🔥 DATOS COMPLETOS DEL HOOK:", { 
+  debugLog("🔥 DATOS COMPLETOS DEL HOOK:", { 
     calls, 
     callsLength: calls?.length, 
     isLoading, 
@@ -34,13 +35,13 @@ export const ProductionCallsTable = () => {
 
   if (calls && calls.length > 0) {
     calls.forEach((call, index) => {
-      console.log(`🔥 LLAMADA ${index + 1}:`, call);
+      debugLog(`🔥 LLAMADA ${index + 1}:`, call);
     });
   } else {
-    console.log("🔥 NO HAY LLAMADAS - calls es:", calls);
+    debugLog("🔥 NO HAY LLAMADAS - calls es:", calls);
   }
 
-  console.log("🔥 DATOS DEL HOOK:", { 
+  debugLog("🔥 DATOS DEL HOOK:", { 
     calls: calls?.length, 
     isLoading, 
     error: error?.message,
@@ -49,11 +50,11 @@ export const ProductionCallsTable = () => {
 
   // Si hay datos, mostrar los primeros para debug
   if (calls && calls.length > 0) {
-    console.log("🔥 PRIMERA LLAMADA:", calls[0]);
+    debugLog("🔥 PRIMERA LLAMADA:", calls[0]);
   }
   
-  console.log("[COMPONENT] ProductionCallsTable renderizando");
-  console.log("[COMPONENT] Hook result:", { calls: calls.length, isLoading, error });
+  debugLog("[COMPONENT] ProductionCallsTable renderizando");
+  debugLog("[COMPONENT] Hook result:", { calls: calls.length, isLoading, error });
   
   const [isSyncing, setIsSyncing] = useState(false);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
@@ -69,11 +70,11 @@ export const ProductionCallsTable = () => {
 
   const runWebhookDiagnostics = async () => {
     setIsDiagnosing(true);
-    console.log("🔧 INICIANDO DIAGNÓSTICO DE WEBHOOK");
+    debugLog("🔧 INICIANDO DIAGNÓSTICO DE WEBHOOK");
     
     try {
       // Test 1: Verificar edge function básico
-      console.log("🔧 Test 1: Verificando edge function...");
+      debugLog("🔧 Test 1: Verificando edge function...");
       try {
         const response = await fetch('https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/retell-webhook', {
           method: 'GET',
@@ -81,15 +82,15 @@ export const ProductionCallsTable = () => {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8'}`
           }
         });
-        console.log("🔧 Edge function response:", response.status, response.statusText);
+        debugLog("🔧 Edge function response:", response.status, response.statusText);
         toast.success(`Edge function responded: ${response.status}`);
       } catch (error) {
-        console.log("🔧 Edge function error:", error);
+        debugLog("🔧 Edge function error:", error);
         toast.error(`Edge function failed: ${error.message}`);
       }
       
       // Test 2: Verificar webhook registration function
-      console.log("🔧 Test 2: Verificando webhook registration...");
+      debugLog("🔧 Test 2: Verificando webhook registration...");
       try {
         const { data, error } = await supabase.functions.invoke('register-retell-webhook', {
           body: { test: true },
@@ -97,19 +98,19 @@ export const ProductionCallsTable = () => {
         });
         
         if (error) {
-          console.log("🔧 Webhook registration error:", error);
+          debugLog("🔧 Webhook registration error:", error);
           toast.error(`Webhook registration failed: ${error.message}`);
         } else {
-          console.log("🔧 Webhook registration success:", data);
+          debugLog("🔧 Webhook registration success:", data);
           toast.success(`Webhook registration OK: ${data?.webhook_url || 'No URL'}`);
         }
       } catch (error) {
-        console.log("🔧 Webhook registration exception:", error);
+        debugLog("🔧 Webhook registration exception:", error);
         toast.error(`Webhook registration exception: ${error.message}`);
       }
       
       // Test 3: Verificar logs recientes de webhook
-      console.log("🔧 Test 3: Verificando logs de webhook...");
+      debugLog("🔧 Test 3: Verificando logs de webhook...");
       try {
         const { data: logs, error: logsError } = await supabase
           .from('webhook_logs')
@@ -118,19 +119,19 @@ export const ProductionCallsTable = () => {
           .limit(5);
           
         if (logsError) {
-          console.log("🔧 Webhook logs error:", logsError);
+          debugLog("🔧 Webhook logs error:", logsError);
           toast.error(`Cannot access webhook logs: ${logsError.message}`);
         } else {
-          console.log("🔧 Webhook logs:", logs);
+          debugLog("🔧 Webhook logs:", logs);
           toast.info(`Found ${logs?.length || 0} recent webhook logs`);
         }
       } catch (error) {
-        console.log("🔧 Webhook logs exception:", error);
+        debugLog("🔧 Webhook logs exception:", error);
         toast.error(`Webhook logs exception: ${error.message}`);
       }
       
       // Test 4: Verificar llamadas recientes
-      console.log("🔧 Test 4: Verificando llamadas recientes...");
+      debugLog("🔧 Test 4: Verificando llamadas recientes...");
       try {
         const { data: recentCalls, error: callsError } = await supabase
           .from('calls')
@@ -139,19 +140,19 @@ export const ProductionCallsTable = () => {
           .limit(3);
           
         if (callsError) {
-          console.log("🔧 Recent calls error:", callsError);
+          debugLog("🔧 Recent calls error:", callsError);
           toast.error(`Cannot access calls: ${callsError.message}`);
         } else {
-          console.log("🔧 Recent calls:", recentCalls);
+          debugLog("🔧 Recent calls:", recentCalls);
           toast.info(`Found ${recentCalls?.length || 0} calls in database`);
         }
       } catch (error) {
-        console.log("🔧 Recent calls exception:", error);
+        debugLog("🔧 Recent calls exception:", error);
         toast.error(`Recent calls exception: ${error.message}`);
       }
       
       // Test 5: Hacer un POST de prueba al webhook
-      console.log("🔧 Test 5: Haciendo POST de prueba al webhook...");
+      debugLog("🔧 Test 5: Haciendo POST de prueba al webhook...");
       try {
         const testPayload = {
           event: "test_diagnostic",
@@ -172,7 +173,7 @@ export const ProductionCallsTable = () => {
         });
         
         const responseText = await response.text();
-        console.log("🔧 Test POST response:", response.status, responseText);
+        debugLog("🔧 Test POST response:", response.status, responseText);
         
         if (response.ok) {
           toast.success(`Test POST successful: ${response.status}`);
@@ -180,11 +181,11 @@ export const ProductionCallsTable = () => {
           toast.error(`Test POST failed: ${response.status} - ${responseText}`);
         }
       } catch (error) {
-        console.log("🔧 Test POST exception:", error);
+        debugLog("🔧 Test POST exception:", error);
         toast.error(`Test POST exception: ${error.message}`);
       }
       
-      console.log("🔧 DIAGNÓSTICO COMPLETADO");
+      debugLog("🔧 DIAGNÓSTICO COMPLETADO");
       toast.success("Webhook diagnostics completed! Check console for details.");
       
     } catch (error) {
@@ -195,15 +196,15 @@ export const ProductionCallsTable = () => {
     }
   };
 
-  console.log("🔍 PASO 2: Después de definir handleRefresh", {
+  debugLog("🔍 PASO 2: Después de definir handleRefresh", {
     isLoading,
     error: !!error,
     callsLength: calls?.length
   });
 
   if (isLoading) {
-    console.log("🔥 ESTADO: Cargando datos...");
-    console.log("🔍 RETURN TEMPRANO: isLoading = true, retornando LoadingSpinner");
+    debugLog("🔥 ESTADO: Cargando datos...");
+    debugLog("🔍 RETURN TEMPRANO: isLoading = true, retornando LoadingSpinner");
     return (
       <Card className="border-0 shadow-sm">
         <CardContent className="flex items-center justify-center py-12">
@@ -213,11 +214,11 @@ export const ProductionCallsTable = () => {
     );
   }
 
-  console.log("🔍 PASO 3: Pasó la condición isLoading");
+  debugLog("🔍 PASO 3: Pasó la condición isLoading");
 
   if (error) {
-    console.log("🔥 ERROR DETECTADO:", error);
-    console.log("🔍 RETURN TEMPRANO: error existe, retornando ErrorCard");
+    debugLog("🔥 ERROR DETECTADO:", error);
+    debugLog("🔍 RETURN TEMPRANO: error existe, retornando ErrorCard");
     return (
       <Card className="border-0 shadow-sm">
         <CardContent className="flex items-center justify-center py-12">
@@ -236,29 +237,29 @@ export const ProductionCallsTable = () => {
     );
   }
 
-  console.log("🔍 PASO 4: Pasó la condición error");
+  debugLog("🔍 PASO 4: Pasó la condición error");
 
-  console.log("🔍 PASO 5: Antes de calcular totales");
+  debugLog("🔍 PASO 5: Antes de calcular totales");
 
   const totalCalls = calls.length;
   const totalCost = calls.reduce((sum, call) => sum + (call.cost_usd || call.cost || 0), 0);
   const totalDuration = calls.reduce((sum, call) => sum + (call.duration_sec || call.duration || 0), 0);
 
-  console.log("🔍 PASO 6: Después de calcular totales", {
+  debugLog("🔍 PASO 6: Después de calcular totales", {
     totalCalls,
     totalCost,
     totalDuration,
     firstCallStructure: calls[0]
   });
 
-  console.log("🔥 CÁLCULOS DE TOTALES:", {
+  debugLog("🔥 CÁLCULOS DE TOTALES:", {
     totalCalls,
     totalCost,
     totalDuration,
     firstCallStructure: calls[0]
   });
 
-  console.log("🔥 ESTADÍSTICAS CALCULADAS:", {
+  debugLog("🔥 ESTADÍSTICAS CALCULADAS:", {
     totalCalls,
     totalCost,
     totalDuration,
@@ -266,24 +267,24 @@ export const ProductionCallsTable = () => {
   });
 
   // Debug log just before rendering calls
-  console.log("🔥 RENDER DE LLAMADAS:", {
+  debugLog("🔥 RENDER DE LLAMADAS:", {
     callsLength: calls.length,
     calls: calls,
     shouldShowCalls: calls.length > 0,
     firstCall: calls[0]
   });
 
-  console.log("🔍 PASO 7: Antes del JSX return");
+  debugLog("🔍 PASO 7: Antes del JSX return");
 
   // LOG FINAL ANTES DEL RETURN PRINCIPAL
-  console.log("🔥 ANTES DEL RETURN PRINCIPAL:", {
+  debugLog("🔥 ANTES DEL RETURN PRINCIPAL:", {
     calls: calls.length,
     isLoading,
     error,
     "llegando al render": true
   });
 
-  console.log("🔍 PASO 8: Iniciando construcción del JSX");
+  debugLog("🔍 PASO 8: Iniciando construcción del JSX");
 
   return (
     <div className="space-y-6">

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -26,7 +27,7 @@ export const useEnhancedCallData = (initialCalls: EnhancedCallData[] = []) => {
     queryKey: ["enhanced-calls", company?.id, user?.id],
     queryFn: async (): Promise<EnhancedCallData[]> => {
       if (!user?.id) {
-        console.log("[USE_ENHANCED_CALL_DATA] Missing user ID", { 
+        debugLog("[USE_ENHANCED_CALL_DATA] Missing user ID", { 
           userId: user?.id 
         });
         return [];
@@ -41,7 +42,7 @@ export const useEnhancedCallData = (initialCalls: EnhancedCallData[] = []) => {
         if (error?.message?.includes("permission denied")) {
           toast.error("Access denied. Please refresh the page and try again.");
         } else if (error?.code === "PGRST301") {
-          console.log("[USE_ENHANCED_CALL_DATA] No calls found - this is normal for new accounts");
+          debugLog("[USE_ENHANCED_CALL_DATA] No calls found - this is normal for new accounts");
           return [];
         } else {
           toast.error("Failed to load calls. Please refresh the page.");

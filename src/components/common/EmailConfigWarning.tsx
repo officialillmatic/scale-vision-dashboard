@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,7 +12,7 @@ export function EmailConfigWarning() {
   useEffect(() => {
     const checkEmailConfig = async () => {
       try {
-        console.log("Checking email configuration...");
+        debugLog("Checking email configuration...");
         const { data, error } = await supabase.functions.invoke('check-email-config');
         
         if (error) {
@@ -20,7 +21,7 @@ export function EmailConfigWarning() {
           return;
         }
         
-        console.log("Email config response:", data);
+        debugLog("Email config response:", data);
         setEmailConfigured(data?.configured === true);
       } catch (err) {
         console.error("Failed to check email configuration:", err);

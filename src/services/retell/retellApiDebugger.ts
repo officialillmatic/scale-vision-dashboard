@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { toast } from 'sonner';
 
@@ -46,16 +47,16 @@ export class RetellApiDebugger {
   verifyEnvironment(): { isValid: boolean; issues: string[] } {
     const issues: string[] = [];
     
-    console.log('[RETELL_API_DEBUG] Checking environment variables...');
-    console.log('[RETELL_API_DEBUG] VITE_RETELL_API_KEY exists:', !!this.apiKey);
-    console.log('[RETELL_API_DEBUG] API key length:', this.apiKey?.length || 0);
+    debugLog('[RETELL_API_DEBUG] Checking environment variables...');
+    debugLog('[RETELL_API_DEBUG] VITE_RETELL_API_KEY exists:', !!this.apiKey);
+    debugLog('[RETELL_API_DEBUG] API key length:', this.apiKey?.length || 0);
     
     if (!this.apiKey) {
       issues.push('VITE_RETELL_API_KEY environment variable is not set');
     } else {
       // Check API key format
       const keyPrefix = this.apiKey.substring(0, 4);
-      console.log('[RETELL_API_DEBUG] API key prefix:', keyPrefix);
+      debugLog('[RETELL_API_DEBUG] API key prefix:', keyPrefix);
       
       if (!this.apiKey.startsWith('key_') && !this.apiKey.startsWith('re_')) {
         issues.push(`API key format appears invalid. Expected to start with 'key_' or 're_', but starts with '${keyPrefix}'`);
@@ -77,7 +78,7 @@ export class RetellApiDebugger {
    */
   async testSpecificEndpoint(baseUrl: string, endpoint: string): Promise<EndpointTestResult> {
     const fullUrl = `${baseUrl}${endpoint}`;
-    console.log(`[RETELL_API_DEBUG] Testing endpoint: ${fullUrl}`);
+    debugLog(`[RETELL_API_DEBUG] Testing endpoint: ${fullUrl}`);
 
     try {
       const response = await fetch(fullUrl, {
@@ -88,7 +89,7 @@ export class RetellApiDebugger {
         }
       });
 
-      console.log(`[RETELL_API_DEBUG] ${fullUrl} - Status: ${response.status}`);
+      debugLog(`[RETELL_API_DEBUG] ${fullUrl} - Status: ${response.status}`);
 
       const responseText = await response.text();
       let responseData;
@@ -121,7 +122,7 @@ export class RetellApiDebugger {
    * Test all possible endpoint combinations
    */
   async testAllEndpoints(): Promise<ApiTestResult> {
-    console.log('[RETELL_API_DEBUG] Testing all possible endpoint combinations...');
+    debugLog('[RETELL_API_DEBUG] Testing all possible endpoint combinations...');
     
     const envCheck = this.verifyEnvironment();
     if (!envCheck.isValid) {
@@ -143,7 +144,7 @@ export class RetellApiDebugger {
         
         if (result.success && !workingEndpoint) {
           workingEndpoint = result;
-          console.log(`[RETELL_API_DEBUG] ✅ Found working endpoint: ${result.endpoint}`);
+          debugLog(`[RETELL_API_DEBUG] ✅ Found working endpoint: ${result.endpoint}`);
         }
         
         // Small delay between requests to avoid rate limiting
@@ -152,11 +153,11 @@ export class RetellApiDebugger {
     }
 
     // Log all test results
-    console.log('[RETELL_API_DEBUG] All endpoint test results:');
+    debugLog('[RETELL_API_DEBUG] All endpoint test results:');
     testResults.forEach(result => {
-      console.log(`[RETELL_API_DEBUG] ${result.endpoint}: ${result.success ? '✅ SUCCESS' : '❌ FAILED'} (${result.status || 'no response'})`);
+      debugLog(`[RETELL_API_DEBUG] ${result.endpoint}: ${result.success ? '✅ SUCCESS' : '❌ FAILED'} (${result.status || 'no response'})`);
       if (result.error) {
-        console.log(`[RETELL_API_DEBUG] Error: ${result.error}`);
+        debugLog(`[RETELL_API_DEBUG] Error: ${result.error}`);
       }
     });
 
@@ -194,7 +195,7 @@ export class RetellApiDebugger {
    * Test agents endpoint (legacy method for backward compatibility)
    */
   async testAgentsEndpoint(): Promise<ApiTestResult> {
-    console.log('[RETELL_API_DEBUG] Running comprehensive endpoint discovery...');
+    debugLog('[RETELL_API_DEBUG] Running comprehensive endpoint discovery...');
     return await this.testAllEndpoints();
   }
 
@@ -202,7 +203,7 @@ export class RetellApiDebugger {
    * Test API connection using comprehensive endpoint discovery
    */
   async testApiConnection(): Promise<ApiTestResult> {
-    console.log('[RETELL_API_DEBUG] Testing API connection with endpoint discovery...');
+    debugLog('[RETELL_API_DEBUG] Testing API connection with endpoint discovery...');
     return await this.testAllEndpoints();
   }
 
@@ -210,13 +211,13 @@ export class RetellApiDebugger {
    * Test API connection and display results
    */
   async testAndDisplayResults(): Promise<ApiTestResult> {
-    console.log('[RETELL_API_DEBUG] Starting comprehensive API endpoint discovery...');
+    debugLog('[RETELL_API_DEBUG] Starting comprehensive API endpoint discovery...');
     
     const result = await this.testApiConnection();
     
     if (result.success) {
       toast.success(`✅ Found working API endpoint! ${result.endpoint} - Status: ${result.status}`);
-      console.log('[RETELL_API_DEBUG] ✅ API endpoint discovery succeeded');
+      debugLog('[RETELL_API_DEBUG] ✅ API endpoint discovery succeeded');
       
       // Log response details
       if (result.response) {
@@ -253,7 +254,7 @@ export class RetellApiDebugger {
    * Test agents endpoint and display results with detailed info
    */
   async testAgentsAndDisplayResults(): Promise<ApiTestResult> {
-    console.log('[RETELL_API_DEBUG] Starting comprehensive agents endpoint discovery...');
+    debugLog('[RETELL_API_DEBUG] Starting comprehensive agents endpoint discovery...');
     
     const result = await this.testAllEndpoints();
     
@@ -268,9 +269,9 @@ export class RetellApiDebugger {
         toast.success(`Found ${agentCount} agents.`);
       }
       
-      console.log('[RETELL_API_DEBUG] ✅ Agents API endpoint discovery passed');
-      console.log('[RETELL_API_DEBUG] Working endpoint:', result.endpoint);
-      console.log('[RETELL_API_DEBUG] Full response:', JSON.stringify(result.response, null, 2));
+      debugLog('[RETELL_API_DEBUG] ✅ Agents API endpoint discovery passed');
+      debugLog('[RETELL_API_DEBUG] Working endpoint:', result.endpoint);
+      debugLog('[RETELL_API_DEBUG] Full response:', JSON.stringify(result.response, null, 2));
     } else {
       toast.error(`❌ Agents API endpoint discovery failed: ${result.error}`);
       console.error('[RETELL_API_DEBUG] ❌ Agents API endpoint discovery failed:', result);

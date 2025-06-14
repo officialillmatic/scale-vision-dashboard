@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState, useEffect } from "react";
 import { Session, User } from "@supabase/supabase-js";
@@ -13,7 +14,7 @@ export function useAuthState() {
     // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log("[AUTH_STATE] Auth event:", event, session?.user?.id);
+        debugLog("[AUTH_STATE] Auth event:", event, session?.user?.id);
         
         setSession(session);
         setUser(session?.user ?? null);
@@ -21,11 +22,11 @@ export function useAuthState() {
 
         // Handle different auth events
         if (event === 'TOKEN_REFRESHED') {
-          console.log("[AUTH_STATE] Token refreshed successfully");
+          debugLog("[AUTH_STATE] Token refreshed successfully");
         } else if (event === 'SIGNED_OUT') {
-          console.log("[AUTH_STATE] User signed out");
+          debugLog("[AUTH_STATE] User signed out");
         } else if (event === 'SIGNED_IN') {
-          console.log("[AUTH_STATE] User signed in successfully");
+          debugLog("[AUTH_STATE] User signed in successfully");
         }
       }
     );
@@ -39,7 +40,7 @@ export function useAuthState() {
         if (error.message?.includes('refresh_token') || 
             error.message?.includes('invalid') ||
             error.message?.includes('expired')) {
-          console.log("[AUTH_STATE] Session expired, signing out");
+          debugLog("[AUTH_STATE] Session expired, signing out");
           supabase.auth.signOut();
         }
       }

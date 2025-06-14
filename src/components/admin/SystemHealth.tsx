@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +30,7 @@ export function SystemHealth() {
       setIsLoading(true);
       setError(null);
       
-      console.log("[SYSTEM_HEALTH] Starting health check...");
+      debugLog("[SYSTEM_HEALTH] Starting health check...");
 
       const { count: callsCount, error: callsError } = await supabase
         .from('calls')
@@ -53,7 +54,7 @@ export function SystemHealth() {
       };
 
       setStatus(healthStatus);
-      console.log("[SYSTEM_HEALTH] Health check completed:", healthStatus);
+      debugLog("[SYSTEM_HEALTH] Health check completed:", healthStatus);
       
     } catch (err: any) {
       console.error('[SYSTEM_HEALTH] Health check error:', err);

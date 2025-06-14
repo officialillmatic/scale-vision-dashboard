@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,7 +30,7 @@ export function TeamAgentsAssignments() {
     isCreating
   } = useUserAgentAssignments();
 
-  console.log('🔍 [TeamAgentsAssignments] Component state:', {
+  debugLog('🔍 [TeamAgentsAssignments] Component state:', {
     assignments,
     assignmentsLength: assignments?.length,
     isLoadingAssignments,
@@ -60,7 +61,7 @@ export function TeamAgentsAssignments() {
                 variant="outline" 
                 size="sm" 
                 onClick={() => {
-                  console.log('🔍 [TeamAgentsAssignments] Manual refresh triggered');
+                  debugLog('🔍 [TeamAgentsAssignments] Manual refresh triggered');
                   refetchAssignments();
                 }}
                 disabled={isLoadingAssignments}

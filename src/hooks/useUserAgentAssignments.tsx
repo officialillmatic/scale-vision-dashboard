@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -26,10 +27,10 @@ export function useUserAgentAssignments() {
   } = useQuery({
     queryKey: ['user-agent-assignments'],
     queryFn: async () => {
-      console.log('🔍 [useUserAgentAssignments] QueryFn called - fetching assignments');
+      debugLog('🔍 [useUserAgentAssignments] QueryFn called - fetching assignments');
       try {
         const result = await fetchUserAgentAssignments();
-        console.log('🔍 [useUserAgentAssignments] QueryFn success - result:', result?.length || 0, 'assignments');
+        debugLog('🔍 [useUserAgentAssignments] QueryFn success - result:', result?.length || 0, 'assignments');
         return result;
       } catch (error) {
         console.error('🔍 [useUserAgentAssignments] QueryFn error:', error);
@@ -39,7 +40,7 @@ export function useUserAgentAssignments() {
     staleTime: 30000,
     refetchOnWindowFocus: true,
     retry: (failureCount, error) => {
-      console.log('🔍 [useUserAgentAssignments] Query retry attempt:', failureCount, error);
+      debugLog('🔍 [useUserAgentAssignments] Query retry attempt:', failureCount, error);
       return failureCount < 2;
     }
   });
@@ -53,10 +54,10 @@ export function useUserAgentAssignments() {
   } = useQuery({
     queryKey: ['assignment-users'],
     queryFn: async () => {
-      console.log('🔍 [useUserAgentAssignments] Fetching users for assignments');
+      debugLog('🔍 [useUserAgentAssignments] Fetching users for assignments');
       try {
         const users = await fetchAvailableUsers();
-        console.log('🔍 [useUserAgentAssignments] Users fetched successfully:', users.length);
+        debugLog('🔍 [useUserAgentAssignments] Users fetched successfully:', users.length);
         return users;
       } catch (error) {
         console.error('🔍 [useUserAgentAssignments] Error fetching users:', error);
@@ -66,7 +67,7 @@ export function useUserAgentAssignments() {
     },
     staleTime: 60000,
     retry: (failureCount, error) => {
-      console.log('🔍 [useUserAgentAssignments] Users query retry:', failureCount, error);
+      debugLog('🔍 [useUserAgentAssignments] Users query retry:', failureCount, error);
       return failureCount < 3; // Retry up to 3 times for user loading
     },
     refetchOnWindowFocus: true
@@ -96,7 +97,7 @@ export function useUserAgentAssignments() {
     }
   });
 
-  console.log('🔍 [useUserAgentAssignments] Hook state:', {
+  debugLog('🔍 [useUserAgentAssignments] Hook state:', {
     assignmentsCount: assignments?.length || 0,
     isLoadingAssignments,
     isError,
@@ -113,7 +114,7 @@ export function useUserAgentAssignments() {
   }
 
   const handleRemoveAssignment = async (assignmentId: string) => {
-    console.log('🔍 [useUserAgentAssignments] Removing assignment:', assignmentId);
+    debugLog('🔍 [useUserAgentAssignments] Removing assignment:', assignmentId);
     setIsRemoving(true);
     try {
       const success = await removeUserAgentAssignment(assignmentId);
@@ -133,7 +134,7 @@ export function useUserAgentAssignments() {
   };
 
   const handleUpdatePrimary = async (assignmentId: string, isPrimary: boolean, userId: string) => {
-    console.log('🔍 [useUserAgentAssignments] Updating primary status:', { assignmentId, isPrimary, userId });
+    debugLog('🔍 [useUserAgentAssignments] Updating primary status:', { assignmentId, isPrimary, userId });
     setIsUpdating(true);
     try {
       const success = await updateUserAgentAssignmentPrimary(assignmentId, isPrimary, userId);
@@ -153,12 +154,12 @@ export function useUserAgentAssignments() {
   };
 
   const handleCreateAssignment = async (userId: string, agentId: string, isPrimary: boolean = false) => {
-    console.log('🔍 [useUserAgentAssignments] Creating assignment:', { userId, agentId, isPrimary });
+    debugLog('🔍 [useUserAgentAssignments] Creating assignment:', { userId, agentId, isPrimary });
     createMutation.mutate({ userId, agentId, isPrimary });
   };
 
   const handleRefreshUsers = () => {
-    console.log('🔍 [useUserAgentAssignments] Manual refresh of users triggered');
+    debugLog('🔍 [useUserAgentAssignments] Manual refresh of users triggered');
     refetchUsers();
   };
 

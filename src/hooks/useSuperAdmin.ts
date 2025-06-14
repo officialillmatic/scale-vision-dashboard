@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
@@ -18,9 +19,9 @@ export const useSuperAdmin = () => {
       try {
         const { data: { user }, error } = await supabase.auth.getUser()
         
-        console.log('🔍 useSuperAdmin - Checking user:', user?.email)
-        console.log('🔍 useSuperAdmin - User metadata:', user?.user_metadata)
-        console.log('🔍 useSuperAdmin - App metadata:', user?.app_metadata)
+        debugLog('🔍 useSuperAdmin - Checking user:', user?.email)
+        debugLog('🔍 useSuperAdmin - User metadata:', user?.user_metadata)
+        debugLog('🔍 useSuperAdmin - App metadata:', user?.app_metadata)
         
         setUser(user)
         
@@ -32,14 +33,14 @@ export const useSuperAdmin = () => {
           
           const finalIsSuper = isSuperFromUserMetadata || isSuperFromAppMetadata || isSuperFromEmail
           
-          console.log('🔍 useSuperAdmin - From user metadata:', isSuperFromUserMetadata)
-          console.log('🔍 useSuperAdmin - From app metadata:', isSuperFromAppMetadata)
-          console.log('🔍 useSuperAdmin - From email:', isSuperFromEmail)
-          console.log('🔍 useSuperAdmin - Final Result:', finalIsSuper)
+          debugLog('🔍 useSuperAdmin - From user metadata:', isSuperFromUserMetadata)
+          debugLog('🔍 useSuperAdmin - From app metadata:', isSuperFromAppMetadata)
+          debugLog('🔍 useSuperAdmin - From email:', isSuperFromEmail)
+          debugLog('🔍 useSuperAdmin - Final Result:', finalIsSuper)
           
           setIsSuperAdmin(finalIsSuper)
         } else {
-          console.log('🔍 useSuperAdmin - No user')
+          debugLog('🔍 useSuperAdmin - No user')
           setIsSuperAdmin(false)
         }
       } catch (error) {
@@ -56,7 +57,7 @@ export const useSuperAdmin = () => {
     // 🔧 Escuchar cambios de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('🔍 useSuperAdmin - Auth change:', event, session?.user?.email)
+        debugLog('🔍 useSuperAdmin - Auth change:', event, session?.user?.email)
         
         if (session?.user) {
           setUser(session.user)

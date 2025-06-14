@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +23,7 @@ export function CallDataDebugPanel() {
   const runRawQueries = async () => {
     if (!user?.id) return;
 
-    console.log('🔍 [CallDataDebugPanel] Running raw database queries...');
+    debugLog('🔍 [CallDataDebugPanel] Running raw database queries...');
     
     try {
       // Query 1: User agent assignments
@@ -59,7 +60,7 @@ export function CallDataDebugPanel() {
         queryTime: new Date().toISOString()
       });
 
-      console.log('🔍 [CallDataDebugPanel] Raw query results:', {
+      debugLog('🔍 [CallDataDebugPanel] Raw query results:', {
         assignments: assignments?.length,
         allCalls: allCalls?.length,
         agents: agents?.length,
@@ -72,7 +73,7 @@ export function CallDataDebugPanel() {
   };
 
   const refreshAll = () => {
-    console.log('🔄 [CallDataDebugPanel] Refreshing all data...');
+    debugLog('🔄 [CallDataDebugPanel] Refreshing all data...');
     refetchRetell();
     refetchUser();
     refetchAgents();

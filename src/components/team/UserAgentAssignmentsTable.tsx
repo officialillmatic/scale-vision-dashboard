@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React from 'react';
 import {
@@ -36,10 +37,10 @@ export function UserAgentAssignmentsTable({
 }: UserAgentAssignmentsTableProps) {
   const [removingId, setRemovingId] = React.useState<string | null>(null);
 
-  console.log('🔍 [UserAgentAssignmentsTable] Rendering with', assignments?.length || 0, 'assignments');
+  debugLog('🔍 [UserAgentAssignmentsTable] Rendering with', assignments?.length || 0, 'assignments');
 
   const handleRemove = async (assignmentId: string) => {
-    console.log('🔍 [UserAgentAssignmentsTable] Removing assignment:', assignmentId);
+    debugLog('🔍 [UserAgentAssignmentsTable] Removing assignment:', assignmentId);
     setRemovingId(assignmentId);
     try {
       await onRemove(assignmentId);
@@ -50,7 +51,7 @@ export function UserAgentAssignmentsTable({
 
   const handleRefresh = () => {
     if (onRefresh) {
-      console.log('🔍 [UserAgentAssignmentsTable] Manual refresh triggered');
+      debugLog('🔍 [UserAgentAssignmentsTable] Manual refresh triggered');
       onRefresh();
     }
   };

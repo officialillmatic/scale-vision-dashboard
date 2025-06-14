@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from 'react';
 import {
@@ -40,7 +41,7 @@ export const TeamInviteDialog: React.FC<TeamInviteDialogProps> = ({
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log('📋 [TeamInviteDialog] Form submitted');
+    debugLog('📋 [TeamInviteDialog] Form submitted');
     e.preventDefault();
     setError(null);
     setIsSuccess(false);
@@ -59,15 +60,15 @@ export const TeamInviteDialog: React.FC<TeamInviteDialogProps> = ({
       return;
     }
 
-    console.log('🚀 [TeamInviteDialog] Sending invitation...');
-    console.log('📧 Email:', email);
-    console.log('👤 Role:', role);
+    debugLog('🚀 [TeamInviteDialog] Sending invitation...');
+    debugLog('📧 Email:', email);
+    debugLog('👤 Role:', role);
 
     try {
       const success = await onInvite(email, role);
       
       if (success) {
-        console.log('✅ [TeamInviteDialog] Invitation sent successfully');
+        debugLog('✅ [TeamInviteDialog] Invitation sent successfully');
         setIsSuccess(true);
         
         // Reset form and close modal after a brief delay

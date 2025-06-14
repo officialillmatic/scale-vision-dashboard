@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -53,12 +54,12 @@ const SuperAdminCreditsNew = () => {
     if (isSuperAdminLoading) return;
     
     if (!isSuperAdmin) {
-      console.log('❌ [SuperAdminCreditsNew] Access denied - not super admin');
+      debugLog('❌ [SuperAdminCreditsNew] Access denied - not super admin');
       toast.error("Access denied - Super admin required");
       navigate('/dashboard');
       return;
     } else {
-      console.log('✅ [SuperAdminCreditsNew] Super admin access granted');
+      debugLog('✅ [SuperAdminCreditsNew] Super admin access granted');
     }
   }, [isSuperAdmin, isSuperAdminLoading, navigate]);
 
@@ -66,7 +67,7 @@ const SuperAdminCreditsNew = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      console.log('🔍 [SuperAdminCreditsNew] Fetching user credits...');
+      debugLog('🔍 [SuperAdminCreditsNew] Fetching user credits...');
       
       // Direct query to user_credits with profiles join
       const { data: creditsData, error: creditsError } = await supabase
@@ -112,7 +113,7 @@ const SuperAdminCreditsNew = () => {
         };
       }) || [];
 
-      console.log('✅ [SuperAdminCreditsNew] Found user credits:', transformedData.length);
+      debugLog('✅ [SuperAdminCreditsNew] Found user credits:', transformedData.length);
       setUsers(transformedData);
     } catch (error: any) {
       console.error('❌ [SuperAdminCreditsNew] Failed to fetch users:', error);

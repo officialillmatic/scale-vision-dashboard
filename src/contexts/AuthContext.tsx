@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -61,18 +62,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('🔥 [AUTH] Initial session:', !!session);
+      debugLog('🔥 [AUTH] Initial session:', !!session);
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
         if (isSuperAdmin(session.user)) {
-          console.log('🔥 [AUTH] Super admin detected - setting virtual company');
+          debugLog('🔥 [AUTH] Super admin detected - setting virtual company');
           setUserRole('super_admin');
           setCompany(createSuperAdminCompany(session.user.id));
           setLoading(false); // Super admin ready immediately
         } else {
-          console.log('🔥 [AUTH] Regular user, fetching real company...');
+          debugLog('🔥 [AUTH] Regular user, fetching real company...');
           fetchUserCompany(session.user.id);
         }
       } else {
@@ -84,18 +85,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('🔥 [AUTH] Auth state changed:', _event, !!session);
+      debugLog('🔥 [AUTH] Auth state changed:', _event, !!session);
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
         if (isSuperAdmin(session.user)) {
-          console.log('🔥 [AUTH] Super admin login - setting virtual company');
+          debugLog('🔥 [AUTH] Super admin login - setting virtual company');
           setUserRole('super_admin');
           setCompany(createSuperAdminCompany(session.user.id));
           setLoading(false); // Immediate access for super admin
         } else {
-          console.log('🔥 [AUTH] Regular user login, fetching company...');
+          debugLog('🔥 [AUTH] Regular user login, fetching company...');
           fetchUserCompany(session.user.id);
         }
       } else {
@@ -111,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserCompany = async (userId: string) => {
     try {
       setIsCompanyLoading(true);
-      console.log('🔍 [AUTH] Fetching company for user:', userId);
+      debugLog('🔍 [AUTH] Fetching company for user:', userId);
 
       // First try to find company where user is owner
       let { data: ownerCompany, error: ownerError } = await supabase
@@ -120,17 +121,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('owner_id', userId)
         .maybeSingle();
 
-      console.log('🔍 [AUTH] Owner company query result:', { ownerCompany, ownerError });
+      debugLog('🔍 [AUTH] Owner company query result:', { ownerCompany, ownerError });
 
       if (ownerCompany) {
-        console.log('✅ [AUTH] User is company owner');
+        debugLog('✅ [AUTH] User is company owner');
         setCompany(ownerCompany);
         setUserRole('admin');
         return;
       }
 
       // If not owner, check if they're a member
-      console.log('🔍 [AUTH] User is not owner, checking membership...');
+      debugLog('🔍 [AUTH] User is not owner, checking membership...');
       const { data: membership, error: memberError } = await supabase
         .from('company_members')
         .select(`
@@ -149,21 +150,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('status', 'active')
         .maybeSingle();
 
-      console.log('🔍 [AUTH] Membership query result:', { membership, memberError });
+      debugLog('🔍 [AUTH] Membership query result:', { membership, memberError });
 
       if (membership && membership.companies) {
         const memberCompany = Array.isArray(membership.companies) 
           ? membership.companies[0] 
           : membership.companies;
         
-        console.log('✅ [AUTH] User is company member, company:', memberCompany);
+        debugLog('✅ [AUTH] User is company member, company:', memberCompany);
         setCompany(memberCompany as Company);
         setUserRole(membership.role || 'member');
         return;
       }
 
       // Create default company for regular users
-      console.log('⚠️ [AUTH] No company found, creating default company...');
+      debugLog('⚠️ [AUTH] No company found, creating default company...');
       
       const { data: newCompany, error: createError } = await supabase
         .from('companies')
@@ -179,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setCompany(null);
         setUserRole('member');
       } else {
-        console.log('✅ [AUTH] Default company created:', newCompany);
+        debugLog('✅ [AUTH] Default company created:', newCompany);
         setCompany(newCompany);
         setUserRole('admin');
       }
@@ -238,7 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Debug: Log del estado del AuthContext
-  console.log('🎯 [AUTH] AuthContext state:', {
+  debugLog('🎯 [AUTH] AuthContext state:', {
     user: user?.id,
     isSuperAdmin: isSuperAdmin(user),
     company: company?.id,

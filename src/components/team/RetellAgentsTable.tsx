@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React from 'react';
 import {
@@ -33,8 +34,8 @@ export function RetellAgentsTable({
     }
   };
 
-  console.log('🔍 [RetellAgentsTable] Rendering with agents:', agents);
-  console.log('🔍 [RetellAgentsTable] isLoading:', isLoading);
+  debugLog('🔍 [RetellAgentsTable] Rendering with agents:', agents);
+  debugLog('🔍 [RetellAgentsTable] isLoading:', isLoading);
 
   return (
     <div className="rounded-md border">

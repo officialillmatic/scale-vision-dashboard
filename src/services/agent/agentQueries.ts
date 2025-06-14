@@ -1,9 +1,10 @@
+import { debugLog } from "@/lib/debug";
 import { supabase } from "@/integrations/supabase/client";
 import { Agent, UserAgent } from "./agentTypes";
 
 export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
   try {
-    console.log('🔍 [fetchAgents] Called with companyId:', companyId);
+    debugLog('🔍 [fetchAgents] Called with companyId:', companyId);
     
     // TEMPORAL: Sin filtro de company_id para debugging
     const { data, error } = await supabase
@@ -12,13 +13,13 @@ export const fetchAgents = async (companyId?: string): Promise<Agent[]> => {
       .eq("status", "active");
       // COMENTAR TEMPORALMENTE: .eq("company_id", companyId);
     
-    console.log('🔍 [fetchAgents] Raw data from agents table:', data);
-    console.log('🔍 [fetchAgents] Count of agents:', data?.length);
+    debugLog('🔍 [fetchAgents] Raw data from agents table:', data);
+    debugLog('🔍 [fetchAgents] Count of agents:', data?.length);
     
     // Log detallado de cada agente
     if (data && data.length > 0) {
       data.forEach((agent, index) => {
-        console.log(`🔍 [fetchAgents] Agent ${index + 1}:`, {
+        debugLog(`🔍 [fetchAgents] Agent ${index + 1}:`, {
           id: agent.id,
           name: agent.name,
           status: agent.status,
@@ -54,7 +55,7 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
       query = query.eq("company_id", companyId);
     }
     
-    console.log('🔍 [fetchUserAgents] Executing query with company_id:', companyId);
+    debugLog('🔍 [fetchUserAgents] Executing query with company_id:', companyId);
     const { data, error } = await query;
     
     if (error) {
@@ -62,7 +63,7 @@ export const fetchUserAgents = async (companyId?: string): Promise<UserAgent[]> 
       throw error;
     }
     
-    console.log('🔍 [fetchUserAgents] Raw data received:', data);
+    debugLog('🔍 [fetchUserAgents] Raw data received:', data);
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchUserAgents:", error);
@@ -113,7 +114,7 @@ export const fetchUserAccessibleAgents = async (userId: string, companyId?: stri
 
 export const fetchCompanyUserAgents = async (companyId: string): Promise<UserAgent[]> => {
   try {
-    console.log('🔍 [fetchCompanyUserAgents] Fetching for company:', companyId);
+    debugLog('🔍 [fetchCompanyUserAgents] Fetching for company:', companyId);
     
     const { data, error } = await supabase
       .from("user_agents")
@@ -129,7 +130,7 @@ export const fetchCompanyUserAgents = async (companyId: string): Promise<UserAge
       throw error;
     }
     
-    console.log('🔍 [fetchCompanyUserAgents] Data received:', data);
+    debugLog('🔍 [fetchCompanyUserAgents] Data received:', data);
     return data || [];
   } catch (error: any) {
     console.error("[AGENT_SERVICE] Error in fetchCompanyUserAgents:", error);

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
@@ -25,11 +26,11 @@ const TeamPage = () => {
     // No hacer nada mientras está cargando
     if (isSuperAdminLoading) return;
     
-    console.log('🔍 [TeamPage] Checking access permissions...');
-    console.log('🔍 [TeamPage] User email:', user?.email);
-    console.log('🔍 [TeamPage] Is super admin:', isSuperAdmin);
-    console.log('🔍 [TeamPage] Is company owner:', isCompanyOwner);
-    console.log('🔍 [TeamPage] Can manage team:', can.manageTeam);
+    debugLog('🔍 [TeamPage] Checking access permissions...');
+    debugLog('🔍 [TeamPage] User email:', user?.email);
+    debugLog('🔍 [TeamPage] Is super admin:', isSuperAdmin);
+    debugLog('🔍 [TeamPage] Is company owner:', isCompanyOwner);
+    debugLog('🔍 [TeamPage] Can manage team:', can.manageTeam);
     
     // BYPASS ESPECÍFICO PARA SUPER ADMIN - igual que en dashboard
     const hasAccess = isSuperAdmin || 
@@ -39,12 +40,12 @@ const TeamPage = () => {
                      can.manageTeam;
     
     if (!hasAccess) {
-      console.log('❌ [TeamPage] Access denied, redirecting to dashboard');
+      debugLog('❌ [TeamPage] Access denied, redirecting to dashboard');
       toast.error("You don't have permission to access team management");
       navigate('/dashboard');
       return;
     } else {
-      console.log('✅ [TeamPage] Access granted');
+      debugLog('✅ [TeamPage] Access granted');
     }
   }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
   

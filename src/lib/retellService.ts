@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { supabase } from './supabase';
 
@@ -118,7 +119,7 @@ export class RetellService {
    * Get user agent assignments from Supabase
    */
   async getUserAgent(userId: string): Promise<any> {
-    console.log('[RETELL_SERVICE] Getting user agent for user:', userId);
+    debugLog('[RETELL_SERVICE] Getting user agent for user:', userId);
     
     const { data, error } = await supabase
       .from('user_agents')
@@ -142,7 +143,7 @@ export class RetellService {
    * Get agent details from Retell API
    */
   async getAgent(agentId: string): Promise<RetellAgent> {
-    console.log('[RETELL_SERVICE] Fetching agent:', agentId);
+    debugLog('[RETELL_SERVICE] Fetching agent:', agentId);
     
     const response = await this.makeRequest<{ agent: RetellAgent }>(`/get-agent`, {
       method: 'POST',
@@ -156,7 +157,7 @@ export class RetellService {
    * Get calls for a specific agent from Retell API
    */
   async getAgentCalls(agentId: string, limit: number = 100): Promise<RetellCall[]> {
-    console.log('[RETELL_SERVICE] Fetching calls for agent:', agentId);
+    debugLog('[RETELL_SERVICE] Fetching calls for agent:', agentId);
     
     const response = await this.makeRequest<{ calls: RetellCall[] }>(`/list-calls`, {
       method: 'POST',
@@ -173,7 +174,7 @@ export class RetellService {
    * Get detailed call information from Retell API
    */
   async getCallDetails(callId: string): Promise<RetellCall> {
-    console.log('[RETELL_SERVICE] Fetching call details:', callId);
+    debugLog('[RETELL_SERVICE] Fetching call details:', callId);
     
     const response = await this.makeRequest<{ call: RetellCall }>(`/get-call`, {
       method: 'POST',
@@ -187,7 +188,7 @@ export class RetellService {
    * Get agent performance metrics
    */
   async getAgentMetrics(agentId: string, days: number = 30): Promise<AgentMetrics> {
-    console.log('[RETELL_SERVICE] Calculating agent metrics for:', agentId);
+    debugLog('[RETELL_SERVICE] Calculating agent metrics for:', agentId);
     
     const calls = await this.getAgentCalls(agentId);
     const recentCalls = this.filterCallsByDays(calls, days);
@@ -217,7 +218,7 @@ export class RetellService {
    * Get time-based call data for charts
    */
   async getCallsTimeData(agentId: string, days: number = 30): Promise<TimeBasedCallData[]> {
-    console.log('[RETELL_SERVICE] Getting time-based data for agent:', agentId);
+    debugLog('[RETELL_SERVICE] Getting time-based data for agent:', agentId);
     
     const calls = await this.getAgentCalls(agentId);
     const recentCalls = this.filterCallsByDays(calls, days);
@@ -246,7 +247,7 @@ export class RetellService {
    * Calculate comprehensive dashboard metrics
    */
   async getDashboardMetrics(userId: string): Promise<DashboardMetrics> {
-    console.log('[RETELL_SERVICE] Calculating dashboard metrics for user:', userId);
+    debugLog('[RETELL_SERVICE] Calculating dashboard metrics for user:', userId);
     
     try {
       // Get user's primary agent
@@ -302,7 +303,7 @@ export class RetellService {
    * Sync calls to Supabase cache for faster access
    */
   async syncCallsToCache(userId: string): Promise<number> {
-    console.log('[RETELL_SERVICE] Syncing calls to cache for user:', userId);
+    debugLog('[RETELL_SERVICE] Syncing calls to cache for user:', userId);
     
     try {
       const userAgent = await this.getUserAgent(userId);
@@ -356,7 +357,7 @@ export class RetellService {
         throw new Error(`Failed to sync calls: ${error.message}`);
       }
 
-      console.log('[RETELL_SERVICE] Successfully synced', callsToCache.length, 'calls to cache');
+      debugLog('[RETELL_SERVICE] Successfully synced', callsToCache.length, 'calls to cache');
       return callsToCache.length;
     } catch (error) {
       console.error('[RETELL_SERVICE] Error in syncCallsToCache:', error);

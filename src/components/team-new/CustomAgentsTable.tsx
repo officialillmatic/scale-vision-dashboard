@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,7 +34,7 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
 
   const handleEdit = (agent: Agent) => {
     // TODO: Implement edit functionality
-    console.log('Edit agent:', agent);
+    debugLog('Edit agent:', agent);
   };
 
   const handleDelete = async (agent: Agent) => {
@@ -41,7 +42,7 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
       setDeletingId(agent.id);
       try {
         // TODO: Implement delete functionality
-        console.log('Delete agent:', agent);
+        debugLog('Delete agent:', agent);
         onRefresh();
       } catch (error) {
         console.error('Failed to delete agent:', error);
@@ -53,7 +54,7 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
 
   const handleAssign = (agent: Agent) => {
     // TODO: Implement assignment functionality
-    console.log('Assign agent:', agent);
+    debugLog('Assign agent:', agent);
   };
 
   if (isLoading) {

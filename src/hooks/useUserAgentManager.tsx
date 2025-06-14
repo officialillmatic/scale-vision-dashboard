@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -9,7 +10,7 @@ export const useUserAgentManager = () => {
     isPending: isAutoMapping 
   } = useMutation({
     mutationFn: async () => {
-      console.log("[USER_AGENT_MANAGER] Starting auto-mapping...");
+      debugLog("[USER_AGENT_MANAGER] Starting auto-mapping...");
       
       const { data, error } = await supabase.functions.invoke("user-agent-manager", {
         body: { action: 'auto_map_orphaned_calls' },
@@ -25,11 +26,11 @@ export const useUserAgentManager = () => {
         throw new Error(error.message || "Auto-mapping failed");
       }
       
-      console.log("[USER_AGENT_MANAGER] Auto-mapping response:", data);
+      debugLog("[USER_AGENT_MANAGER] Auto-mapping response:", data);
       return data;
     },
     onSuccess: (data) => {
-      console.log("[USER_AGENT_MANAGER] Auto-mapping successful:", data);
+      debugLog("[USER_AGENT_MANAGER] Auto-mapping successful:", data);
       const { mappings_created, agents_processed, calls_found } = data;
       
       if (mappings_created > 0) {
@@ -51,7 +52,7 @@ export const useUserAgentManager = () => {
     isPending: isAuditing 
   } = useMutation({
     mutationFn: async () => {
-      console.log("[USER_AGENT_MANAGER] Starting audit...");
+      debugLog("[USER_AGENT_MANAGER] Starting audit...");
       
       const { data, error } = await supabase.functions.invoke("user-agent-manager", {
         body: { action: 'audit_mappings' },
@@ -70,7 +71,7 @@ export const useUserAgentManager = () => {
       return data;
     },
     onSuccess: (data) => {
-      console.log("[USER_AGENT_MANAGER] Audit successful:", data);
+      debugLog("[USER_AGENT_MANAGER] Audit successful:", data);
       const { analysis } = data;
       
       if (analysis.agents_without_mappings.length > 0) {
@@ -94,7 +95,7 @@ export const useUserAgentManager = () => {
       userId: string; 
       companyId: string; 
     }) => {
-      console.log("[USER_AGENT_MANAGER] Creating default mapping...");
+      debugLog("[USER_AGENT_MANAGER] Creating default mapping...");
       
       const { data, error } = await supabase.functions.invoke("user-agent-manager", {
         body: { 
@@ -118,7 +119,7 @@ export const useUserAgentManager = () => {
       return data;
     },
     onSuccess: (data) => {
-      console.log("[USER_AGENT_MANAGER] Mapping creation successful:", data);
+      debugLog("[USER_AGENT_MANAGER] Mapping creation successful:", data);
       toast.success(`Successfully created mapping for agent: ${data.agent_name}`);
     },
     onError: (error: any) => {

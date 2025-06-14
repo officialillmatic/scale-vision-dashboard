@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -17,14 +18,14 @@ export const useCallFetch = () => {
     queryKey: ["calls", company?.id, user?.id],
     queryFn: async (): Promise<CallData[]> => {
       if (!company?.id || !user?.id) {
-        console.log("[USE_CALL_FETCH] Missing required IDs", { 
+        debugLog("[USE_CALL_FETCH] Missing required IDs", { 
           companyId: company?.id, 
           userId: user?.id 
         });
         return [];
       }
       
-      console.log("[USE_CALL_FETCH] Fetching calls for company:", company.id);
+      debugLog("[USE_CALL_FETCH] Fetching calls for company:", company.id);
       
       try {
         // Use the proper foreign key constraint established in migration
@@ -47,7 +48,7 @@ export const useCallFetch = () => {
           
           // Handle specific error types
           if (error.code === 'PGRST301' || error.message?.includes('no rows')) {
-            console.log("[USE_CALL_FETCH] No calls found - returning empty array");
+            debugLog("[USE_CALL_FETCH] No calls found - returning empty array");
             return [];
           }
           
@@ -61,7 +62,7 @@ export const useCallFetch = () => {
         }
         
         if (!data) {
-          console.log("[USE_CALL_FETCH] No call data returned");
+          debugLog("[USE_CALL_FETCH] No call data returned");
           return [];
         }
         
@@ -78,7 +79,7 @@ export const useCallFetch = () => {
           } : undefined
         }));
         
-        console.log(`[USE_CALL_FETCH] Successfully fetched ${transformedCalls.length} calls`);
+        debugLog(`[USE_CALL_FETCH] Successfully fetched ${transformedCalls.length} calls`);
         return transformedCalls;
       } catch (error: any) {
         console.error("[USE_CALL_FETCH] Error fetching calls:", error);
@@ -87,7 +88,7 @@ export const useCallFetch = () => {
         if (error?.message?.includes("permission denied")) {
           toast.error("Access denied. Please refresh the page and try again.");
         } else if (error?.code === "PGRST301") {
-          console.log("[USE_CALL_FETCH] No calls found - this is normal for new accounts");
+          debugLog("[USE_CALL_FETCH] No calls found - this is normal for new accounts");
           return [];
         } else if (error?.message?.includes("relation") && error?.message?.includes("does not exist")) {
           toast.error("Database configuration error. Please contact support.");

@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -96,7 +97,7 @@ export default function AnalyticsPage() {
         audio.addEventListener('error', () => resolve());
       });
     } catch (error) {
-      console.log('Error loading audio duration:', error);
+      debugLog('Error loading audio duration:', error);
     }
   };
 

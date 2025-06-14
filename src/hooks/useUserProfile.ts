@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import { supabase } from '@/integrations/supabase/client';
 
@@ -24,7 +25,7 @@ export const useUserProfile = () => {
         throw error;
       }
       
-      console.log('Profile updated successfully');
+      debugLog('Profile updated successfully');
     } catch (error) {
       console.error("Error updating profile:", error);
       throw error;

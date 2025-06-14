@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -55,7 +56,7 @@ export class RetellAbstraction {
     skipped_agents: number;
     agents_found: number;
   }> {
-    console.log("[RETELL_SERVICE] Starting call sync with bypass_validation");
+    debugLog("[RETELL_SERVICE] Starting call sync with bypass_validation");
     
     const { data, error } = await supabase.functions.invoke('sync-calls', {
       body: { 
@@ -73,7 +74,7 @@ export class RetellAbstraction {
       throw new Error(`Call sync failed: ${error.message}`);
     }
 
-    console.log("[RETELL_SERVICE] Call sync completed:", data);
+    debugLog("[RETELL_SERVICE] Call sync completed:", data);
     return data;
   }
 
@@ -81,7 +82,7 @@ export class RetellAbstraction {
    * Test API connection
    */
   async testConnection(): Promise<boolean> {
-    console.log("[RETELL_SERVICE] Testing API connection");
+    debugLog("[RETELL_SERVICE] Testing API connection");
     
     try {
       const { data, error } = await supabase.functions.invoke('sync-calls', {
@@ -98,7 +99,7 @@ export class RetellAbstraction {
       }
 
       const isConnected = data?.success === true;
-      console.log("[RETELL_SERVICE] Connection test result:", isConnected);
+      debugLog("[RETELL_SERVICE] Connection test result:", isConnected);
       return isConnected;
     } catch (error) {
       console.error('[RETELL_SERVICE] API test connection failed:', error);
@@ -110,7 +111,7 @@ export class RetellAbstraction {
    * Register webhook endpoint
    */
   async registerWebhook(): Promise<boolean> {
-    console.log("[RETELL_SERVICE] Registering webhook");
+    debugLog("[RETELL_SERVICE] Registering webhook");
     
     try {
       const { data, error } = await supabase.functions.invoke('register-retell-webhook', {
@@ -127,7 +128,7 @@ export class RetellAbstraction {
       }
 
       const success = data?.success === true;
-      console.log("[RETELL_SERVICE] Webhook registration result:", success);
+      debugLog("[RETELL_SERVICE] Webhook registration result:", success);
       return success;
     } catch (error) {
       console.error('[RETELL_SERVICE] Webhook registration connection failed:', error);
@@ -142,7 +143,7 @@ export class RetellAbstraction {
     isValid: boolean;
     issues: string[];
   }> {
-    console.log("[RETELL_SERVICE] Validating agent config for:", agentId);
+    debugLog("[RETELL_SERVICE] Validating agent config for:", agentId);
     
     try {
       // Get agent from database
@@ -153,7 +154,7 @@ export class RetellAbstraction {
         .single();
 
       if (error || !agent) {
-        console.log("[RETELL_SERVICE] Agent not found:", error);
+        debugLog("[RETELL_SERVICE] Agent not found:", error);
         return {
           isValid: false,
           issues: ['Agent not found in database']
@@ -184,7 +185,7 @@ export class RetellAbstraction {
         issues
       };
 
-      console.log("[RETELL_SERVICE] Agent validation result:", result);
+      debugLog("[RETELL_SERVICE] Agent validation result:", result);
       return result;
     } catch (error) {
       console.error('[RETELL_SERVICE] Agent validation failed:', error);
@@ -199,12 +200,12 @@ export class RetellAbstraction {
    * Get sanitized call data for frontend consumption - CORREGIDO
    */
   async getCallData(userIdOrCompanyId: string, limit: number = 100): Promise<any[]> {
-    console.log('[RETELL_SERVICE] ✅ FIXED - Starting getCallData - FETCHING FROM calls table');
-    console.log('[RETELL_SERVICE] Parameters:', { userIdOrCompanyId, limit });
-    console.log('[RETELL_SERVICE] Fetching calls for user/company:', userIdOrCompanyId);
+    debugLog('[RETELL_SERVICE] ✅ FIXED - Starting getCallData - FETCHING FROM calls table');
+    debugLog('[RETELL_SERVICE] Parameters:', { userIdOrCompanyId, limit });
+    debugLog('[RETELL_SERVICE] Fetching calls for user/company:', userIdOrCompanyId);
     
     try {
-      console.log('[RETELL_SERVICE] ✅ Making Supabase query to CALLS table (not retell_calls)...');
+      debugLog('[RETELL_SERVICE] ✅ Making Supabase query to CALLS table (not retell_calls)...');
       
       // ✅ CAMBIO PRINCIPAL: Buscar en la tabla 'calls' correcta
               const { data, error } = await supabase
@@ -232,8 +233,8 @@ export class RetellAbstraction {
         .order('timestamp', { ascending: false })
         .limit(limit);
 
-      console.log('[RETELL_SERVICE] ✅ Supabase query to CALLS table completed');
-      console.log('[RETELL_SERVICE] Query result:', { 
+      debugLog('[RETELL_SERVICE] ✅ Supabase query to CALLS table completed');
+      debugLog('[RETELL_SERVICE] Query result:', { 
         data: data ? `${data.length} records` : 'null', 
         error, 
         dataLength: data?.length,
@@ -246,15 +247,15 @@ export class RetellAbstraction {
       }
 
       if (!data) {
-        console.log('[RETELL_SERVICE] No data returned from query');
+        debugLog('[RETELL_SERVICE] No data returned from query');
         return [];
       }
 
-      console.log('[RETELL_SERVICE] ✅ Raw data from CALLS table:', data);
+      debugLog('[RETELL_SERVICE] ✅ Raw data from CALLS table:', data);
 
       // ✅ Transform calls data to match expected frontend format
       const transformedData = data.map((call, index) => {
-        console.log(`[RETELL_SERVICE] Transforming call ${index + 1}:`, call);
+        debugLog(`[RETELL_SERVICE] Transforming call ${index + 1}:`, call);
         
         return {
           id: call.id,
@@ -278,8 +279,8 @@ export class RetellAbstraction {
         };
       });
 
-      console.log('[RETELL_SERVICE] ✅ Transformed data from CALLS table:', transformedData);
-      console.log('[RETELL_SERVICE] ✅ Returning', transformedData.length, 'calls from CALLS table');
+      debugLog('[RETELL_SERVICE] ✅ Transformed data from CALLS table:', transformedData);
+      debugLog('[RETELL_SERVICE] ✅ Returning', transformedData.length, 'calls from CALLS table');
       
       return transformedData;
       
@@ -311,7 +312,7 @@ export class RetellAbstraction {
    * Rate limiting check before API calls
    */
   async checkRateLimit(action: string): Promise<boolean> {
-    console.log("[RETELL_SERVICE] Checking rate limit for action:", action);
+    debugLog("[RETELL_SERVICE] Checking rate limit for action:", action);
     
     try {
       const { data, error } = await supabase.rpc('check_rate_limit', {
@@ -326,7 +327,7 @@ export class RetellAbstraction {
       }
 
       const result = data === true;
-      console.log("[RETELL_SERVICE] Rate limit check result:", result);
+      debugLog("[RETELL_SERVICE] Rate limit check result:", result);
       return result;
     } catch (error) {
       console.error('[RETELL_SERVICE] Rate limit check error:', error);

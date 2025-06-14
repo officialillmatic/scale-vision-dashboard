@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,7 +22,7 @@ export function AssignmentsManagementTable({ assignments, isLoading, onRefresh }
   const handleTogglePrimary = async (assignment: UserAgentAssignment, isPrimary: boolean) => {
     try {
       // TODO: Implement toggle primary functionality
-      console.log('Toggle primary for assignment:', assignment.id, isPrimary);
+      debugLog('Toggle primary for assignment:', assignment.id, isPrimary);
     } catch (error) {
       console.error('Failed to toggle primary status:', error);
     }
@@ -32,7 +33,7 @@ export function AssignmentsManagementTable({ assignments, isLoading, onRefresh }
       setRemovingId(assignment.id);
       try {
         // TODO: Implement remove functionality
-        console.log('Remove assignment:', assignment.id);
+        debugLog('Remove assignment:', assignment.id);
         onRefresh();
       } catch (error) {
         console.error('Failed to remove assignment:', error);
@@ -57,7 +58,7 @@ export function AssignmentsManagementTable({ assignments, isLoading, onRefresh }
         <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
         <p className="text-lg font-medium text-muted-foreground">No agent assignments found</p>
         <p className="text-sm text-muted-foreground">Create assignments to manage user-agent relationships</p>
-        <Button className="mt-4" onClick={() => console.log('Create new assignment')}>
+        <Button className="mt-4" onClick={() => debugLog('Create new assignment')}>
           <Plus className="mr-2 h-4 w-4" />
           Create Assignment
         </Button>
@@ -71,7 +72,7 @@ export function AssignmentsManagementTable({ assignments, isLoading, onRefresh }
         <p className="text-sm text-muted-foreground">
           Manage which agents are assigned to which users. Primary assignments are used as defaults for new calls.
         </p>
-        <Button onClick={() => console.log('Create new assignment')}>
+        <Button onClick={() => debugLog('Create new assignment')}>
           <Plus className="mr-2 h-4 w-4" />
           New Assignment
         </Button>

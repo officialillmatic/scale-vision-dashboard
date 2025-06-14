@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -42,12 +43,12 @@ const SuperAdminTeamNew = () => {
     if (isSuperAdminLoading) return;
     
     if (!isSuperAdmin) {
-      console.log('❌ [SuperAdminTeamNew] Access denied - not super admin');
+      debugLog('❌ [SuperAdminTeamNew] Access denied - not super admin');
       toast.error("Access denied - Super admin required");
       navigate('/dashboard');
       return;
     } else {
-      console.log('✅ [SuperAdminTeamNew] Super admin access granted');
+      debugLog('✅ [SuperAdminTeamNew] Super admin access granted');
     }
   }, [isSuperAdmin, isSuperAdminLoading, navigate]);
 
@@ -55,7 +56,7 @@ const SuperAdminTeamNew = () => {
   const fetchTeamMembers = async () => {
     try {
       setLoading(true);
-      console.log('🔍 [SuperAdminTeamNew] Fetching all users...');
+      debugLog('🔍 [SuperAdminTeamNew] Fetching all users...');
       
       // Query profiles directly for all users
       const { data: profilesData, error: profilesError } = await supabase
@@ -80,7 +81,7 @@ const SuperAdminTeamNew = () => {
         last_sign_in_at: profile.updated_at
       })) || [];
 
-      console.log('✅ [SuperAdminTeamNew] Found users:', transformedData.length);
+      debugLog('✅ [SuperAdminTeamNew] Found users:', transformedData.length);
       setTeamMembers(transformedData);
     } catch (error: any) {
       console.error('❌ [SuperAdminTeamNew] Failed to fetch users:', error);
@@ -137,12 +138,12 @@ const SuperAdminTeamNew = () => {
   }
 
   const handleEditRole = (member: TeamMember) => {
-    console.log('Edit role for:', member.email);
+    debugLog('Edit role for:', member.email);
     toast.info(`Edit role functionality for ${member.email} - Coming soon!`);
   };
 
   const handleRemoveUser = (member: TeamMember) => {
-    console.log('Remove user:', member.email);
+    debugLog('Remove user:', member.email);
     toast.info(`Remove user functionality for ${member.email} - Coming soon!`);
   };
 

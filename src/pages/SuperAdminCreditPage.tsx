@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
@@ -18,9 +19,9 @@ export default function SuperAdminCreditPage() {
     // No hacer nada mientras está cargando
     if (isSuperAdminLoading) return;
     
-    console.log('🔍 [SuperAdminCreditPage] Checking access permissions...');
-    console.log('🔍 [SuperAdminCreditPage] User email:', user?.email);
-    console.log('🔍 [SuperAdminCreditPage] Is super admin:', isSuperAdmin);
+    debugLog('🔍 [SuperAdminCreditPage] Checking access permissions...');
+    debugLog('🔍 [SuperAdminCreditPage] User email:', user?.email);
+    debugLog('🔍 [SuperAdminCreditPage] Is super admin:', isSuperAdmin);
     
     // 🚨 SOLUCIÓN: Misma verificación que en TeamPage y Dashboard
     const hasAccess = isSuperAdmin || 
@@ -28,12 +29,12 @@ export default function SuperAdminCreditPage() {
                      user?.email === 'produpublicol@gmail.com';
     
     if (!hasAccess) {
-      console.log('❌ [SuperAdminCreditPage] Access denied, redirecting to dashboard');
+      debugLog('❌ [SuperAdminCreditPage] Access denied, redirecting to dashboard');
       toast.error("Access denied - Super admin required");
       navigate('/dashboard');
       return;
     } else {
-      console.log('✅ [SuperAdminCreditPage] Access granted');
+      debugLog('✅ [SuperAdminCreditPage] Access granted');
     }
   }, [user, isSuperAdmin, isSuperAdminLoading, navigate]);
 

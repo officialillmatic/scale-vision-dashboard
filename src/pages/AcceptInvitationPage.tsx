@@ -1,3 +1,4 @@
+import { debugLog } from "@/lib/debug";
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -29,13 +30,13 @@ const AcceptInvitationPage = () => {
 
     const verifyInvitation = async () => {
       try {
-        console.log('🔍 Verifying invitation token:', token);
+        debugLog('🔍 Verifying invitation token:', token);
         const result = await checkInvitation(token);
-        console.log('✅ Invitation check result:', result);
+        debugLog('✅ Invitation check result:', result);
         
         if (result.valid) {
           setInvitation(result.invitation);
-          console.log('📧 Invitation email:', result.invitation?.email);
+          debugLog('📧 Invitation email:', result.invitation?.email);
         } else {
           setError(result.error || 'This invitation link is invalid or has expired');
         }
@@ -55,7 +56,7 @@ const AcceptInvitationPage = () => {
 
     setAccepting(true);
     try {
-      console.log('🎯 Accepting invitation and redirecting to registration...');
+      debugLog('🎯 Accepting invitation and redirecting to registration...');
       
       // Get the email from invitation or URL parameter
       const invitedEmail = invitation.email || emailParam || '';
