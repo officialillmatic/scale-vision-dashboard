@@ -16,15 +16,10 @@ const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
   const { user } = useAuth();
   const { isCompanyOwner, can } = useRole();
-  const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
-  const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
-  const { isSuperAdmin: hookSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
-  const isSuperAdmin = hookSuperAdmin || isEmailSuperAdmin;
+  const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
 
   console.log('🔥 [TEAM_PAGE] User email:', user?.email);
-  console.log('🔥 [TEAM_PAGE] Hook result:', hookSuperAdmin);
-  console.log('🔥 [TEAM_PAGE] Email check:', isEmailSuperAdmin);
-  console.log('🔥 [TEAM_PAGE] Final isSuperAdmin:', isSuperAdmin);
+  console.log('🔥 [TEAM_PAGE] Super admin status:', isSuperAdmin);
   const navigate = useNavigate();
   
   // 🚨 RESTRICCIONES TEMPORALMENTE DESHABILITADAS

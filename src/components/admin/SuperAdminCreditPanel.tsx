@@ -1,5 +1,3 @@
-
-import { useAuth } from '@/contexts/AuthContext';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,13 +53,6 @@ export function SuperAdminCreditPanel() {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const { isSuperAdmin } = useSuperAdmin();
-  const { user } = useAuth();
-const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
-const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
-
-console.log("🔥 [SUPER_ADMIN_PANEL] User email:", user?.email);
-console.log("🔥 [SUPER_ADMIN_PANEL] isSuperAdmin:", isSuperAdmin);
-console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
 
   useEffect(() => {
     fetchUsers();
@@ -112,23 +103,20 @@ console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
           }
 
           // Transform fallback data to match expected format
-          const transformedData = fallbackData?.map(item => {
-            const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
-            return {
-              user_id: item.user_id,
-              email: profile?.email || 'No email',
-              name: profile?.name || 'No name',
-              current_balance: item.current_balance || 0,
-              warning_threshold: item.warning_threshold || 10,
-              critical_threshold: item.critical_threshold || 5,
-              is_blocked: item.is_blocked || false,
-              balance_status: item.current_balance <= (item.critical_threshold || 5) ? 'critical' : 
-                             item.current_balance <= (item.warning_threshold || 10) ? 'warning' : 'normal',
-              recent_transactions_count: 0,
-              balance_updated_at: item.updated_at,
-              user_created_at: item.created_at
-            };
-          }) || [];
+          const transformedData = fallbackData?.map(item => ({
+            user_id: item.user_id,
+            email: item.profiles?.email || 'No email',
+            name: item.profiles?.name || 'No name',
+            current_balance: item.current_balance || 0,
+            warning_threshold: item.warning_threshold || 10,
+            critical_threshold: item.critical_threshold || 5,
+            is_blocked: item.is_blocked || false,
+            balance_status: item.current_balance <= (item.critical_threshold || 5) ? 'critical' : 
+                           item.current_balance <= (item.warning_threshold || 10) ? 'warning' : 'normal',
+            recent_transactions_count: 0,
+            balance_updated_at: item.updated_at,
+            user_created_at: item.created_at
+          })) || [];
 
           console.log('✅ [SuperAdminCreditPanel] Using fallback data:', transformedData.length);
           setUsers(transformedData);
@@ -215,23 +203,180 @@ console.log("🔥 [SUPER_ADMIN_PANEL] isEmailSuperAdmin:", isEmailSuperAdmin);
   const stats = getStatusStats();
 
   return (
-    if (!isSuperAdmin && !isEmailSuperAdmin) {
-  return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
-          <p className="text-muted-foreground">
-            You need super administrator privileges to access this panel.
-          </p>
-          <p className="text-xs text-gray-400 mt-2">
-            Debug: Email={user?.email}, isSuperAdmin={isSuperAdmin}, isEmailSuperAdmin={isEmailSuperAdmin}
-          </p>
+    <RoleCheck superAdminOnly fallback={
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center">
+            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
+            <p className="text-gray-600">Only super administrators can access credit management.</p>
+          </div>
+        </CardContent>
+      </Card>
+    }>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Credit Management</h1>
+            <p className="text-gray-600">Manage user credits and view transaction history</p>
+          </div>
+          <Button onClick={fetchUsers} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center">
+                <Users className="h-8 w-8 text-blue-500" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-600">Total Users</p>
+                  <p className="text-2xl font-bold">{stats.total}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center">
+                <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center">
+                  <DollarSign className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-600">Normal</p>
+                  <p className="text-2xl font-bold text-green-600">{stats.normal}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center">
+                <div className="h-8 w-8 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-600">Warning</p>
+                  <p className="text-2xl font-bold text-yellow-600">{stats.warning}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center">
+                <div className="h-8 w-8 bg-red-100 rounded-lg flex items-center justify-center">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-600">Critical</p>
+                  <p className="text-2xl font-bold text-red-600">{stats.critical}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center">
+                <div className="h-8 w-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <Users className="h-5 w-5 text-gray-600" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-600">Blocked</p>
+                  <p className="text-2xl font-bold text-gray-600">{stats.blocked}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters and Actions */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-4 flex-1">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by email or name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 border rounded-md bg-white"
+                >
+                  <option value="all">All Status</option>
+                  <option value="normal">Normal</option>
+                  <option value="warning">Warning</option>
+                  <option value="critical">Critical</option>
+                  <option value="blocked">Blocked</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setShowBulkModal(true)}
+                  disabled={selectedUsers.length === 0}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  Bulk Actions ({selectedUsers.length})
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Users List */}
+        <UserCreditsList
+          users={filteredUsers}
+          loading={loading}
+          selectedUsers={selectedUsers}
+          onUserSelection={handleUserSelection}
+          onSelectAll={handleSelectAll}
+          onAdjustCredit={handleAdjustCredit}
+          onViewTransactions={handleViewTransactions}
+          getStatusBadgeColor={getStatusBadgeColor}
+        />
+
+        {/* Modals */}
+        <CreditAdjustmentModal
+          open={showAdjustmentModal}
+          onOpenChange={setShowAdjustmentModal}
+          userId={selectedUserId}
+          onSuccess={fetchUsers}
+        />
+
+        <BulkCreditModal
+          open={showBulkModal}
+          onOpenChange={setShowBulkModal}
+          selectedUserIds={selectedUsers}
+          onSuccess={() => {
+            fetchUsers();
+            setSelectedUsers([]);
+          }}
+        />
+
+        <TransactionHistoryModal
+          open={showTransactionModal}
+          onOpenChange={setShowTransactionModal}
+          userId={selectedUserId}
+        />
+      </div>
+    </RoleCheck>
   );
 }
