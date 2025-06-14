@@ -3,32 +3,27 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSuperAdmin } from '@/hooks/useSuperAdmin';
-import {
-  Search,
-  DollarSign,
-  Users,
-  AlertTriangle,
-  History,
+import { 
+  Search, 
+  DollarSign, 
+  Users, 
+  AlertTriangle, 
+  History, 
   Filter,
   RefreshCw,
   Plus,
-  Minus,
-  Download,
+  Edit3,
+  TrendingDown,
+  TrendingUp,
+  Phone,
+  Shield
 } from 'lucide-react';
-import { RoleCheck } from '@/components/auth/RoleCheck';
-import { UserCreditsList } from './UserCreditsList';
-import { CreditAdjustmentModal } from './CreditAdjustmentModal';
-import { BulkCreditModal } from './BulkCreditModal';
-import { TransactionHistoryModal } from './TransactionHistoryModal';
 
-export interface UserCredit {
+interface UserCredit {
   user_id: string;
   email: string;
   name: string;
@@ -37,9 +32,19 @@ export interface UserCredit {
   critical_threshold: number;
   is_blocked: boolean;
   balance_status: string;
-  recent_transactions_count: number;
+  total_spent: number;
+  total_calls: number;
+  recent_calls: number;
+  last_call_date: string | null;
   balance_updated_at: string;
   user_created_at: string;
+}
+
+interface CreditAdjustment {
+  userId: string;
+  amount: number;
+  description: string;
+  type: 'add' | 'subtract';
 }
 
 export function SuperAdminCreditPanel() {
@@ -49,123 +54,237 @@ export function SuperAdminCreditPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  const [showTransactionModal, setShowTransactionModal] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [adjustmentModal, setAdjustmentModal] = useState<{
+    open: boolean;
+    userId?: string;
+    currentBalance?: number;
+  }>({ open: false });
+  const [bulkModal, setBulkModal] = useState(false);
 
-  const { isSuperAdmin } = useSuperAdmin();
   const { user } = useAuth();
-  const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
-  const isEmailSuperAdmin = Boolean(user?.email && SUPER_ADMIN_EMAILS.includes(user.email));
 
-  // Fetch & filter effects
+  // Super admin emails - expandir según necesidad
+  const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
+  const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
+
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (user) {
+      fetchUsers();
+    }
+  }, [user]);
 
   useEffect(() => {
     filterUsers();
   }, [users, searchQuery, statusFilter]);
 
-  // Fetch users (with fallback)
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      console.log('🔍 [SuperAdminCreditPanel] Fetching users...', isSuperAdmin);
+      console.log('🔍 Fetching user credit data...');
 
-      if (isSuperAdmin) {
-        const { data, error } = await supabase
-          .from('admin_user_credits_view')
-          .select('*')
-          .order('email');
+      // Obtener todos los usuarios con créditos
+      const { data: creditsData, error: creditsError } = await supabase
+        .from('user_credits')
+        .select('*');
 
-        if (error) {
-          console.error('❌ [SuperAdminCreditPanel] View error:', error);
-          const { data: fallbackData, error: fbErr } = await supabase
-            .from('user_credits')
-            .select(`
-              user_id,
-              current_balance,
-              warning_threshold,
-              critical_threshold,
-              is_blocked,
-              updated_at,
-              created_at,
-              profiles!user_credits_user_id_fkey (
-                email,
-                name
-              )
-            `)
-            .order('created_at');
-
-          if (fbErr) throw fbErr;
-
-          const transformedData = (fallbackData ?? []).map(item => ({
-            user_id: item.user_id,
-            email: item.profiles?.email ?? 'No email',
-            name: item.profiles?.name ?? 'No name',
-            current_balance: item.current_balance ?? 0,
-            warning_threshold: item.warning_threshold ?? 10,
-            critical_threshold: item.critical_threshold ?? 5,
-            is_blocked: item.is_blocked ?? false,
-            balance_status:
-              (item.current_balance ?? 0) <= (item.critical_threshold ?? 5)
-                ? 'critical'
-                : (item.current_balance ?? 0) <= (item.warning_threshold ?? 10)
-                ? 'warning'
-                : 'normal',
-            recent_transactions_count: 0,
-            balance_updated_at: item.updated_at,
-            user_created_at: item.created_at,
-          }));
-
-          console.log('✅ [SuperAdminCreditPanel] Fallback data count:', transformedData.length);
-          setUsers(transformedData);
-        } else {
-          console.log('✅ [SuperAdminCreditPanel] View data count:', data?.length);
-          setUsers(data ?? []);
-        }
-      } else {
-        console.warn('❌ [SuperAdminCreditPanel] Not a super admin, clearing list');
-        setUsers([]);
+      if (creditsError) {
+        console.error('Error fetching credits:', creditsError);
+        toast.error('Error al cargar créditos de usuarios');
+        return;
       }
-    } catch (err: any) {
-      console.error('❌ [SuperAdminCreditPanel] Fetch failed:', err);
-      toast.error(Failed to fetch users: ${err.message});
+
+      // Obtener información de usuarios desde múltiples fuentes
+      const userIds = creditsData?.map(c => c.user_id) || [];
+      
+      // Intentar obtener perfiles de usuarios
+      let userProfiles: any[] = [];
+      
+      // Probar user_profiles primero
+      const { data: profilesData } = await supabase
+        .from('user_profiles')
+        .select('id, email, name')
+        .in('id', userIds);
+
+      if (profilesData && profilesData.length > 0) {
+        userProfiles = profilesData;
+      } else {
+        // Fallback a users table
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, email, name, full_name')
+          .in('id', userIds);
+        
+        if (usersData) {
+          userProfiles = usersData.map(u => ({
+            id: u.id,
+            email: u.email,
+            name: u.name || u.full_name
+          }));
+        }
+      }
+
+      // Obtener estadísticas de llamadas para cada usuario
+      const { data: callsData } = await supabase
+        .from('calls')
+        .select('user_id, cost_usd, timestamp')
+        .in('user_id', userIds);
+
+      // Obtener transacciones de créditos
+      const { data: transactionsData } = await supabase
+        .from('credit_transactions')
+        .select('user_id, amount, transaction_type, created_at')
+        .in('user_id', userIds);
+
+      // Combinar todos los datos
+      const combinedData: UserCredit[] = creditsData.map(credit => {
+        const profile = userProfiles.find(p => p.id === credit.user_id);
+        const userCalls = callsData?.filter(c => c.user_id === credit.user_id) || [];
+        const userTransactions = transactionsData?.filter(t => t.user_id === credit.user_id) || [];
+        
+        // Calcular estadísticas
+        const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+        const recentCalls = userCalls.filter(call => {
+          const callDate = new Date(call.timestamp);
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          return callDate >= weekAgo;
+        }).length;
+
+        const lastCall = userCalls.length > 0 
+          ? userCalls.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
+          : null;
+
+        // Determinar estado del balance
+        const balance = credit.current_balance || 0;
+        const criticalThreshold = credit.critical_threshold || 5;
+        const warningThreshold = credit.warning_threshold || 10;
+        
+        let balanceStatus = 'normal';
+        if (credit.is_blocked) balanceStatus = 'blocked';
+        else if (balance <= criticalThreshold) balanceStatus = 'critical';
+        else if (balance <= warningThreshold) balanceStatus = 'warning';
+
+        return {
+          user_id: credit.user_id,
+          email: profile?.email || `user-${credit.user_id.slice(0, 8)}@unknown.com`,
+          name: profile?.name || 'Usuario Desconocido',
+          current_balance: balance,
+          warning_threshold: warningThreshold,
+          critical_threshold: criticalThreshold,
+          is_blocked: credit.is_blocked || false,
+          balance_status: balanceStatus,
+          total_spent: totalSpent,
+          total_calls: userCalls.length,
+          recent_calls: recentCalls,
+          last_call_date: lastCall?.timestamp || null,
+          balance_updated_at: credit.updated_at || credit.created_at,
+          user_created_at: credit.created_at
+        };
+      });
+
+      console.log('✅ Loaded users with credits:', combinedData.length);
+      setUsers(combinedData);
+
+    } catch (error: any) {
+      console.error('❌ Error fetching users:', error);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter logic
   const filterUsers = () => {
-    let result = users;
+    let filtered = users;
+
     if (searchQuery) {
-      result = result.filter(u =>
-        u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.name.toLowerCase().includes(searchQuery.toLowerCase())
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(user => 
+        user.email.toLowerCase().includes(query) ||
+        user.name.toLowerCase().includes(query) ||
+        user.user_id.includes(query)
       );
     }
+
     if (statusFilter !== 'all') {
-      result =
-        statusFilter === 'blocked'
-          ? result.filter(u => u.is_blocked)
-          : result.filter(u => u.balance_status === statusFilter);
+      filtered = filtered.filter(user => user.balance_status === statusFilter);
     }
-    setFilteredUsers(result);
+
+    setFilteredUsers(filtered);
   };
 
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case 'blocked':
-      case 'critical':
-        return 'destructive';
-      case 'warning':
-        return 'secondary';
-      default:
-        return 'default';
+  const handleUserSelection = (userId: string, selected: boolean) => {
+    setSelectedUsers(prev => 
+      selected 
+        ? [...prev, userId]
+        : prev.filter(id => id !== userId)
+    );
+  };
+
+  const handleSelectAll = (selected: boolean) => {
+    setSelectedUsers(selected ? filteredUsers.map(u => u.user_id) : []);
+  };
+
+  const handleAdjustCredit = async (userId: string, amount: number, description: string, type: 'add' | 'subtract') => {
+    try {
+      const adjustmentAmount = type === 'subtract' ? -Math.abs(amount) : Math.abs(amount);
+      
+      const { data, error } = await supabase.rpc('admin_adjust_user_credits', {
+        p_user_id: userId,
+        p_amount: adjustmentAmount,
+        p_description: description,
+        p_admin_id: user?.id || 'unknown'
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success(`Créditos ${type === 'add' ? 'agregados' : 'descontados'} exitosamente`);
+      fetchUsers(); // Recargar datos
+      
+    } catch (error: any) {
+      console.error('Error adjusting credits:', error);
+      toast.error(`Error al ajustar créditos: ${error.message}`);
     }
+  };
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'blocked': return 'destructive';
+      case 'critical': return 'destructive';
+      case 'warning': return 'secondary';
+      case 'normal': return 'default';
+      default: return 'outline';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'blocked': return <AlertTriangle className="w-3 h-3" />;
+      case 'critical': return <TrendingDown className="w-3 h-3" />;
+      case 'warning': return <AlertTriangle className="w-3 h-3" />;
+      case 'normal': return <TrendingUp className="w-3 h-3" />;
+      default: return null;
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Nunca';
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const stats = {
@@ -174,186 +293,512 @@ export function SuperAdminCreditPanel() {
     warning: users.filter(u => u.balance_status === 'warning').length,
     critical: users.filter(u => u.balance_status === 'critical').length,
     blocked: users.filter(u => u.is_blocked).length,
+    totalBalance: users.reduce((sum, u) => sum + u.current_balance, 0),
+    totalSpent: users.reduce((sum, u) => sum + u.total_spent, 0),
+    totalCalls: users.reduce((sum, u) => sum + u.total_calls, 0)
   };
 
-  // Selection & modal handlers (fill in your own implementations)
-  const handleUserSelection = (id: string) =>
-    setSelectedUsers(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  if (!isSuperAdmin) {
+    return (
+      <Card className="max-w-md mx-auto mt-8">
+        <CardContent className="p-6 text-center">
+          <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Acceso Denegado</h3>
+          <p className="text-muted-foreground">
+            Se requieren privilegios de super administrador para acceder a este panel.
+          </p>
+        </CardContent>
+      </Card>
     );
-  const handleSelectAll = () =>
-    setSelectedUsers(prev =>
-      prev.length === filteredUsers.length
-        ? []
-        : filteredUsers.map(u => u.user_id)
-    );
-  const handleAdjustCredit = (id: string) => {
-    setSelectedUserId(id);
-    setShowAdjustmentModal(true);
-  };
-  const handleViewTransactions = (id: string) => {
-    setSelectedUserId(id);
-    setShowTransactionModal(true);
-  };
+  }
 
   return (
-    <RoleCheck
-      superAdminOnly
-      fallback={
+    <div className="space-y-6 p-6">
+      {/* Banner identificador de nueva versión */}
+      <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+            <span className="text-green-600 font-bold text-sm">✨</span>
+          </div>
+          <div>
+            <h3 className="font-semibold text-green-900">Nueva Versión del Panel de Créditos</h3>
+            <p className="text-sm text-green-700">
+              Esta es la versión actualizada con integración completa al sistema de balances y llamadas en tiempo real.
+            </p>
+          </div>
+          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+            v2.0 - Renovado
+          </Badge>
+        </div>
+      </div>
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <h1 className="text-3xl font-bold">🚀 Panel de Gestión de Créditos</h1>
+          <Badge variant="default" className="bg-blue-50 text-blue-700 border-blue-200">
+            <Shield className="w-3 h-3 mr-1" />
+            Super Admin
+          </Badge>
+          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+            🔄 Sincronizado con Llamadas
+          </Badge>
+        </div>
+        <Button onClick={fetchUsers} disabled={loading} variant="outline">
+          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Actualizar
+        </Button>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4">
         <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
-              <p className="text-gray-600">
-                Only super administrators can access credit management.
-              </p>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Users className="h-4 w-4 text-blue-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Total Usuarios</p>
+                <p className="text-xl font-bold">{stats.total}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
-      }
-    >
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Credit Management</h1>
-            <p className="text-gray-600">Manage user credits and view history</p>
-          </div>
-          <Button onClick={fetchUsers} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <Card>
-            <CardContent className="p-4 flex items-center">
-              <Users className="h-8 w-8 text-blue-500" />
-              <div className="ml-3">
-                <p className="text-sm text-gray-600">Total</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center">
-              <div className="h-8 w-8 bg-green-100 rounded flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-green-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-gray-600">Normal</p>
-                <p className="text-2xl font-bold text-green-600">{stats.normal}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center">
-              <div className="h-8 w-8 bg-yellow-100 rounded flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-gray-600">Warning</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.warning}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center">
-              <div className="h-8 w-8 bg-red-100 rounded flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-gray-600">Critical</p>
-                <p className="text-2xl font-bold text-red-600">{stats.critical}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center">
-              <div className="h-8 w-8 bg-gray-100 rounded flex items-center justify-center">
-                <Users className="h-5 w-5 text-gray-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-gray-600">Blocked</p>
-                <p className="text-2xl font-bold text-gray-600">{stats.blocked}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filter & Bulk */}
         <Card>
-          <CardContent className="p-4 flex flex-col lg:flex-row gap-4 items-start lg:items-center">
-            <div className="flex-1 flex gap-4">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 rounded bg-green-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Normal</p>
+                <p className="text-xl font-bold text-green-600">{stats.normal}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 rounded bg-yellow-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Advertencia</p>
+                <p className="text-xl font-bold text-yellow-600">{stats.warning}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 rounded bg-red-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Crítico</p>
+                <p className="text-xl font-bold text-red-600">{stats.critical}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Bloqueados</p>
+                <p className="text-xl font-bold text-red-600">{stats.blocked}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <DollarSign className="h-4 w-4 text-green-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Balance Total</p>
+                <p className="text-lg font-bold text-green-600">{formatCurrency(stats.totalBalance)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Phone className="h-4 w-4 text-purple-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Total Llamadas</p>
+                <p className="text-xl font-bold text-purple-600">{stats.totalCalls}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+            <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-4">
+              <div className="flex items-center space-x-2">
+                <Search className="w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by email or name..."
+                  placeholder="Buscar por email, nombre o ID..."
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-80"
                 />
               </div>
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border rounded bg-white"
-              >
-                <option value="all">All</option>
-                <option value="normal">Normal</option>
-                <option value="warning">Warning</option>
-                <option value="critical">Critical</option>
-                <option value="blocked">Blocked</option>
-              </select>
+              
+              <div className="flex items-center space-x-2">
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                <select 
+                  value={statusFilter} 
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="border rounded px-3 py-2"
+                >
+                  <option value="all">Todos los Estados</option>
+                  <option value="normal">Normal</option>
+                  <option value="warning">Advertencia</option>
+                  <option value="critical">Crítico</option>
+                  <option value="blocked">Bloqueado</option>
+                </select>
+              </div>
             </div>
-            <Button
-              onClick={() => setShowBulkModal(true)}
-              disabled={selectedUsers.length === 0}
-              variant="outline"
-              size="sm"
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Bulk ({selectedUsers.length})
-            </Button>
-          </CardContent>
-        </Card>
 
-        {/* Users Table */}
-        <UserCreditsList
-          users={filteredUsers}
-          loading={loading}
-          selectedUsers={selectedUsers}
-          onUserSelection={handleUserSelection}
-          onSelectAll={handleSelectAll}
-          onAdjustCredit={handleAdjustCredit}
-          onViewTransactions={handleViewTransactions}
-          getStatusBadgeColor={getStatusBadgeColor}
-        />
+            <div className="flex items-center space-x-2">
+              <Button 
+                onClick={() => setBulkModal(true)}
+                disabled={selectedUsers.length === 0}
+                variant="outline"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Acción Masiva ({selectedUsers.length})
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
 
-        {/* Modals */}
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p>Cargando usuarios...</p>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No se encontraron usuarios</h3>
+              <p className="text-gray-600">Intenta ajustar los filtros de búsqueda.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+                <Checkbox
+                  checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                  onCheckedChange={handleSelectAll}
+                />
+                <span className="font-medium">Seleccionar todos ({filteredUsers.length})</span>
+              </div>
+
+              {filteredUsers.map((user) => (
+                <div
+                  key={user.user_id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center space-x-4 flex-1">
+                    <Checkbox
+                      checked={selectedUsers.includes(user.user_id)}
+                      onCheckedChange={(checked) => handleUserSelection(user.user_id, checked as boolean)}
+                    />
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <p className="font-medium text-sm truncate">{user.email}</p>
+                        <span className="text-xs text-gray-500">({user.name})</span>
+                        
+                        <Badge variant={getStatusBadgeVariant(user.balance_status)}>
+                          {getStatusIcon(user.balance_status)}
+                          <span className="ml-1 capitalize">{user.balance_status}</span>
+                        </Badge>
+                        
+                        {user.is_blocked && (
+                          <Badge variant="destructive">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Bloqueado
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                        <span>Balance: <strong className="text-green-600">{formatCurrency(user.current_balance)}</strong></span>
+                        <span>Gastado: <strong className="text-red-600">{formatCurrency(user.total_spent)}</strong></span>
+                        <span>Llamadas: <strong>{user.total_calls}</strong> (recientes: {user.recent_calls})</span>
+                        <span>Última llamada: <strong>{formatDate(user.last_call_date)}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 ml-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAdjustmentModal({
+                        open: true,
+                        userId: user.user_id,
+                        currentBalance: user.current_balance
+                      })}
+                    >
+                      <Edit3 className="h-4 w-4 mr-1" />
+                      Ajustar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modal de Ajuste Individual */}
+      {adjustmentModal.open && (
         <CreditAdjustmentModal
-          open={showAdjustmentModal}
-          onOpenChange={setShowAdjustmentModal}
-          userId={selectedUserId}
-          onSuccess={fetchUsers}
+          userId={adjustmentModal.userId!}
+          currentBalance={adjustmentModal.currentBalance!}
+          onClose={() => setAdjustmentModal({ open: false })}
+          onAdjust={handleAdjustCredit}
         />
+      )}
+
+      {/* Modal de Acción Masiva */}
+      {bulkModal && (
         <BulkCreditModal
-          open={showBulkModal}
-          onOpenChange={setShowBulkModal}
           selectedUserIds={selectedUsers}
+          onClose={() => setBulkModal(false)}
+          onAdjust={handleAdjustCredit}
           onSuccess={() => {
             fetchUsers();
             setSelectedUsers([]);
           }}
         />
-        <TransactionHistoryModal
-          open={showTransactionModal}
-          onOpenChange={setShowTransactionModal}
-          userId={selectedUserId}
-        />
-      </div>
-    </RoleCheck>
+      )}
+    </div>
+  );
+}
+
+// Modal de Ajuste Individual
+function CreditAdjustmentModal({ 
+  userId, 
+  currentBalance, 
+  onClose, 
+  onAdjust 
+}: {
+  userId: string;
+  currentBalance: number;
+  onClose: () => void;
+  onAdjust: (userId: string, amount: number, description: string, type: 'add' | 'subtract') => Promise<void>;
+}) {
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState<'add' | 'subtract'>('add');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || !description) return;
+
+    setLoading(true);
+    try {
+      await onAdjust(userId, parseFloat(amount), description, type);
+      onClose();
+    } catch (error) {
+      // Error ya manejado en onAdjust
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-96">
+        <CardHeader>
+          <CardTitle>Ajustar Créditos</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Balance actual: <strong>${currentBalance.toFixed(2)}</strong>
+          </p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Tipo de Ajuste</label>
+              <div className="flex space-x-2">
+                <Button
+                  type="button"
+                  variant={type === 'add' ? 'default' : 'outline'}
+                  onClick={() => setType('add')}
+                  className="flex-1"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Agregar
+                </Button>
+                <Button
+                  type="button"
+                  variant={type === 'subtract' ? 'default' : 'outline'}
+                  onClick={() => setType('subtract')}
+                  className="flex-1"
+                >
+                  <TrendingDown className="w-4 h-4 mr-1" />
+                  Descontar
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Cantidad (USD)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Descripción</label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Motivo del ajuste..."
+                required
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : 'Aplicar Ajuste'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Modal de Acción Masiva
+function BulkCreditModal({ 
+  selectedUserIds, 
+  onClose, 
+  onAdjust,
+  onSuccess 
+}: {
+  selectedUserIds: string[];
+  onClose: () => void;
+  onAdjust: (userId: string, amount: number, description: string, type: 'add' | 'subtract') => Promise<void>;
+  onSuccess: () => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState<'add' | 'subtract'>('add');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || !description) return;
+
+    setLoading(true);
+    try {
+      // Aplicar ajuste a cada usuario seleccionado
+      for (const userId of selectedUserIds) {
+        await onAdjust(userId, parseFloat(amount), description, type);
+      }
+      toast.success(`Ajuste aplicado a ${selectedUserIds.length} usuarios`);
+      onSuccess();
+      onClose();
+    } catch (error) {
+      // Error ya manejado en onAdjust
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-96">
+        <CardHeader>
+          <CardTitle>Ajuste Masivo de Créditos</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Aplicar a <strong>{selectedUserIds.length}</strong> usuarios seleccionados
+          </p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Tipo de Ajuste</label>
+              <div className="flex space-x-2">
+                <Button
+                  type="button"
+                  variant={type === 'add' ? 'default' : 'outline'}
+                  onClick={() => setType('add')}
+                  className="flex-1"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Agregar
+                </Button>
+                <Button
+                  type="button"
+                  variant={type === 'subtract' ? 'default' : 'outline'}
+                  onClick={() => setType('subtract')}
+                  className="flex-1"
+                >
+                  <TrendingDown className="w-4 h-4 mr-1" />
+                  Descontar
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Cantidad por Usuario (USD)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Descripción</label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Motivo del ajuste masivo..."
+                required
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : `Aplicar a ${selectedUserIds.length} usuarios`}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
