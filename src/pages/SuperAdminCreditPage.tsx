@@ -60,14 +60,12 @@ export default function SuperAdminCreditPage() {
   return (
     <DashboardLayout>
       <div className="container mx-auto px-4 py-8">
-        
         {/* 🟢 HEADER CON AVISOS TEMPORALES */}
         <div className="space-y-4 mb-6">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               Admin Credits 💳
             </h1>
-            
             {/* 🟢 MOSTRAR BADGE DE SUPER ADMIN SI APLICA */}
             {(isSuperAdmin || user?.email === 'aiagentsdevelopers@gmail.com' || user?.email === 'produpublicol@gmail.com') && (
               <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200 flex items-center gap-1">
@@ -75,11 +73,8 @@ export default function SuperAdminCreditPage() {
                 SUPER ADMIN
               </Badge>
             )}
-            
           </div>
-          
           </div>
-
         {/* 🟢 COMPONENTE PRINCIPAL - ACCESIBLE PARA TODOS */}
         <SuperAdminCreditPanel />
       </div>

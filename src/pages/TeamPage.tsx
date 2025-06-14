@@ -25,10 +25,6 @@ const TeamPage = () => {
     useSuperAdmin();
   const isSuperAdmin = hookSuperAdmin || isEmailSuperAdmin;
 
-console.log("🔥 [TEAM_PAGE] User email:", user?.email);
-console.log("🔥 [TEAM_PAGE] Hook result:", hookSuperAdmin);
-console.log("🔥 [TEAM_PAGE] Email check:", isEmailSuperAdmin);
-console.log("🔥 [TEAM_PAGE] Final isSuperAdmin:", isSuperAdmin);
   const navigate = useNavigate();
   
   // Check access permissions once loading completes
