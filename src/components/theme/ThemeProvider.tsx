@@ -21,33 +21,6 @@ const initialState: ThemeContextType = {
 // Create a context for the theme
 const ThemeContext = createContext<ThemeContextType>(initialState);
 
-// Add script to prevent flash of incorrect theme
-const themeScript = `
-  (function() {
-    const getStoredTheme = () => {
-      try {
-        const storedTheme = localStorage.getItem('theme');
-        return storedTheme ? JSON.parse(storedTheme) : 'system';
-      } catch (e) {
-        return 'system';
-      }
-    };
-    
-    const theme = getStoredTheme();
-    const root = window.document.documentElement;
-    
-    root.classList.remove('light', 'dark');
-    
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light';
-      root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
-  })();
-`;
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const { preferences, updatePreference, isLoading } = useUserPreferences();
@@ -112,17 +85,14 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     updatePreference("theme", newTheme);
   };
   
-  return (
-    <>
-      {/* Add script to head to prevent flash of incorrect theme */}
-      <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-      
-      <ThemeContext.Provider
-        value={{
-          theme,
-          setTheme,
-        }}
-      >
+    return (
+      <>
+        <ThemeContext.Provider
+          value={{
+            theme,
+            setTheme,
+          }}
+        >
         {children}
       </ThemeContext.Provider>
     </>

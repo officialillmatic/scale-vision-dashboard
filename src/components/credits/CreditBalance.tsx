@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { useAgents } from '@/hooks/useAgents'; // NUEVO IMPORT
 import { 
   Wallet, 
@@ -34,17 +35,19 @@ interface CreditBalanceProps {
 
 export function CreditBalance({ onRequestRecharge, showActions = true }: CreditBalanceProps) {
   const { user } = useAuth();
-  
-  // 🔍 LOGS DE DEBUG AGREGADOS
-  console.log('=== CREDITBALANCE DEBUG ===');
-  console.log('Full user object:', user);
-  console.log('User ID:', user?.id);
-  console.log('User email:', user?.email);
-  console.log('User role:', user?.role);
-  console.log('User metadata:', user?.user_metadata);
-  console.log('User app_metadata:', user?.app_metadata);
-  console.log('Is super admin check:', user?.role === 'super_admin');
-  console.log('================================');
+  const navigate = useNavigate();
+
+  if (import.meta.env.DEV) {
+    console.debug('=== CREDITBALANCE DEBUG ===');
+    console.debug('Full user object:', user);
+    console.debug('User ID:', user?.id);
+    console.debug('User email:', user?.email);
+    console.debug('User role:', user?.role);
+    console.debug('User metadata:', user?.user_metadata);
+    console.debug('User app_metadata:', user?.app_metadata);
+    console.debug('Is super admin check:', user?.role === 'super_admin');
+    console.debug('================================');
+  }
   
   const [credits, setCredits] = useState<UserCredit | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,7 +90,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => window.location.href = '/admin/credits'}
+                onClick={() => navigate('/admin/credits')}
                 className="border-blue-300 text-blue-700 hover:bg-blue-100"
               >
                 <Info className="h-4 w-4 mr-2" />

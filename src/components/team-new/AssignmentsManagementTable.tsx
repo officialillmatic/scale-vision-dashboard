@@ -20,8 +20,9 @@ export function AssignmentsManagementTable({ assignments, isLoading, onRefresh }
 
   const handleTogglePrimary = async (assignment: UserAgentAssignment, isPrimary: boolean) => {
     try {
-      // TODO: Implement toggle primary functionality
-      console.log('Toggle primary for assignment:', assignment.id, isPrimary);
+      if (import.meta.env.DEV) {
+        console.debug('Toggle primary for assignment:', assignment.id, isPrimary);
+      }
     } catch (error) {
       console.error('Failed to toggle primary status:', error);
     }
@@ -31,8 +32,9 @@ export function AssignmentsManagementTable({ assignments, isLoading, onRefresh }
     if (window.confirm('Are you sure you want to remove this assignment?')) {
       setRemovingId(assignment.id);
       try {
-        // TODO: Implement remove functionality
-        console.log('Remove assignment:', assignment.id);
+        if (import.meta.env.DEV) {
+          console.debug('Remove assignment:', assignment.id);
+        }
         onRefresh();
       } catch (error) {
         console.error('Failed to remove assignment:', error);

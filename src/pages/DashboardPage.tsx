@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 import { CreditBalance } from "@/components/credits/CreditBalance";
 
@@ -66,15 +67,18 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   // ✅ VERIFICAR SI ES SUPER ADMIN
   const isSuperAdmin = user?.user_metadata?.role === 'super_admin';
   
-  console.log('=== DASHBOARD DEBUG ===');
-  console.log('User:', user);
-  console.log('User metadata role:', user?.user_metadata?.role);
-  console.log('Is super admin:', isSuperAdmin);
-  console.log('========================');
+  if (import.meta.env.DEV) {
+    console.debug('=== DASHBOARD DEBUG ===');
+    console.debug('User:', user);
+    console.debug('User metadata role:', user?.user_metadata?.role);
+    console.debug('Is super admin:', isSuperAdmin);
+    console.debug('========================');
+  }
   
   // Estados para usuarios normales
   const [calls, setCalls] = useState<Call[]>([]);
@@ -693,10 +697,10 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Button 
-                  variant="outline" 
-                  className="h-16 flex items-center justify-between p-4"
-                  onClick={() => window.location.href = '/team'}
+                  <Button
+                    variant="outline"
+                    className="h-16 flex items-center justify-between p-4"
+                    onClick={() => navigate('/team')}
                 >
                   <div className="flex items-center gap-3">
                     <Users className="h-6 w-6 text-blue-600" />
@@ -708,10 +712,10 @@ export default function DashboardPage() {
                   <ArrowRight className="h-4 w-4 text-gray-400" />
                 </Button>
 
-                <Button 
-                  variant="outline" 
-                  className="h-16 flex items-center justify-between p-4"
-                  onClick={() => window.location.href = '/admin/credits'}
+                  <Button
+                    variant="outline"
+                    className="h-16 flex items-center justify-between p-4"
+                    onClick={() => navigate('/admin/credits')}
                 >
                   <div className="flex items-center gap-3">
                     <CreditCard className="h-6 w-6 text-green-600" />
@@ -723,10 +727,10 @@ export default function DashboardPage() {
                   <ArrowRight className="h-4 w-4 text-gray-400" />
                 </Button>
 
-                <Button 
-                  variant="outline" 
-                  className="h-16 flex items-center justify-between p-4"
-                  onClick={() => window.location.href = '/settings'}
+                  <Button
+                    variant="outline"
+                    className="h-16 flex items-center justify-between p-4"
+                    onClick={() => navigate('/settings')}
                 >
                   <div className="flex items-center gap-3">
                     <Settings className="h-6 w-6 text-purple-600" />
