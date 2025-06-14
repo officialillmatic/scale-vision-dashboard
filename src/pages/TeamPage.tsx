@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { TeamMembers } from '@/components/team/TeamMembers';
@@ -20,7 +19,11 @@ const TeamPage = () => {
   const { isSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
   const navigate = useNavigate();
   
-  // 🚨 SOLUCIÓN: Usar la misma lógica que funciona en DashboardPage
+  // 🚨 RESTRICCIONES TEMPORALMENTE DESHABILITADAS
+  // TODO: Restaurar verificaciones de permisos cuando RLS esté funcionando
+  
+  /*
+  // 🔒 VERIFICACIONES ORIGINALES (COMENTADAS TEMPORALMENTE)
   useEffect(() => {
     // No hacer nada mientras está cargando
     if (isSuperAdminLoading) return;
@@ -47,17 +50,26 @@ const TeamPage = () => {
       console.log('✅ [TeamPage] Access granted');
     }
   }, [user, isSuperAdmin, isSuperAdminLoading, isCompanyOwner, can.manageTeam, navigate]);
+  */
   
-  // Mostrar loading mientras verifica permisos
-  if (isSuperAdminLoading) {
-    return <DashboardLayout>
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-gray-600">Loading permissions...</div>
-      </div>
-    </DashboardLayout>;
-  }
+  // 🟢 ACCESO TEMPORAL PARA TODOS LOS USUARIOS
+  useEffect(() => {
+    console.log('🌟 [TeamPage] MODO SIN RESTRICCIONES - Acceso concedido a todos los usuarios');
+    console.log('🔍 [TeamPage] User email:', user?.email);
+    console.log('🔍 [TeamPage] Is super admin:', isSuperAdmin);
+  }, [user, isSuperAdmin]);
   
-  // 🚨 SOLUCIÓN: Misma verificación de acceso que en el efecto
+  // 🟢 SIN LOADING DE PERMISOS - Acceso directo
+  // if (isSuperAdminLoading) {
+  //   return <DashboardLayout>
+  //     <div className="flex items-center justify-center h-64">
+  //       <div className="text-lg text-gray-600">Loading permissions...</div>
+  //     </div>
+  //   </DashboardLayout>;
+  // }
+  
+  // 🚨 VERIFICACIÓN DE ACCESO DESHABILITADA - TODOS TIENEN ACCESO
+  /*
   const hasAccess = isSuperAdmin || 
                    user?.email === 'aiagentsdevelopers@gmail.com' || 
                    user?.email === 'produpublicol@gmail.com' ||
@@ -74,6 +86,7 @@ const TeamPage = () => {
       </Alert>
     </DashboardLayout>;
   }
+  */
   
   return (
     <DashboardLayout>
@@ -84,12 +97,20 @@ const TeamPage = () => {
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               Team Management 👥
             </h1>
+            
+            {/* 🟢 MOSTRAR BADGE DE SUPER ADMIN SI APLICA */}
             {(isSuperAdmin || user?.email === 'aiagentsdevelopers@gmail.com' || user?.email === 'produpublicol@gmail.com') && (
               <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200 flex items-center gap-1">
                 <Crown className="h-3 w-3" />
                 SUPER ADMIN
               </Badge>
             )}
+            
+            {/* 🟢 BADGE TEMPORAL INDICANDO MODO SIN RESTRICCIONES */}
+            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+              🌟 ACCESO TEMPORAL COMPLETO
+            </Badge>
+            
             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
               Team Suite
             </Badge>
@@ -97,6 +118,15 @@ const TeamPage = () => {
           <p className="text-lg text-gray-600 font-medium">
             Manage your team members and AI agent assignments
           </p>
+          
+          {/* 🟢 AVISO TEMPORAL */}
+          <Alert className="border-yellow-200 bg-yellow-50">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800">
+              <strong>Modo temporal:</strong> Restricciones de permisos deshabilitadas para testing. 
+              Todos los usuarios tienen acceso completo.
+            </AlertDescription>
+          </Alert>
         </div>
         
         {/* Tabs Section */}
