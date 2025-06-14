@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { Agent } from '@/services/agentService';
+import {
+  Agent,
+  updateAgent,
+  deleteAgent,
+  assignAgentToUser
+} from '@/services/agentService';
 import { formatCurrency } from '@/lib/utils';
 import { Bot, Edit, Trash2, MoreHorizontal, UserPlus } from 'lucide-react';
 
@@ -31,17 +36,23 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
     }
   };
 
-  const handleEdit = (agent: Agent) => {
-    // TODO: Implement edit functionality
-    console.log('Edit agent:', agent);
+  const handleEdit = async (agent: Agent) => {
+    const name = window.prompt('Agent name', agent.name);
+    if (!name) return;
+    const description = window.prompt('Description', agent.description || '') || '';
+    try {
+      await updateAgent(agent.id, { name, description });
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to update agent:', error);
+    }
   };
 
   const handleDelete = async (agent: Agent) => {
     if (window.confirm(`Are you sure you want to delete "${agent.name}"?`)) {
       setDeletingId(agent.id);
       try {
-        // TODO: Implement delete functionality
-        console.log('Delete agent:', agent);
+        await deleteAgent(agent.id);
         onRefresh();
       } catch (error) {
         console.error('Failed to delete agent:', error);
@@ -51,9 +62,20 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
     }
   };
 
-  const handleAssign = (agent: Agent) => {
-    // TODO: Implement assignment functionality
-    console.log('Assign agent:', agent);
+  const handleAssign = async (agent: Agent) => {
+    const userId = window.prompt('Enter user ID to assign this agent to');
+    if (!userId) return;
+    try {
+      await assignAgentToUser({
+        user_id: userId,
+        agent_id: agent.id,
+        company_id: agent.company_id,
+        is_primary: false
+      });
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to assign agent:', error);
+    }
   };
 
   if (isLoading) {
