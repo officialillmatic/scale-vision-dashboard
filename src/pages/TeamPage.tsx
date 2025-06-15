@@ -354,8 +354,7 @@ export default function TeamPage() {
           id,
           user_id,
           agent_id,
-          is_primary,
-          created_at
+          is_primary
         `);
 
       if (assignmentsError) throw assignmentsError;
@@ -386,7 +385,7 @@ export default function TeamPage() {
           user_name: userData?.name || userData?.full_name || profileData?.name || 'Usuario Desconocido',
           agent_name: agentData?.name || 'Agente Desconocido',
           is_primary: assignment.is_primary || false,
-          created_at: assignment.created_at
+          created_at: new Date().toISOString() // Fecha actual como fallback
         };
       });
 
@@ -722,17 +721,27 @@ export default function TeamPage() {
               <TabsContent value="members" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Miembros del Equipo ({filteredMembers.length})</h3>
-                  <Button onClick={() => setAddMemberModal(true)} size="sm">
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Agregar Miembro
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchTeamMembers} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAddMemberModal(true)} size="sm">
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Agregar Miembro
+                    </Button>
+                  </div>
                 </div>
 
                 {filteredMembers.length === 0 ? (
                   <div className="text-center py-8">
                     <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron miembros</h3>
-                    <p className="text-gray-600">Intenta ajustar los filtros de búsqueda.</p>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchTeamMembers} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Miembros
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -803,17 +812,27 @@ export default function TeamPage() {
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Agentes AI ({filteredAgents.length})</h3>
-                  <Button onClick={() => setAddAgentModal(true)} size="sm">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Agregar Agente
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchAgents} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAddAgentModal(true)} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Agregar Agente
+                    </Button>
+                  </div>
                 </div>
 
                 {filteredAgents.length === 0 ? (
                   <div className="text-center py-8">
                     <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron agentes</h3>
-                    <p className="text-gray-600">Intenta ajustar los filtros de búsqueda.</p>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchAgents} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Agentes
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -868,17 +887,27 @@ export default function TeamPage() {
               <TabsContent value="companies" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Empresas ({filteredCompanies.length})</h3>
-                  <Button onClick={() => setAddCompanyModal(true)} size="sm">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Agregar Empresa
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchCompanies} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAddCompanyModal(true)} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Agregar Empresa
+                    </Button>
+                  </div>
                 </div>
 
                 {filteredCompanies.length === 0 ? (
                   <div className="text-center py-8">
                     <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron empresas</h3>
-                    <p className="text-gray-600">Intenta ajustar los filtros de búsqueda.</p>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchCompanies} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Empresas
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -929,17 +958,27 @@ export default function TeamPage() {
               <TabsContent value="assignments" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Asignaciones Usuario-Agente ({filteredAssignments.length})</h3>
-                  <Button onClick={() => setAssignmentModal({ open: true })} size="sm">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nueva Asignación
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchAssignments} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAssignmentModal({ open: true })} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nueva Asignación
+                    </Button>
+                  </div>
                 </div>
 
                 {filteredAssignments.length === 0 ? (
                   <div className="text-center py-8">
                     <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron asignaciones</h3>
-                    <p className="text-gray-600">Intenta ajustar los filtros de búsqueda.</p>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchAssignments} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Asignaciones
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
