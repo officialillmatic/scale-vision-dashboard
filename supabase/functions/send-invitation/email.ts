@@ -1,59 +1,138 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-interface InvitationData {
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info, accept, accept-profile, content-profile',
+  'Access-Control-Max-Age': '86400'
+};
+
+function createSuccessResponse(data: any): Response {
+  return new Response(
+    JSON.stringify({ 
+      ...data, 
+      success: true,
+      timestamp: new Date().toISOString()
+    }), 
+    { 
+      status: 200, 
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json' 
+      } 
+    }
+  );
+}
+
+function createErrorResponse(message: string, status: number = 400): Response {
+  return new Response(
+    JSON.stringify({ 
+      error: message, 
+      success: false,
+      timestamp: new Date().toISOString()
+    }), 
+    { 
+      status, 
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json' 
+      } 
+    }
+  );
+}
+
+interface InvitationRequest {
   email: string;
   token: string;
   role: string;
-  company_id?: string;
   company_name?: string;
   invited_by_email?: string;
 }
 
-export async function sendInvitationEmail(invitation: InvitationData) {
-  console.log("🚀 [sendInvitationEmail] Starting real email send...");
-  
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { 
+      status: 204,
+      headers: corsHeaders 
+    });
+  }
+
+  if (req.method !== 'POST') {
+    return createErrorResponse('Method not allowed', 405);
+  }
+
   try {
-    console.log("📧 [sendInvitationEmail] Recipient:", invitation.email);
-    console.log("🏷️ [sendInvitationEmail] Role:", invitation.role);
-    console.log("🔑 [sendInvitationEmail] Has token:", !!invitation.token);
+    console.log('[SEND-INVITATION-EMAIL] Starting Supabase email send process');
     
-    // Call Supabase Edge Function to send email
-    const { data, error } = await supabase.functions.invoke('send-invitation-email', {
-      body: {
-        email: invitation.email,
-        token: invitation.token,
-        role: invitation.role,
-        company_name: invitation.company_name || 'Dr. Scale AI',
-        invited_by_email: invitation.invited_by_email
+    // Get Supabase service role key
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[SEND-INVITATION-EMAIL] Missing Supabase configuration');
+      return createErrorResponse('Email service not configured properly', 500);
+    }
+
+    // Create Supabase admin client
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
       }
     });
-    
-    if (error) {
-      console.error("❌ [sendInvitationEmail] Supabase function error:", error);
-      throw new Error(`Failed to send email: ${error.message}`);
+
+    // Parse request body
+    const body: InvitationRequest = await req.json();
+    console.log('[SEND-INVITATION-EMAIL] Request body:', { 
+      email: body.email, 
+      role: body.role, 
+      hasToken: !!body.token 
+    });
+
+    if (!body.email || !body.token) {
+      return createErrorResponse('Missing required fields: email, token', 400);
     }
+
+    // Create invitation URL
+    const invitationUrl = `https://drscaleai.com/accept-invitation?token=${body.token}`;
+    console.log('[SEND-INVITATION-EMAIL] Invitation URL:', invitationUrl);
+
+    // Send invitation email using Supabase Auth
+    console.log('[SEND-INVITATION-EMAIL] Sending invitation via Supabase Auth...');
     
-    if (!data.success) {
-      console.error("❌ [sendInvitationEmail] Email sending failed:", data.error);
-      throw new Error(`Email sending failed: ${data.error}`);
+    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+      body.email,
+      {
+        data: {
+          // Custom metadata for the email template
+          role: body.role,
+          company_name: body.company_name || 'Dr. Scale AI',
+          invited_by_email: body.invited_by_email || 'team@drscaleai.com',
+          invitation_token: body.token,
+          custom_invitation_url: invitationUrl
+        },
+        redirectTo: invitationUrl
+      }
+    );
+
+    if (inviteError) {
+      console.error('[SEND-INVITATION-EMAIL] Supabase invite error:', inviteError);
+      return createErrorResponse(`Failed to send invitation: ${inviteError.message}`, 500);
     }
+
+    console.log('[SEND-INVITATION-EMAIL] Invitation sent successfully via Supabase');
+    console.log('[SEND-INVITATION-EMAIL] Invite data:', inviteData);
     
-    console.log("✅ [sendInvitationEmail] Email sent successfully!");
-    console.log("📨 [sendInvitationEmail] Email ID:", data.email_id);
-    
-    return { 
-      success: true, 
-      message: "Email sent successfully",
-      email_id: data.email_id
-    };
-    
-  } catch (error: any) {
-    console.error("💥 [sendInvitationEmail] Error:", error);
-    
-    // Fallback: Log the invitation URL for manual sending
-    const invitationUrl = `https://drscaleai.com/accept-invitation?token=${invitation.token}`;
-    console.log("🔗 [sendInvitationEmail] FALLBACK - Invitation URL:", invitationUrl);
-    
-    throw new Error(`Failed to send invitation email: ${error.message}`);
+    return createSuccessResponse({
+      message: 'Invitation email sent successfully via Supabase',
+      email_id: inviteData.user?.id || 'supabase-invite',
+      recipient: body.email,
+      method: 'supabase-auth'
+    });
+
+  } catch (error) {
+    console.error('[SEND-INVITATION-EMAIL] Unexpected error:', error);
+    return createErrorResponse('Failed to send invitation email', 500);
   }
-}
+});
