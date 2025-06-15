@@ -156,15 +156,14 @@ export default function AcceptInvitation() {
       }
 
       // 2. Crear perfil de usuario
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: userId,
-          email: invitation.email,
-          name: invitation.name,
-          role: invitation.role,
-          company_id: invitation.company_id || null
-        });
+const { error: profileError } = await supabase
+  .from('profiles')
+  .insert({
+    id: authData.user.id,
+    name: formData.fullName,     // ✅ Correcto
+    email: invitation.email,     // ✅ Correcto
+    role: invitation.role        // ✅ Correcto
+  });
 
       if (profileError) {
         console.error('❌ Error creating profile:', profileError);
@@ -202,17 +201,16 @@ export default function AcceptInvitation() {
 
       // 5. Si tiene empresa, agregarlo como miembro
       if (invitation.company_id) {
-        const { error: memberError } = await supabase
-          .from('company_members')
-          .insert({
-            user_id: userId,
-            company_id: invitation.company_id,
-            role: 'member'
-          });
-
-        if (memberError) {
-          console.warn('⚠️ Error adding to company:', memberError);
-        }
+  const { error: companyError } = await supabase
+    .from('company_members')
+    .insert({
+      company_id: invitation.company_id,
+      user_id: authData.user.id,
+      role: invitation.role
+    });
+  
+  if (companyError) console.warn('Error agregando a empresa:', companyError);
+}
       }
 
       // 6. Marcar invitación como aceptada
