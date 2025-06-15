@@ -18,7 +18,7 @@ export async function sendInvitationEmail(invitation: InvitationData) {
     console.log("🔑 [sendInvitationEmail] Has token:", !!invitation.token);
     
     // Call Supabase Edge Function to send email
-    const { data, error } = await supabase.functions.invoke('send-invitation-email', {
+    const { data, error } = await supabase.functions.invoke('send-invitation', {
       body: {
         email: invitation.email,
         token: invitation.token,
