@@ -62,7 +62,7 @@ export default function AcceptInvitation() {
     try {
       console.log('🔍 Buscando invitación con token:', token);
 
-      onst { data, error } = await supabase
+      const { data, error } = await supabase
   .from('team_invitations')
   .select('*')
   .eq('invitation_token', token)
