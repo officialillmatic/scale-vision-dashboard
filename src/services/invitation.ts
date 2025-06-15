@@ -9,17 +9,17 @@ export const checkInvitation = async (token: string) => {
       .select('*')
       .eq('invitation_token', token)
       .single();
-
+    
     console.log('📊 Invitation data:', data);
     console.log('❌ Invitation error:', error);
-
+    
     if (error || !data) {
       return { 
         valid: false, 
         error: 'Invitation not found or has been removed' 
       };
     }
-
+    
     // Verificar si ya fue aceptada
     if (data.accepted_at) {
       return { 
@@ -27,7 +27,7 @@ export const checkInvitation = async (token: string) => {
         error: 'This invitation has already been accepted' 
       };
     }
-
+    
     // Verificar si expiró
     if (new Date(data.expires_at) < new Date()) {
       return { 
@@ -35,7 +35,7 @@ export const checkInvitation = async (token: string) => {
         error: 'This invitation has expired' 
       };
     }
-
+    
     return { 
       valid: true, 
       invitation: {
@@ -62,7 +62,27 @@ export const checkInvitation = async (token: string) => {
 
 export const acceptInvitation = async (token: string, userId: string) => {
   try {
-    const { error } = await supabase
+    console.log('🎯 [acceptInvitation] Starting invitation acceptance...');
+    console.log('🔑 [acceptInvitation] Token:', token);
+    console.log('👤 [acceptInvitation] User ID:', userId);
+
+    // Primero, obtener los datos de la invitación
+    const { data: invitationData, error: getError } = await supabase
+      .from('team_invitations')
+      .select('company_id, role, email')
+      .eq('invitation_token', token)
+      .single();
+
+    if (getError || !invitationData) {
+      console.error('❌ [acceptInvitation] Error getting invitation:', getError);
+      return { success: false, error: 'Invitation not found' };
+    }
+
+    console.log('📊 [acceptInvitation] Invitation data:', invitationData);
+
+    // 1. Actualizar team_invitations
+    console.log('📝 [acceptInvitation] Updating invitation status...');
+    const { error: updateError } = await supabase
       .from('team_invitations')
       .update({
         status: 'accepted',
@@ -71,14 +91,59 @@ export const acceptInvitation = async (token: string, userId: string) => {
       })
       .eq('invitation_token', token);
 
-    if (error) {
-      console.error('❌ Error accepting invitation:', error);
-      return { success: false, error: error.message };
+    if (updateError) {
+      console.error('❌ [acceptInvitation] Error updating invitation:', updateError);
+      return { success: false, error: updateError.message };
     }
 
+    console.log('✅ [acceptInvitation] Invitation status updated successfully');
+
+    // 2. Verificar si el usuario ya existe en company_users (por si acaso)
+    console.log('🔍 [acceptInvitation] Checking existing company_users record...');
+    const { data: existingUser, error: checkError } = await supabase
+      .from('company_users')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('company_id', invitationData.company_id)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('❌ [acceptInvitation] Error checking existing user:', checkError);
+      return { success: false, error: checkError.message };
+    }
+
+    if (existingUser) {
+      console.log('⚠️ [acceptInvitation] User already exists in company, skipping insert');
+      return { success: true };
+    }
+
+    // 3. Crear registro en company_users
+    console.log('👥 [acceptInvitation] Creating company_users record...');
+    console.log('📊 [acceptInvitation] Company ID:', invitationData.company_id);
+    console.log('👤 [acceptInvitation] User ID:', userId);
+    console.log('🏷️ [acceptInvitation] Role:', invitationData.role);
+    
+    const { error: insertError } = await supabase
+      .from('company_users')
+      .insert({
+        user_id: userId,
+        company_id: invitationData.company_id,
+        role: invitationData.role,
+        created_at: new Date().toISOString()
+      });
+
+    if (insertError) {
+      console.error('❌ [acceptInvitation] Error creating company_users:', insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    console.log('✅ [acceptInvitation] Company_users record created successfully');
+    console.log('🎉 [acceptInvitation] Invitation accepted successfully!');
+    
     return { success: true };
+
   } catch (error: any) {
-    console.error('💥 Error accepting invitation:', error);
+    console.error('💥 [acceptInvitation] Unexpected error:', error);
     return { success: false, error: error.message };
   }
 };
