@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import React, { useState, useEffect } from 'react';
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,9 +25,11 @@ import {
   Eye,
   Download,
   Minus,
-  User
+  User,
+  Activity
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 interface UserCredit {
   user_id: string;
@@ -295,28 +298,53 @@ export default function SuperAdminCreditPage() {
     totalCalls: users.reduce((sum, u) => sum + u.total_calls, 0)
   };
 
+  if (!user) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <p className="text-red-600 font-medium">Por favor inicia sesión para ver el panel</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (!isSuperAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <Card className="max-w-md mx-auto">
-          <CardContent className="p-6 text-center">
-            <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Acceso Denegado</h3>
-            <p className="text-muted-foreground mb-4">
-              Se requieren privilegios de super administrador para acceder a este panel.
-            </p>
-            <p className="text-xs text-gray-400">
-              Usuario actual: {user?.email || 'No autenticado'}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <DashboardLayout>
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <Card className="max-w-md mx-auto">
+            <CardContent className="p-6 text-center">
+              <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Acceso Denegado</h3>
+              <p className="text-muted-foreground mb-4">
+                Se requieren privilegios de super administrador para acceder a este panel.
+              </p>
+              <p className="text-xs text-gray-400">
+                Usuario actual: {user?.email || 'No autenticado'}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <LoadingSpinner size="lg" />
+          <span className="ml-3 text-gray-600">Cargando panel de gestión de créditos...</span>
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <DashboardLayout>
+      <div className="w-full space-y-4 sm:space-y-6">
         {/* Banner identificador */}
         <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
           <div className="flex items-center space-x-3">
@@ -336,10 +364,10 @@ export default function SuperAdminCreditPage() {
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
           <div className="flex items-center space-x-3">
-            <h1 className="text-3xl font-bold">🚀 Panel de Gestión de Créditos</h1>
-            <Badge variant="default" className="bg-blue-50 text-blue-700 border-blue-200">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">🚀 Gestión de Créditos</h1>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
               <Shield className="w-3 h-3 mr-1" />
               Super Admin
             </Badge>
@@ -348,12 +376,12 @@ export default function SuperAdminCreditPage() {
               Datos en Tiempo Real
             </Badge>
           </div>
-          <div className="flex space-x-2">
-            <Button onClick={exportData} variant="outline">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button onClick={exportData} variant="outline" size="sm">
               <Download className="w-4 h-4 mr-2" />
               Exportar CSV
             </Button>
-            <Button onClick={fetchUsers} disabled={loading} variant="outline">
+            <Button onClick={fetchUsers} disabled={loading} variant="outline" size="sm">
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Actualizar
             </Button>
@@ -362,7 +390,7 @@ export default function SuperAdminCreditPage() {
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-4">
-          <Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <Users className="h-4 w-4 text-blue-500" />
@@ -374,7 +402,7 @@ export default function SuperAdminCreditPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 rounded bg-green-500" />
@@ -386,7 +414,7 @@ export default function SuperAdminCreditPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-yellow-50 to-yellow-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 rounded bg-yellow-500" />
@@ -398,7 +426,7 @@ export default function SuperAdminCreditPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 rounded bg-red-500" />
@@ -410,7 +438,7 @@ export default function SuperAdminCreditPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-gray-50 to-gray-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <AlertTriangle className="h-4 w-4 text-red-500" />
@@ -422,7 +450,7 @@ export default function SuperAdminCreditPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <DollarSign className="h-4 w-4 text-green-500" />
@@ -434,7 +462,7 @@ export default function SuperAdminCreditPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <TrendingDown className="h-4 w-4 text-red-500" />
@@ -446,7 +474,7 @@ export default function SuperAdminCreditPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <Phone className="h-4 w-4 text-purple-500" />
@@ -460,7 +488,7 @@ export default function SuperAdminCreditPage() {
         </div>
 
         {/* Filters and Content */}
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
               <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-4">
@@ -495,6 +523,7 @@ export default function SuperAdminCreditPage() {
                   onClick={() => setBulkModal(true)}
                   disabled={selectedUsers.length === 0}
                   variant="outline"
+                  size="sm"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Acción Masiva ({selectedUsers.length})
@@ -625,7 +654,7 @@ export default function SuperAdminCreditPage() {
           />
         )}
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 
