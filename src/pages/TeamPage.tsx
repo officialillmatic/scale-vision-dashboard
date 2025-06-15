@@ -678,45 +678,46 @@ export default function TeamPage() {
   };
 
   const fetchInvitations = async () => {
-    try {
-      const { data: invitationsData, error: invitationsError } = await supabase
-        .from('team_invitations')
-        .select(`
-  *,
-  company:companies(name),
-  invited_by_profile:profiles!team_invitations_invited_by_fkey(full_name, email)
-`)
-        .order('created_at', { ascending: false });
+  try {
+    console.log('🔍 Fetching invitations...');
+    
+    const { data: invitationsData, error: invitationsError } = await supabase
+      .from('team_invitations')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      if (invitationsError) {
-        console.error('❌ Error fetching invitations:', invitationsError);
-        return;
-      }
+    console.log('📊 Invitations data:', invitationsData);
+    console.log('❌ Invitations error:', invitationsError);
 
-      const combinedInvitations: UserInvitation[] = (invitationsData || []).map(invitation => ({
-        id: invitation.id,
-        email: invitation.email,
-        name: invitation.name,
-        role: invitation.role,
-        company_id: invitation.company_id,
-        company_name: invitation.companies?.name || null,
-        token: invitation.invitation_token,
-        expires_at: invitation.expires_at,
-        invited_by: invitation.invited_by,
-        invited_by_email: invitation.invited_by_profile?.email,
-        status: invitation.status,
-        created_at: invitation.created_at,
-        accepted_at: invitation.accepted_at,
-        user_id: invitation.user_id
-      }));
-
-      setInvitations(combinedInvitations);
-      console.log('✅ Invitations loaded:', combinedInvitations.length);
-
-    } catch (error: any) {
-      console.error('❌ Error fetching invitations:', error);
+    if (invitationsError) {
+      console.error('❌ Error fetching invitations:', invitationsError);
+      return;
     }
-  };
+
+    const combinedInvitations: UserInvitation[] = (invitationsData || []).map(invitation => ({
+      id: invitation.id,
+      email: invitation.email,
+      name: invitation.email, // Usar email como nombre temporalmente
+      role: invitation.role,
+      company_id: invitation.company_id,
+      company_name: null,
+      token: invitation.invitation_token,
+      expires_at: invitation.expires_at,
+      invited_by: invitation.invited_by,
+      invited_by_email: null,
+      status: invitation.status || 'pending',
+      created_at: invitation.created_at,
+      accepted_at: invitation.accepted_at,
+      user_id: invitation.accepted_by
+    }));
+
+    console.log('✅ Combined invitations:', combinedInvitations);
+    setInvitations(combinedInvitations);
+
+  } catch (error: any) {
+    console.error('❌ Error fetching invitations:', error);
+  }
+};
   // ========================================
   // FUNCIONES DE MANEJO
   // ========================================
