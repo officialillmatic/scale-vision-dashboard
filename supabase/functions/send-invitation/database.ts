@@ -18,7 +18,7 @@ export async function getCompanyDetails(supabase: any, companyId: string) {
 
 export async function checkExistingInvitation(supabase: any, companyId: string, email: string) {
   const { data: existingInvites, error: checkError } = await supabase
-    .from("company_invitations_raw")
+    .from("team_invitations")
     .select("id")
     .eq("company_id", companyId)
     .eq("email", email)
@@ -62,7 +62,7 @@ export async function createInvitationRecord(
   console.log("Creating invitation with data:", invitationData);
 
   const { data: newInvitation, error: createError } = await supabase
-    .from("company_invitations_raw")
+    .from("team_invitations")
     .insert(invitationData)
     .select()
     .single();
@@ -86,7 +86,7 @@ export async function updateInvitationExpiry(supabase: any, invitationId: string
   expiresAt.setDate(expiresAt.getDate() + 7);
   
   const { error: updateError } = await supabase
-    .from("company_invitations_raw")
+    .from("team_invitations")
     .update({
       expires_at: expiresAt.toISOString(),
       status: "pending"
@@ -101,7 +101,7 @@ export async function updateInvitationExpiry(supabase: any, invitationId: string
 
 export async function getExistingInvitation(supabase: any, invitationId: string) {
   const { data: existingInvitation, error: invitationError } = await supabase
-    .from("company_invitations_raw")
+    .from("team_invitations")
     .select("*")
     .eq("id", invitationId)
     .single();
