@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { sendInvitationEmail } from '@/services/send-invitation/email';
 
 // ========================================
 // INTERFACES
@@ -472,16 +473,35 @@ export default function TeamPage() {
   // Verificación de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
   const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
-
   useEffect(() => {
     if (user && isSuperAdmin) {
       fetchAllData();
+      
+      // 🔄 LISTENER PARA REFRESCAR CUANDO SE REGISTRA UN USUARIO
+      const handleTeamMemberRegistered = (event: any) => {
+        console.log('🔄 [TeamPage] Team member registered event received:', event.detail);
+        
+        // Esperar un poco y luego refrescar
+        setTimeout(() => {
+          console.log('🔄 [TeamPage] Refreshing team data after new registration...');
+          fetchAllData();
+        }, 1000);
+      };
+
+      // Escuchar eventos de registro
+      window.addEventListener('teamMemberRegistered', handleTeamMemberRegistered);
+
+      // Cleanup
+      return () => {
+        window.removeEventListener('teamMemberRegistered', handleTeamMemberRegistered);
+      };
     }
   }, [user, isSuperAdmin]);
 
   useEffect(() => {
     applyFilters();
   }, [teamMembers, agents, companies, assignments, invitations, searchQuery, statusFilter, activeTab]);
+
   // ========================================
   // FUNCIONES DE FETCH
   // ========================================
@@ -519,6 +539,26 @@ export default function TeamPage() {
 
       console.log('📊 Raw users data:', usersData);
 
+      // 2. Consultar miembros de empresas desde company_members
+      const { data: companyMembersData, error: companyMembersError } = await supabase
+        .from('company_members')
+        .select(`
+          user_id,
+          company_id,
+          role,
+          created_at,
+          companies:company_id (
+            id,
+            name
+          )
+        `);
+
+      if (companyMembersError) {
+        console.error('❌ Error fetching company_members:', companyMembersError);
+      }
+
+      console.log('👥 Company members data:', companyMembersData);
+
       if (!usersData || usersData.length === 0) {
         console.log('⚠️ No users found');
         setTeamMembers([]);
@@ -534,11 +574,16 @@ export default function TeamPage() {
       const creditsData = creditsResult.data || [];
       const callsData = callsResult.data || [];
       const profilesData = profilesResult.data || [];
+      const companyMembers = companyMembersData || [];
 
+      // 4. Combinar datos de todas las fuentes
       const combinedMembers: TeamMember[] = usersData.map(user => {
         const profile = profilesData.find(p => p.id === user.id);
         const credit = creditsData.find(c => c.user_id === user.id);
         const userCalls = callsData.filter(c => c.user_id === user.id);
+        
+        // 🎯 BUSCAR EN COMPANY_MEMBERS PARA OBTENER LA EMPRESA CORRECTA
+        const companyMember = companyMembers.find(cm => cm.user_id === user.id);
 
         const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
         const currentBalance = credit?.current_balance || 0;
@@ -547,10 +592,12 @@ export default function TeamPage() {
           id: user.id,
           email: user.email || profile?.email || `user-${user.id.slice(0, 8)}`,
           name: user.name || user.full_name || profile?.name || user.email || 'Usuario',
-          role: profile?.role || user.role || 'user',
+          // 🎯 PRIORIZAR ROLE DE COMPANY_MEMBERS
+          role: companyMember?.role || profile?.role || user.role || 'user',
           status: currentBalance > 0 ? 'active' : 'inactive',
-          company_id: profile?.company_id || user.company_id,
-          company_name: null,
+          // 🎯 PRIORIZAR COMPANY DE COMPANY_MEMBERS
+          company_id: companyMember?.company_id || profile?.company_id || user.company_id,
+          company_name: companyMember?.companies?.name || null,
           created_at: user.created_at || new Date().toISOString(),
           last_login: user.last_sign_in_at,
           total_calls: userCalls.length,
@@ -560,8 +607,19 @@ export default function TeamPage() {
         };
       });
 
-      setTeamMembers(combinedMembers);
-      console.log('✅ Team members loaded successfully:', combinedMembers.length);
+      // 5. Ordenar: primero los que tienen empresa, luego por fecha
+      const sortedMembers = combinedMembers.sort((a, b) => {
+        // Priorizar usuarios con empresa
+        if (a.company_id && !b.company_id) return -1;
+        if (!a.company_id && b.company_id) return 1;
+        
+        // Luego por fecha de creación (más recientes primero)
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      setTeamMembers(sortedMembers);
+      console.log('✅ Team members loaded successfully:', sortedMembers.length);
+      console.log('👥 Members with companies:', sortedMembers.filter(m => m.company_id).length);
 
     } catch (error: any) {
       console.error('❌ Error fetching team members:', error);
@@ -678,51 +736,51 @@ export default function TeamPage() {
   };
 
   const fetchInvitations = async () => {
-  try {
-    console.log('🔍 Fetching invitations...');
-    
-    const { data: invitationsData, error: invitationsError } = await supabase
-      .from('team_invitations')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      console.log('🔍 Fetching invitations...');
+      
+      const { data: invitationsData, error: invitationsError } = await supabase
+        .from('team_invitations')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    console.log('📊 Invitations data:', invitationsData);
-    console.log('❌ Invitations error:', invitationsError);
+      console.log('📊 Invitations data:', invitationsData);
+      console.log('❌ Invitations error:', invitationsError);
 
-    if (invitationsError) {
-      console.error('❌ Error fetching invitations:', invitationsError);
-      return;
+      if (invitationsError) {
+        console.error('❌ Error fetching invitations:', invitationsError);
+        return;
+      }
+
+      const combinedInvitations: UserInvitation[] = (invitationsData || []).map(invitation => ({
+        id: invitation.id,
+        email: invitation.email,
+        name: invitation.email, // Usar email como nombre temporalmente
+        role: invitation.role,
+        company_id: invitation.company_id,
+        company_name: null,
+        token: invitation.invitation_token,
+        expires_at: invitation.expires_at,
+        invited_by: invitation.invited_by,
+        invited_by_email: null,
+        status: invitation.status || 'pending',
+        created_at: invitation.created_at,
+        accepted_at: invitation.accepted_at,
+        user_id: invitation.accepted_by
+      }));
+
+      console.log('✅ Combined invitations:', combinedInvitations);
+      setInvitations(combinedInvitations);
+
+    } catch (error: any) {
+      console.error('❌ Error fetching invitations:', error);
     }
-
-    const combinedInvitations: UserInvitation[] = (invitationsData || []).map(invitation => ({
-      id: invitation.id,
-      email: invitation.email,
-      name: invitation.email, // Usar email como nombre temporalmente
-      role: invitation.role,
-      company_id: invitation.company_id,
-      company_name: null,
-      token: invitation.invitation_token,
-      expires_at: invitation.expires_at,
-      invited_by: invitation.invited_by,
-      invited_by_email: null,
-      status: invitation.status || 'pending',
-      created_at: invitation.created_at,
-      accepted_at: invitation.accepted_at,
-      user_id: invitation.accepted_by
-    }));
-
-    console.log('✅ Combined invitations:', combinedInvitations);
-    setInvitations(combinedInvitations);
-
-  } catch (error: any) {
-    console.error('❌ Error fetching invitations:', error);
-  }
-};
+  };
   // ========================================
   // FUNCIONES DE MANEJO
   // ========================================
 
-  // Función para enviar invitación
+  // Función para enviar invitación CON EMAIL AUTOMÁTICO
   const handleSendInvitation = async (memberData: {
     email: string;
     name: string;
@@ -739,21 +797,6 @@ export default function TeamPage() {
 
       console.log('📧 Super admin enviando invitación:', user?.email, '→', memberData.email);
 
-      // Verificación adicional del rol del usuario actual - TEMPORALMENTE COMENTADO
-/*
-const { data: currentUserProfile, error: profileError } = await supabase
-  .from('user_profiles')
-  .select('role, email')
-  .eq('id', user?.id)
-  .single();
-
-if (profileError || currentUserProfile?.role !== 'super_admin') {
-  toast.error('❌ Permisos insuficientes para enviar invitaciones');
-  console.error('🚨 Usuario sin permisos intentó invitar:', currentUserProfile);
-  return;
-}
-*/
-
       // 1. Verificar que el email no exista ya como usuario
       const { data: existingUser } = await supabase
         .from('user_profiles')
@@ -768,7 +811,7 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
 
       // 2. Verificar que no haya invitación pendiente
       const { data: existingInvitation } = await supabase
-        .from('user_invitations')
+        .from('team_invitations')
         .select('id, status, created_at')
         .eq('email', memberData.email)
         .eq('status', 'pending')
@@ -789,14 +832,14 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
       const { data: invitation, error: invitationError } = await supabase
         .from('team_invitations')
         .insert({
-  email: memberData.email,
-  role: memberData.role,
-  company_id: memberData.company_id || null,
-  invitation_token: invitationToken,
-  expires_at: expiresAt.toISOString(),
-  invited_by: user?.id,
-  status: 'pending'
-})
+          email: memberData.email,
+          role: memberData.role,
+          company_id: memberData.company_id || null,
+          invitation_token: invitationToken,
+          expires_at: expiresAt.toISOString(),
+          invited_by: user?.id,
+          status: 'pending'
+        })
         .select()
         .single();
 
@@ -806,7 +849,44 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
         return;
       }
 
-      // 5. Registrar la acción en logs (para auditoría)
+      // 5. Enviar email automáticamente
+      toast.loading('📧 Enviando invitación por email...', { id: 'sending-email' });
+      
+      try {
+        await sendInvitationEmail({
+          email: memberData.email,
+          token: invitationToken,
+          role: memberData.role,
+          company_name: 'Dr. Scale AI',
+          invited_by_email: user?.email
+        });
+        
+        // 6. Éxito - Email enviado
+        toast.success('✅ Invitación enviada exitosamente por email', {
+          id: 'sending-email',
+          description: `Invitación enviada a ${memberData.email}`,
+          duration: 5000
+        });
+        
+      } catch (emailError: any) {
+        console.error('❌ Error sending email:', emailError);
+        
+        // 7. Fallback - Mostrar URL manual si el email falla
+        const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitationToken}`;
+        
+        toast.error('⚠️ Error enviando email - URL manual generada', {
+          id: 'sending-email',
+          description: 'La invitación se creó pero no se pudo enviar el email',
+          duration: 10000
+        });
+        
+        toast.info('🔗 URL de invitación (copiar manualmente)', {
+          description: invitationUrl,
+          duration: 15000
+        });
+      }
+
+      // 8. Registrar la acción en logs (para auditoría)
       console.log(`✅ INVITACIÓN CREADA:
         Super Admin: ${user?.email}
         Invitado: ${memberData.email} (${memberData.name})
@@ -815,30 +895,15 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
         Expira: ${expiresAt.toLocaleDateString()}
       `);
 
-      // 6. URL de invitación
-      const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitationToken}`;
-
-      toast.success('✅ Invitación enviada exitosamente', {
-        description: `Invitación enviada a ${memberData.email}`,
-        duration: 5000
-      });
-
-      // 7. Mostrar URL temporalmente para testing
-      toast.info('🔗 URL de invitación (para testing)', {
-        description: invitationUrl,
-        duration: 15000
-      });
-
-      // 8. Actualizar la lista y cerrar modal
+      // 9. Actualizar la lista y cerrar modal
       await fetchAllData();
       setAddMemberModal(false);
 
     } catch (error: any) {
       console.error('❌ Error enviando invitación:', error);
-      toast.error(`Error inesperado: ${error.message}`);
+      toast.error(`Error inesperado: ${error.message}`, { id: 'sending-email' });
     }
   };
-
   // Función para editar miembro
   const handleEditMember = async (memberId: string, updatedData: {
     name: string;
@@ -1068,6 +1133,7 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
     totalInvitations: invitations.length,
     pendingInvitations: invitations.filter(i => i.status === 'pending').length
   };
+
   // ========================================
   // VERIFICACIONES DE SEGURIDAD
   // ========================================
@@ -1135,7 +1201,7 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
               </p>
             </div>
             <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-              v3.0 - Con Invitaciones
+              v3.1 - Con Emails Automáticos
             </Badge>
           </div>
         </div>
@@ -1224,15 +1290,15 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
             <CardHeader className="pb-2">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-                <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-gray-100/80 p-1 rounded-lg">
+                <TabsList className="grid w-full max-w-2xl grid-cols-5 bg-gray-100/80 p-1 rounded-lg">
                   <TabsTrigger value="members" className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     <span className="hidden sm:inline">Miembros</span>
                   </TabsTrigger>
                   <TabsTrigger value="invitations" className="flex items-center gap-2">
-  <Mail className="h-4 w-4" />
-  <span className="hidden sm:inline">Invitaciones</span>
-</TabsTrigger>
+                    <Mail className="h-4 w-4" />
+                    <span className="hidden sm:inline">Invitaciones</span>
+                  </TabsTrigger>
                   <TabsTrigger value="agents" className="flex items-center gap-2">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Agentes</span>
@@ -1400,108 +1466,108 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
                   </div>
                 )}
               </TabsContent>
-              {/* Tab: Invitaciones Enviadas - NUEVO */}
-<TabsContent value="invitations" className="space-y-4 mt-0">
-  <div className="flex justify-between items-center">
-    <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
-    <div className="flex gap-2">
-      <Button onClick={fetchInvitations} variant="outline" size="sm" disabled={loading}>
-        <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-        Actualizar
-      </Button>
-    </div>
-  </div>
+              {/* Tab: Invitaciones Enviadas */}
+              <TabsContent value="invitations" className="space-y-4 mt-0">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchInvitations} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                  </div>
+                </div>
 
-  {filteredInvitations.length === 0 ? (
-    <div className="text-center py-8">
-      <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-      <h3 className="text-lg font-semibold mb-2">No hay invitaciones enviadas</h3>
-      <p className="text-gray-600 mb-4">Las invitaciones que envíes aparecerán aquí.</p>
-      <Button onClick={() => setAddMemberModal(true)} size="sm">
-        <UserPlus className="w-4 h-4 mr-2" />
-        Enviar Primera Invitación
-      </Button>
-    </div>
-  ) : (
-    <div className="space-y-3">
-      {filteredInvitations.map((invitation) => (
-        <div
-          key={invitation.id}
-          className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          <div className="flex items-center space-x-4 flex-1">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <p className="font-medium text-sm">{invitation.email}</p>
-                <span className="text-xs text-gray-500">({invitation.name})</span>
-                
-                <Badge variant={
-                  invitation.status === 'pending' ? 'secondary' :
-                  invitation.status === 'accepted' ? 'default' :
-                  invitation.status === 'expired' ? 'destructive' : 'outline'
-                }>
-                  {invitation.status === 'pending' && <Calendar className="h-3 w-3 mr-1" />}
-                  {invitation.status === 'accepted' && <CheckCircle className="h-3 w-3 mr-1" />}
-                  {invitation.status === 'expired' && <XCircle className="h-3 w-3 mr-1" />}
-                  {invitation.status}
-                </Badge>
-                
-                <Badge variant="outline">
-                  {invitation.role === 'admin' && <Crown className="h-3 w-3 mr-1" />}
-                  {invitation.role === 'super_admin' && <Shield className="h-3 w-3 mr-1" />}
-                  {invitation.role === 'user' && <User className="h-3 w-3 mr-1" />}
-                  {invitation.role}
-                </Badge>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
-                <span>Invitado por: <strong>{invitation.invited_by_email}</strong></span>
-                <span>Enviado: <strong>{formatDate(invitation.created_at)}</strong></span>
-                <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
-              </div>
-              
-              {invitation.accepted_at && (
-                <p className="text-xs text-green-600 mt-1">
-                  ✅ Aceptado el {formatDate(invitation.accepted_at)}
-                </p>
-              )}
-            </div>
-          </div>
+                {filteredInvitations.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No hay invitaciones enviadas</h3>
+                    <p className="text-gray-600 mb-4">Las invitaciones que envíes aparecerán aquí.</p>
+                    <Button onClick={() => setAddMemberModal(true)} size="sm">
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Enviar Primera Invitación
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredInvitations.map((invitation) => (
+                      <div
+                        key={invitation.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm">{invitation.email}</p>
+                              <span className="text-xs text-gray-500">({invitation.name})</span>
+                              
+                              <Badge variant={
+                                invitation.status === 'pending' ? 'secondary' :
+                                invitation.status === 'accepted' ? 'default' :
+                                invitation.status === 'expired' ? 'destructive' : 'outline'
+                              }>
+                                {invitation.status === 'pending' && <Calendar className="h-3 w-3 mr-1" />}
+                                {invitation.status === 'accepted' && <CheckCircle className="h-3 w-3 mr-1" />}
+                                {invitation.status === 'expired' && <XCircle className="h-3 w-3 mr-1" />}
+                                {invitation.status}
+                              </Badge>
+                              
+                              <Badge variant="outline">
+                                {invitation.role === 'admin' && <Crown className="h-3 w-3 mr-1" />}
+                                {invitation.role === 'super_admin' && <Shield className="h-3 w-3 mr-1" />}
+                                {invitation.role === 'user' && <User className="h-3 w-3 mr-1" />}
+                                {invitation.role}
+                              </Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                              <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
+                              <span>Invitado por: <strong>{invitation.invited_by_email}</strong></span>
+                              <span>Enviado: <strong>{formatDate(invitation.created_at)}</strong></span>
+                              <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
+                            </div>
+                            
+                            {invitation.accepted_at && (
+                              <p className="text-xs text-green-600 mt-1">
+                                ✅ Aceptado el {formatDate(invitation.accepted_at)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
 
-          <div className="flex items-center gap-2 ml-4">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-  const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
-  navigator.clipboard.writeText(invitationUrl);
-  toast.success('URL de invitación copiada al portapapeles');
-}}
-            >
-              <Eye className="h-4 w-4 mr-1" />
-              Copiar URL
-            </Button>
-            
-            {invitation.status === 'pending' && (
-              <Button 
-                size="sm" 
-                variant="outline"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                onClick={() => {
-                  toast.info('Funcionalidad de cancelar invitación en desarrollo');
-                }}
-              >
-                <XCircle className="h-4 w-4 mr-1" />
-                Cancelar
-              </Button>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  )}
-</TabsContent>
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
+                              navigator.clipboard.writeText(invitationUrl);
+                              toast.success('URL de invitación copiada al portapapeles');
+                            }}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Copiar URL
+                          </Button>
+                          
+                          {invitation.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => {
+                                toast.info('Funcionalidad de cancelar invitación en desarrollo');
+                              }}
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Cancelar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
               {/* Tab: Agentes */}
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1647,7 +1713,6 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
                   </div>
                 )}
               </TabsContent>
-
               {/* Tab: Asignaciones */}
               <TabsContent value="assignments" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
