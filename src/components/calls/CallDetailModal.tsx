@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -61,7 +60,7 @@ interface CallDetailModalProps {
   audioDuration?: number;
 }
 
-// FUNCIÓN PARA CALCULAR COSTO CORRECTO (CORREGIDA para usar audioDuration)
+// ✅ FUNCIÓN PARA CALCULAR COSTO CORRECTO (CORREGIDA para usar audioDuration y 2 decimales)
 const calculateCallCost = (call: Call, audioDurationParam?: number) => {
   const getCallDuration = (call: any) => {
     // PRIORIDAD 1: Usar audioDurationParam si se pasa
@@ -85,10 +84,12 @@ const calculateCallCost = (call: Call, audioDurationParam?: number) => {
   
   if (agentRate === 0) {
     console.warn(`Modal: No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
-    return call.cost_usd || 0;
+    // ✅ ASEGURAR 2 decimales también aquí
+    return Math.round((call.cost_usd || 0) * 100) / 100;
   }
   
-  return durationMinutes * agentRate;
+  // ✅ REDONDEAR el resultado calculado a 2 decimales
+  return Math.round((durationMinutes * agentRate) * 100) / 100;
 };
 
 export const CallDetailModal: React.FC<CallDetailModalProps> = ({
@@ -195,18 +196,18 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // ✅ FUNCIÓN CORREGIDA:
-const formatCurrency = (amount: number) => {
-  // Redondear a 2 decimales para evitar problemas de precisión flotante
-  const roundedAmount = Math.round((amount || 0) * 100) / 100;
-  
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2, // ✅ AGREGADO: Limitar a máximo 2 decimales
-  }).format(roundedAmount);
-};
+  // ✅ FUNCIÓN formatCurrency CORREGIDA con 2 decimales máximo
+  const formatCurrency = (amount: number) => {
+    // Redondear a 2 decimales para evitar problemas de precisión flotante
+    const roundedAmount = Math.round((amount || 0) * 100) / 100;
+    
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2, // ✅ AGREGADO: Limitar a máximo 2 decimales
+    }).format(roundedAmount);
+  };
 
   const formatDate = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-US', {
