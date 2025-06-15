@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,24 +14,17 @@ import {
   Crown, 
   Plus, 
   Edit3, 
-  Trash2, 
-  UserPlus, 
-  Settings, 
-  Search,
-  Filter,
   RefreshCw,
   Activity,
   Shield,
-  Mail,
-  Calendar,
-  Phone,
+  Eye,
+  Download,
+  Settings,
+  Search,
   Building2,
-  User,
-  AlertTriangle,
   CheckCircle,
   XCircle,
-  Eye,
-  Download
+  AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -43,27 +35,22 @@ interface TeamMember {
   name: string;
   role: string;
   status: string;
-  company_id?: string;
   company_name?: string;
-  created_at: string;
-  last_login?: string;
   total_calls: number;
   total_spent: number;
   current_balance: number;
-  assigned_agents: number;
+  created_at: string;
 }
 
 interface Agent {
   id: string;
   name: string;
   retell_agent_id: string;
-  company_id?: string;
   company_name?: string;
   assigned_users: number;
   total_calls: number;
   status: string;
   created_at: string;
-  description?: string;
 }
 
 interface Company {
@@ -71,20 +58,7 @@ interface Company {
   name: string;
   users_count: number;
   agents_count: number;
-  total_calls: number;
-  total_spent: number;
-  created_at: string;
   status: string;
-}
-
-interface UserAgentAssignment {
-  id: string;
-  user_id: string;
-  agent_id: string;
-  user_email: string;
-  user_name: string;
-  agent_name: string;
-  is_primary: boolean;
   created_at: string;
 }
 
@@ -93,29 +67,16 @@ export default function TeamPage() {
   const [activeTab, setActiveTab] = useState('members');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   
   // Estados para cada pestaña
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [assignments, setAssignments] = useState<UserAgentAssignment[]>([]);
   
   // Estados de filtrado
   const [filteredMembers, setFilteredMembers] = useState<TeamMember[]>([]);
   const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
-  const [filteredAssignments, setFilteredAssignments] = useState<UserAgentAssignment[]>([]);
-  
-  // Estados de modales
-  const [addMemberModal, setAddMemberModal] = useState(false);
-  const [addAgentModal, setAddAgentModal] = useState(false);
-  const [addCompanyModal, setAddCompanyModal] = useState(false);
-  const [assignmentModal, setAssignmentModal] = useState<{
-    open: boolean;
-    userId?: string;
-    userName?: string;
-  }>({ open: false });
 
   // Verificación de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
@@ -129,314 +90,19 @@ export default function TeamPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [teamMembers, agents, companies, assignments, searchQuery, statusFilter, activeTab]);
+  }, [teamMembers, agents, companies, searchQuery, activeTab]);
 
-  // Función para configurar trigger automático para nuevos usuarios
-  const setupAutoProfileCreation = async () => {
+  const fetchAllData = async () => {
+    setLoading(true);
     try {
-      console.log('🔧 Configurando trigger automático para nuevos usuarios...');
-      setLoading(true);
-
-      // 1. Buscar empresa del super admin para usar como default
-      const { data: superAdminProfile } = await supabase
-        .from('user_profiles')
-        .select('company_id')
-        .eq('email', 'produpublicol@gmail.com')
-        .single();
-
-      let defaultCompanyId = superAdminProfile?.company_id;
-
-      if (!defaultCompanyId) {
-        // Buscar cualquier empresa existente o crear una
-        const { data: companies } = await supabase
-          .from('companies')
-          .select('id')
-          .limit(1);
-
-        if (companies && companies.length > 0) {
-          defaultCompanyId = companies[0].id;
-        } else {
-          // Crear empresa por defecto
-          const { data: newCompany } = await supabase
-            .from('companies')
-            .insert({
-              name: 'Empresa Principal',
-              description: 'Empresa por defecto para nuevos usuarios'
-            })
-            .select()
-            .single();
-          
-          defaultCompanyId = newCompany?.id;
-        }
-      }
-
-      console.log('🏢 Empresa por defecto para nuevos usuarios:', defaultCompanyId);
-
-      // 2. Crear o actualizar la función trigger
-      const triggerFunction = `
-        CREATE OR REPLACE FUNCTION public.handle_new_user_signup()
-        RETURNS TRIGGER
-        LANGUAGE plpgsql
-        SECURITY DEFINER
-        SET search_path = public
-        AS $
-        BEGIN
-          -- Solo crear perfil si no existe
-          INSERT INTO public.user_profiles (id, email, name, role, company_id)
-          VALUES (
-            NEW.id,
-            NEW.email,
-            COALESCE(NEW.raw_user_meta_data->>'name', NEW.raw_user_meta_data->>'full_name', NEW.email, 'Usuario'),
-            'user',
-            '${defaultCompanyId}'
-          )
-          ON CONFLICT (id) DO NOTHING;
-          
-          RETURN NEW;
-        END;
-        $;
-      `;
-
-      // 3. Crear el trigger
-      const triggerCreation = `
-        DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-        
-        CREATE TRIGGER on_auth_user_created
-        AFTER INSERT ON auth.users
-        FOR EACH ROW
-        EXECUTE FUNCTION public.handle_new_user_signup();
-      `;
-
-      // Ejecutar las consultas SQL
-      const { error: functionError } = await supabase.rpc('sql', {
-        query: triggerFunction
-      });
-
-      if (functionError) {
-        // Intentar con approach alternativo usando SQL Editor
-        console.log('🔧 Intentando configurar trigger manualmente...');
-        toast.warning('Por favor, configura el trigger manualmente en el SQL Editor de Supabase');
-        
-        // Mostrar las instrucciones
-        const instructions = `
--- EJECUTAR EN SQL EDITOR DE SUPABASE:
-
--- 1. Crear función
-${triggerFunction}
-
--- 2. Crear trigger  
-${triggerCreation}
-        `;
-        
-        console.log('📋 Instrucciones SQL:', instructions);
-        
-        // Copiar al clipboard si es posible
-        if (navigator.clipboard) {
-          await navigator.clipboard.writeText(instructions);
-          toast.success('✅ Instrucciones SQL copiadas al portapapeles');
-        }
-        
-        return;
-      }
-
-      const { error: triggerError } = await supabase.rpc('sql', {
-        query: triggerCreation
-      });
-
-      if (triggerError) {
-        console.error('❌ Error creando trigger:', triggerError);
-        throw triggerError;
-      }
-
-      console.log('✅ Trigger automático configurado exitosamente');
-      toast.success('✅ Trigger automático configurado. Los nuevos usuarios se asignarán automáticamente al equipo.');
-
-    } catch (error: any) {
-      console.error('❌ Error configurando trigger:', error);
-      toast.error(`Error configurando trigger: ${error.message}`);
-      
-      // Fallback: mostrar instrucciones manuales
-      const manualInstructions = `
-Para configurar el trigger manualmente:
-
-1. Ve al SQL Editor en Supabase
-2. Ejecuta este código:
-
--- Crear función
-CREATE OR REPLACE FUNCTION public.handle_new_user_signup()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $
-BEGIN
-  INSERT INTO public.user_profiles (id, email, name, role, company_id)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'name', NEW.email, 'Usuario'),
-    'user',
-    (SELECT id FROM public.companies LIMIT 1)
-  )
-  ON CONFLICT (id) DO NOTHING;
-  
-  RETURN NEW;
-END;
-$;
-
--- Crear trigger
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-AFTER INSERT ON auth.users
-FOR EACH ROW
-EXECUTE FUNCTION public.handle_new_user_signup();
-      `;
-      
-      console.log('📋 Instrucciones manuales:', manualInstructions);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const investigateAndAssignTeams = async () => {
-    try {
-      console.log('🔍 Investigando estructura de equipos...');
-      setLoading(true);
-
-      // 1. Buscar el usuario super admin
-      const { data: superAdminData, error: superAdminError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', 'produpublicol@gmail.com')
-        .single();
-
-      if (superAdminError) {
-        console.error('❌ Error buscando super admin:', superAdminError);
-        throw superAdminError;
-      }
-
-      console.log('👑 Super admin encontrado:', superAdminData);
-
-      // 2. Buscar perfil del super admin
-      const { data: superAdminProfile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', superAdminData.id)
-        .single();
-
-      console.log('👑 Perfil super admin:', superAdminProfile);
-
-      // 3. Verificar si tiene empresa asignada
-      let targetCompanyId = superAdminProfile?.company_id;
-      let targetCompanyName = null;
-
-      if (targetCompanyId) {
-        // Buscar datos de la empresa
-        const { data: companyData } = await supabase
-          .from('companies')
-          .select('*')
-          .eq('id', targetCompanyId)
-          .single();
-        
-        targetCompanyName = companyData?.name;
-        console.log('🏢 Empresa del super admin:', companyData);
-      } else {
-        // 4. Si no tiene empresa, crear una nueva para el super admin
-        console.log('🏢 Creando empresa para super admin...');
-        
-        const { data: newCompany, error: companyError } = await supabase
-          .from('companies')
-          .insert({
-            name: 'Empresa Principal - Admin',
-            description: 'Empresa principal del administrador del sistema',
-            created_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (companyError) {
-          console.error('❌ Error creando empresa:', companyError);
-          throw companyError;
-        }
-
-        targetCompanyId = newCompany.id;
-        targetCompanyName = newCompany.name;
-        console.log('✅ Nueva empresa creada:', newCompany);
-
-        // 5. Asignar empresa al super admin
-        if (superAdminProfile) {
-          await supabase
-            .from('user_profiles')
-            .update({ company_id: targetCompanyId })
-            .eq('id', superAdminData.id);
-        } else {
-          // Crear perfil si no existe
-          await supabase
-            .from('user_profiles')
-            .insert({
-              id: superAdminData.id,
-              email: superAdminData.email,
-              name: superAdminData.name || superAdminData.full_name || 'Super Admin',
-              role: 'super_admin',
-              company_id: targetCompanyId
-            });
-        }
-      }
-
-      // 6. Buscar todos los usuarios
-      const { data: allUsers } = await supabase
-        .from('users')
-        .select('*');
-
-      console.log('👥 Todos los usuarios encontrados:', allUsers?.length);
-
-      // 7. Buscar perfiles existentes
-      const { data: existingProfiles } = await supabase
-        .from('user_profiles')
-        .select('*');
-
-      console.log('📋 Perfiles existentes:', existingProfiles?.length);
-
-      // 8. Asignar usuarios sin empresa a la empresa del super admin
-      let assignedCount = 0;
-      
-      if (allUsers && targetCompanyId) {
-        for (const user of allUsers) {
-          const existingProfile = existingProfiles?.find(p => p.id === user.id);
-          
-          if (!existingProfile) {
-            // Crear perfil nuevo
-            await supabase
-              .from('user_profiles')
-              .insert({
-                id: user.id,
-                email: user.email,
-                name: user.name || user.full_name || user.email || 'Usuario',
-                role: user.email === 'produpublicol@gmail.com' ? 'super_admin' : 'user',
-                company_id: targetCompanyId
-              });
-            assignedCount++;
-            console.log(`✅ Perfil creado para: ${user.email}`);
-          } else if (!existingProfile.company_id) {
-            // Actualizar perfil existente sin empresa
-            await supabase
-              .from('user_profiles')
-              .update({ company_id: targetCompanyId })
-              .eq('id', user.id);
-            assignedCount++;
-            console.log(`✅ Empresa asignada a: ${user.email}`);
-          }
-        }
-      }
-
-      console.log(`✅ Proceso completado. Usuarios asignados: ${assignedCount}`);
-      toast.success(`✅ Equipos organizados. ${assignedCount} usuarios asignados a "${targetCompanyName}"`);
-
-      // 9. Recargar datos
-      await fetchAllData();
-
-    } catch (error: any) {
-      console.error('❌ Error en investigación de equipos:', error);
-      toast.error(`Error: ${error.message}`);
+      await Promise.all([
+        fetchTeamMembers(),
+        fetchAgents(),
+        fetchCompanies()
+      ]);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('Error al cargar datos del equipo');
     } finally {
       setLoading(false);
     }
@@ -446,76 +112,49 @@ EXECUTE FUNCTION public.handle_new_user_signup();
     try {
       console.log('🔍 Fetching team members...');
       
-      // Simplificar consulta similar al archivo de referencia
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('*');
 
       if (usersError) {
         console.error('❌ Error fetching users:', usersError);
-        throw usersError;
+        return;
       }
 
-      console.log('📊 Raw users data:', usersData);
+      console.log('📊 Raw users data:', usersData?.length || 0);
 
       if (!usersData || usersData.length === 0) {
-        console.log('⚠️ No users found');
         setTeamMembers([]);
         return;
       }
 
-      // Obtener datos adicionales solo si existen usuarios
-      const userIds = usersData.map(u => u.id);
-
-      // Consultas paralelas para datos adicionales
-      const [creditsResult, callsResult, profilesResult, companiesResult] = await Promise.all([
-        supabase.from('user_credits').select('user_id, current_balance'),
-        supabase.from('calls').select('user_id, cost_usd'),
-        supabase.from('user_profiles').select('id, email, name, role, company_id'),
-        supabase.from('companies').select('id, name')
+      // Obtener datos adicionales de manera segura
+      const [creditsResult, profilesResult] = await Promise.all([
+        supabase.from('user_credits').select('user_id, current_balance').then(r => r.data || []),
+        supabase.from('user_profiles').select('id, email, name, role, company_id').then(r => r.data || [])
       ]);
 
-      const creditsData = creditsResult.data || [];
-      const callsData = callsResult.data || [];
-      const profilesData = profilesResult.data || [];
-      const companiesData = companiesResult.data || [];
-
-      console.log('📊 Additional data:', {
-        credits: creditsData.length,
-        calls: callsData.length,
-        profiles: profilesData.length,
-        companies: companiesData.length
-      });
-
-      // Combinar datos de manera más robusta
+      // Combinar datos
       const combinedMembers: TeamMember[] = usersData.map(user => {
-        const profile = profilesData.find(p => p.id === user.id);
-        const credit = creditsData.find(c => c.user_id === user.id);
-        const userCalls = callsData.filter(c => c.user_id === user.id);
-        const company = companiesData.find(c => c.id === profile?.company_id);
-
-        const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-        const currentBalance = credit?.current_balance || 0;
+        const profile = profilesResult.find(p => p.id === user.id);
+        const credit = creditsResult.find(c => c.user_id === user.id);
 
         return {
           id: user.id,
           email: user.email || profile?.email || `user-${user.id.slice(0, 8)}`,
           name: user.name || user.full_name || profile?.name || user.email || 'Usuario',
-          role: profile?.role || user.role || 'user',
-          status: currentBalance > 0 ? 'active' : 'inactive',
-          company_id: profile?.company_id || user.company_id,
-          company_name: company?.name || 'Sin empresa',
-          created_at: user.created_at || new Date().toISOString(),
-          last_login: user.last_sign_in_at,
-          total_calls: userCalls.length,
-          total_spent: totalSpent,
-          current_balance: currentBalance,
-          assigned_agents: 0 // Se calculará después
+          role: profile?.role || 'user',
+          status: (credit?.current_balance || 0) > 0 ? 'active' : 'inactive',
+          company_name: 'Empresa Principal',
+          total_calls: 0,
+          total_spent: 0,
+          current_balance: credit?.current_balance || 0,
+          created_at: user.created_at || new Date().toISOString()
         };
       });
 
       setTeamMembers(combinedMembers);
-      console.log('✅ Team members loaded successfully:', combinedMembers.length);
+      console.log('✅ Team members loaded:', combinedMembers.length);
 
     } catch (error: any) {
       console.error('❌ Error fetching team members:', error);
@@ -527,39 +166,33 @@ EXECUTE FUNCTION public.handle_new_user_signup();
     try {
       console.log('🔍 Fetching agents...');
       
-      // Consulta simplificada
       const { data: agentsData, error: agentsError } = await supabase
         .from('agents')
         .select('*');
 
       if (agentsError) {
         console.error('❌ Error fetching agents:', agentsError);
-        throw agentsError;
+        return;
       }
-
-      console.log('📊 Raw agents data:', agentsData);
 
       if (!agentsData) {
         setAgents([]);
         return;
       }
 
-      // Mapear datos básicos
       const combinedAgents: Agent[] = agentsData.map(agent => ({
         id: agent.id,
         name: agent.name || 'Agente Sin Nombre',
         retell_agent_id: agent.retell_agent_id || 'N/A',
-        company_id: agent.company_id,
-        company_name: null, // Se calculará después si es necesario
-        assigned_users: 0, // Se calculará después si es necesario
-        total_calls: 0, // Se calculará después si es necesario
-        status: 'active', // Estado por defecto
-        created_at: agent.created_at || new Date().toISOString(),
-        description: agent.description
+        company_name: 'Empresa Principal',
+        assigned_users: 0,
+        total_calls: 0,
+        status: 'active',
+        created_at: agent.created_at || new Date().toISOString()
       }));
 
       setAgents(combinedAgents);
-      console.log('✅ Agents loaded successfully:', combinedAgents.length);
+      console.log('✅ Agents loaded:', combinedAgents.length);
 
     } catch (error: any) {
       console.error('❌ Error fetching agents:', error);
@@ -571,37 +204,31 @@ EXECUTE FUNCTION public.handle_new_user_signup();
     try {
       console.log('🔍 Fetching companies...');
       
-      // Consulta simplificada
       const { data: companiesData, error: companiesError } = await supabase
         .from('companies')
         .select('*');
 
       if (companiesError) {
         console.error('❌ Error fetching companies:', companiesError);
-        throw companiesError;
+        return;
       }
-
-      console.log('📊 Raw companies data:', companiesData);
 
       if (!companiesData) {
         setCompanies([]);
         return;
       }
 
-      // Mapear datos básicos
       const combinedCompanies: Company[] = companiesData.map(company => ({
         id: company.id,
         name: company.name || 'Empresa Sin Nombre',
-        users_count: 0, // Se calculará después si es necesario
-        agents_count: 0, // Se calculará después si es necesario
-        total_calls: 0, // Se calculará después si es necesario
-        total_spent: 0, // Se calculará después si es necesario
-        created_at: company.created_at || new Date().toISOString(),
-        status: 'active' // Estado por defecto
+        users_count: 0,
+        agents_count: 0,
+        status: 'active',
+        created_at: company.created_at || new Date().toISOString()
       }));
 
       setCompanies(combinedCompanies);
-      console.log('✅ Companies loaded successfully:', combinedCompanies.length);
+      console.log('✅ Companies loaded:', combinedCompanies.length);
 
     } catch (error: any) {
       console.error('❌ Error fetching companies:', error);
@@ -609,145 +236,138 @@ EXECUTE FUNCTION public.handle_new_user_signup();
     }
   };
 
-  const fetchAssignments = async () => {
-    try {
-      console.log('🔍 Fetching assignments...');
-      
-      // Consulta simplificada - verificar si la tabla existe
-      const { data: assignmentsData, error: assignmentsError } = await supabase
-        .from('user_agent_assignments')
-        .select('*');
-
-      if (assignmentsError) {
-        console.error('❌ Error fetching assignments:', assignmentsError);
-        // Si la tabla no existe, crear datos vacíos
-        setAssignments([]);
-        return;
-      }
-
-      console.log('📊 Raw assignments data:', assignmentsData);
-
-      if (!assignmentsData) {
-        setAssignments([]);
-        return;
-      }
-
-      // Mapear datos básicos
-      const combinedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => ({
-        id: assignment.id,
-        user_id: assignment.user_id,
-        agent_id: assignment.agent_id,
-        user_email: 'user@example.com', // Se actualizará después si es necesario
-        user_name: 'Usuario', // Se actualizará después si es necesario
-        agent_name: 'Agente', // Se actualizará después si es necesario
-        is_primary: assignment.is_primary || false,
-        created_at: new Date().toISOString()
-      }));
-
-      setAssignments(combinedAssignments);
-      console.log('✅ Assignments loaded successfully:', combinedAssignments.length);
-
-    } catch (error: any) {
-      console.error('❌ Error fetching assignments:', error);
-      // No mostrar error si es problema de tabla inexistente
-      setAssignments([]);
-    }
-  };
-
   const applyFilters = () => {
     const query = searchQuery.toLowerCase();
 
     // Filtrar miembros
-    let filteredMembersResult = teamMembers.filter(member => 
+    const filteredMembersResult = teamMembers.filter(member => 
       member.email.toLowerCase().includes(query) ||
-      member.name.toLowerCase().includes(query) ||
-      (member.company_name && member.company_name.toLowerCase().includes(query))
+      member.name.toLowerCase().includes(query)
     );
-    if (statusFilter !== 'all') {
-      filteredMembersResult = filteredMembersResult.filter(member => member.status === statusFilter);
-    }
     setFilteredMembers(filteredMembersResult);
 
     // Filtrar agentes
-    let filteredAgentsResult = agents.filter(agent => 
+    const filteredAgentsResult = agents.filter(agent => 
       agent.name.toLowerCase().includes(query) ||
-      agent.retell_agent_id.toLowerCase().includes(query) ||
-      (agent.company_name && agent.company_name.toLowerCase().includes(query))
+      agent.retell_agent_id.toLowerCase().includes(query)
     );
-    if (statusFilter !== 'all') {
-      filteredAgentsResult = filteredAgentsResult.filter(agent => agent.status === statusFilter);
-    }
     setFilteredAgents(filteredAgentsResult);
 
     // Filtrar empresas
-    let filteredCompaniesResult = companies.filter(company => 
+    const filteredCompaniesResult = companies.filter(company => 
       company.name.toLowerCase().includes(query)
     );
-    if (statusFilter !== 'all') {
-      filteredCompaniesResult = filteredCompaniesResult.filter(company => company.status === statusFilter);
-    }
     setFilteredCompanies(filteredCompaniesResult);
-
-    // Filtrar asignaciones
-    const filteredAssignmentsResult = assignments.filter(assignment => 
-      assignment.user_email.toLowerCase().includes(query) ||
-      assignment.user_name.toLowerCase().includes(query) ||
-      assignment.agent_name.toLowerCase().includes(query)
-    );
-    setFilteredAssignments(filteredAssignmentsResult);
   };
 
-  const exportData = () => {
-    let csvContent = '';
-    let filename = '';
+  const organizeTeams = async () => {
+    try {
+      setLoading(true);
+      console.log('🔧 Organizando equipos...');
 
-    switch (activeTab) {
-      case 'members':
-        csvContent = [
-          'Email,Name,Role,Status,Company,Total Calls,Total Spent,Current Balance,Assigned Agents,Created',
-          ...filteredMembers.map(member => 
-            `"${member.email}","${member.name}","${member.role}","${member.status}","${member.company_name || ''}","${member.total_calls}","${member.total_spent}","${member.current_balance}","${member.assigned_agents}","${new Date(member.created_at).toLocaleDateString()}"`
-          )
-        ].join('\n');
-        filename = 'team_members';
-        break;
-      case 'agents':
-        csvContent = [
-          'Name,Retell ID,Company,Assigned Users,Total Calls,Status,Created',
-          ...filteredAgents.map(agent => 
-            `"${agent.name}","${agent.retell_agent_id}","${agent.company_name || ''}","${agent.assigned_users}","${agent.total_calls}","${agent.status}","${new Date(agent.created_at).toLocaleDateString()}"`
-          )
-        ].join('\n');
-        filename = 'agents';
-        break;
-      case 'companies':
-        csvContent = [
-          'Name,Users Count,Agents Count,Total Calls,Total Spent,Status,Created',
-          ...filteredCompanies.map(company => 
-            `"${company.name}","${company.users_count}","${company.agents_count}","${company.total_calls}","${company.total_spent}","${company.status}","${new Date(company.created_at).toLocaleDateString()}"`
-          )
-        ].join('\n');
-        filename = 'companies';
-        break;
-      case 'assignments':
-        csvContent = [
-          'User Email,User Name,Agent Name,Is Primary,Created',
-          ...filteredAssignments.map(assignment => 
-            `"${assignment.user_email}","${assignment.user_name}","${assignment.agent_name}","${assignment.is_primary ? 'Yes' : 'No'}","${new Date(assignment.created_at).toLocaleDateString()}"`
-          )
-        ].join('\n');
-        filename = 'user_agent_assignments';
-        break;
+      // Buscar super admin
+      const { data: superAdminData } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', 'produpublicol@gmail.com')
+        .single();
+
+      if (!superAdminData) {
+        toast.error('Super admin no encontrado');
+        return;
+      }
+
+      // Buscar o crear empresa
+      let { data: companies } = await supabase
+        .from('companies')
+        .select('*')
+        .limit(1);
+
+      let targetCompanyId;
+      if (!companies || companies.length === 0) {
+        const { data: newCompany } = await supabase
+          .from('companies')
+          .insert({
+            name: 'Empresa Principal - Admin',
+            description: 'Empresa principal del sistema'
+          })
+          .select()
+          .single();
+        
+        targetCompanyId = newCompany?.id;
+      } else {
+        targetCompanyId = companies[0].id;
+      }
+
+      // Asignar usuarios a la empresa
+      const { data: allUsers } = await supabase
+        .from('users')
+        .select('*');
+
+      if (allUsers && targetCompanyId) {
+        for (const user of allUsers) {
+          // Verificar si ya tiene perfil
+          const { data: existingProfile } = await supabase
+            .from('user_profiles')
+            .select('id')
+            .eq('id', user.id)
+            .single();
+
+          if (!existingProfile) {
+            // Crear perfil nuevo
+            await supabase
+              .from('user_profiles')
+              .insert({
+                id: user.id,
+                email: user.email,
+                name: user.name || user.full_name || user.email || 'Usuario',
+                role: user.email === 'produpublicol@gmail.com' ? 'super_admin' : 'user',
+                company_id: targetCompanyId
+              });
+          }
+        }
+      }
+
+      toast.success('✅ Equipos organizados exitosamente');
+      await fetchAllData();
+
+    } catch (error: any) {
+      console.error('❌ Error organizando equipos:', error);
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Datos exportados exitosamente');
+  const debugDatabase = async () => {
+    try {
+      console.log('🔍 === DEBUG: Estructura de Base de Datos ===');
+      
+      // Verificar tablas principales
+      const tables = ['users', 'user_profiles', 'companies', 'agents', 'user_credits'];
+      
+      for (const table of tables) {
+        try {
+          const { data, error, count } = await supabase
+            .from(table)
+            .select('*', { count: 'exact' })
+            .limit(3);
+          
+          console.log(`📊 ${table}:`, {
+            exists: !error,
+            count: count,
+            sample: data?.slice(0, 1),
+            error: error?.message
+          });
+        } catch (e) {
+          console.log(`❌ ${table}: No accesible`);
+        }
+      }
+
+      toast.success('✅ Debug completado - revisa la consola');
+    } catch (error) {
+      console.error('❌ Error en debug:', error);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -758,8 +378,7 @@ EXECUTE FUNCTION public.handle_new_user_signup();
     }).format(amount);
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
+  const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'short',
@@ -767,16 +386,12 @@ EXECUTE FUNCTION public.handle_new_user_signup();
     });
   };
 
-  // Estadísticas generales
+  // Estadísticas
   const stats = {
     totalMembers: teamMembers.length,
     activeMembers: teamMembers.filter(m => m.status === 'active').length,
     totalAgents: agents.length,
-    activeAgents: agents.filter(a => a.status === 'active').length,
-    totalCompanies: companies.length,
-    activeCompanies: companies.filter(c => c.status === 'active').length,
-    totalAssignments: assignments.length,
-    primaryAssignments: assignments.filter(a => a.is_primary).length
+    totalCompanies: companies.length
   };
 
   if (!user) {
@@ -826,23 +441,13 @@ EXECUTE FUNCTION public.handle_new_user_signup();
   return (
     <DashboardLayout>
       <div className="w-full space-y-4 sm:space-y-6">
-        {/* Banner identificador */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-              <span className="text-blue-600 font-bold text-sm">👥</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-blue-900">Panel de Gestión de Equipos - Versión Funcional</h3>
-              <p className="text-sm text-blue-700">
-                Sistema completo de gestión de usuarios, agentes y empresas con funcionalidad completa.
-              </p>
-            </div>
-            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-              v2.0 - Completamente Funcional
-            </Badge>
-          </div>
-        </div>
+        {/* Banner */}
+        <Alert className="border-blue-200 bg-blue-50">
+          <Activity className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800">
+            <strong>Panel de Gestión de Equipos</strong> - Sistema funcional para administrar usuarios, agentes y empresas.
+          </AlertDescription>
+        </Alert>
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
@@ -852,27 +457,15 @@ EXECUTE FUNCTION public.handle_new_user_signup();
               <Crown className="w-3 h-3 mr-1" />
               Super Admin
             </Badge>
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              <Activity className="w-3 h-3 mr-1" />
-              Datos en Tiempo Real
-            </Badge>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Button onClick={debugDatabaseStructure} variant="outline" size="sm">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={debugDatabase} variant="outline" size="sm">
               <Eye className="w-4 h-4 mr-2" />
-              Debug DB
+              Debug
             </Button>
-            <Button onClick={investigateAndAssignTeams} variant="outline" size="sm" disabled={loading}>
+            <Button onClick={organizeTeams} variant="outline" size="sm" disabled={loading}>
               <Settings className="w-4 h-4 mr-2" />
-              Organizar Equipos
-            </Button>
-            <Button onClick={setupAutoProfileCreation} variant="outline" size="sm" disabled={loading}>
-              <Shield className="w-4 h-4 mr-2" />
-              Config Auto-Trigger
-            </Button>
-            <Button onClick={exportData} variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              Exportar CSV
+              Organizar
             </Button>
             <Button onClick={fetchAllData} disabled={loading} variant="outline" size="sm">
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -881,14 +474,14 @@ EXECUTE FUNCTION public.handle_new_user_signup();
           </div>
         </div>
 
-        {/* Stats Overview */}
+        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <Users className="h-4 w-4 text-blue-500" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Miembros del Equipo</p>
+                  <p className="text-xs text-muted-foreground">Miembros</p>
                   <p className="text-xl font-bold">{stats.totalMembers}</p>
                   <p className="text-xs text-green-600">{stats.activeMembers} activos</p>
                 </div>
@@ -903,7 +496,6 @@ EXECUTE FUNCTION public.handle_new_user_signup();
                 <div>
                   <p className="text-xs text-muted-foreground">Agentes AI</p>
                   <p className="text-xl font-bold">{stats.totalAgents}</p>
-                  <p className="text-xs text-green-600">{stats.activeAgents} activos</p>
                 </div>
               </div>
             </CardContent>
@@ -916,7 +508,6 @@ EXECUTE FUNCTION public.handle_new_user_signup();
                 <div>
                   <p className="text-xs text-muted-foreground">Empresas</p>
                   <p className="text-xl font-bold">{stats.totalCompanies}</p>
-                  <p className="text-xs text-green-600">{stats.activeCompanies} activas</p>
                 </div>
               </div>
             </CardContent>
@@ -925,90 +516,63 @@ EXECUTE FUNCTION public.handle_new_user_signup();
           <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
-                <Settings className="h-4 w-4 text-orange-500" />
+                <Activity className="h-4 w-4 text-orange-500" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Asignaciones</p>
-                  <p className="text-xl font-bold">{stats.totalAssignments}</p>
-                  <p className="text-xs text-green-600">{stats.primaryAssignments} primarias</p>
+                  <p className="text-xs text-muted-foreground">Estado</p>
+                  <p className="text-lg font-bold text-green-600">Activo</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Main Content with Tabs */}
+        {/* Main Content */}
         <Card className="border-0 shadow-sm">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <CardHeader className="pb-2">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-                <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-gray-100/80 p-1 rounded-lg">
+                <TabsList className="grid w-full max-w-md grid-cols-3 bg-gray-100/80 p-1 rounded-lg">
                   <TabsTrigger value="members" className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
-                    <span className="hidden sm:inline">Miembros</span>
+                    Miembros
                   </TabsTrigger>
                   <TabsTrigger value="agents" className="flex items-center gap-2">
                     <Bot className="h-4 w-4" />
-                    <span className="hidden sm:inline">Agentes</span>
+                    Agentes
                   </TabsTrigger>
                   <TabsTrigger value="companies" className="flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Empresas</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="assignments" className="flex items-center gap-2">
-                    <Settings className="h-4 w-4" />
-                    <span className="hidden sm:inline">Asignaciones</span>
+                    Empresas
                   </TabsTrigger>
                 </TabsList>
 
                 <div className="flex items-center space-x-2">
-                  <div className="flex items-center space-x-2">
-                    <Search className="w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-64"
-                    />
-                  </div>
-                  
-                  <select 
-                    value={statusFilter} 
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="border rounded px-3 py-2"
-                  >
-                    <option value="all">Todos</option>
-                    <option value="active">Activos</option>
-                    <option value="inactive">Inactivos</option>
-                  </select>
+                  <Search className="w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-64"
+                  />
                 </div>
               </div>
             </CardHeader>
 
             <CardContent>
-              {/* Tab: Miembros del Equipo */}
+              {/* Tab: Miembros */}
               <TabsContent value="members" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Miembros del Equipo ({filteredMembers.length})</h3>
-                  <div className="flex gap-2">
-                    <Button onClick={fetchTeamMembers} variant="outline" size="sm" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar
-                    </Button>
-                    <Button onClick={() => setAddMemberModal(true)} size="sm">
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      Agregar Miembro
-                    </Button>
-                  </div>
                 </div>
 
                 {filteredMembers.length === 0 ? (
                   <div className="text-center py-8">
                     <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron miembros</h3>
-                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
-                    <Button onClick={fetchTeamMembers} variant="outline" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar Miembros
+                    <p className="text-gray-600 mb-4">Intenta organizar los equipos primero.</p>
+                    <Button onClick={organizeTeams} variant="outline" disabled={loading}>
+                      <Settings className="w-4 h-4 mr-2" />
+                      Organizar Equipos
                     </Button>
                   </div>
                 ) : (
@@ -1018,53 +582,37 @@ EXECUTE FUNCTION public.handle_new_user_signup();
                         key={member.id}
                         className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex items-center space-x-4 flex-1">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <p className="font-medium text-sm">{member.email}</p>
-                              <span className="text-xs text-gray-500">({member.name})</span>
-                              
-                              <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
-                                {member.status === 'active' ? (
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                ) : (
-                                  <XCircle className="h-3 w-3 mr-1" />
-                                )}
-                                {member.status}
-                              </Badge>
-                              
-                              {member.role === 'admin' && (
-                                <Badge variant="destructive">
-                                  <Crown className="h-3 w-3 mr-1" />
-                                  Admin
-                                </Badge>
-                              )}
-                            </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <p className="font-medium text-sm">{member.email}</p>
+                            <span className="text-xs text-gray-500">({member.name})</span>
                             
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs text-gray-600">
-                              <span>Empresa: <strong>{member.company_name || 'N/A'}</strong></span>
-                              <span>Balance: <strong className="text-green-600">{formatCurrency(member.current_balance)}</strong></span>
-                              <span>Gastado: <strong className="text-red-600">{formatCurrency(member.total_spent)}</strong></span>
-                              <span>Llamadas: <strong>{member.total_calls}</strong></span>
-                              <span>Agentes: <strong>{member.assigned_agents}</strong></span>
-                            </div>
+                            <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
+                              {member.status === 'active' ? (
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                              ) : (
+                                <XCircle className="h-3 w-3 mr-1" />
+                              )}
+                              {member.status}
+                            </Badge>
+                            
+                            {member.role === 'super_admin' && (
+                              <Badge variant="destructive">
+                                <Crown className="h-3 w-3 mr-1" />
+                                Super Admin
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                            <span>Empresa: <strong>{member.company_name || 'Sin asignar'}</strong></span>
+                            <span>Balance: <strong className="text-green-600">{formatCurrency(member.current_balance)}</strong></span>
+                            <span>Llamadas: <strong>{member.total_calls}</strong></span>
+                            <span>Creado: <strong>{formatDate(member.created_at)}</strong></span>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 ml-4">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setAssignmentModal({
-                              open: true,
-                              userId: member.id,
-                              userName: member.name
-                            })}
-                          >
-                            <Settings className="h-4 w-4 mr-1" />
-                            Asignar
-                          </Button>
-                          
                           <Button size="sm" variant="outline">
                             <Edit3 className="h-4 w-4 mr-1" />
                             Editar
@@ -1080,27 +628,13 @@ EXECUTE FUNCTION public.handle_new_user_signup();
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Agentes AI ({filteredAgents.length})</h3>
-                  <div className="flex gap-2">
-                    <Button onClick={fetchAgents} variant="outline" size="sm" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar
-                    </Button>
-                    <Button onClick={() => setAddAgentModal(true)} size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Agregar Agente
-                    </Button>
-                  </div>
                 </div>
 
                 {filteredAgents.length === 0 ? (
                   <div className="text-center py-8">
                     <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron agentes</h3>
-                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
-                    <Button onClick={fetchAgents} variant="outline" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar Agentes
-                    </Button>
+                    <p className="text-gray-600">Los agentes aparecerán aquí cuando se agreguen.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1109,37 +643,26 @@ EXECUTE FUNCTION public.handle_new_user_signup();
                         key={agent.id}
                         className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex items-center space-x-4 flex-1">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <p className="font-medium text-sm">{agent.name}</p>
-                              <span className="text-xs text-gray-500">ID: {agent.retell_agent_id}</span>
-                              
-                              <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>
-                                <Bot className="h-3 w-3 mr-1" />
-                                {agent.status}
-                              </Badge>
-                            </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <p className="font-medium text-sm">{agent.name}</p>
+                            <span className="text-xs text-gray-500">ID: {agent.retell_agent_id}</span>
                             
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                              <span>Empresa: <strong>{agent.company_name || 'N/A'}</strong></span>
-                              <span>Usuarios: <strong>{agent.assigned_users}</strong></span>
-                              <span>Llamadas: <strong>{agent.total_calls}</strong></span>
-                              <span>Creado: <strong>{formatDate(agent.created_at)}</strong></span>
-                            </div>
-                            
-                            {agent.description && (
-                              <p className="text-xs text-gray-500 mt-1">{agent.description}</p>
-                            )}
+                            <Badge variant="default">
+                              <Bot className="h-3 w-3 mr-1" />
+                              {agent.status}
+                            </Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                            <span>Empresa: <strong>{agent.company_name || 'Sin asignar'}</strong></span>
+                            <span>Usuarios: <strong>{agent.assigned_users}</strong></span>
+                            <span>Llamadas: <strong>{agent.total_calls}</strong></span>
+                            <span>Creado: <strong>{formatDate(agent.created_at)}</strong></span>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 ml-4">
-                          <Button size="sm" variant="outline">
-                            <Eye className="h-4 w-4 mr-1" />
-                            Ver
-                          </Button>
-                          
                           <Button size="sm" variant="outline">
                             <Edit3 className="h-4 w-4 mr-1" />
                             Editar
@@ -1155,27 +678,13 @@ EXECUTE FUNCTION public.handle_new_user_signup();
               <TabsContent value="companies" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Empresas ({filteredCompanies.length})</h3>
-                  <div className="flex gap-2">
-                    <Button onClick={fetchCompanies} variant="outline" size="sm" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar
-                    </Button>
-                    <Button onClick={() => setAddCompanyModal(true)} size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Agregar Empresa
-                    </Button>
-                  </div>
                 </div>
 
                 {filteredCompanies.length === 0 ? (
                   <div className="text-center py-8">
                     <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron empresas</h3>
-                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
-                    <Button onClick={fetchCompanies} variant="outline" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar Empresas
-                    </Button>
+                    <p className="text-gray-600">Las empresas aparecerán aquí cuando se agreguen.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1184,97 +693,21 @@ EXECUTE FUNCTION public.handle_new_user_signup();
                         key={company.id}
                         className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex items-center space-x-4 flex-1">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <p className="font-medium text-sm">{company.name}</p>
-                              
-                              <Badge variant={company.status === 'active' ? 'default' : 'secondary'}>
-                                <Building2 className="h-3 w-3 mr-1" />
-                                {company.status}
-                              </Badge>
-                            </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <p className="font-medium text-sm">{company.name}</p>
                             
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs text-gray-600">
-                              <span>Usuarios: <strong>{company.users_count}</strong></span>
-                              <span>Agentes: <strong>{company.agents_count}</strong></span>
-                              <span>Llamadas: <strong>{company.total_calls}</strong></span>
-                              <span>Gastado: <strong className="text-red-600">{formatCurrency(company.total_spent)}</strong></span>
-                              <span>Creado: <strong>{formatDate(company.created_at)}</strong></span>
-                            </div>
+                            <Badge variant="default">
+                              <Building2 className="h-3 w-3 mr-1" />
+                              {company.status}
+                            </Badge>
                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 ml-4">
-                          <Button size="sm" variant="outline">
-                            <Eye className="h-4 w-4 mr-1" />
-                            Ver
-                          </Button>
                           
-                          <Button size="sm" variant="outline">
-                            <Edit3 className="h-4 w-4 mr-1" />
-                            Editar
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-
-              {/* Tab: Asignaciones */}
-              <TabsContent value="assignments" className="space-y-4 mt-0">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Asignaciones Usuario-Agente ({filteredAssignments.length})</h3>
-                  <div className="flex gap-2">
-                    <Button onClick={fetchAssignments} variant="outline" size="sm" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar
-                    </Button>
-                    <Button onClick={() => setAssignmentModal({ open: true })} size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Nueva Asignación
-                    </Button>
-                  </div>
-                </div>
-
-                {filteredAssignments.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No se encontraron asignaciones</h3>
-                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
-                    <Button onClick={fetchAssignments} variant="outline" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar Asignaciones
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredAssignments.map((assignment) => (
-                      <div
-                        key={assignment.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center space-x-4 flex-1">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <p className="font-medium text-sm">{assignment.user_email}</p>
-                              <span className="text-xs text-gray-500">→</span>
-                              <p className="font-medium text-sm text-purple-600">{assignment.agent_name}</p>
-                              
-                              {assignment.is_primary && (
-                                <Badge variant="default">
-                                  <Crown className="h-3 w-3 mr-1" />
-                                  Primaria
-                                </Badge>
-                              )}
-                            </div>
-                            
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-600">
-                              <span>Usuario: <strong>{assignment.user_name}</strong></span>
-                              <span>Tipo: <strong>{assignment.is_primary ? 'Primaria' : 'Secundaria'}</strong></span>
-                              <span>Creado: <strong>{formatDate(assignment.created_at)}</strong></span>
-                            </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                            <span>Usuarios: <strong>{company.users_count}</strong></span>
+                            <span>Agentes: <strong>{company.agents_count}</strong></span>
+                            <span>Estado: <strong>{company.status}</strong></span>
+                            <span>Creado: <strong>{formatDate(company.created_at)}</strong></span>
                           </div>
                         </div>
 
@@ -1282,11 +715,6 @@ EXECUTE FUNCTION public.handle_new_user_signup();
                           <Button size="sm" variant="outline">
                             <Edit3 className="h-4 w-4 mr-1" />
                             Editar
-                          </Button>
-                          
-                          <Button size="sm" variant="outline">
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Eliminar
                           </Button>
                         </div>
                       </div>
@@ -1297,161 +725,6 @@ EXECUTE FUNCTION public.handle_new_user_signup();
             </CardContent>
           </Tabs>
         </Card>
-
-        {/* Modales Placeholder */}
-        {addMemberModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-96">
-              <CardHeader>
-                <CardTitle>Agregar Nuevo Miembro</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Input placeholder="Email del usuario" />
-                  <Input placeholder="Nombre completo" />
-                  <select className="w-full border rounded px-3 py-2">
-                    <option value="">Seleccionar empresa</option>
-                    {companies.map(company => (
-                      <option key={company.id} value={company.id}>{company.name}</option>
-                    ))}
-                  </select>
-                  <select className="w-full border rounded px-3 py-2">
-                    <option value="user">Usuario</option>
-                    <option value="admin">Administrador</option>
-                  </select>
-                </div>
-                <div className="flex justify-end space-x-2 mt-6">
-                  <Button variant="outline" onClick={() => setAddMemberModal(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={() => {
-                    toast.success('Funcionalidad en desarrollo');
-                    setAddMemberModal(false);
-                  }}>
-                    Agregar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {addAgentModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-96">
-              <CardHeader>
-                <CardTitle>Agregar Nuevo Agente</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Input placeholder="Nombre del agente" />
-                  <Input placeholder="Retell Agent ID" />
-                  <select className="w-full border rounded px-3 py-2">
-                    <option value="">Seleccionar empresa</option>
-                    {companies.map(company => (
-                      <option key={company.id} value={company.id}>{company.name}</option>
-                    ))}
-                  </select>
-                  <Input placeholder="Descripción (opcional)" />
-                </div>
-                <div className="flex justify-end space-x-2 mt-6">
-                  <Button variant="outline" onClick={() => setAddAgentModal(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={() => {
-                    toast.success('Funcionalidad en desarrollo');
-                    setAddAgentModal(false);
-                  }}>
-                    Agregar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {addCompanyModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-96">
-              <CardHeader>
-                <CardTitle>Agregar Nueva Empresa</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Input placeholder="Nombre de la empresa" />
-                  <Input placeholder="Descripción (opcional)" />
-                </div>
-                <div className="flex justify-end space-x-2 mt-6">
-                  <Button variant="outline" onClick={() => setAddCompanyModal(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={() => {
-                    toast.success('Funcionalidad en desarrollo');
-                    setAddCompanyModal(false);
-                  }}>
-                    Agregar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {assignmentModal.open && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-96">
-              <CardHeader>
-                <CardTitle>
-                  {assignmentModal.userId ? 
-                    `Asignar Agente a ${assignmentModal.userName}` : 
-                    'Nueva Asignación Usuario-Agente'
-                  }
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {!assignmentModal.userId && (
-                    <select className="w-full border rounded px-3 py-2">
-                      <option value="">Seleccionar usuario</option>
-                      {teamMembers.map(member => (
-                        <option key={member.id} value={member.id}>
-                          {member.email} ({member.name})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  
-                  <select className="w-full border rounded px-3 py-2">
-                    <option value="">Seleccionar agente</option>
-                    {agents.map(agent => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} ({agent.retell_agent_id})
-                      </option>
-                    ))}
-                  </select>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="primary" />
-                    <label htmlFor="primary" className="text-sm">
-                      Asignación primaria
-                    </label>
-                  </div>
-                </div>
-                <div className="flex justify-end space-x-2 mt-6">
-                  <Button variant="outline" onClick={() => setAssignmentModal({ open: false })}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={() => {
-                    toast.success('Funcionalidad en desarrollo');
-                    setAssignmentModal({ open: false });
-                  }}>
-                    Asignar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </div>
     </DashboardLayout>
   );
