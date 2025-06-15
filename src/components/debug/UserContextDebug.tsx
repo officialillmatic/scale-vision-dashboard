@@ -13,7 +13,9 @@ export function UserContextDebug() {
   const runSpecificUserQueries = async () => {
     if (!user?.id) return;
 
-    console.log('🔍 [UserContextDebug] Running queries for alexbuenhombre2012@gmail.com...');
+    if (import.meta.env.DEV) {
+      console.debug('🔍 [UserContextDebug] Running queries for alexbuenhombre2012@gmail.com...');
+    }
 
     try {
       // Get this specific user's profile
@@ -23,7 +25,9 @@ export function UserContextDebug() {
         .eq('email', 'alexbuenhombre2012@gmail.com')
         .single();
 
-      console.log('🔍 User profile for alexbuenhombre2012@gmail.com:', userProfile);
+      if (import.meta.env.DEV) {
+        console.debug('🔍 User profile for alexbuenhombre2012@gmail.com:', userProfile);
+      }
 
       if (userProfile) {
         // Get agent assignments for this user
@@ -65,14 +69,16 @@ export function UserContextDebug() {
           timestamp: new Date().toISOString()
         });
 
-        console.log('🔍 [UserContextDebug] Complete debug info:', {
-          userProfile,
-          assignments: assignments?.length,
-          userCalls: userCalls?.length,
-          allCalls: allCalls?.length,
-          allAgents: allAgents?.length,
-          agentIds
-        });
+        if (import.meta.env.DEV) {
+          console.debug('🔍 [UserContextDebug] Complete debug info:', {
+            userProfile,
+            assignments: assignments?.length,
+            userCalls: userCalls?.length,
+            allCalls: allCalls?.length,
+            allAgents: allAgents?.length,
+            agentIds
+          });
+        }
       }
     } catch (error) {
       console.error('❌ [UserContextDebug] Error:', error);

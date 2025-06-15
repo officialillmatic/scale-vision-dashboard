@@ -17,6 +17,30 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@drscale" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <!-- Theme script to prevent flash of incorrect theme -->
+    <script>
+      (function() {
+        const getStoredTheme = () => {
+          try {
+            const storedTheme = localStorage.getItem('theme');
+            return storedTheme ? JSON.parse(storedTheme) : 'system';
+          } catch (e) {
+            return 'system';
+          }
+        };
+
+        const theme = getStoredTheme();
+        const root = window.document.documentElement;
+        root.classList.remove('light', 'dark');
+        if (theme === 'system') {
+          const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          root.classList.add(systemTheme);
+        } else {
+          root.classList.add(theme);
+        }
+      })();
+    </script>
   </head>
 
   <body>
