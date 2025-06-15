@@ -1229,6 +1229,10 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
                     <Users className="h-4 w-4" />
                     <span className="hidden sm:inline">Miembros</span>
                   </TabsTrigger>
+                  <TabsTrigger value="invitations" className="flex items-center gap-2">
+  <Mail className="h-4 w-4" />
+  <span className="hidden sm:inline">Invitaciones</span>
+</TabsTrigger>
                   <TabsTrigger value="agents" className="flex items-center gap-2">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Agentes</span>
@@ -1396,6 +1400,108 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
                   </div>
                 )}
               </TabsContent>
+              {/* Tab: Invitaciones Enviadas - NUEVO */}
+<TabsContent value="invitations" className="space-y-4 mt-0">
+  <div className="flex justify-between items-center">
+    <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
+    <div className="flex gap-2">
+      <Button onClick={fetchInvitations} variant="outline" size="sm" disabled={loading}>
+        <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+        Actualizar
+      </Button>
+    </div>
+  </div>
+
+  {filteredInvitations.length === 0 ? (
+    <div className="text-center py-8">
+      <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+      <h3 className="text-lg font-semibold mb-2">No hay invitaciones enviadas</h3>
+      <p className="text-gray-600 mb-4">Las invitaciones que envíes aparecerán aquí.</p>
+      <Button onClick={() => setAddMemberModal(true)} size="sm">
+        <UserPlus className="w-4 h-4 mr-2" />
+        Enviar Primera Invitación
+      </Button>
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {filteredInvitations.map((invitation) => (
+        <div
+          key={invitation.id}
+          className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center space-x-4 flex-1">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <p className="font-medium text-sm">{invitation.email}</p>
+                <span className="text-xs text-gray-500">({invitation.name})</span>
+                
+                <Badge variant={
+                  invitation.status === 'pending' ? 'secondary' :
+                  invitation.status === 'accepted' ? 'default' :
+                  invitation.status === 'expired' ? 'destructive' : 'outline'
+                }>
+                  {invitation.status === 'pending' && <Calendar className="h-3 w-3 mr-1" />}
+                  {invitation.status === 'accepted' && <CheckCircle className="h-3 w-3 mr-1" />}
+                  {invitation.status === 'expired' && <XCircle className="h-3 w-3 mr-1" />}
+                  {invitation.status}
+                </Badge>
+                
+                <Badge variant="outline">
+                  {invitation.role === 'admin' && <Crown className="h-3 w-3 mr-1" />}
+                  {invitation.role === 'super_admin' && <Shield className="h-3 w-3 mr-1" />}
+                  {invitation.role === 'user' && <User className="h-3 w-3 mr-1" />}
+                  {invitation.role}
+                </Badge>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
+                <span>Invitado por: <strong>{invitation.invited_by_email}</strong></span>
+                <span>Enviado: <strong>{formatDate(invitation.created_at)}</strong></span>
+                <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
+              </div>
+              
+              {invitation.accepted_at && (
+                <p className="text-xs text-green-600 mt-1">
+                  ✅ Aceptado el {formatDate(invitation.accepted_at)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 ml-4">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.invitation_token}`;
+                navigator.clipboard.writeText(invitationUrl);
+                toast.success('URL de invitación copiada al portapapeles');
+              }}
+            >
+              <Eye className="h-4 w-4 mr-1" />
+              Copiar URL
+            </Button>
+            
+            {invitation.status === 'pending' && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => {
+                  toast.info('Funcionalidad de cancelar invitación en desarrollo');
+                }}
+              >
+                <XCircle className="h-4 w-4 mr-1" />
+                Cancelar
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</TabsContent>
               {/* Tab: Agentes */}
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
