@@ -37,6 +37,10 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
+// ========================================
+// INTERFACES
+// ========================================
+
 interface TeamMember {
   id: string;
   email: string;
@@ -87,7 +91,192 @@ interface UserAgentAssignment {
   is_primary: boolean;
   created_at: string;
 }
-// Modal para Editar Miembro
+
+interface UserInvitation {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  company_id?: string;
+  company_name?: string;
+  token: string;
+  expires_at: string;
+  invited_by: string;
+  invited_by_email?: string;
+  status: 'pending' | 'accepted' | 'expired' | 'cancelled';
+  created_at: string;
+  accepted_at?: string;
+  user_id?: string;
+}
+// ========================================
+// MODAL PARA INVITAR MIEMBRO (NUEVO)
+// ========================================
+
+const AddMemberModal: React.FC<{
+  onClose: () => void;
+  onSave: (memberData: { email: string; name: string; company_id?: string; role: string }) => Promise<void>;
+  companies: Company[];
+  currentUser: any;
+}> = ({ onClose, onSave, companies, currentUser }) => {
+  const [formData, setFormData] = useState({
+    email: '',
+    name: '',
+    company_id: '',
+    role: 'user'
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.email.trim() || !formData.name.trim()) {
+      toast.error('Email y nombre son obligatorios');
+      return;
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error('Formato de email inválido');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSave({
+        email: formData.email.trim(),
+        name: formData.name.trim(),
+        company_id: formData.company_id || undefined,
+        role: formData.role
+      });
+    } catch (error) {
+      // Error ya manejado en onSave
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-96">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-blue-500" />
+            Invitar Nuevo Miembro
+          </CardTitle>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Se enviará una invitación por email para unirse al equipo
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+              <div className="flex items-center gap-2">
+                <Crown className="h-3 w-3 text-blue-600" />
+                <span className="text-xs text-blue-800 font-medium">
+                  Super Admin: {currentUser?.email}
+                </span>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Email *</label>
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="usuario@ejemplo.com"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Se enviará la invitación a este email
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Nombre completo *</label>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Nombre completo del usuario"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Empresa</label>
+              <select 
+                value={formData.company_id}
+                onChange={(e) => setFormData(prev => ({ ...prev, company_id: e.target.value }))}
+                className="w-full border rounded px-3 py-2"
+              >
+                <option value="">Sin empresa asignada</option>
+                {companies.map(company => (
+                  <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Rol</label>
+              <select 
+                value={formData.role}
+                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
+                className="w-full border rounded px-3 py-2"
+              >
+                <option value="user">Usuario</option>
+                <option value="admin">Administrador</option>
+                <option value="super_admin">Super Administrador</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                El usuario tendrá estos permisos una vez que acepte
+              </p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <Shield className="h-4 w-4 text-amber-600 mt-0.5" />
+                <div className="text-sm">
+                  <p className="text-amber-800 font-medium">🔒 Privilegios de Super Admin</p>
+                  <ul className="text-amber-700 text-xs mt-1 space-y-1">
+                    <li>• Solo super admins pueden invitar usuarios</li>
+                    <li>• Esta acción queda registrada para auditoría</li>
+                    <li>• El usuario recibirá email de invitación</li>
+                    <li>• La invitación expira en 7 días</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4 mr-2" />
+                    Enviar Invitación
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+// ========================================
+// MODAL PARA EDITAR MIEMBRO (EXISTENTE)
+// ========================================
+
 const EditMemberModal: React.FC<{
   member: TeamMember;
   onClose: () => void;
@@ -176,7 +365,11 @@ const EditMemberModal: React.FC<{
     </div>
   );
 };
-// Modal para Eliminar Miembro - Versión Simplificada
+
+// ========================================
+// MODAL PARA ELIMINAR MIEMBRO (EXISTENTE)
+// ========================================
+
 const DeleteMemberModal: React.FC<{
   member: TeamMember;
   onClose: () => void;
@@ -233,6 +426,10 @@ const DeleteMemberModal: React.FC<{
     </div>
   );
 };
+// ========================================
+// COMPONENTE PRINCIPAL - INICIO
+// ========================================
+
 export default function TeamPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('members');
@@ -245,12 +442,14 @@ export default function TeamPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [assignments, setAssignments] = useState<UserAgentAssignment[]>([]);
+  const [invitations, setInvitations] = useState<UserInvitation[]>([]);
   
   // Estados de filtrado
   const [filteredMembers, setFilteredMembers] = useState<TeamMember[]>([]);
   const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
   const [filteredAssignments, setFilteredAssignments] = useState<UserAgentAssignment[]>([]);
+  const [filteredInvitations, setFilteredInvitations] = useState<UserInvitation[]>([]);
   
   // Estados de modales
   const [addMemberModal, setAddMemberModal] = useState(false);
@@ -282,7 +481,11 @@ export default function TeamPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [teamMembers, agents, companies, assignments, searchQuery, statusFilter, activeTab]);
+  }, [teamMembers, agents, companies, assignments, invitations, searchQuery, statusFilter, activeTab]);
+  // ========================================
+  // FUNCIONES DE FETCH
+  // ========================================
+
   const fetchAllData = async () => {
     setLoading(true);
     try {
@@ -290,7 +493,8 @@ export default function TeamPage() {
         fetchTeamMembers(),
         fetchAgents(),
         fetchCompanies(),
-        fetchAssignments()
+        fetchAssignments(),
+        fetchInvitations()
       ]);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -472,6 +676,167 @@ export default function TeamPage() {
       setAssignments([]);
     }
   };
+
+  const fetchInvitations = async () => {
+    try {
+      const { data: invitationsData, error: invitationsError } = await supabase
+        .from('user_invitations')
+        .select(`
+          *,
+          companies(name),
+          invited_by_profile:user_profiles!invited_by(email)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (invitationsError) {
+        console.error('❌ Error fetching invitations:', invitationsError);
+        return;
+      }
+
+      const combinedInvitations: UserInvitation[] = (invitationsData || []).map(invitation => ({
+        id: invitation.id,
+        email: invitation.email,
+        name: invitation.name,
+        role: invitation.role,
+        company_id: invitation.company_id,
+        company_name: invitation.companies?.name || null,
+        token: invitation.token,
+        expires_at: invitation.expires_at,
+        invited_by: invitation.invited_by,
+        invited_by_email: invitation.invited_by_profile?.email,
+        status: invitation.status,
+        created_at: invitation.created_at,
+        accepted_at: invitation.accepted_at,
+        user_id: invitation.user_id
+      }));
+
+      setInvitations(combinedInvitations);
+      console.log('✅ Invitations loaded:', combinedInvitations.length);
+
+    } catch (error: any) {
+      console.error('❌ Error fetching invitations:', error);
+    }
+  };
+  // ========================================
+  // FUNCIONES DE MANEJO
+  // ========================================
+
+  // Función para enviar invitación
+  const handleSendInvitation = async (memberData: {
+    email: string;
+    name: string;
+    company_id?: string;
+    role: string;
+  }) => {
+    try {
+      // 🔒 VERIFICACIÓN CRÍTICA DE SEGURIDAD
+      if (!isSuperAdmin) {
+        toast.error('❌ Acceso denegado: Solo super administradores pueden enviar invitaciones');
+        console.error('🚨 Intento no autorizado de enviar invitación por:', user?.email);
+        return;
+      }
+
+      console.log('📧 Super admin enviando invitación:', user?.email, '→', memberData.email);
+
+      // Verificación adicional del rol del usuario actual
+      const { data: currentUserProfile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('role, email')
+        .eq('id', user?.id)
+        .single();
+
+      if (profileError || currentUserProfile?.role !== 'super_admin') {
+        toast.error('❌ Permisos insuficientes para enviar invitaciones');
+        console.error('🚨 Usuario sin permisos intentó invitar:', currentUserProfile);
+        return;
+      }
+
+      // 1. Verificar que el email no exista ya como usuario
+      const { data: existingUser } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .eq('email', memberData.email)
+        .single();
+
+      if (existingUser) {
+        toast.error('❌ Ya existe un usuario registrado con ese email');
+        return;
+      }
+
+      // 2. Verificar que no haya invitación pendiente
+      const { data: existingInvitation } = await supabase
+        .from('user_invitations')
+        .select('id, status, created_at')
+        .eq('email', memberData.email)
+        .eq('status', 'pending')
+        .single();
+
+      if (existingInvitation) {
+        const createdDate = new Date(existingInvitation.created_at).toLocaleDateString();
+        toast.error(`❌ Ya hay una invitación pendiente para este email (enviada el ${createdDate})`);
+        return;
+      }
+
+      // 3. Generar token único y fecha de expiración
+      const invitationToken = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // Expira en 7 días
+
+      // 4. Crear invitación en la base de datos
+      const { data: invitation, error: invitationError } = await supabase
+        .from('user_invitations')
+        .insert({
+          email: memberData.email,
+          name: memberData.name,
+          role: memberData.role,
+          company_id: memberData.company_id || null,
+          token: invitationToken,
+          expires_at: expiresAt.toISOString(),
+          invited_by: user?.id,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (invitationError) {
+        console.error('❌ Error creating invitation:', invitationError);
+        toast.error(`Error creando invitación: ${invitationError.message}`);
+        return;
+      }
+
+      // 5. Registrar la acción en logs (para auditoría)
+      console.log(`✅ INVITACIÓN CREADA:
+        Super Admin: ${user?.email}
+        Invitado: ${memberData.email} (${memberData.name})
+        Rol: ${memberData.role}
+        Token: ${invitationToken}
+        Expira: ${expiresAt.toLocaleDateString()}
+      `);
+
+      // 6. URL de invitación
+      const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitationToken}`;
+
+      toast.success('✅ Invitación enviada exitosamente', {
+        description: `Invitación enviada a ${memberData.email}`,
+        duration: 5000
+      });
+
+      // 7. Mostrar URL temporalmente para testing
+      toast.info('🔗 URL de invitación (para testing)', {
+        description: invitationUrl,
+        duration: 15000
+      });
+
+      // 8. Actualizar la lista y cerrar modal
+      await fetchAllData();
+      setAddMemberModal(false);
+
+    } catch (error: any) {
+      console.error('❌ Error enviando invitación:', error);
+      toast.error(`Error inesperado: ${error.message}`);
+    }
+  };
+
   // Función para editar miembro
   const handleEditMember = async (memberId: string, updatedData: {
     name: string;
@@ -569,6 +934,10 @@ export default function TeamPage() {
       toast.error(`Error al eliminar usuario: ${error.message}`, { id: 'deleting-user' });
     }
   };
+  // ========================================
+  // FUNCIONES AUXILIARES
+  // ========================================
+
   const applyFilters = () => {
     const query = searchQuery.toLowerCase();
 
@@ -606,6 +975,13 @@ export default function TeamPage() {
       assignment.agent_name.toLowerCase().includes(query)
     );
     setFilteredAssignments(filteredAssignmentsResult);
+
+    const filteredInvitationsResult = invitations.filter(invitation => 
+      invitation.email.toLowerCase().includes(query) ||
+      invitation.name.toLowerCase().includes(query) ||
+      (invitation.company_name && invitation.company_name.toLowerCase().includes(query))
+    );
+    setFilteredInvitations(filteredInvitationsResult);
   };
 
   const exportData = () => {
@@ -686,8 +1062,14 @@ export default function TeamPage() {
     totalCompanies: companies.length,
     activeCompanies: companies.filter(c => c.status === 'active').length,
     totalAssignments: assignments.length,
-    primaryAssignments: assignments.filter(a => a.is_primary).length
+    primaryAssignments: assignments.filter(a => a.is_primary).length,
+    totalInvitations: invitations.length,
+    pendingInvitations: invitations.filter(i => i.status === 'pending').length
   };
+  // ========================================
+  // VERIFICACIONES DE SEGURIDAD
+  // ========================================
+
   if (!user) {
     return (
       <DashboardLayout>
@@ -731,6 +1113,9 @@ export default function TeamPage() {
       </DashboardLayout>
     );
   }
+  // ========================================
+  // RETURN JSX - PARTE 1: HEADER Y STATS
+  // ========================================
 
   return (
     <DashboardLayout>
@@ -742,13 +1127,13 @@ export default function TeamPage() {
               <span className="text-blue-600 font-bold text-sm">👥</span>
             </div>
             <div>
-              <h3 className="font-semibold text-blue-900">Panel de Gestión de Equipos - Versión Funcional</h3>
+              <h3 className="font-semibold text-blue-900">Panel de Gestión de Equipos - Sistema de Invitaciones</h3>
               <p className="text-sm text-blue-700">
-                Sistema completo de gestión de usuarios, agentes y empresas con funcionalidad completa.
+                Sistema completo de gestión con invitaciones por email - Solo Super Admins
               </p>
             </div>
             <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-              v2.0 - Completamente Funcional
+              v3.0 - Con Invitaciones
             </Badge>
           </div>
         </div>
@@ -777,6 +1162,7 @@ export default function TeamPage() {
             </Button>
           </div>
         </div>
+
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -821,17 +1207,16 @@ export default function TeamPage() {
           <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
-                <Settings className="h-4 w-4 text-orange-500" />
+                <Mail className="h-4 w-4 text-orange-500" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Asignaciones</p>
-                  <p className="text-xl font-bold">{stats.totalAssignments}</p>
-                  <p className="text-xs text-green-600">{stats.primaryAssignments} primarias</p>
+                  <p className="text-xs text-muted-foreground">Invitaciones</p>
+                  <p className="text-xl font-bold">{stats.totalInvitations}</p>
+                  <p className="text-xs text-amber-600">{stats.pendingInvitations} pendientes</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
-
         {/* Main Content with Tabs */}
         <Card className="border-0 shadow-sm">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
@@ -890,9 +1275,20 @@ export default function TeamPage() {
                       <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                       Actualizar
                     </Button>
-                    <Button onClick={() => setAddMemberModal(true)} size="sm">
+                    <Button 
+                      onClick={() => {
+                        if (!isSuperAdmin) {
+                          toast.error('❌ Solo super administradores pueden invitar usuarios');
+                          return;
+                        }
+                        setAddMemberModal(true);
+                      }} 
+                      size="sm"
+                      disabled={!isSuperAdmin}
+                      className={!isSuperAdmin ? 'opacity-50 cursor-not-allowed' : ''}
+                    >
                       <UserPlus className="w-4 h-4 mr-2" />
-                      Agregar Miembro
+                      Invitar Miembro
                     </Button>
                   </div>
                 </div>
@@ -933,6 +1329,13 @@ export default function TeamPage() {
                                 <Badge variant="destructive">
                                   <Crown className="h-3 w-3 mr-1" />
                                   Admin
+                                </Badge>
+                              )}
+                              
+                              {member.role === 'super_admin' && (
+                                <Badge variant="destructive">
+                                  <Shield className="h-3 w-3 mr-1" />
+                                  Super Admin
                                 </Badge>
                               )}
                             </div>
@@ -1230,44 +1633,17 @@ export default function TeamPage() {
           />
         )}
 
-        {/* Modales Placeholder */}
+        {/* Modal Invitar Miembro (NUEVO) */}
         {addMemberModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-96">
-              <CardHeader>
-                <CardTitle>Agregar Nuevo Miembro</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Input placeholder="Email del usuario" />
-                  <Input placeholder="Nombre completo" />
-                  <select className="w-full border rounded px-3 py-2">
-                    <option value="">Seleccionar empresa</option>
-                    {companies.map(company => (
-                      <option key={company.id} value={company.id}>{company.name}</option>
-                    ))}
-                  </select>
-                  <select className="w-full border rounded px-3 py-2">
-                    <option value="user">Usuario</option>
-                    <option value="admin">Administrador</option>
-                  </select>
-                </div>
-                <div className="flex justify-end space-x-2 mt-6">
-                  <Button variant="outline" onClick={() => setAddMemberModal(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={() => {
-                    toast.success('Funcionalidad en desarrollo');
-                    setAddMemberModal(false);
-                  }}>
-                    Agregar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <AddMemberModal
+            onClose={() => setAddMemberModal(false)}
+            onSave={handleSendInvitation}
+            companies={companies}
+            currentUser={user}
+          />
         )}
 
+        {/* Modales Placeholder (Sin cambios) */}
         {addAgentModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <Card className="w-96">
@@ -1388,4 +1764,3 @@ export default function TeamPage() {
     </DashboardLayout>
   );
 }
-          
