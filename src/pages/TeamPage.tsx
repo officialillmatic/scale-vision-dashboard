@@ -682,10 +682,10 @@ export default function TeamPage() {
       const { data: invitationsData, error: invitationsError } = await supabase
         .from('team_invitations')
         .select(`
-          *,
-          companies(name),
-          invited_by_profile:user_profiles!invited_by(email)
-        `)
+  *,
+  company:companies(name),
+  invited_by_profile:profiles!team_invitations_invited_by_fkey(full_name, email)
+`)
         .order('created_at', { ascending: false });
 
       if (invitationsError) {
@@ -700,7 +700,7 @@ export default function TeamPage() {
         role: invitation.role,
         company_id: invitation.company_id,
         company_name: invitation.companies?.name || null,
-        token: invitation.token,
+        token: invitation.invitation_token,
         expires_at: invitation.expires_at,
         invited_by: invitation.invited_by,
         invited_by_email: invitation.invited_by_profile?.email,
@@ -788,15 +788,14 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
       const { data: invitation, error: invitationError } = await supabase
         .from('team_invitations')
         .insert({
-          email: memberData.email,
-          name: memberData.name,
-          role: memberData.role,
-          company_id: memberData.company_id || null,
-          token: invitationToken,
-          expires_at: expiresAt.toISOString(),
-          invited_by: user?.id,
-          status: 'pending'
-        })
+  email: memberData.email,
+  role: memberData.role,
+  company_id: memberData.company_id || null,
+  invitation_token: invitationToken,
+  expires_at: expiresAt.toISOString(),
+  invited_by: user?.id,
+  status: 'pending'
+})
         .select()
         .single();
 
