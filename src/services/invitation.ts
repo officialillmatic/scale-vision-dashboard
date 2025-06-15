@@ -98,10 +98,70 @@ export const acceptInvitation = async (token: string, userId: string) => {
 
     console.log('✅ [acceptInvitation] Invitation status updated successfully');
 
-    // 2. Verificar si el usuario ya existe en company_users (por si acaso)
-    console.log('🔍 [acceptInvitation] Checking existing company_users record...');
+    // 2. Crear registro en tabla users (si no existe)
+    console.log('👤 [acceptInvitation] Checking if user exists in users table...');
+    const { data: existingUserInUsers, error: usersCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    if (!existingUserInUsers && (!usersCheckError || usersCheckError.code === 'PGRST116')) {
+      console.log('👤 [acceptInvitation] Creating user in users table...');
+      const { error: usersInsertError } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          email: invitationData.email,
+          name: invitationData.email,
+          created_at: new Date().toISOString()
+        });
+
+      if (usersInsertError) {
+        console.error('❌ [acceptInvitation] Error creating user in users table:', usersInsertError);
+        return { success: false, error: usersInsertError.message };
+      }
+      console.log('✅ [acceptInvitation] User created in users table successfully');
+    } else {
+      console.log('ℹ️ [acceptInvitation] User already exists in users table');
+    }
+
+    // 3. Actualizar user_profiles con company_id
+    console.log('👤 [acceptInvitation] Updating user_profiles with company_id...');
+    const { error: profileError } = await supabase
+      .from('user_profiles')
+      .update({
+        company_id: invitationData.company_id,
+        role: invitationData.role
+      })
+      .eq('id', userId);
+
+    if (profileError) {
+      console.error('❌ [acceptInvitation] Error updating user_profiles:', profileError);
+      return { success: false, error: profileError.message };
+    }
+
+    // 3. Actualizar user_profiles con company_id
+    console.log('👤 [acceptInvitation] Updating user_profiles with company_id...');
+    const { error: profileError } = await supabase
+      .from('user_profiles')
+      .update({
+        company_id: invitationData.company_id,
+        role: invitationData.role
+      })
+      .eq('id', userId);
+
+    if (profileError) {
+      console.error('❌ [acceptInvitation] Error updating user_profiles:', profileError);
+      return { success: false, error: profileError.message };
+    }
+
+    console.log('✅ [acceptInvitation] User_profiles updated successfully');
+
+    // 4. Verificar si el usuario ya existe en company_members (por si acaso)
+    console.log('🔍 [acceptInvitation] Checking existing company_members record...');
     const { data: existingUser, error: checkError } = await supabase
-      .from('company_users')
+      .from('company_members')
       .select('id')
       .eq('user_id', userId)
       .eq('company_id', invitationData.company_id)
@@ -109,35 +169,44 @@ export const acceptInvitation = async (token: string, userId: string) => {
 
     if (checkError && checkError.code !== 'PGRST116') {
       console.error('❌ [acceptInvitation] Error checking existing user:', checkError);
-      return { success: false, error: checkError.message };
+      // No fallar por esto, continuar
     }
 
-    if (existingUser) {
-      console.log('⚠️ [acceptInvitation] User already exists in company, skipping insert');
-      return { success: true };
+    if (!existingUser) {
+    // 4. Verificar si el usuario ya existe en company_members (por si acaso)
+    console.log('🔍 [acceptInvitation] Checking existing company_members record...');
+    const { data: existingUser, error: checkError } = await supabase
+      .from('company_members')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('company_id', invitationData.company_id)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('❌ [acceptInvitation] Error checking existing user:', checkError);
+      // No fallar por esto, continuar
     }
 
-    // 3. Crear registro en company_users
-    console.log('👥 [acceptInvitation] Creating company_users record...');
-    console.log('📊 [acceptInvitation] Company ID:', invitationData.company_id);
-    console.log('👤 [acceptInvitation] User ID:', userId);
-    console.log('🏷️ [acceptInvitation] Role:', invitationData.role);
-    
-    const { error: insertError } = await supabase
-      .from('company_users')
-      .insert({
-        user_id: userId,
-        company_id: invitationData.company_id,
-        role: invitationData.role,
-        created_at: new Date().toISOString()
-      });
+    if (!existingUser) {
+      // 5. Crear registro en company_members también (para relación adicional)
+      // 5. Crear registro en company_members también (para relación adicional)
+      console.log('👥 [acceptInvitation] Creating company_members record...');
+      const { error: insertError } = await supabase
+        .from('company_members')
+        .insert({
+          user_id: userId,
+          company_id: invitationData.company_id,
+          role: invitationData.role,
+          created_at: new Date().toISOString()
+        });
 
-    if (insertError) {
-      console.error('❌ [acceptInvitation] Error creating company_users:', insertError);
-      return { success: false, error: insertError.message };
+      if (insertError) {
+        console.error('❌ [acceptInvitation] Error creating company_members:', insertError);
+        // No fallar por esto, el user_profiles ya está actualizado
+      } else {
+        console.log('✅ [acceptInvitation] Company_members record created successfully');
+      }
     }
-
-    console.log('✅ [acceptInvitation] Company_users record created successfully');
     console.log('🎉 [acceptInvitation] Invitation accepted successfully!');
     
     return { success: true };
