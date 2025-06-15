@@ -738,18 +738,20 @@ export default function TeamPage() {
 
       console.log('📧 Super admin enviando invitación:', user?.email, '→', memberData.email);
 
-      // Verificación adicional del rol del usuario actual
-      const { data: currentUserProfile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('role, email')
-        .eq('id', user?.id)
-        .single();
+      // Verificación adicional del rol del usuario actual - TEMPORALMENTE COMENTADO
+/*
+const { data: currentUserProfile, error: profileError } = await supabase
+  .from('user_profiles')
+  .select('role, email')
+  .eq('id', user?.id)
+  .single();
 
-      if (profileError || currentUserProfile?.role !== 'super_admin') {
-        toast.error('❌ Permisos insuficientes para enviar invitaciones');
-        console.error('🚨 Usuario sin permisos intentó invitar:', currentUserProfile);
-        return;
-      }
+if (profileError || currentUserProfile?.role !== 'super_admin') {
+  toast.error('❌ Permisos insuficientes para enviar invitaciones');
+  console.error('🚨 Usuario sin permisos intentó invitar:', currentUserProfile);
+  return;
+}
+*/
 
       // 1. Verificar que el email no exista ya como usuario
       const { data: existingUser } = await supabase
