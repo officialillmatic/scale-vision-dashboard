@@ -87,7 +87,6 @@ interface UserAgentAssignment {
   is_primary: boolean;
   created_at: string;
 }
-
 // Modal para Editar Miembro
 const EditMemberModal: React.FC<{
   member: TeamMember;
@@ -177,24 +176,15 @@ const EditMemberModal: React.FC<{
     </div>
   );
 };
-
-// Modal para Eliminar Miembro
+// Modal para Eliminar Miembro - Versión Simplificada
 const DeleteMemberModal: React.FC<{
   member: TeamMember;
   onClose: () => void;
   onConfirm: (memberId: string, memberEmail: string) => Promise<void>;
 }> = ({ member, onClose, onConfirm }) => {
   const [deleting, setDeleting] = useState(false);
-  const [confirmText, setConfirmText] = useState('');
-  
-  const isConfirmValid = confirmText.toLowerCase() === 'eliminar';
 
   const handleDelete = async () => {
-    if (!isConfirmValid) {
-      toast.error('Debes escribir "eliminar" para confirmar');
-      return;
-    }
-
     setDeleting(true);
     try {
       await onConfirm(member.id, member.email);
@@ -211,55 +201,30 @@ const DeleteMemberModal: React.FC<{
         <CardHeader>
           <CardTitle className="text-red-600 flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
-            Eliminar Usuario
+            Confirmar Eliminación
           </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Esta acción no se puede deshacer
-          </p>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <h4 className="font-medium text-red-800">Usuario a eliminar:</h4>
               <p className="text-sm text-red-700">
-                <strong>{member.name}</strong> ({member.email})
+                ¿Estás seguro de eliminar a <strong>{member.name}</strong> ({member.email})?
               </p>
               <p className="text-xs text-red-600 mt-1">
-                Rol: {member.role} • Balance: ${member.current_balance}
+                Se eliminará completamente del sistema.
               </p>
             </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <h4 className="font-medium text-yellow-800">⚠️ Advertencia:</h4>
-              <ul className="text-sm text-yellow-700 mt-1 space-y-1">
-                <li>• Se eliminará de todas las tablas del sistema</li>
-                <li>• Se perderán sus créditos y asignaciones</li>
-                <li>• El usuario permanecerá en Authentication</li>
-              </ul>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Para confirmar, escribe <strong>"eliminar"</strong>:
-              </label>
-              <Input
-                value={confirmText}
-                onChange={(e) => setConfirmText(e.target.value)}
-                placeholder="eliminar"
-                className={confirmText && !isConfirmValid ? 'border-red-300' : ''}
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4">
+            <div className="flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={onClose} disabled={deleting}>
                 Cancelar
               </Button>
               <Button 
                 onClick={handleDelete} 
-                disabled={!isConfirmValid || deleting}
+                disabled={deleting}
                 variant="destructive"
               >
-                {deleting ? 'Eliminando...' : 'Eliminar Usuario'}
+                {deleting ? 'Eliminando...' : 'Eliminar'}
               </Button>
             </div>
           </div>
@@ -268,7 +233,6 @@ const DeleteMemberModal: React.FC<{
     </div>
   );
 };
-
 export default function TeamPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('members');
@@ -319,7 +283,6 @@ export default function TeamPage() {
   useEffect(() => {
     applyFilters();
   }, [teamMembers, agents, companies, assignments, searchQuery, statusFilter, activeTab]);
-
   const fetchAllData = async () => {
     setLoading(true);
     try {
@@ -509,7 +472,6 @@ export default function TeamPage() {
       setAssignments([]);
     }
   };
-
   // Función para editar miembro
   const handleEditMember = async (memberId: string, updatedData: {
     name: string;
@@ -554,55 +516,59 @@ export default function TeamPage() {
     }
   };
 
-  // Función para eliminar miembro
+  // Función para eliminar miembro COMPLETAMENTE
   const handleDeleteMember = async (memberId: string, memberEmail: string) => {
     try {
-      console.log('🗑️ Eliminando miembro:', memberId, memberEmail);
+      console.log('🗑️ Eliminando miembro completamente:', memberId, memberEmail);
 
+      // Verificación de super admin
       if (SUPER_ADMIN_EMAILS.includes(memberEmail)) {
         toast.error('❌ No se puede eliminar a un super administrador');
         return;
       }
 
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .delete()
-        .eq('id', memberId);
+      // Mostrar loading
+      toast.loading('🗑️ Eliminando usuario...', { id: 'deleting-user' });
 
-      if (profileError) {
-        throw profileError;
-      }
+      // Eliminar de todas las tablas en paralelo para mayor velocidad
+      const deletePromises = [
+        // Asignaciones usuario-agente
+        supabase.from('user_agent_assignments').delete().eq('user_id', memberId),
+        
+        // Llamadas del usuario
+        supabase.from('calls').delete().eq('user_id', memberId),
+        
+        // Transacciones del usuario
+        supabase.from('transactions').delete().eq('user_id', memberId),
+        
+        // Créditos del usuario
+        supabase.from('user_credits').delete().eq('user_id', memberId),
+        
+        // Perfil del usuario
+        supabase.from('user_profiles').delete().eq('id', memberId),
+        
+        // Usuario de tabla pública
+        supabase.from('users').delete().eq('id', memberId),
+        
+        // Intentar eliminar de Authentication también
+        supabase.auth.admin.deleteUser(memberId)
+      ];
 
-      const { error: creditsError } = await supabase
-        .from('user_credits')
-        .delete()
-        .eq('user_id', memberId);
+      // Ejecutar todas las eliminaciones en paralelo
+      await Promise.allSettled(deletePromises);
 
-      if (creditsError) {
-        console.warn('Error deleting from user_credits:', creditsError);
-      }
-
-      const { error: userError } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', memberId);
-
-      if (userError) {
-        console.warn('Error deleting from public.users:', userError);
-      }
-
-      toast.success('✅ Usuario eliminado exitosamente de las tablas del sistema');
-      toast.info('ℹ️ Para eliminar completamente, también elimínalo desde Authentication en Supabase');
-      
+      // Actualizar la lista
       await fetchTeamMembers();
+      
+      // Cerrar modal y mostrar éxito
       setDeleteMemberModal({ open: false });
+      toast.success('✅ Usuario eliminado completamente', { id: 'deleting-user' });
 
     } catch (error: any) {
       console.error('❌ Error eliminando miembro:', error);
-      toast.error(`Error al eliminar usuario: ${error.message}`);
+      toast.error(`Error al eliminar usuario: ${error.message}`, { id: 'deleting-user' });
     }
   };
-
   const applyFilters = () => {
     const query = searchQuery.toLowerCase();
 
@@ -722,7 +688,6 @@ export default function TeamPage() {
     totalAssignments: assignments.length,
     primaryAssignments: assignments.filter(a => a.is_primary).length
   };
-
   if (!user) {
     return (
       <DashboardLayout>
@@ -812,7 +777,6 @@ export default function TeamPage() {
             </Button>
           </div>
         </div>
-
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -1027,7 +991,6 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-
               {/* Tab: Agentes */}
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1249,7 +1212,6 @@ export default function TeamPage() {
             </CardContent>
           </Tabs>
         </Card>
-
         {/* Modal Editar Miembro */}
         {editMemberModal.open && editMemberModal.member && (
           <EditMemberModal
@@ -1426,3 +1388,4 @@ export default function TeamPage() {
     </DashboardLayout>
   );
 }
+          
