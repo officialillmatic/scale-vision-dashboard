@@ -195,12 +195,17 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const formatCurrency = (amount: number) => {
+  // ✅ FUNCIÓN CORREGIDA:
+const formatCurrency = (amount: number) => {
+  // Redondear a 2 decimales para evitar problemas de precisión flotante
+  const roundedAmount = Math.round((amount || 0) * 100) / 100;
+  
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
-  }).format(amount);
+    maximumFractionDigits: 2, // ✅ AGREGADO: Limitar a máximo 2 decimales
+  }).format(roundedAmount);
 };
 
   const formatDate = (timestamp: string) => {
