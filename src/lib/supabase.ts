@@ -13,9 +13,9 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 }
 
 // Create a placeholder client if the environment variables are missing (for development only)
-// This prevents the app from crashing during development if .env is not set up
-const devFallbackUrl = 'https://jqkkhwoybcenxqpvodev.supabase.co';
-const devFallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8';
+// These placeholder values prevent crashes during local setup but should be replaced
+const devFallbackUrl = 'http://localhost:54321';
+const devFallbackKey = 'public-anon-key';
 
 export const supabase = createClient(
   SUPABASE_URL || devFallbackUrl, 

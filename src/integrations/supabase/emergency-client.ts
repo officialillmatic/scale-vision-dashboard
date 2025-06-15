@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-// TUS CREDENCIALES REALES - HARDCODEADAS
-const EMERGENCY_SUPABASE_URL = 'https://jqkkhwoybcenxqpvodev.supabase.co'
-const EMERGENCY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8'
+// Use environment variables to create an emergency Supabase client
+const EMERGENCY_SUPABASE_URL = process.env.EMERGENCY_SUPABASE_URL || process.env.SUPABASE_URL || ''
+const EMERGENCY_SUPABASE_ANON_KEY = process.env.EMERGENCY_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''
 
 export const emergencySupabase = createClient(
   EMERGENCY_SUPABASE_URL,
@@ -21,7 +21,4 @@ export const emergencySupabase = createClient(
   }
 )
 
-// Test inmediato
-emergencySupabase.auth.getUser().then(({ data, error }) => {
-  console.log('🚨 Emergency client test:', data?.user?.email, error)
-})
+export { emergencySupabase }
