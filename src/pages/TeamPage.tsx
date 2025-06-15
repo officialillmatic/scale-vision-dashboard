@@ -8,7 +8,7 @@ function EditMemberModal({
 }: {
   member: TeamMember;
   onClose: () => void;
-  onSave: (memberId: string, updatedData: { name: string; email: string; role: string; }) => Promise<void>;
+  onSave: (memberId: string, updatedData: { name: string; email: string; role: string }) => Promise<void>;
 }) {
   const [formData, setFormData] = useState({
     name: member.name,
