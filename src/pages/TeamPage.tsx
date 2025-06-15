@@ -131,18 +131,312 @@ export default function TeamPage() {
     applyFilters();
   }, [teamMembers, agents, companies, assignments, searchQuery, statusFilter, activeTab]);
 
-  const fetchAllData = async () => {
-    setLoading(true);
+  // Función para configurar trigger automático para nuevos usuarios
+  const setupAutoProfileCreation = async () => {
     try {
-      await Promise.all([
-        fetchTeamMembers(),
-        fetchAgents(),
-        fetchCompanies(),
-        fetchAssignments()
-      ]);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Error al cargar datos del equipo');
+      console.log('🔧 Configurando trigger automático para nuevos usuarios...');
+      setLoading(true);
+
+      // 1. Buscar empresa del super admin para usar como default
+      const { data: superAdminProfile } = await supabase
+        .from('user_profiles')
+        .select('company_id')
+        .eq('email', 'produpublicol@gmail.com')
+        .single();
+
+      let defaultCompanyId = superAdminProfile?.company_id;
+
+      if (!defaultCompanyId) {
+        // Buscar cualquier empresa existente o crear una
+        const { data: companies } = await supabase
+          .from('companies')
+          .select('id')
+          .limit(1);
+
+        if (companies && companies.length > 0) {
+          defaultCompanyId = companies[0].id;
+        } else {
+          // Crear empresa por defecto
+          const { data: newCompany } = await supabase
+            .from('companies')
+            .insert({
+              name: 'Empresa Principal',
+              description: 'Empresa por defecto para nuevos usuarios'
+            })
+            .select()
+            .single();
+          
+          defaultCompanyId = newCompany?.id;
+        }
+      }
+
+      console.log('🏢 Empresa por defecto para nuevos usuarios:', defaultCompanyId);
+
+      // 2. Crear o actualizar la función trigger
+      const triggerFunction = `
+        CREATE OR REPLACE FUNCTION public.handle_new_user_signup()
+        RETURNS TRIGGER
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        SET search_path = public
+        AS $
+        BEGIN
+          -- Solo crear perfil si no existe
+          INSERT INTO public.user_profiles (id, email, name, role, company_id)
+          VALUES (
+            NEW.id,
+            NEW.email,
+            COALESCE(NEW.raw_user_meta_data->>'name', NEW.raw_user_meta_data->>'full_name', NEW.email, 'Usuario'),
+            'user',
+            '${defaultCompanyId}'
+          )
+          ON CONFLICT (id) DO NOTHING;
+          
+          RETURN NEW;
+        END;
+        $;
+      `;
+
+      // 3. Crear el trigger
+      const triggerCreation = `
+        DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+        
+        CREATE TRIGGER on_auth_user_created
+        AFTER INSERT ON auth.users
+        FOR EACH ROW
+        EXECUTE FUNCTION public.handle_new_user_signup();
+      `;
+
+      // Ejecutar las consultas SQL
+      const { error: functionError } = await supabase.rpc('sql', {
+        query: triggerFunction
+      });
+
+      if (functionError) {
+        // Intentar con approach alternativo usando SQL Editor
+        console.log('🔧 Intentando configurar trigger manualmente...');
+        toast.warning('Por favor, configura el trigger manualmente en el SQL Editor de Supabase');
+        
+        // Mostrar las instrucciones
+        const instructions = `
+-- EJECUTAR EN SQL EDITOR DE SUPABASE:
+
+-- 1. Crear función
+${triggerFunction}
+
+-- 2. Crear trigger  
+${triggerCreation}
+        `;
+        
+        console.log('📋 Instrucciones SQL:', instructions);
+        
+        // Copiar al clipboard si es posible
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(instructions);
+          toast.success('✅ Instrucciones SQL copiadas al portapapeles');
+        }
+        
+        return;
+      }
+
+      const { error: triggerError } = await supabase.rpc('sql', {
+        query: triggerCreation
+      });
+
+      if (triggerError) {
+        console.error('❌ Error creando trigger:', triggerError);
+        throw triggerError;
+      }
+
+      console.log('✅ Trigger automático configurado exitosamente');
+      toast.success('✅ Trigger automático configurado. Los nuevos usuarios se asignarán automáticamente al equipo.');
+
+    } catch (error: any) {
+      console.error('❌ Error configurando trigger:', error);
+      toast.error(`Error configurando trigger: ${error.message}`);
+      
+      // Fallback: mostrar instrucciones manuales
+      const manualInstructions = `
+Para configurar el trigger manualmente:
+
+1. Ve al SQL Editor en Supabase
+2. Ejecuta este código:
+
+-- Crear función
+CREATE OR REPLACE FUNCTION public.handle_new_user_signup()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+BEGIN
+  INSERT INTO public.user_profiles (id, email, name, role, company_id)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'name', NEW.email, 'Usuario'),
+    'user',
+    (SELECT id FROM public.companies LIMIT 1)
+  )
+  ON CONFLICT (id) DO NOTHING;
+  
+  RETURN NEW;
+END;
+$;
+
+-- Crear trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_new_user_signup();
+      `;
+      
+      console.log('📋 Instrucciones manuales:', manualInstructions);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const investigateAndAssignTeams = async () => {
+    try {
+      console.log('🔍 Investigando estructura de equipos...');
+      setLoading(true);
+
+      // 1. Buscar el usuario super admin
+      const { data: superAdminData, error: superAdminError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', 'produpublicol@gmail.com')
+        .single();
+
+      if (superAdminError) {
+        console.error('❌ Error buscando super admin:', superAdminError);
+        throw superAdminError;
+      }
+
+      console.log('👑 Super admin encontrado:', superAdminData);
+
+      // 2. Buscar perfil del super admin
+      const { data: superAdminProfile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', superAdminData.id)
+        .single();
+
+      console.log('👑 Perfil super admin:', superAdminProfile);
+
+      // 3. Verificar si tiene empresa asignada
+      let targetCompanyId = superAdminProfile?.company_id;
+      let targetCompanyName = null;
+
+      if (targetCompanyId) {
+        // Buscar datos de la empresa
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('*')
+          .eq('id', targetCompanyId)
+          .single();
+        
+        targetCompanyName = companyData?.name;
+        console.log('🏢 Empresa del super admin:', companyData);
+      } else {
+        // 4. Si no tiene empresa, crear una nueva para el super admin
+        console.log('🏢 Creando empresa para super admin...');
+        
+        const { data: newCompany, error: companyError } = await supabase
+          .from('companies')
+          .insert({
+            name: 'Empresa Principal - Admin',
+            description: 'Empresa principal del administrador del sistema',
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (companyError) {
+          console.error('❌ Error creando empresa:', companyError);
+          throw companyError;
+        }
+
+        targetCompanyId = newCompany.id;
+        targetCompanyName = newCompany.name;
+        console.log('✅ Nueva empresa creada:', newCompany);
+
+        // 5. Asignar empresa al super admin
+        if (superAdminProfile) {
+          await supabase
+            .from('user_profiles')
+            .update({ company_id: targetCompanyId })
+            .eq('id', superAdminData.id);
+        } else {
+          // Crear perfil si no existe
+          await supabase
+            .from('user_profiles')
+            .insert({
+              id: superAdminData.id,
+              email: superAdminData.email,
+              name: superAdminData.name || superAdminData.full_name || 'Super Admin',
+              role: 'super_admin',
+              company_id: targetCompanyId
+            });
+        }
+      }
+
+      // 6. Buscar todos los usuarios
+      const { data: allUsers } = await supabase
+        .from('users')
+        .select('*');
+
+      console.log('👥 Todos los usuarios encontrados:', allUsers?.length);
+
+      // 7. Buscar perfiles existentes
+      const { data: existingProfiles } = await supabase
+        .from('user_profiles')
+        .select('*');
+
+      console.log('📋 Perfiles existentes:', existingProfiles?.length);
+
+      // 8. Asignar usuarios sin empresa a la empresa del super admin
+      let assignedCount = 0;
+      
+      if (allUsers && targetCompanyId) {
+        for (const user of allUsers) {
+          const existingProfile = existingProfiles?.find(p => p.id === user.id);
+          
+          if (!existingProfile) {
+            // Crear perfil nuevo
+            await supabase
+              .from('user_profiles')
+              .insert({
+                id: user.id,
+                email: user.email,
+                name: user.name || user.full_name || user.email || 'Usuario',
+                role: user.email === 'produpublicol@gmail.com' ? 'super_admin' : 'user',
+                company_id: targetCompanyId
+              });
+            assignedCount++;
+            console.log(`✅ Perfil creado para: ${user.email}`);
+          } else if (!existingProfile.company_id) {
+            // Actualizar perfil existente sin empresa
+            await supabase
+              .from('user_profiles')
+              .update({ company_id: targetCompanyId })
+              .eq('id', user.id);
+            assignedCount++;
+            console.log(`✅ Empresa asignada a: ${user.email}`);
+          }
+        }
+      }
+
+      console.log(`✅ Proceso completado. Usuarios asignados: ${assignedCount}`);
+      toast.success(`✅ Equipos organizados. ${assignedCount} usuarios asignados a "${targetCompanyName}"`);
+
+      // 9. Recargar datos
+      await fetchAllData();
+
+    } catch (error: any) {
+      console.error('❌ Error en investigación de equipos:', error);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -174,20 +468,23 @@ export default function TeamPage() {
       const userIds = usersData.map(u => u.id);
 
       // Consultas paralelas para datos adicionales
-      const [creditsResult, callsResult, profilesResult] = await Promise.all([
+      const [creditsResult, callsResult, profilesResult, companiesResult] = await Promise.all([
         supabase.from('user_credits').select('user_id, current_balance'),
         supabase.from('calls').select('user_id, cost_usd'),
-        supabase.from('user_profiles').select('id, email, name, role, company_id')
+        supabase.from('user_profiles').select('id, email, name, role, company_id'),
+        supabase.from('companies').select('id, name')
       ]);
 
       const creditsData = creditsResult.data || [];
       const callsData = callsResult.data || [];
       const profilesData = profilesResult.data || [];
+      const companiesData = companiesResult.data || [];
 
       console.log('📊 Additional data:', {
         credits: creditsData.length,
         calls: callsData.length,
-        profiles: profilesData.length
+        profiles: profilesData.length,
+        companies: companiesData.length
       });
 
       // Combinar datos de manera más robusta
@@ -195,6 +492,7 @@ export default function TeamPage() {
         const profile = profilesData.find(p => p.id === user.id);
         const credit = creditsData.find(c => c.user_id === user.id);
         const userCalls = callsData.filter(c => c.user_id === user.id);
+        const company = companiesData.find(c => c.id === profile?.company_id);
 
         const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
         const currentBalance = credit?.current_balance || 0;
@@ -206,7 +504,7 @@ export default function TeamPage() {
           role: profile?.role || user.role || 'user',
           status: currentBalance > 0 ? 'active' : 'inactive',
           company_id: profile?.company_id || user.company_id,
-          company_name: null, // Se calculará después si hay companies
+          company_name: company?.name || 'Sin empresa',
           created_at: user.created_at || new Date().toISOString(),
           last_login: user.last_sign_in_at,
           total_calls: userCalls.length,
@@ -560,6 +858,18 @@ export default function TeamPage() {
             </Badge>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <Button onClick={debugDatabaseStructure} variant="outline" size="sm">
+              <Eye className="w-4 h-4 mr-2" />
+              Debug DB
+            </Button>
+            <Button onClick={investigateAndAssignTeams} variant="outline" size="sm" disabled={loading}>
+              <Settings className="w-4 h-4 mr-2" />
+              Organizar Equipos
+            </Button>
+            <Button onClick={setupAutoProfileCreation} variant="outline" size="sm" disabled={loading}>
+              <Shield className="w-4 h-4 mr-2" />
+              Config Auto-Trigger
+            </Button>
             <Button onClick={exportData} variant="outline" size="sm">
               <Download className="w-4 h-4 mr-2" />
               Exportar CSV
