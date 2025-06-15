@@ -211,7 +211,7 @@ const { error: profileError } = await supabase
   
   if (companyError) console.warn('Error agregando a empresa:', companyError);
 }
-      }
+      
 
       // 6. Marcar invitación como aceptada
       const { error: updateError } = await supabase
