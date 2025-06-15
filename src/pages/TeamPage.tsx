@@ -16,7 +16,6 @@ const TeamPage = () => {
   const [activeTab, setActiveTab] = useState('members');
   const { user } = useAuth();
   const { isCompanyOwner, can } = useRole();
-  const { user } = useAuth();
 const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
 const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
 const { isSuperAdmin: hookSuperAdmin, isLoading: isSuperAdminLoading } = useSuperAdmin();
