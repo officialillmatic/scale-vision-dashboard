@@ -1474,10 +1474,10 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
               size="sm"
               variant="outline"
               onClick={() => {
-                const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.invitation_token}`;
-                navigator.clipboard.writeText(invitationUrl);
-                toast.success('URL de invitación copiada al portapapeles');
-              }}
+  const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
+  navigator.clipboard.writeText(invitationUrl);
+  toast.success('URL de invitación copiada al portapapeles');
+}}
             >
               <Eye className="h-4 w-4 mr-1" />
               Copiar URL
