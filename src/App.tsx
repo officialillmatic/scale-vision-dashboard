@@ -23,7 +23,7 @@ import SuperAdminCreditPage from '@/pages/SuperAdminCreditPage';
 import TeamPage from '@/pages/TeamPage';
 import ProfilePage from '@/pages/ProfilePage';
 import SupportPage from '@/pages/SupportPage';
-import AcceptInvitationPage from '@/pages/AcceptInvitation';
+import AcceptInvitationPage from '@/pages/AcceptInvitationPage';
 import SuperAdminTeamNew from '@/pages/SuperAdminTeamNew';
 import SuperAdminCreditsNew from '@/pages/SuperAdminCreditsNew';
 
