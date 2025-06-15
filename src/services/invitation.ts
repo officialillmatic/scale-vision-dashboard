@@ -128,7 +128,7 @@ export const acceptInvitation = async (token: string, userId: string) => {
 
     // 3. Actualizar user_profiles con company_id
     console.log('👤 [acceptInvitation] Updating user_profiles with company_id...');
-    const { error: profileError } = await supabase
+    const { error: updateProfileError } = await supabase
       .from('user_profiles')
       .update({
         company_id: invitationData.company_id,
@@ -136,62 +136,31 @@ export const acceptInvitation = async (token: string, userId: string) => {
       })
       .eq('id', userId);
 
-    if (profileError) {
-      console.error('❌ [acceptInvitation] Error updating user_profiles:', profileError);
-      return { success: false, error: profileError.message };
-    }
-
-    // 3. Actualizar user_profiles con company_id
-    console.log('👤 [acceptInvitation] Updating user_profiles with company_id...');
-    const { error: profileError } = await supabase
-      .from('user_profiles')
-      .update({
-        company_id: invitationData.company_id,
-        role: invitationData.role
-      })
-      .eq('id', userId);
-
-    if (profileError) {
-      console.error('❌ [acceptInvitation] Error updating user_profiles:', profileError);
-      return { success: false, error: profileError.message };
+    if (updateProfileError) {
+      console.error('❌ [acceptInvitation] Error updating user_profiles:', updateProfileError);
+      return { success: false, error: updateProfileError.message };
     }
 
     console.log('✅ [acceptInvitation] User_profiles updated successfully');
 
     // 4. Verificar si el usuario ya existe en company_members (por si acaso)
     console.log('🔍 [acceptInvitation] Checking existing company_members record...');
-    const { data: existingUser, error: checkError } = await supabase
+    const { data: existingMember, error: checkMemberError } = await supabase
       .from('company_members')
       .select('id')
       .eq('user_id', userId)
       .eq('company_id', invitationData.company_id)
       .single();
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error('❌ [acceptInvitation] Error checking existing user:', checkError);
+    if (checkMemberError && checkMemberError.code !== 'PGRST116') {
+      console.error('❌ [acceptInvitation] Error checking existing member:', checkMemberError);
       // No fallar por esto, continuar
     }
 
-    if (!existingUser) {
-    // 4. Verificar si el usuario ya existe en company_members (por si acaso)
-    console.log('🔍 [acceptInvitation] Checking existing company_members record...');
-    const { data: existingUser, error: checkError } = await supabase
-      .from('company_members')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('company_id', invitationData.company_id)
-      .single();
-
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error('❌ [acceptInvitation] Error checking existing user:', checkError);
-      // No fallar por esto, continuar
-    }
-
-    if (!existingUser) {
-      // 5. Crear registro en company_members también (para relación adicional)
+    if (!existingMember) {
       // 5. Crear registro en company_members también (para relación adicional)
       console.log('👥 [acceptInvitation] Creating company_members record...');
-      const { error: insertError } = await supabase
+      const { error: insertMemberError } = await supabase
         .from('company_members')
         .insert({
           user_id: userId,
@@ -200,15 +169,15 @@ export const acceptInvitation = async (token: string, userId: string) => {
           created_at: new Date().toISOString()
         });
 
-      if (insertError) {
-        console.error('❌ [acceptInvitation] Error creating company_members:', insertError);
+      if (insertMemberError) {
+        console.error('❌ [acceptInvitation] Error creating company_members:', insertMemberError);
         // No fallar por esto, el user_profiles ya está actualizado
       } else {
         console.log('✅ [acceptInvitation] Company_members record created successfully');
       }
     }
+
     console.log('🎉 [acceptInvitation] Invitation accepted successfully!');
-    
     return { success: true };
 
   } catch (error: any) {
