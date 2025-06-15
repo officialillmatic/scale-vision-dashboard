@@ -680,7 +680,7 @@ export default function TeamPage() {
   const fetchInvitations = async () => {
     try {
       const { data: invitationsData, error: invitationsError } = await supabase
-        .from('user_invitations')
+        .from('team_invitations')
         .select(`
           *,
           companies(name),
@@ -786,7 +786,7 @@ if (profileError || currentUserProfile?.role !== 'super_admin') {
 
       // 4. Crear invitación en la base de datos
       const { data: invitation, error: invitationError } = await supabase
-        .from('user_invitations')
+        .from('team_invitations')
         .insert({
           email: memberData.email,
           name: memberData.name,
