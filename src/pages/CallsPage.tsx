@@ -26,7 +26,25 @@ export default function CallsPage() {
   // ✅ CAMBIO: Usar useSecureCallData como fuente principal
   const { calls: secureCalls, isLoading: secureLoading, error: secureError } = useSecureCallData();
   
-  // ✅ MAPEAR secureCalls al formato esperado por RetellCallDataTable
+  // ✅ FUNCIÓN PARA REDONDEAR A 2 DECIMALES
+  const roundToTwoDecimals = (value: number): number => {
+    return Math.round((value || 0) * 100) / 100;
+  };
+
+  // ✅ FUNCIÓN formatCurrency CORREGIDA con 2 decimales máximo
+  const formatCurrency = (amount: number) => {
+    // Redondear a 2 decimales para evitar problemas de precisión flotante
+    const roundedAmount = roundToTwoDecimals(amount);
+    
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2, // ✅ AGREGADO: Limitar a máximo 2 decimales
+    }).format(roundedAmount);
+  };
+  
+  // ✅ MAPEAR secureCalls al formato esperado por RetellCallDataTable CON REDONDEO
   const retellCalls = secureCalls.map(call => ({
     id: call.id,
     call_id: call.call_id,
@@ -36,8 +54,8 @@ export default function CallsPage() {
     start_timestamp: call.timestamp || call.start_time,
     end_timestamp: call.start_time,
     duration_sec: call.duration_sec || 0,
-    cost_usd: call.cost_usd || 0,
-    revenue_amount: call.revenue_amount || 0,
+    cost_usd: roundToTwoDecimals(call.cost_usd), // ✅ REDONDEAR A 2 DECIMALES
+    revenue_amount: roundToTwoDecimals(call.revenue_amount), // ✅ REDONDEAR A 2 DECIMALES
     call_status: call.call_status || 'unknown',
     from_number: call.from_number,
     to_number: call.to_number,
@@ -65,20 +83,15 @@ export default function CallsPage() {
   const totalCalls = retellCalls.length;
   const activeCalls = retellCalls.filter(call => call.call_status === 'completed').length;
   const totalDuration = retellCalls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
-  const totalCost = retellCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+  // ✅ CALCULAR totalCost con redondeo a 2 decimales
+  const totalCost = roundToTwoDecimals(
+    retellCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0)
+  );
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount);
   };
 
   // Debug handler para cambios de pestaña
@@ -116,6 +129,7 @@ export default function CallsPage() {
               <p><strong>Secure Calls (Fuente Principal):</strong> {secureCalls?.length || 0} | Loading: {secureLoading ? 'Yes' : 'No'} | Error: {secureError?.message || 'None'}</p>
               <p><strong>Mapped Retell Calls:</strong> {retellCalls?.length || 0}</p>
               <p><strong>Hook Usado:</strong> useSecureCallData ✅</p>
+              <p><strong>Total Cost (2 decimales):</strong> {formatCurrency(totalCost)} ✅</p>
             </div>
           </CardContent>
         </Card>
@@ -169,6 +183,7 @@ export default function CallsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 font-medium">Total Cost</p>
+                  {/* ✅ USAR formatCurrency corregida */}
                   <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalCost)}</p>
                 </div>
                 <div className="p-3 bg-orange-100 rounded-lg">
