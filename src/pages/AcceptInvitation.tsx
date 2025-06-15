@@ -213,33 +213,28 @@ const { error: profileError } = await supabase
 }
       
 
-      // 6. Marcar invitación como aceptada
-      const { error: updateError } = await supabase
-        .from('user_invitations')
-        .update({
-          status: 'accepted',
-          accepted_at: new Date().toISOString(),
-          user_id: userId
-        })
-        .eq('id', invitation.id);
+      /// 6. Marcar invitación como aceptada
+const { error: updateError } = await supabase
+  .from('team_invitations')
+  .update({
+    status: 'accepted',
+    accepted_at: new Date().toISOString(),
+    accepted_by: authData.user.id
+  })
+  .eq('id', invitation.id);
 
-      if (updateError) {
-        console.warn('⚠️ Error updating invitation:', updateError);
-      }
+if (updateError) {
+  console.warn('⚠️ Error updating invitation:', updateError);
+}
 
-      toast.success('¡Cuenta creada exitosamente! 🎉', {
-        description: 'Ya puedes iniciar sesión con tu nueva cuenta'
-      });
+toast.success('¡Cuenta creada exitosamente! 🎉', {
+  description: 'Bienvenido a DrScale AI'
+});
 
-      // Redirigir al login después de 2 segundos
-      setTimeout(() => {
-        navigate('/login', { 
-          state: { 
-            email: invitation.email,
-            message: 'Cuenta creada exitosamente. Inicia sesión con tu nueva contraseña.'
-          }
-        });
-      }, 2000);
+// Redirigir al dashboard después de 2 segundos
+setTimeout(() => {
+  navigate('/dashboard');
+}, 2000);
 
     } catch (error: any) {
       console.error('❌ Error accepting invitation:', error);
