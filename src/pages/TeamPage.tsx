@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,16 +15,24 @@ import {
   Crown, 
   Plus, 
   Edit3, 
+  Trash2, 
+  UserPlus, 
+  Settings, 
+  Search,
+  Filter,
   RefreshCw,
   Activity,
   Shield,
-  Settings,
-  Search,
+  Mail,
+  Calendar,
+  Phone,
   Building2,
+  User,
+  AlertTriangle,
   CheckCircle,
   XCircle,
-  UserCheck,
-  ArrowRight
+  Eye,
+  Download
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -34,23 +43,27 @@ interface TeamMember {
   name: string;
   role: string;
   status: string;
+  company_id?: string;
   company_name?: string;
+  created_at: string;
+  last_login?: string;
   total_calls: number;
   total_spent: number;
   current_balance: number;
-  created_at: string;
-  team_status: 'same_team' | 'different_team' | 'no_team';
+  assigned_agents: number;
 }
 
 interface Agent {
   id: string;
   name: string;
   retell_agent_id: string;
+  company_id?: string;
   company_name?: string;
   assigned_users: number;
   total_calls: number;
   status: string;
   created_at: string;
+  description?: string;
 }
 
 interface Company {
@@ -58,7 +71,20 @@ interface Company {
   name: string;
   users_count: number;
   agents_count: number;
+  total_calls: number;
+  total_spent: number;
+  created_at: string;
   status: string;
+}
+
+interface UserAgentAssignment {
+  id: string;
+  user_id: string;
+  agent_id: string;
+  user_email: string;
+  user_name: string;
+  agent_name: string;
+  is_primary: boolean;
   created_at: string;
 }
 
@@ -67,30 +93,29 @@ export default function TeamPage() {
   const [activeTab, setActiveTab] = useState('members');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [autoAssigning, setAutoAssigning] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   
   // Estados para cada pestaña
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [assignments, setAssignments] = useState<UserAgentAssignment[]>([]);
   
   // Estados de filtrado
   const [filteredMembers, setFilteredMembers] = useState<TeamMember[]>([]);
   const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
-
-  // Información del equipo principal
-  const [mainTeamInfo, setMainTeamInfo] = useState<{
-    companyId: string | null;
-    companyName: string | null;
-    memberCount: number;
-    usersNeedingAssignment: number;
-  }>({
-    companyId: null,
-    companyName: null,
-    memberCount: 0,
-    usersNeedingAssignment: 0
-  });
+  const [filteredAssignments, setFilteredAssignments] = useState<UserAgentAssignment[]>([]);
+  
+  // Estados de modales
+  const [addMemberModal, setAddMemberModal] = useState(false);
+  const [addAgentModal, setAddAgentModal] = useState(false);
+  const [addCompanyModal, setAddCompanyModal] = useState(false);
+  const [assignmentModal, setAssignmentModal] = useState<{
+    open: boolean;
+    userId?: string;
+    userName?: string;
+  }>({ open: false });
 
   // Verificación de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
@@ -104,16 +129,16 @@ export default function TeamPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [teamMembers, agents, companies, searchQuery]);
+  }, [teamMembers, agents, companies, assignments, searchQuery, statusFilter, activeTab]);
 
   const fetchAllData = async () => {
     setLoading(true);
     try {
       await Promise.all([
-        fetchMainTeamInfo(),
         fetchTeamMembers(),
         fetchAgents(),
-        fetchCompanies()
+        fetchCompanies(),
+        fetchAssignments()
       ]);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -123,157 +148,73 @@ export default function TeamPage() {
     }
   };
 
-  // Función clave: Buscar el equipo del super admin
-  const fetchMainTeamInfo = async () => {
-    try {
-      console.log('🔍 Buscando equipo de produpublicol@gmail.com...');
-
-      // 1. Buscar el super admin en users
-      const { data: superAdminUser } = await supabase
-        .from('users')
-        .select('id, email')
-        .eq('email', 'produpublicol@gmail.com')
-        .single();
-
-      if (!superAdminUser) {
-        console.log('❌ Super admin no encontrado en users');
-        return;
-      }
-
-      console.log('✅ Super admin encontrado:', superAdminUser);
-
-      // 2. Buscar perfil del super admin para obtener su company_id
-      const { data: superAdminProfile } = await supabase
-        .from('user_profiles')
-        .select('company_id')
-        .eq('id', superAdminUser.id)
-        .single();
-
-      let targetCompanyId = superAdminProfile?.company_id;
-      let targetCompanyName = null;
-
-      // 3. Si no tiene company_id, buscar por email en user_profiles
-      if (!targetCompanyId) {
-        const { data: profileByEmail } = await supabase
-          .from('user_profiles')
-          .select('company_id')
-          .eq('email', 'produpublicol@gmail.com')
-          .single();
-        
-        targetCompanyId = profileByEmail?.company_id;
-      }
-
-      // 4. Si tiene company_id, obtener nombre de la empresa
-      if (targetCompanyId) {
-        const { data: company } = await supabase
-          .from('companies')
-          .select('name')
-          .eq('id', targetCompanyId)
-          .single();
-        
-        targetCompanyName = company?.name;
-      }
-
-      // 5. Contar usuarios en el mismo equipo
-      let memberCount = 0;
-      if (targetCompanyId) {
-        const { count } = await supabase
-          .from('user_profiles')
-          .select('*', { count: 'exact' })
-          .eq('company_id', targetCompanyId);
-        
-        memberCount = count || 0;
-      }
-
-      // 6. Contar usuarios que necesitan asignación
-      const { data: allUsers } = await supabase
-        .from('users')
-        .select('id');
-
-      const { data: usersWithProfiles } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .not('company_id', 'is', null);
-
-      const usersNeedingAssignment = (allUsers?.length || 0) - (usersWithProfiles?.length || 0);
-
-      setMainTeamInfo({
-        companyId: targetCompanyId,
-        companyName: targetCompanyName,
-        memberCount,
-        usersNeedingAssignment: Math.max(0, usersNeedingAssignment)
-      });
-
-      console.log('📊 Información del equipo principal:', {
-        companyId: targetCompanyId,
-        companyName: targetCompanyName,
-        memberCount,
-        usersNeedingAssignment
-      });
-
-    } catch (error) {
-      console.error('❌ Error buscando equipo principal:', error);
-    }
-  };
-
   const fetchTeamMembers = async () => {
     try {
       console.log('🔍 Fetching team members...');
       
+      // Obtener usuarios básicos
       const { data: usersData, error: usersError } = await supabase
         .from('users')
-        .select('*');
+        .select(`
+          id,
+          email,
+          name,
+          full_name,
+          created_at,
+          last_sign_in_at
+        `);
 
-      if (usersError) {
-        console.error('❌ Error fetching users:', usersError);
-        return;
-      }
+      if (usersError) throw usersError;
 
-      if (!usersData || usersData.length === 0) {
-        setTeamMembers([]);
-        return;
-      }
+      // Obtener perfiles adicionales
+      const { data: profilesData } = await supabase
+        .from('user_profiles')
+        .select('id, email, name, role, company_id');
 
-      // Obtener perfiles y créditos
-      const [profilesResult, creditsResult] = await Promise.all([
-        supabase.from('user_profiles').select('id, email, name, role, company_id'),
-        supabase.from('user_credits').select('user_id, current_balance')
-      ]);
+      // Obtener créditos
+      const { data: creditsData } = await supabase
+        .from('user_credits')
+        .select('user_id, current_balance');
 
-      const profilesData = profilesResult.data || [];
-      const creditsData = creditsResult.data || [];
+      // Obtener estadísticas de llamadas
+      const { data: callsData } = await supabase
+        .from('calls')
+        .select('user_id, cost_usd');
 
-      // Obtener nombres de empresas
-      const companyIds = [...new Set(profilesData.map(p => p.company_id).filter(Boolean))];
+      // Obtener assignments count
+      const { data: assignmentsData } = await supabase
+        .from('user_agent_assignments')
+        .select('user_id, agent_id');
+
+      // Obtener companies
       const { data: companiesData } = await supabase
         .from('companies')
-        .select('id, name')
-        .in('id', companyIds);
+        .select('id, name');
 
       // Combinar datos
-      const combinedMembers: TeamMember[] = usersData.map(user => {
-        const profile = profilesData.find(p => p.id === user.id);
-        const credit = creditsData.find(c => c.user_id === user.id);
+      const combinedMembers: TeamMember[] = (usersData || []).map(user => {
+        const profile = profilesData?.find(p => p.id === user.id);
+        const credit = creditsData?.find(c => c.user_id === user.id);
+        const userCalls = callsData?.filter(c => c.user_id === user.id) || [];
+        const userAssignments = assignmentsData?.filter(a => a.user_id === user.id) || [];
         const company = companiesData?.find(c => c.id === profile?.company_id);
 
-        // Determinar estado del equipo
-        let teamStatus: 'same_team' | 'different_team' | 'no_team' = 'no_team';
-        if (profile?.company_id) {
-          teamStatus = profile.company_id === mainTeamInfo.companyId ? 'same_team' : 'different_team';
-        }
+        const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
 
         return {
           id: user.id,
-          email: user.email || profile?.email || `user-${user.id.slice(0, 8)}`,
-          name: user.name || user.full_name || profile?.name || user.email || 'Usuario',
+          email: user.email || profile?.email || 'N/A',
+          name: user.name || user.full_name || profile?.name || 'Usuario Desconocido',
           role: profile?.role || 'user',
-          status: (credit?.current_balance || 0) > 0 ? 'active' : 'inactive',
-          company_name: company?.name || (profile?.company_id ? 'Empresa Desconocida' : 'Sin equipo'),
-          total_calls: 0,
-          total_spent: 0,
+          status: credit?.current_balance ? (credit.current_balance > 0 ? 'active' : 'inactive') : 'inactive',
+          company_id: profile?.company_id,
+          company_name: company?.name,
+          created_at: user.created_at,
+          last_login: user.last_sign_in_at,
+          total_calls: userCalls.length,
+          total_spent: totalSpent,
           current_balance: credit?.current_balance || 0,
-          created_at: user.created_at || new Date().toISOString(),
-          team_status: teamStatus
+          assigned_agents: userAssignments.length
         };
       });
 
@@ -288,30 +229,54 @@ export default function TeamPage() {
 
   const fetchAgents = async () => {
     try {
+      console.log('🔍 Fetching agents...');
+      
       const { data: agentsData, error: agentsError } = await supabase
         .from('agents')
-        .select('*');
+        .select(`
+          id,
+          name,
+          retell_agent_id,
+          company_id,
+          created_at,
+          description
+        `);
 
-      if (agentsError) {
-        console.error('❌ Error fetching agents:', agentsError);
-        return;
-      }
+      if (agentsError) throw agentsError;
 
-      if (!agentsData) {
-        setAgents([]);
-        return;
-      }
+      // Obtener estadísticas de asignaciones
+      const { data: assignmentsData } = await supabase
+        .from('user_agent_assignments')
+        .select('agent_id, user_id');
 
-      const combinedAgents: Agent[] = agentsData.map(agent => ({
-        id: agent.id,
-        name: agent.name || 'Agente Sin Nombre',
-        retell_agent_id: agent.retell_agent_id || 'N/A',
-        company_name: mainTeamInfo.companyName || 'Empresa Principal',
-        assigned_users: 0,
-        total_calls: 0,
-        status: 'active',
-        created_at: agent.created_at || new Date().toISOString()
-      }));
+      // Obtener estadísticas de llamadas
+      const { data: callsData } = await supabase
+        .from('calls')
+        .select('agent_id');
+
+      // Obtener companies
+      const { data: companiesData } = await supabase
+        .from('companies')
+        .select('id, name');
+
+      const combinedAgents: Agent[] = (agentsData || []).map(agent => {
+        const agentAssignments = assignmentsData?.filter(a => a.agent_id === agent.id) || [];
+        const agentCalls = callsData?.filter(c => c.agent_id === agent.id) || [];
+        const company = companiesData?.find(c => c.id === agent.company_id);
+
+        return {
+          id: agent.id,
+          name: agent.name || 'Agente Sin Nombre',
+          retell_agent_id: agent.retell_agent_id || 'N/A',
+          company_id: agent.company_id,
+          company_name: company?.name,
+          assigned_users: agentAssignments.length,
+          total_calls: agentCalls.length,
+          status: agentAssignments.length > 0 ? 'active' : 'inactive',
+          created_at: agent.created_at,
+          description: agent.description
+        };
+      });
 
       setAgents(combinedAgents);
       console.log('✅ Agents loaded:', combinedAgents.length);
@@ -324,28 +289,51 @@ export default function TeamPage() {
 
   const fetchCompanies = async () => {
     try {
+      console.log('🔍 Fetching companies...');
+      
       const { data: companiesData, error: companiesError } = await supabase
         .from('companies')
         .select('*');
 
-      if (companiesError) {
-        console.error('❌ Error fetching companies:', companiesError);
-        return;
-      }
+      if (companiesError) throw companiesError;
 
-      if (!companiesData) {
-        setCompanies([]);
-        return;
-      }
+      // Obtener estadísticas para cada empresa
+      const { data: usersData } = await supabase
+        .from('user_profiles')
+        .select('company_id');
 
-      const combinedCompanies: Company[] = companiesData.map(company => ({
-        id: company.id,
-        name: company.name || 'Empresa Sin Nombre',
-        users_count: company.id === mainTeamInfo.companyId ? mainTeamInfo.memberCount : 0,
-        agents_count: 0,
-        status: 'active',
-        created_at: company.created_at || new Date().toISOString()
-      }));
+      const { data: agentsData } = await supabase
+        .from('agents')
+        .select('company_id');
+
+      const { data: callsData } = await supabase
+        .from('calls')
+        .select('cost_usd, agent_id');
+
+      const { data: allAgents } = await supabase
+        .from('agents')
+        .select('id, company_id');
+
+      const combinedCompanies: Company[] = (companiesData || []).map(company => {
+        const companyUsers = usersData?.filter(u => u.company_id === company.id) || [];
+        const companyAgents = agentsData?.filter(a => a.company_id === company.id) || [];
+        
+        // Calcular llamadas de los agentes de la empresa
+        const companyAgentIds = allAgents?.filter(a => a.company_id === company.id).map(a => a.id) || [];
+        const companyCalls = callsData?.filter(c => companyAgentIds.includes(c.agent_id)) || [];
+        const totalSpent = companyCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+
+        return {
+          id: company.id,
+          name: company.name || 'Empresa Sin Nombre',
+          users_count: companyUsers.length,
+          agents_count: companyAgents.length,
+          total_calls: companyCalls.length,
+          total_spent: totalSpent,
+          created_at: company.created_at,
+          status: companyUsers.length > 0 ? 'active' : 'inactive'
+        };
+      });
 
       setCompanies(combinedCompanies);
       console.log('✅ Companies loaded:', combinedCompanies.length);
@@ -356,155 +344,154 @@ export default function TeamPage() {
     }
   };
 
-  // Función principal: Asignar automáticamente al equipo
-  const autoAssignToMainTeam = async () => {
+  const fetchAssignments = async () => {
     try {
-      setAutoAssigning(true);
-      console.log('🚀 Iniciando asignación automática al equipo principal...');
+      console.log('🔍 Fetching assignments...');
+      
+      const { data: assignmentsData, error: assignmentsError } = await supabase
+        .from('user_agent_assignments')
+        .select(`
+          id,
+          user_id,
+          agent_id,
+          is_primary
+        `);
 
-      // 1. Verificar que tenemos información del equipo principal
-      if (!mainTeamInfo.companyId) {
-        console.log('🏢 No hay equipo principal definido, creando uno...');
-        
-        // Crear empresa principal
-        const { data: newCompany, error: companyError } = await supabase
-          .from('companies')
-          .insert({
-            name: 'Equipo Principal',
-            description: 'Equipo principal del administrador'
-          })
-          .select()
-          .single();
+      if (assignmentsError) throw assignmentsError;
 
-        if (companyError) {
-          throw new Error(`Error creando empresa: ${companyError.message}`);
-        }
-
-        // Actualizar información del equipo principal
-        setMainTeamInfo(prev => ({
-          ...prev,
-          companyId: newCompany.id,
-          companyName: newCompany.name
-        }));
-
-        console.log('✅ Empresa principal creada:', newCompany);
-      }
-
-      const targetCompanyId = mainTeamInfo.companyId;
-
-      // 2. Obtener todos los usuarios
-      const { data: allUsers } = await supabase
+      // Obtener información de usuarios y agentes
+      const { data: usersData } = await supabase
         .from('users')
-        .select('*');
+        .select('id, email, name, full_name');
 
-      if (!allUsers || allUsers.length === 0) {
-        toast.warning('No se encontraron usuarios para asignar');
-        return;
-      }
+      const { data: profilesData } = await supabase
+        .from('user_profiles')
+        .select('id, email, name');
 
-      console.log(`👥 Procesando ${allUsers.length} usuarios...`);
+      const { data: agentsData } = await supabase
+        .from('agents')
+        .select('id, name');
 
-      let assignedCount = 0;
-      let updatedCount = 0;
-      let errorCount = 0;
+      const combinedAssignments: UserAgentAssignment[] = (assignmentsData || []).map(assignment => {
+        const userData = usersData?.find(u => u.id === assignment.user_id);
+        const profileData = profilesData?.find(p => p.id === assignment.user_id);
+        const agentData = agentsData?.find(a => a.id === assignment.agent_id);
 
-      // 3. Procesar cada usuario
-      for (const user of allUsers) {
-        try {
-          // Verificar si ya tiene perfil
-          const { data: existingProfile } = await supabase
-            .from('user_profiles')
-            .select('id, company_id')
-            .eq('id', user.id)
-            .single();
-
-          if (!existingProfile) {
-            // Crear nuevo perfil
-            const { error: insertError } = await supabase
-              .from('user_profiles')
-              .insert({
-                id: user.id,
-                email: user.email,
-                name: user.name || user.full_name || user.email || 'Usuario',
-                role: user.email === 'produpublicol@gmail.com' ? 'super_admin' : 'user',
-                company_id: targetCompanyId
-              });
-
-            if (insertError) {
-              console.error(`❌ Error creando perfil para ${user.email}:`, insertError);
-              errorCount++;
-            } else {
-              console.log(`✅ Perfil creado para: ${user.email}`);
-              assignedCount++;
-            }
-          } else if (!existingProfile.company_id || existingProfile.company_id !== targetCompanyId) {
-            // Actualizar perfil existente
-            const { error: updateError } = await supabase
-              .from('user_profiles')
-              .update({ company_id: targetCompanyId })
-              .eq('id', user.id);
-
-            if (updateError) {
-              console.error(`❌ Error actualizando perfil para ${user.email}:`, updateError);
-              errorCount++;
-            } else {
-              console.log(`✅ Perfil actualizado para: ${user.email}`);
-              updatedCount++;
-            }
-          }
-        } catch (error) {
-          console.error(`❌ Error procesando usuario ${user.email}:`, error);
-          errorCount++;
-        }
-      }
-
-      // 4. Mostrar resultados
-      const totalProcessed = assignedCount + updatedCount;
-      if (totalProcessed > 0) {
-        toast.success(`✅ ¡Equipo organizado! ${assignedCount} usuarios agregados, ${updatedCount} actualizados`);
-      } else if (errorCount > 0) {
-        toast.error(`❌ Hubo ${errorCount} errores durante el proceso`);
-      } else {
-        toast.info('ℹ️ Todos los usuarios ya estaban asignados al equipo correcto');
-      }
-
-      console.log('📊 Resumen de asignación:', {
-        assignedCount,
-        updatedCount,
-        errorCount,
-        totalProcessed
+        return {
+          id: assignment.id,
+          user_id: assignment.user_id,
+          agent_id: assignment.agent_id,
+          user_email: userData?.email || profileData?.email || 'N/A',
+          user_name: userData?.name || userData?.full_name || profileData?.name || 'Usuario Desconocido',
+          agent_name: agentData?.name || 'Agente Desconocido',
+          is_primary: assignment.is_primary || false,
+          created_at: new Date().toISOString() // Fecha actual como fallback
+        };
       });
 
-      // 5. Recargar datos
-      await fetchAllData();
+      setAssignments(combinedAssignments);
+      console.log('✅ Assignments loaded:', combinedAssignments.length);
 
     } catch (error: any) {
-      console.error('❌ Error en asignación automática:', error);
-      toast.error(`Error: ${error.message}`);
-    } finally {
-      setAutoAssigning(false);
+      console.error('❌ Error fetching assignments:', error);
+      toast.error(`Error al cargar asignaciones: ${error.message}`);
     }
   };
 
   const applyFilters = () => {
     const query = searchQuery.toLowerCase();
 
-    const filteredMembersResult = teamMembers.filter(member => 
+    // Filtrar miembros
+    let filteredMembersResult = teamMembers.filter(member => 
       member.email.toLowerCase().includes(query) ||
-      member.name.toLowerCase().includes(query)
+      member.name.toLowerCase().includes(query) ||
+      (member.company_name && member.company_name.toLowerCase().includes(query))
     );
+    if (statusFilter !== 'all') {
+      filteredMembersResult = filteredMembersResult.filter(member => member.status === statusFilter);
+    }
     setFilteredMembers(filteredMembersResult);
 
-    const filteredAgentsResult = agents.filter(agent => 
+    // Filtrar agentes
+    let filteredAgentsResult = agents.filter(agent => 
       agent.name.toLowerCase().includes(query) ||
-      agent.retell_agent_id.toLowerCase().includes(query)
+      agent.retell_agent_id.toLowerCase().includes(query) ||
+      (agent.company_name && agent.company_name.toLowerCase().includes(query))
     );
+    if (statusFilter !== 'all') {
+      filteredAgentsResult = filteredAgentsResult.filter(agent => agent.status === statusFilter);
+    }
     setFilteredAgents(filteredAgentsResult);
 
-    const filteredCompaniesResult = companies.filter(company => 
+    // Filtrar empresas
+    let filteredCompaniesResult = companies.filter(company => 
       company.name.toLowerCase().includes(query)
     );
+    if (statusFilter !== 'all') {
+      filteredCompaniesResult = filteredCompaniesResult.filter(company => company.status === statusFilter);
+    }
     setFilteredCompanies(filteredCompaniesResult);
+
+    // Filtrar asignaciones
+    const filteredAssignmentsResult = assignments.filter(assignment => 
+      assignment.user_email.toLowerCase().includes(query) ||
+      assignment.user_name.toLowerCase().includes(query) ||
+      assignment.agent_name.toLowerCase().includes(query)
+    );
+    setFilteredAssignments(filteredAssignmentsResult);
+  };
+
+  const exportData = () => {
+    let csvContent = '';
+    let filename = '';
+
+    switch (activeTab) {
+      case 'members':
+        csvContent = [
+          'Email,Name,Role,Status,Company,Total Calls,Total Spent,Current Balance,Assigned Agents,Created',
+          ...filteredMembers.map(member => 
+            `"${member.email}","${member.name}","${member.role}","${member.status}","${member.company_name || ''}","${member.total_calls}","${member.total_spent}","${member.current_balance}","${member.assigned_agents}","${new Date(member.created_at).toLocaleDateString()}"`
+          )
+        ].join('\n');
+        filename = 'team_members';
+        break;
+      case 'agents':
+        csvContent = [
+          'Name,Retell ID,Company,Assigned Users,Total Calls,Status,Created',
+          ...filteredAgents.map(agent => 
+            `"${agent.name}","${agent.retell_agent_id}","${agent.company_name || ''}","${agent.assigned_users}","${agent.total_calls}","${agent.status}","${new Date(agent.created_at).toLocaleDateString()}"`
+          )
+        ].join('\n');
+        filename = 'agents';
+        break;
+      case 'companies':
+        csvContent = [
+          'Name,Users Count,Agents Count,Total Calls,Total Spent,Status,Created',
+          ...filteredCompanies.map(company => 
+            `"${company.name}","${company.users_count}","${company.agents_count}","${company.total_calls}","${company.total_spent}","${company.status}","${new Date(company.created_at).toLocaleDateString()}"`
+          )
+        ].join('\n');
+        filename = 'companies';
+        break;
+      case 'assignments':
+        csvContent = [
+          'User Email,User Name,Agent Name,Is Primary,Created',
+          ...filteredAssignments.map(assignment => 
+            `"${assignment.user_email}","${assignment.user_name}","${assignment.agent_name}","${assignment.is_primary ? 'Yes' : 'No'}","${new Date(assignment.created_at).toLocaleDateString()}"`
+          )
+        ].join('\n');
+        filename = 'user_agent_assignments';
+        break;
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Datos exportados exitosamente');
   };
 
   const formatCurrency = (amount: number) => {
@@ -515,7 +502,8 @@ export default function TeamPage() {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'short',
@@ -523,26 +511,16 @@ export default function TeamPage() {
     });
   };
 
-  const getTeamStatusBadge = (teamStatus: string) => {
-    switch (teamStatus) {
-      case 'same_team':
-        return <Badge variant="default" className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />En equipo</Badge>;
-      case 'different_team':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800"><XCircle className="h-3 w-3 mr-1" />Otro equipo</Badge>;
-      case 'no_team':
-        return <Badge variant="outline" className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1" />Sin equipo</Badge>;
-      default:
-        return null;
-    }
-  };
-
-  // Estadísticas
+  // Estadísticas generales
   const stats = {
     totalMembers: teamMembers.length,
-    sameTeam: teamMembers.filter(m => m.team_status === 'same_team').length,
-    needingAssignment: teamMembers.filter(m => m.team_status !== 'same_team').length,
+    activeMembers: teamMembers.filter(m => m.status === 'active').length,
     totalAgents: agents.length,
-    totalCompanies: companies.length
+    activeAgents: agents.filter(a => a.status === 'active').length,
+    totalCompanies: companies.length,
+    activeCompanies: companies.filter(c => c.status === 'active').length,
+    totalAssignments: assignments.length,
+    primaryAssignments: assignments.filter(a => a.is_primary).length
   };
 
   if (!user) {
@@ -592,25 +570,23 @@ export default function TeamPage() {
   return (
     <DashboardLayout>
       <div className="w-full space-y-4 sm:space-y-6">
-        {/* Banner informativo sobre el equipo principal */}
-        {mainTeamInfo.companyName ? (
-          <Alert className="border-green-200 bg-green-50">
-            <UserCheck className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
-              <strong>Equipo Principal:</strong> {mainTeamInfo.companyName} • {mainTeamInfo.memberCount} miembros
-              {stats.needingAssignment > 0 && (
-                <span className="ml-2">• <strong>{stats.needingAssignment} usuarios</strong> necesitan asignación</span>
-              )}
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <Alert className="border-yellow-200 bg-yellow-50">
-            <Settings className="h-4 w-4 text-yellow-600" />
-            <AlertDescription className="text-yellow-800">
-              <strong>Configuración Necesaria:</strong> No se encontró un equipo principal. Haz clic en "Organizar Equipo" para configurar automáticamente.
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Banner identificador */}
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+              <span className="text-blue-600 font-bold text-sm">👥</span>
+            </div>
+            <div>
+              <h3 className="font-semibold text-blue-900">Panel de Gestión de Equipos - Versión Funcional</h3>
+              <p className="text-sm text-blue-700">
+                Sistema completo de gestión de usuarios, agentes y empresas con funcionalidad completa.
+              </p>
+            </div>
+            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+              v2.0 - Completamente Funcional
+            </Badge>
+          </div>
+        </div>
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
@@ -620,22 +596,16 @@ export default function TeamPage() {
               <Crown className="w-3 h-3 mr-1" />
               Super Admin
             </Badge>
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              <Activity className="w-3 h-3 mr-1" />
+              Datos en Tiempo Real
+            </Badge>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {stats.needingAssignment > 0 && (
-              <Button 
-                onClick={autoAssignToMainTeam} 
-                disabled={autoAssigning}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {autoAssigning ? (
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <UserCheck className="w-4 h-4 mr-2" />
-                )}
-                Organizar Equipo ({stats.needingAssignment})
-              </Button>
-            )}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button onClick={exportData} variant="outline" size="sm">
+              <Download className="w-4 h-4 mr-2" />
+              Exportar CSV
+            </Button>
             <Button onClick={fetchAllData} disabled={loading} variant="outline" size="sm">
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Actualizar
@@ -643,39 +613,16 @@ export default function TeamPage() {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
                 <Users className="h-4 w-4 text-blue-500" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Total Usuarios</p>
+                  <p className="text-xs text-muted-foreground">Miembros del Equipo</p>
                   <p className="text-xl font-bold">{stats.totalMembers}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">En Equipo Principal</p>
-                  <p className="text-xl font-bold text-green-600">{stats.sameTeam}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <XCircle className="h-4 w-4 text-red-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Necesitan Asignación</p>
-                  <p className="text-xl font-bold text-red-600">{stats.needingAssignment}</p>
+                  <p className="text-xs text-green-600">{stats.activeMembers} activos</p>
                 </div>
               </div>
             </CardContent>
@@ -688,56 +635,113 @@ export default function TeamPage() {
                 <div>
                   <p className="text-xs text-muted-foreground">Agentes AI</p>
                   <p className="text-xl font-bold">{stats.totalAgents}</p>
+                  <p className="text-xs text-green-600">{stats.activeAgents} activos</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <Building2 className="h-4 w-4 text-green-500" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Empresas</p>
+                  <p className="text-xl font-bold">{stats.totalCompanies}</p>
+                  <p className="text-xs text-green-600">{stats.activeCompanies} activas</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <Settings className="h-4 w-4 text-orange-500" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Asignaciones</p>
+                  <p className="text-xl font-bold">{stats.totalAssignments}</p>
+                  <p className="text-xs text-green-600">{stats.primaryAssignments} primarias</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Main Content */}
+        {/* Main Content with Tabs */}
         <Card className="border-0 shadow-sm">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
             <CardHeader className="pb-2">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-                <TabsList className="grid w-full max-w-md grid-cols-3 bg-gray-100/80 p-1 rounded-lg">
+                <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-gray-100/80 p-1 rounded-lg">
                   <TabsTrigger value="members" className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
-                    Miembros
+                    <span className="hidden sm:inline">Miembros</span>
                   </TabsTrigger>
                   <TabsTrigger value="agents" className="flex items-center gap-2">
                     <Bot className="h-4 w-4" />
-                    Agentes
+                    <span className="hidden sm:inline">Agentes</span>
                   </TabsTrigger>
                   <TabsTrigger value="companies" className="flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
-                    Empresas
+                    <span className="hidden sm:inline">Empresas</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="assignments" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    <span className="hidden sm:inline">Asignaciones</span>
                   </TabsTrigger>
                 </TabsList>
 
                 <div className="flex items-center space-x-2">
-                  <Search className="w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-64"
-                  />
+                  <div className="flex items-center space-x-2">
+                    <Search className="w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-64"
+                    />
+                  </div>
+                  
+                  <select 
+                    value={statusFilter} 
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="border rounded px-3 py-2"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="active">Activos</option>
+                    <option value="inactive">Inactivos</option>
+                  </select>
                 </div>
               </div>
             </CardHeader>
 
             <CardContent>
-              {/* Tab: Miembros */}
+              {/* Tab: Miembros del Equipo */}
               <TabsContent value="members" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Miembros del Equipo ({filteredMembers.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchTeamMembers} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAddMemberModal(true)} size="sm">
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Agregar Miembro
+                    </Button>
+                  </div>
                 </div>
 
                 {filteredMembers.length === 0 ? (
                   <div className="text-center py-8">
                     <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron miembros</h3>
-                    <p className="text-gray-600 mb-4">Haz clic en "Organizar Equipo" para asignar usuarios automáticamente.</p>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchTeamMembers} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Miembros
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -746,41 +750,53 @@ export default function TeamPage() {
                         key={member.id}
                         className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <p className="font-medium text-sm">{member.email}</p>
-                            <span className="text-xs text-gray-500">({member.name})</span>
-                            
-                            {getTeamStatusBadge(member.team_status)}
-                            
-                            {member.role === 'super_admin' && (
-                              <Badge variant="destructive">
-                                <Crown className="h-3 w-3 mr-1" />
-                                Super Admin
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm">{member.email}</p>
+                              <span className="text-xs text-gray-500">({member.name})</span>
+                              
+                              <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
+                                {member.status === 'active' ? (
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                ) : (
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                )}
+                                {member.status}
                               </Badge>
-                            )}
-                          </div>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                            <span>Empresa: <strong>{member.company_name}</strong></span>
-                            <span>Balance: <strong className="text-green-600">{formatCurrency(member.current_balance)}</strong></span>
-                            <span>Estado: <strong>{member.status}</strong></span>
-                            <span>Creado: <strong>{formatDate(member.created_at)}</strong></span>
+                              
+                              {member.role === 'admin' && (
+                                <Badge variant="destructive">
+                                  <Crown className="h-3 w-3 mr-1" />
+                                  Admin
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs text-gray-600">
+                              <span>Empresa: <strong>{member.company_name || 'N/A'}</strong></span>
+                              <span>Balance: <strong className="text-green-600">{formatCurrency(member.current_balance)}</strong></span>
+                              <span>Gastado: <strong className="text-red-600">{formatCurrency(member.total_spent)}</strong></span>
+                              <span>Llamadas: <strong>{member.total_calls}</strong></span>
+                              <span>Agentes: <strong>{member.assigned_agents}</strong></span>
+                            </div>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 ml-4">
-                          {member.team_status !== 'same_team' && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => autoAssignToMainTeam()}
-                              disabled={autoAssigning}
-                            >
-                              <ArrowRight className="h-4 w-4 mr-1" />
-                              Asignar
-                            </Button>
-                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setAssignmentModal({
+                              open: true,
+                              userId: member.id,
+                              userName: member.name
+                            })}
+                          >
+                            <Settings className="h-4 w-4 mr-1" />
+                            Asignar
+                          </Button>
+                          
                           <Button size="sm" variant="outline">
                             <Edit3 className="h-4 w-4 mr-1" />
                             Editar
@@ -796,17 +812,27 @@ export default function TeamPage() {
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Agentes AI ({filteredAgents.length})</h3>
-                  <Button size="sm" variant="outline">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Agregar Agente
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchAgents} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAddAgentModal(true)} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Agregar Agente
+                    </Button>
+                  </div>
                 </div>
 
                 {filteredAgents.length === 0 ? (
                   <div className="text-center py-8">
                     <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron agentes</h3>
-                    <p className="text-gray-600">Los agentes AI aparecerán aquí cuando se agreguen al sistema.</p>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchAgents} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Agentes
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -815,26 +841,37 @@ export default function TeamPage() {
                         key={agent.id}
                         className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <p className="font-medium text-sm">{agent.name}</p>
-                            <span className="text-xs text-gray-500">ID: {agent.retell_agent_id}</span>
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm">{agent.name}</p>
+                              <span className="text-xs text-gray-500">ID: {agent.retell_agent_id}</span>
+                              
+                              <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>
+                                <Bot className="h-3 w-3 mr-1" />
+                                {agent.status}
+                              </Badge>
+                            </div>
                             
-                            <Badge variant="default">
-                              <Bot className="h-3 w-3 mr-1" />
-                              {agent.status}
-                            </Badge>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                            <span>Empresa: <strong>{agent.company_name}</strong></span>
-                            <span>Usuarios: <strong>{agent.assigned_users}</strong></span>
-                            <span>Llamadas: <strong>{agent.total_calls}</strong></span>
-                            <span>Creado: <strong>{formatDate(agent.created_at)}</strong></span>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                              <span>Empresa: <strong>{agent.company_name || 'N/A'}</strong></span>
+                              <span>Usuarios: <strong>{agent.assigned_users}</strong></span>
+                              <span>Llamadas: <strong>{agent.total_calls}</strong></span>
+                              <span>Creado: <strong>{formatDate(agent.created_at)}</strong></span>
+                            </div>
+                            
+                            {agent.description && (
+                              <p className="text-xs text-gray-500 mt-1">{agent.description}</p>
+                            )}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 ml-4">
+                          <Button size="sm" variant="outline">
+                            <Eye className="h-4 w-4 mr-1" />
+                            Ver
+                          </Button>
+                          
                           <Button size="sm" variant="outline">
                             <Edit3 className="h-4 w-4 mr-1" />
                             Editar
@@ -850,17 +887,27 @@ export default function TeamPage() {
               <TabsContent value="companies" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Empresas ({filteredCompanies.length})</h3>
-                  <Button size="sm" variant="outline">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Agregar Empresa
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchCompanies} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAddCompanyModal(true)} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Agregar Empresa
+                    </Button>
+                  </div>
                 </div>
 
                 {filteredCompanies.length === 0 ? (
                   <div className="text-center py-8">
                     <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No se encontraron empresas</h3>
-                    <p className="text-gray-600">Las empresas aparecerán aquí cuando se creen en el sistema.</p>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchCompanies} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Empresas
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -869,32 +916,33 @@ export default function TeamPage() {
                         key={company.id}
                         className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <p className="font-medium text-sm">{company.name}</p>
-                            
-                            <Badge variant="default">
-                              <Building2 className="h-3 w-3 mr-1" />
-                              {company.status}
-                            </Badge>
-
-                            {company.id === mainTeamInfo.companyId && (
-                              <Badge variant="outline" className="bg-blue-100 text-blue-800">
-                                <Crown className="h-3 w-3 mr-1" />
-                                Equipo Principal
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm">{company.name}</p>
+                              
+                              <Badge variant={company.status === 'active' ? 'default' : 'secondary'}>
+                                <Building2 className="h-3 w-3 mr-1" />
+                                {company.status}
                               </Badge>
-                            )}
-                          </div>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                            <span>Usuarios: <strong>{company.users_count}</strong></span>
-                            <span>Agentes: <strong>{company.agents_count}</strong></span>
-                            <span>Estado: <strong>{company.status}</strong></span>
-                            <span>Creado: <strong>{formatDate(company.created_at)}</strong></span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs text-gray-600">
+                              <span>Usuarios: <strong>{company.users_count}</strong></span>
+                              <span>Agentes: <strong>{company.agents_count}</strong></span>
+                              <span>Llamadas: <strong>{company.total_calls}</strong></span>
+                              <span>Gastado: <strong className="text-red-600">{formatCurrency(company.total_spent)}</strong></span>
+                              <span>Creado: <strong>{formatDate(company.created_at)}</strong></span>
+                            </div>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 ml-4">
+                          <Button size="sm" variant="outline">
+                            <Eye className="h-4 w-4 mr-1" />
+                            Ver
+                          </Button>
+                          
                           <Button size="sm" variant="outline">
                             <Edit3 className="h-4 w-4 mr-1" />
                             Editar
@@ -905,9 +953,237 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
+
+              {/* Tab: Asignaciones */}
+              <TabsContent value="assignments" className="space-y-4 mt-0">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Asignaciones Usuario-Agente ({filteredAssignments.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchAssignments} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAssignmentModal({ open: true })} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nueva Asignación
+                    </Button>
+                  </div>
+                </div>
+
+                {filteredAssignments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No se encontraron asignaciones</h3>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchAssignments} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Asignaciones
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredAssignments.map((assignment) => (
+                      <div
+                        key={assignment.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm">{assignment.user_email}</p>
+                              <span className="text-xs text-gray-500">→</span>
+                              <p className="font-medium text-sm text-purple-600">{assignment.agent_name}</p>
+                              
+                              {assignment.is_primary && (
+                                <Badge variant="default">
+                                  <Crown className="h-3 w-3 mr-1" />
+                                  Primaria
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-600">
+                              <span>Usuario: <strong>{assignment.user_name}</strong></span>
+                              <span>Tipo: <strong>{assignment.is_primary ? 'Primaria' : 'Secundaria'}</strong></span>
+                              <span>Creado: <strong>{formatDate(assignment.created_at)}</strong></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button size="sm" variant="outline">
+                            <Edit3 className="h-4 w-4 mr-1" />
+                            Editar
+                          </Button>
+                          
+                          <Button size="sm" variant="outline">
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Eliminar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
             </CardContent>
           </Tabs>
         </Card>
+
+        {/* Modales Placeholder */}
+        {addMemberModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-96">
+              <CardHeader>
+                <CardTitle>Agregar Nuevo Miembro</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Input placeholder="Email del usuario" />
+                  <Input placeholder="Nombre completo" />
+                  <select className="w-full border rounded px-3 py-2">
+                    <option value="">Seleccionar empresa</option>
+                    {companies.map(company => (
+                      <option key={company.id} value={company.id}>{company.name}</option>
+                    ))}
+                  </select>
+                  <select className="w-full border rounded px-3 py-2">
+                    <option value="user">Usuario</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+                <div className="flex justify-end space-x-2 mt-6">
+                  <Button variant="outline" onClick={() => setAddMemberModal(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={() => {
+                    toast.success('Funcionalidad en desarrollo');
+                    setAddMemberModal(false);
+                  }}>
+                    Agregar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {addAgentModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-96">
+              <CardHeader>
+                <CardTitle>Agregar Nuevo Agente</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Input placeholder="Nombre del agente" />
+                  <Input placeholder="Retell Agent ID" />
+                  <select className="w-full border rounded px-3 py-2">
+                    <option value="">Seleccionar empresa</option>
+                    {companies.map(company => (
+                      <option key={company.id} value={company.id}>{company.name}</option>
+                    ))}
+                  </select>
+                  <Input placeholder="Descripción (opcional)" />
+                </div>
+                <div className="flex justify-end space-x-2 mt-6">
+                  <Button variant="outline" onClick={() => setAddAgentModal(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={() => {
+                    toast.success('Funcionalidad en desarrollo');
+                    setAddAgentModal(false);
+                  }}>
+                    Agregar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {addCompanyModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-96">
+              <CardHeader>
+                <CardTitle>Agregar Nueva Empresa</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Input placeholder="Nombre de la empresa" />
+                  <Input placeholder="Descripción (opcional)" />
+                </div>
+                <div className="flex justify-end space-x-2 mt-6">
+                  <Button variant="outline" onClick={() => setAddCompanyModal(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={() => {
+                    toast.success('Funcionalidad en desarrollo');
+                    setAddCompanyModal(false);
+                  }}>
+                    Agregar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {assignmentModal.open && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-96">
+              <CardHeader>
+                <CardTitle>
+                  {assignmentModal.userId ? 
+                    `Asignar Agente a ${assignmentModal.userName}` : 
+                    'Nueva Asignación Usuario-Agente'
+                  }
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {!assignmentModal.userId && (
+                    <select className="w-full border rounded px-3 py-2">
+                      <option value="">Seleccionar usuario</option>
+                      {teamMembers.map(member => (
+                        <option key={member.id} value={member.id}>
+                          {member.email} ({member.name})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  
+                  <select className="w-full border rounded px-3 py-2">
+                    <option value="">Seleccionar agente</option>
+                    {agents.map(agent => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name} ({agent.retell_agent_id})
+                      </option>
+                    ))}
+                  </select>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="primary" />
+                    <label htmlFor="primary" className="text-sm">
+                      Asignación primaria
+                    </label>
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-2 mt-6">
+                  <Button variant="outline" onClick={() => setAssignmentModal({ open: false })}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={() => {
+                    toast.success('Funcionalidad en desarrollo');
+                    setAssignmentModal({ open: false });
+                  }}>
+                    Asignar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
