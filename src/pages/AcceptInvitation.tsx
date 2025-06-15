@@ -62,15 +62,11 @@ export default function AcceptInvitation() {
     try {
       console.log('🔍 Buscando invitación con token:', token);
 
-      const { data, error } = await supabase
-        .from('user_invitations')
-        .select(`
-          *,
-          companies(name),
-          invited_by_profile:user_profiles!invited_by(email, name)
-        `)
-        .eq('token', token)
-        .single();
+      onst { data, error } = await supabase
+  .from('team_invitations')
+  .select('*')
+  .eq('invitation_token', token)
+  .single();
 
       if (error) {
         console.error('❌ Error fetching invitation:', error);
