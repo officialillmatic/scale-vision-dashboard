@@ -162,27 +162,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Create default company for regular users
-      console.log('⚠️ [AUTH] No company found, creating default company...');
-      
-      const { data: newCompany, error: createError } = await supabase
-        .from('companies')
-        .insert({
-          name: 'My Company',
-          owner_id: userId
-        })
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('❌ [AUTH] Error creating default company:', createError);
-        setCompany(null);
-        setUserRole('member');
-      } else {
-        console.log('✅ [AUTH] Default company created:', newCompany);
-        setCompany(newCompany);
-        setUserRole('admin');
-      }
+      // No crear empresa automáticamente - usuario puede unirse via invitaciones
+console.log('⚠️ [AUTH] No company found - user can join via invitations');
+setCompany(null);
+setUserRole('member');
 
     } catch (error) {
       console.error('❌ [AUTH] Error fetching user company:', error);
