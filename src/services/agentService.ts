@@ -132,7 +132,7 @@ function getRetellHeaders(): HeadersInit {
  * ✅ Convierte timestamp de Retell a Date de forma segura
  * Maneja casos donde el timestamp puede ser null, undefined, o en formato incorrecto
  */
-function safeTimestampToDate(timestamp: number | null | undefined): Date {
+export function safeTimestampToDate(timestamp: number | null | undefined): Date {
   // Si el timestamp es null, undefined, 0, o no es un número válido
   if (!timestamp || isNaN(timestamp) || timestamp <= 0) {
     console.warn('⚠️ Timestamp inválido recibido:', timestamp, 'usando fecha actual');
@@ -166,7 +166,7 @@ function safeTimestampToDate(timestamp: number | null | undefined): Date {
 /**
  * ✅ Formatea fecha de forma segura para mostrar en UI
  */
-function safeFormatDate(timestamp: number | null | undefined, locale: string = 'es-ES'): string {
+export function safeFormatDate(timestamp: number | null | undefined, locale: string = 'es-ES'): string {
   try {
     const date = safeTimestampToDate(timestamp);
     return date.toLocaleDateString(locale, {
@@ -183,7 +183,7 @@ function safeFormatDate(timestamp: number | null | undefined, locale: string = '
 /**
  * ✅ Formatea fecha y hora de forma segura
  */
-function safeFormatDateTime(timestamp: number | null | undefined, locale: string = 'es-ES'): string {
+export function safeFormatDateTime(timestamp: number | null | undefined, locale: string = 'es-ES'): string {
   try {
     const date = safeTimestampToDate(timestamp);
     return date.toLocaleString(locale, {
