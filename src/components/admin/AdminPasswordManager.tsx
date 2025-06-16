@@ -1,329 +1,271 @@
 // src/components/admin/AdminPasswordManager.tsx - PARTE 1
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
   Key, 
+  Eye, 
+  EyeOff, 
+  RefreshCw, 
   Shield, 
-  AlertTriangle, 
-  CheckCircle, 
-  RefreshCw,
-  Copy,
-  Eye,
-  EyeOff,
+  AlertTriangle,
+  CheckCircle,
+  Bug,
   User,
-  Mail
+  Crown,
+  Zap,
+  Mail,
+  Settings
 } from 'lucide-react';
-import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 interface AdminPasswordManagerProps {
   targetUserId: string;
   targetUserEmail: string;
   targetUserName: string;
-  onPasswordChanged?: () => void;
-  onClose?: () => void;
+  onPasswordChanged: () => void;
+  onClose: () => void;
 }
+// src/components/admin/AdminPasswordManager.tsx - PARTE 2
 
-export function AdminPasswordManager({ 
-  targetUserId, 
-  targetUserEmail, 
+export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
+  targetUserId,
+  targetUserEmail,
   targetUserName,
   onPasswordChanged,
-  onClose 
-}: AdminPasswordManagerProps) {
-  const { user } = useAuth();
-  
-  // Estados
-  const [customPassword, setCustomPassword] = useState('');
-  const [tempPassword, setTempPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  onClose,
+}) => {
+  // Estados del componente
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [result, setResult] = useState<{
-    success: boolean;
-    message: string;
-    type: 'custom' | 'temp' | null;
-  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [currentMethod, setCurrentMethod] = useState<'primary' | 'email' | 'api'>('primary');
 
-  // Verificar si es super admin
-  const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
-  const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
-  // Función para cambiar contraseña personalizada
-  const handleCustomPasswordChange = async () => {
-    if (!customPassword.trim()) {
-      setResult({
-        success: false,
-        message: 'Please enter a password',
-        type: null
-      });
-      return;
+  // Función para generar contraseña segura
+  const generateTempPassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+    let password = '';
+    
+    // Asegurar al menos: 1 mayúscula, 1 minúscula, 1 número, 1 especial
+    password += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)];
+    password += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
+    password += '0123456789'[Math.floor(Math.random() * 10)];
+    password += '!@#$%'[Math.floor(Math.random() * 5)];
+    
+    // Completar hasta 12 caracteres
+    for (let i = 4; i < 12; i++) {
+      password += chars[Math.floor(Math.random() * chars.length)];
     }
+    
+    // Mezclar caracteres
+    return password.split('').sort(() => Math.random() - 0.5).join('');
+  };
+  // src/components/admin/AdminPasswordManager.tsx - PARTE 3
 
-    if (customPassword.length < 6) {
-      setResult({
-        success: false,
-        message: 'Password must be at least 6 characters long',
-        type: null
-      });
-      return;
-    }
-
+  // Función de diagnóstico mejorada
+  const debugUser = async () => {
     setLoading(true);
-    setResult(null);
-
     try {
-      const { data, error } = await supabase.rpc('admin_change_user_password', {
-        target_user_id: targetUserId,
-        new_password: customPassword,
-        admin_user_id: user?.id
+      console.log('🔍 [DEBUG] Diagnosing user:', targetUserId, targetUserEmail);
+      
+      const { data, error } = await supabase.rpc('diagnose_user_issue', {
+        user_identifier: targetUserId
       });
 
+      console.log('🔍 [DEBUG] Diagnosis result:', data);
+      
       if (error) {
-        setResult({
-          success: false,
-          message: `Error: ${error.message}`,
-          type: 'custom'
-        });
-      } else if (data.success) {
-        setResult({
-          success: true,
-          message: `Password changed successfully for ${targetUserEmail}`,
-          type: 'custom'
-        });
-        setCustomPassword('');
-        onPasswordChanged?.();
-        
-        // Auto-cerrar después de 2 segundos en éxito
-        setTimeout(() => {
-          onClose?.();
-        }, 2000);
-      } else {
-        setResult({
-          success: false,
-          message: data.message || 'Failed to change password',
-          type: 'custom'
-        });
+        console.error('❌ [DEBUG] Diagnosis error:', error);
+        toast.error(`Diagnosis error: ${error.message}`);
+        return;
       }
-    } catch (err: any) {
-      setResult({
-        success: false,
-        message: `Exception: ${err.message}`,
-        type: 'custom'
-      });
+
+      setDebugInfo(data);
+      toast.success('🔍 Diagnosis complete - check results below');
+      
+    } catch (error: any) {
+      console.error('❌ [DEBUG] Diagnosis failed:', error);
+      toast.error(`Diagnosis failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
+  // src/components/admin/AdminPasswordManager.tsx - PARTE 4
 
-  // Función para generar contraseña temporal
-  const handleTempPasswordGenerate = async () => {
-    setLoading(true);
-    setResult(null);
-    setTempPassword('');
-
-    try {
-      const { data, error } = await supabase.rpc('admin_reset_user_password_temp', {
-        target_user_id: targetUserId,
-        admin_user_id: user?.id
-      });
-
-      if (error) {
-        setResult({
-          success: false,
-          message: `Error: ${error.message}`,
-          type: 'temp'
-        });
-      } else if (data.success) {
-        setTempPassword(data.temp_password);
-        setResult({
-          success: true,
-          message: `Temporary password generated for ${targetUserEmail}`,
-          type: 'temp'
-        });
-        onPasswordChanged?.();
-      } else {
-        setResult({
-          success: false,
-          message: data.message || 'Failed to generate temporary password',
-          type: 'temp'
-        });
-      }
-    } catch (err: any) {
-      setResult({
-        success: false,
-        message: `Exception: ${err.message}`,
-        type: 'temp'
-      });
-    } finally {
-      setLoading(false);
+  // MÉTODO 1: Función principal con múltiples intentos
+  const tryPrimaryMethod = async () => {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    
+    if (!currentUser) {
+      throw new Error('No authenticated user found');
     }
+
+    console.log('🔐 [METHOD 1] Using primary method with multiple attempts');
+    
+    const { data, error } = await supabase.rpc('admin_change_user_password', {
+      target_user_id: targetUserId,
+      new_password: newPassword,
+      admin_user_id: currentUser.id
+    });
+
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.message || 'Primary method failed');
+    
+    return data;
   };
 
-  // Función para copiar al portapapeles
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Password copied to clipboard!');
-  };
-  // Verificación de acceso
-  if (!isSuperAdmin) {
-    return (
-      <Card className="border-red-200 bg-red-50">
-        <CardContent className="p-4">
-          <div className="flex items-center space-x-2">
-            <AlertTriangle className="h-5 w-5 text-red-600" />
-            <p className="text-red-800 font-medium">Access Denied: Super Admin required</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // MÉTODO 2: Por email como fallback
+  const tryEmailMethod = async () => {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    
+    if (!currentUser) {
+      throw new Error('No authenticated user found');
+    }
 
-  // Render principal
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Shield className="h-5 w-5 text-blue-600" />
-              Password Management
-            </CardTitle>
-            {onClose && (
-              <Button variant="ghost" size="sm" onClick={onClose}>
-                ✕
-              </Button>
-            )}
-          </div>
+    console.log('🔐 [METHOD 2] Using email-based method');
+    
+    const { data, error } = await supabase.rpc('admin_force_password_reset', {
+      target_user_email: targetUserEmail,
+      new_password: newPassword,
+      admin_user_id: currentUser.id
+    });
+
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.message || 'Email method failed');
+    
+    return data;
+  };
+
+  // MÉTODO 3: API de Supabase
+  const tryApiMethod = async () => {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    
+    if (!currentUser) {
+      throw new Error('No authenticated user found');
+    }
+
+    console.log('🔐 [METHOD 3] Using Supabase API method');
+    
+    const { data, error } = await supabase.rpc('admin_update_user_auth', {
+      target_user_id: targetUserId,
+      new_password: newPassword,
+      admin_user_id: currentUser.id
+    });
+
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.message || 'API method failed');
+    
+    return data;
+  };
+  // src/components/admin/AdminPasswordManager.tsx - PARTE 5
+
+  // Función principal que prueba todos los métodos
+  const handlePasswordChange = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('❌ Password must be at least 6 characters long');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('❌ Passwords do not match');
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      console.log('🔐 [PASSWORD] Starting multi-method password change');
+      console.log('🎯 [PASSWORD] Target:', { targetUserId, targetUserEmail });
+
+      let result = null;
+      let methodUsed = '';
+
+      // Intentar métodos en orden según la selección del usuario
+      const methods = currentMethod === 'primary' 
+        ? [tryPrimaryMethod, tryEmailMethod, tryApiMethod]
+        : currentMethod === 'email'
+        ? [tryEmailMethod, tryPrimaryMethod, tryApiMethod]
+        : [tryApiMethod, tryPrimaryMethod, tryEmailMethod];
+
+      const methodNames = currentMethod === 'primary'
+        ? ['Primary (Multi-attempt)', 'Email-based', 'API-based']
+        : currentMethod === 'email'
+        ? ['Email-based', 'Primary (Multi-attempt)', 'API-based']
+        : ['API-based', 'Primary (Multi-attempt)', 'Email-based'];
+
+      for (let i = 0; i < methods.length; i++) {
+        try {
+          console.log(`🔄 [PASSWORD] Trying method ${i + 1}: ${methodNames[i]}`);
+          toast.loading(`🔄 Trying ${methodNames[i]}...`, { id: 'password-change' });
           
-          {/* User Info */}
-          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-gray-600" />
-              <span className="text-sm font-medium">{targetUserName}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-gray-600" />
-              <span className="text-sm text-gray-600">{targetUserEmail}</span>
-            </div>
-            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-              Admin Access
-            </Badge>
-          </div>
-        </CardHeader>
+          result = await methods[i]();
+          methodUsed = methodNames[i];
+          
+          console.log(`✅ [PASSWORD] Method ${i + 1} successful:`, result);
+          break;
+          
+        } catch (error: any) {
+          console.log(`❌ [PASSWORD] Method ${i + 1} failed:`, error.message);
+          
+          if (i === methods.length - 1) {
+            // Último método también falló
+            throw new Error(`All methods failed. Last error: ${error.message}`);
+          }
+        }
+      }
 
-        <CardContent className="space-y-6">
-          {/* Resultado de la operación */}
-          {result && (
-            <div className={`p-3 rounded-lg border ${
-              result.success 
-                ? 'bg-green-50 border-green-200' 
-                : 'bg-red-50 border-red-200'
-            }`}>
-              <div className="flex items-center gap-2">
-                {result.success ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                ) : (
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                )}
-                <p className={`text-sm font-medium ${
-                  result.success ? 'text-green-800' : 'text-red-800'
-                }`}>
-                  {result.message}
-                </p>
-              </div>
-            </div>
-          )}
-          {/* Sección 1: Contraseña Personalizada */}
-          <div className="space-y-3">
-            <h3 className="flex items-center gap-2 font-semibold text-gray-900">
-              <Key className="h-4 w-4" />
-              Set Custom Password
-            </h3>
-            <div className="space-y-3">
-              <div className="relative">
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter new password (min 6 characters)"
-                  value={customPassword}
-                  onChange={(e) => setCustomPassword(e.target.value)}
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <Button
-                onClick={handleCustomPasswordChange}
-                disabled={loading || !customPassword.trim()}
-                className="w-full"
-                size="sm"
-              >
-                {loading ? <LoadingSpinner size="sm" /> : 'Set Password'}
-              </Button>
-            </div>
-          </div>
+      if (result?.success) {
+        toast.success('✅ Password changed successfully!', {
+          id: 'password-change',
+          description: `Method used: ${methodUsed}`,
+          duration: 5000
+        });
+        
+        console.log('✅ [PASSWORD] Success details:', result);
+        
+        setNewPassword('');
+        setConfirmPassword('');
+        onPasswordChanged();
+        
+        setTimeout(() => onClose(), 2000);
+        
+      } else {
+        throw new Error('Password change returned unsuccessful result');
+      }
 
-          {/* Separador */}
-          <div className="border-t border-gray-200"></div>
+    } catch (error: any) {
+      console.error('❌ [PASSWORD] All methods failed:', error);
+      
+      toast.error('❌ Password change failed', {
+        id: 'password-change',
+        description: error.message,
+        duration: 8000
+      });
 
-          {/* Sección 2: Contraseña Temporal */}
-          <div className="space-y-3">
-            <h3 className="flex items-center gap-2 font-semibold text-gray-900">
-              <RefreshCw className="h-4 w-4" />
-              Generate Temporary Password
-            </h3>
-            <Button
-              onClick={handleTempPasswordGenerate}
-              disabled={loading}
-              variant="outline"
-              className="w-full"
-              size="sm"
-            >
-              {loading ? <LoadingSpinner size="sm" /> : 'Generate Temp Password'}
-            </Button>
+      // Activar modo debug automáticamente
+      setDebugMode(true);
+      setTimeout(() => debugUser(), 1000);
+      
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            {/* Mostrar contraseña temporal generada */}
-            {tempPassword && (
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-yellow-800">Temporary Password:</p>
-                  <div className="flex items-center justify-between">
-                    <p className="font-mono text-sm text-yellow-900 bg-white px-2 py-1 rounded border">
-                      {tempPassword}
-                    </p>
-                    <Button
-                      onClick={() => copyToClipboard(tempPassword)}
-                      variant="ghost"
-                      size="sm"
-                      className="text-yellow-700 hover:text-yellow-900"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-yellow-700">
-                    ⚠️ Share this password securely with the user.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Información adicional */}
-          <div className="text-xs text-gray-500 space-y-1 bg-gray-50 p-3 rounded">
-            <p>• Password changes take effect immediately</p>
-            <p>• All changes are logged for security audit</p>
-            <p>• User will NOT receive an email notification</p>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+  const handleGenerateTemp = () => {
+    const tempPassword = generateTempPassword();
+    setNewPassword(tempPassword);
+    setConfirmPassword(tempPassword);
+    setShowPassword(true);
+    
+    toast.info('🔐 Secure password generated', {
+      description: 'Review and confirm the generated password',
+      duration: 4000
+    });
+  };
