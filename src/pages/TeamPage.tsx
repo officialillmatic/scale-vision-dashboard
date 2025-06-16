@@ -663,9 +663,58 @@ export default function TeamPage() {
           id,
           user_id,
           agent_id,
-          is_primary,
-          created_at
+          is_primary
         `);
+
+      if (assignmentsError) {
+        console.error('❌ Error fetching assignments:', assignmentsError);
+        setAssignments([]);
+        return;
+      }
+
+      if (!assignmentsData || assignmentsData.length === 0) {
+        console.log('⚠️ No assignments found');
+        setAssignments([]);
+        return;
+      }
+
+      const userIds = [...new Set(assignmentsData.map(a => a.user_id))];
+      const agentIds = [...new Set(assignmentsData.map(a => a.agent_id))];
+
+      const [usersResult, agentsResult] = await Promise.all([
+        supabase.from('users').select('id, email, name').in('id', userIds),
+        supabase.from('agents').select('id, name, retell_agent_id').in('id', agentIds)
+      ]);
+
+      const usersData = usersResult.data || [];
+      const agentsData = agentsResult.data || [];
+
+      const combinedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
+        const user = usersData.find(u => u.id === assignment.user_id);
+        const agent = agentsData.find(a => a.id === assignment.agent_id);
+
+        return {
+          id: assignment.id,
+          user_id: assignment.user_id,
+          agent_id: assignment.agent_id,
+          user_email: user?.email || 'usuario@example.com',
+          user_name: user?.name || user?.email || 'Usuario',
+          agent_name: agent?.name || 'Agente',
+          is_primary: assignment.is_primary || false,
+          created_at: new Date().toISOString() // Usar fecha actual como fallback
+        };
+      });
+
+      setAssignments(combinedAssignments);
+      console.log('✅ [TeamPage] Assignments loaded successfully:', combinedAssignments.length);
+      console.log('✅ [DEBUG] Assignments data:', combinedAssignments); // Para debugging
+
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error fetching assignments:', error);
+      setAssignments([]);
+      toast.error(`Error al cargar asignaciones: ${error.message}`);
+    }
+  }, []);
 
       if (assignmentsError) {
         console.error('❌ Error fetching assignments:', assignmentsError);
