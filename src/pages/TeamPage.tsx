@@ -716,55 +716,6 @@ export default function TeamPage() {
     }
   }, []);
 
-      if (assignmentsError) {
-        console.error('❌ Error fetching assignments:', assignmentsError);
-        setAssignments([]);
-        return;
-      }
-
-      if (!assignmentsData || assignmentsData.length === 0) {
-        setAssignments([]);
-        return;
-      }
-
-      const userIds = [...new Set(assignmentsData.map(a => a.user_id))];
-      const agentIds = [...new Set(assignmentsData.map(a => a.agent_id))];
-
-      const [usersResult, agentsResult] = await Promise.all([
-        supabase.from('users').select('id, email, name').in('id', userIds),
-        supabase.from('agents').select('id, name, retell_agent_id').in('id', agentIds)
-      ]);
-
-      const usersData = usersResult.data || [];
-      const agentsData = agentsResult.data || [];
-
-      const combinedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
-        const user = usersData.find(u => u.id === assignment.user_id);
-        const agent = agentsData.find(a => a.id === assignment.agent_id);
-
-        return {
-          id: assignment.id,
-          user_id: assignment.user_id,
-          agent_id: assignment.agent_id,
-          user_email: user?.email || 'usuario@example.com',
-          user_name: user?.name || user?.email || 'Usuario',
-          agent_name: agent?.name || 'Agente',
-          is_primary: assignment.is_primary || false,
-          created_at: assignment.created_at || new Date().toISOString()
-        };
-      });
-
-      setAssignments(combinedAssignments);
-      console.log('✅ [DEBUG] Assignments loaded:', combinedAssignments);
-      console.log('✅ [TeamPage] Assignments loaded successfully:', combinedAssignments.length);
-
-    } catch (error: any) {
-      console.error('❌ [TeamPage] Error fetching assignments:', error);
-      setAssignments([]);
-      toast.error(`Error al cargar asignaciones: ${error.message}`);
-    }
-  }, []);
-
   const fetchInvitations = useCallback(async () => {
     try {
       console.log('🔍 [TeamPage] Fetching invitations...');
