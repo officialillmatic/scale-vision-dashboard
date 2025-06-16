@@ -430,12 +430,13 @@ export default function CallsSimple() {
   }, [user?.id]);
 
   useEffect(() => {
-    applyFiltersAndSort();
-    
-    if (calls.length > 0) {
-      processPendingCallCosts(calls, setCalls, calculateCallCost, getCallDuration);
-    }
-  }, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
+  applyFiltersAndSort();
+  
+  if (calls.length > 0) {
+    // 🎯 NUEVA FUNCIÓN CON DESCUENTO AUTOMÁTICO
+    processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
+  }
+}, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
 
   useEffect(() => {
     const loadAllAudioDurations = async () => {
