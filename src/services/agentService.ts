@@ -123,28 +123,39 @@ function getRetellHeaders(): HeadersInit {
     throw error;
   }
 }
-
 // ========================================
-// 🛠️ UTILIDADES DE FECHA - NUEVAS FUNCIONES PARA ARREGLAR "Invalid time value"
+// 🛠️ UTILIDADES DE FECHA - FUNCIONES SEGURAS PARA ARREGLAR "Invalid time value"
 // ========================================
 
 /**
  * ✅ Convierte timestamp de Retell a Date de forma segura
  * Maneja casos donde el timestamp puede ser null, undefined, o en formato incorrecto
  */
-function safeTimestampToDate(timestamp: number | null | undefined): Date {
+export function safeTimestampToDate(timestamp: number | string | null | undefined): Date {
   // Si el timestamp es null, undefined, 0, o no es un número válido
-  if (!timestamp || isNaN(timestamp) || timestamp <= 0) {
+  if (!timestamp || (typeof timestamp === 'number' && isNaN(timestamp)) || timestamp <= 0) {
     console.warn('⚠️ Timestamp inválido recibido:', timestamp, 'usando fecha actual');
     return new Date(); // Devuelve fecha actual como fallback
   }
 
-  // Retell devuelve timestamps en milisegundos, pero verificamos si es en segundos
-  let timestampMs = timestamp;
+  let timestampMs: number;
   
-  // Si el timestamp es muy pequeño, probablemente está en segundos, lo convertimos a ms
-  if (timestamp < 10000000000) { // Menos de 10 dígitos = probablemente segundos
-    timestampMs = timestamp * 1000;
+  if (typeof timestamp === 'string') {
+    // Si es string, intentar parsearlo
+    const parsed = Date.parse(timestamp);
+    if (isNaN(parsed)) {
+      console.warn('⚠️ String de fecha inválido:', timestamp);
+      return new Date();
+    }
+    timestampMs = parsed;
+  } else {
+    // Si es número
+    timestampMs = timestamp;
+    
+    // Si el timestamp es muy pequeño, probablemente está en segundos, lo convertimos a ms
+    if (timestamp < 10000000000) { // Menos de 10 dígitos = probablemente segundos
+      timestampMs = timestamp * 1000;
+    }
   }
 
   try {
@@ -166,7 +177,7 @@ function safeTimestampToDate(timestamp: number | null | undefined): Date {
 /**
  * ✅ Formatea fecha de forma segura para mostrar en UI
  */
-function safeFormatDate(timestamp: number | null | undefined, locale: string = 'es-ES'): string {
+export function safeFormatDate(timestamp: number | string | null | undefined, locale: string = 'es-ES'): string {
   try {
     const date = safeTimestampToDate(timestamp);
     return date.toLocaleDateString(locale, {
@@ -183,7 +194,7 @@ function safeFormatDate(timestamp: number | null | undefined, locale: string = '
 /**
  * ✅ Formatea fecha y hora de forma segura
  */
-function safeFormatDateTime(timestamp: number | null | undefined, locale: string = 'es-ES'): string {
+export function safeFormatDateTime(timestamp: number | string | null | undefined, locale: string = 'es-ES'): string {
   try {
     const date = safeTimestampToDate(timestamp);
     return date.toLocaleString(locale, {
@@ -247,7 +258,6 @@ async function fetchWithRetry(
 
   throw lastError || new Error('Error desconocido en petición a Retell API');
 }
-
 // ========================================
 // 🆕 FUNCIONES PARA INTEGRACIÓN CON RETELL API (TEAMPAGE) - ✅ CORREGIDO
 // ========================================
@@ -429,7 +439,6 @@ export async function verifyRetellAgentExists(agentId: string): Promise<boolean>
     return false;
   }
 }
-
 /**
  * 🔄 Sincronizar agente local con datos de Retell
  * Para actualizar información desde Retell API
@@ -479,7 +488,7 @@ export async function getRetellAgentStats(agentId: string): Promise<{
 }
 
 // ========================================
-// FUNCIONES ADICIONALES DE RETELL API - ✅ URLS Y FECHAS CORREGIDAS
+// FUNCIONES ADICIONALES DE RETELL API - ✅ URLS CORREGIDAS
 // ========================================
 
 /**
@@ -582,7 +591,6 @@ export async function deleteRetellAgent(agentId: string): Promise<void> {
     throw new Error(`No se pudo eliminar el agente: ${error.message}`);
   }
 }
-
 /**
  * Obtiene las voces disponibles en Retell AI
  * ✅ URL CORREGIDA
@@ -804,7 +812,7 @@ export const COMMON_VOICE_SETTINGS = {
 };
 
 // ========================================
-// EXPORTS POR DEFECTO
+// EXPORTS POR DEFECTO - ✅ ACTUALIZADO
 // ========================================
 
 export default {
@@ -833,6 +841,8 @@ export default {
   generateAgentSummary,
   isAgentFullyConfigured,
   getTimeSinceLastModification,
+  
+  // ✅ Funciones de fecha seguras (EXPORTADAS)
   safeTimestampToDate,
   safeFormatDate,
   safeFormatDateTime,
