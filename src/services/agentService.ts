@@ -125,6 +125,81 @@ function getRetellHeaders(): HeadersInit {
 }
 
 // ========================================
+// 🛠️ UTILIDADES DE FECHA - NUEVAS FUNCIONES PARA ARREGLAR "Invalid time value"
+// ========================================
+
+/**
+ * ✅ Convierte timestamp de Retell a Date de forma segura
+ * Maneja casos donde el timestamp puede ser null, undefined, o en formato incorrecto
+ */
+function safeTimestampToDate(timestamp: number | null | undefined): Date {
+  // Si el timestamp es null, undefined, 0, o no es un número válido
+  if (!timestamp || isNaN(timestamp) || timestamp <= 0) {
+    console.warn('⚠️ Timestamp inválido recibido:', timestamp, 'usando fecha actual');
+    return new Date(); // Devuelve fecha actual como fallback
+  }
+
+  // Retell devuelve timestamps en milisegundos, pero verificamos si es en segundos
+  let timestampMs = timestamp;
+  
+  // Si el timestamp es muy pequeño, probablemente está en segundos, lo convertimos a ms
+  if (timestamp < 10000000000) { // Menos de 10 dígitos = probablemente segundos
+    timestampMs = timestamp * 1000;
+  }
+
+  try {
+    const date = new Date(timestampMs);
+    
+    // Verificamos que la fecha sea válida
+    if (isNaN(date.getTime())) {
+      console.warn('⚠️ Fecha inválida generada:', date, 'desde timestamp:', timestamp);
+      return new Date(); // Fecha actual como fallback
+    }
+    
+    return date;
+  } catch (error) {
+    console.error('❌ Error convirtiendo timestamp a fecha:', error);
+    return new Date(); // Fecha actual como fallback
+  }
+}
+
+/**
+ * ✅ Formatea fecha de forma segura para mostrar en UI
+ */
+function safeFormatDate(timestamp: number | null | undefined, locale: string = 'es-ES'): string {
+  try {
+    const date = safeTimestampToDate(timestamp);
+    return date.toLocaleDateString(locale, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch (error) {
+    console.error('❌ Error formateando fecha:', error);
+    return 'Fecha no disponible';
+  }
+}
+
+/**
+ * ✅ Formatea fecha y hora de forma segura
+ */
+function safeFormatDateTime(timestamp: number | null | undefined, locale: string = 'es-ES'): string {
+  try {
+    const date = safeTimestampToDate(timestamp);
+    return date.toLocaleString(locale, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    console.error('❌ Error formateando fecha y hora:', error);
+    return 'Fecha no disponible';
+  }
+}
+
+// ========================================
 // UTILIDADES DE RED
 // ========================================
 
@@ -177,15 +252,25 @@ async function fetchWithRetry(
 // 🆕 FUNCIONES PARA INTEGRACIÓN CON RETELL API (TEAMPAGE) - ✅ CORREGIDO
 // ========================================
 
+// Cache para evitar duplicación de agentes
+let agentsCache: { data: RetellAgentDetailed[]; timestamp: number } | null = null;
+const CACHE_DURATION = 30000; // 30 segundos
+
 /**
  * 📡 Obtener todos los agentes directamente de Retell API
- * Específicamente para uso en TeamPage y gestión de equipos
- * ✅ URL CORREGIDA
+ * ✅ CON PROTECCIÓN CONTRA DUPLICACIÓN Y MANEJO SEGURO DE FECHAS
  */
 export async function getAllRetellAgentsForTeam(): Promise<RetellAgentDetailed[]> {
   try {
     console.log('🔍 [TeamPage] Fetching agents from Retell API...');
     
+    // ✅ Verificar cache para evitar llamadas duplicadas
+    const now = Date.now();
+    if (agentsCache && (now - agentsCache.timestamp) < CACHE_DURATION) {
+      console.log('📦 [TeamPage] Usando datos del cache');
+      return agentsCache.data;
+    }
+
     // ✅ URL CORREGIDA - SIN /v2
     const response = await fetchWithRetry(`${RETELL_API_BASE_URL}/list-agents`, {
       method: 'GET',
@@ -206,19 +291,53 @@ export async function getAllRetellAgentsForTeam(): Promise<RetellAgentDetailed[]
       agents = data.data;
     }
 
-    console.log(`✅ [TeamPage] ${agents.length} agentes obtenidos exitosamente`);
+    // ✅ VALIDAR Y LIMPIAR DATOS DE AGENTES
+    const validAgents = agents.filter((agent) => {
+      // Verificar que el agente tenga los campos mínimos necesarios
+      if (!agent.agent_id || !agent.agent_name) {
+        console.warn('⚠️ [TeamPage] Agente inválido encontrado:', agent);
+        return false;
+      }
+      return true;
+    }).map((agent) => {
+      // ✅ Asegurar que las fechas sean válidas
+      return {
+        ...agent,
+        created_time: agent.created_time || Date.now(),
+        last_modification_time: agent.last_modification_time || Date.now(),
+        language: agent.language || 'es-ES',
+        voice_id: agent.voice_id || 'default',
+        response_engine: agent.response_engine || { type: 'retell-llm' }
+      };
+    });
+
+    // ✅ Eliminar duplicados basado en agent_id
+    const uniqueAgents = validAgents.filter((agent, index, self) => 
+      index === self.findIndex(a => a.agent_id === agent.agent_id)
+    );
+
+    console.log(`✅ [TeamPage] ${uniqueAgents.length} agentes únicos obtenidos exitosamente`);
+    
+    // ✅ Actualizar cache
+    agentsCache = {
+      data: uniqueAgents,
+      timestamp: now
+    };
     
     // Log del primer agente para debugging
-    if (agents.length > 0) {
+    if (uniqueAgents.length > 0) {
+      const firstAgent = uniqueAgents[0];
       console.log('📊 [TeamPage] Primer agente:', {
-        id: agents[0].agent_id,
-        name: agents[0].agent_name,
-        voice: agents[0].voice_id,
-        language: agents[0].language
+        id: firstAgent.agent_id,
+        name: firstAgent.agent_name,
+        voice: firstAgent.voice_id,
+        language: firstAgent.language,
+        created: safeFormatDate(firstAgent.created_time),
+        modified: safeFormatDate(firstAgent.last_modification_time)
       });
     }
     
-    return agents;
+    return uniqueAgents;
 
   } catch (error: any) {
     console.error('❌ [TeamPage] Error fetching Retell agents:', error);
@@ -226,6 +345,12 @@ export async function getAllRetellAgentsForTeam(): Promise<RetellAgentDetailed[]
     // Si es un error de autenticación, lo manejamos específicamente
     if (error.message.includes('401') || error.message.includes('403')) {
       throw new Error('Error de autenticación con Retell AI. Verifica tu API key.');
+    }
+    
+    // ✅ Si hay datos en cache, los devolvemos como fallback
+    if (agentsCache) {
+      console.warn('🔄 [TeamPage] Usando datos del cache debido al error');
+      return agentsCache.data;
     }
     
     // Para otros errores, devolvemos un array vacío para no romper la UI
@@ -236,8 +361,7 @@ export async function getAllRetellAgentsForTeam(): Promise<RetellAgentDetailed[]
 
 /**
  * 🔍 Obtener un agente específico de Retell API
- * Para mostrar detalles completos en TeamPage
- * ✅ URL CORREGIDA
+ * ✅ CON MANEJO SEGURO DE FECHAS
  */
 export async function getRetellAgentDetailsForTeam(agentId: string): Promise<RetellAgentDetailed> {
   try {
@@ -255,13 +379,32 @@ export async function getRetellAgentDetailsForTeam(agentId: string): Promise<Ret
 
     const agentData = await response.json() as RetellAgentDetailed;
     
-    console.log(`✅ [TeamPage] Agent details fetched:`, agentData.agent_name);
-    return agentData;
+    // ✅ Validar y limpiar datos del agente
+    const cleanAgent: RetellAgentDetailed = {
+      ...agentData,
+      created_time: agentData.created_time || Date.now(),
+      last_modification_time: agentData.last_modification_time || Date.now(),
+      language: agentData.language || 'es-ES',
+      voice_id: agentData.voice_id || 'default',
+      response_engine: agentData.response_engine || { type: 'retell-llm' }
+    };
+    
+    console.log(`✅ [TeamPage] Agent details fetched:`, cleanAgent.agent_name);
+    return cleanAgent;
 
   } catch (error: any) {
     console.error(`❌ [TeamPage] Error fetching agent details for ${agentId}:`, error);
     throw new Error(`No se pudieron obtener los detalles del agente: ${error.message}`);
   }
+}
+
+/**
+ * ✅ Limpiar cache de agentes
+ * Útil cuando se hacen cambios y necesitas forzar una nueva carga
+ */
+export function clearAgentsCache(): void {
+  console.log('🗑️ [TeamPage] Limpiando cache de agentes');
+  agentsCache = null;
 }
 
 /**
@@ -295,6 +438,9 @@ export async function syncAgentWithRetell(localAgentId: string, retellAgentId: s
   try {
     console.log('🔄 [TeamPage] Syncing agent with Retell:', { localAgentId, retellAgentId });
     
+    // Limpiar cache para obtener datos frescos
+    clearAgentsCache();
+    
     // Obtener datos actualizados de Retell
     const retellAgent = await getRetellAgentDetailsForTeam(retellAgentId);
     
@@ -309,7 +455,7 @@ export async function syncAgentWithRetell(localAgentId: string, retellAgentId: s
 
 /**
  * 📊 Obtener estadísticas de uso de un agente desde Retell
- * Para mostrar métricas en TeamPage (si están disponibles en la API)
+ * ✅ CON MANEJO SEGURO DE FECHAS
  */
 export async function getRetellAgentStats(agentId: string): Promise<{
   total_calls?: number;
@@ -322,7 +468,7 @@ export async function getRetellAgentStats(agentId: string): Promise<{
     
     return {
       status: 'active',
-      last_activity: new Date(agent.last_modification_time).toISOString(),
+      last_activity: safeTimestampToDate(agent.last_modification_time).toISOString(),
       total_calls: 0 // Este dato tendría que venir de otra fuente o endpoint
     };
     
@@ -333,7 +479,7 @@ export async function getRetellAgentStats(agentId: string): Promise<{
 }
 
 // ========================================
-// FUNCIONES ADICIONALES DE RETELL API - ✅ URLS CORREGIDAS
+// FUNCIONES ADICIONALES DE RETELL API - ✅ URLS Y FECHAS CORREGIDAS
 // ========================================
 
 /**
@@ -352,7 +498,7 @@ export async function createRetellAgent(agentData: {
     const payload = {
       agent_name: agentData.agent_name,
       voice_id: agentData.voice_id,
-      language: agentData.language || 'en-US',
+      language: agentData.language || 'es-ES',
       response_engine: agentData.response_engine || {
         type: 'retell-llm',
         llm_id: 'gpt-3.5-turbo'
@@ -367,6 +513,9 @@ export async function createRetellAgent(agentData: {
     });
 
     const newAgent = await response.json() as RetellAgentDetailed;
+    
+    // ✅ Limpiar cache para incluir el nuevo agente
+    clearAgentsCache();
     
     console.log(`✅ [AgentService] Agente creado exitosamente: ${newAgent.agent_id}`);
     return newAgent;
@@ -397,6 +546,9 @@ export async function updateRetellAgent(
 
     const updatedAgent = await response.json() as RetellAgentDetailed;
     
+    // ✅ Limpiar cache para reflejar los cambios
+    clearAgentsCache();
+    
     console.log(`✅ [AgentService] Agente ${agentId} actualizado exitosamente`);
     return updatedAgent;
 
@@ -419,6 +571,9 @@ export async function deleteRetellAgent(agentId: string): Promise<void> {
       method: 'DELETE',
       headers: getRetellHeaders()
     });
+
+    // ✅ Limpiar cache para reflejar la eliminación
+    clearAgentsCache();
 
     console.log(`✅ [AgentService] Agente ${agentId} eliminado exitosamente`);
 
@@ -505,11 +660,12 @@ export async function testRetellConnection(): Promise<RetellApiResponse<string>>
 }
 
 // ========================================
-// FUNCIONES AUXILIARES
+// FUNCIONES AUXILIARES - ✅ CON MANEJO SEGURO DE FECHAS
 // ========================================
 
 /**
  * Formatea la información básica de un agente para mostrar en UI
+ * ✅ CON FECHAS SEGURAS
  */
 export function formatAgentForDisplay(agent: RetellAgentDetailed): {
   id: string;
@@ -525,16 +681,8 @@ export function formatAgentForDisplay(agent: RetellAgentDetailed): {
     name: agent.agent_name,
     voice: agent.voice_id,
     language: agent.language,
-    created: new Date(agent.created_time).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    }),
-    lastModified: new Date(agent.last_modification_time).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    }),
+    created: safeFormatDate(agent.created_time),
+    lastModified: safeFormatDate(agent.last_modification_time),
     engine: agent.response_engine?.type || 'N/A'
   };
 }
@@ -560,7 +708,7 @@ export function validateAgentData(agentData: Partial<RetellAgentDetailed>): {
     errors.push('El nombre del agente no puede exceder 100 caracteres');
   }
 
-  if (agentData.language && !['en-US', 'es-ES', 'fr-FR', 'de-DE', 'it-IT', 'pt-BR'].includes(agentData.language)) {
+  if (agentData.language && !['en-US', 'es-ES', 'es-MX', 'fr-FR', 'de-DE', 'it-IT', 'pt-BR'].includes(agentData.language)) {
     errors.push('Idioma no soportado');
   }
 
@@ -572,15 +720,10 @@ export function validateAgentData(agentData: Partial<RetellAgentDetailed>): {
 
 /**
  * Convierte un timestamp de Retell a una fecha legible
+ * ✅ VERSIÓN SEGURA
  */
 export function formatRetellTimestamp(timestamp: number): string {
-  return new Date(timestamp).toLocaleString('es-ES', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  return safeFormatDateTime(timestamp);
 }
 
 /**
@@ -622,10 +765,12 @@ export function isAgentFullyConfigured(agent: RetellAgentDetailed): {
 
 /**
  * Calcula el tiempo transcurrido desde la última modificación
+ * ✅ VERSIÓN SEGURA
  */
 export function getTimeSinceLastModification(agent: RetellAgentDetailed): string {
   const now = Date.now();
-  const diff = now - agent.last_modification_time;
+  const modificationTime = safeTimestampToDate(agent.last_modification_time).getTime();
+  const diff = now - modificationTime;
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   
@@ -669,6 +814,7 @@ export default {
   verifyRetellAgentExists,
   syncAgentWithRetell,
   getRetellAgentStats,
+  clearAgentsCache,
   
   // CRUD operations
   createRetellAgent,
@@ -687,6 +833,9 @@ export default {
   generateAgentSummary,
   isAgentFullyConfigured,
   getTimeSinceLastModification,
+  safeTimestampToDate,
+  safeFormatDate,
+  safeFormatDateTime,
   
   // Constantes
   SUPPORTED_LANGUAGES,
