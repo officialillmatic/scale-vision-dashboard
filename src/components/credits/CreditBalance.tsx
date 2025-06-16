@@ -1,10 +1,13 @@
+// src/components/credits/CreditBalance.tsx - PARTE 1
+// Imports y configuración inicial
+
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAgents } from '@/hooks/useAgents'; // NUEVO IMPORT
+import { useAgents } from '@/hooks/useAgents';
+import { useAutoPollingBalance } from '@/hooks/useAutoPollingBalance'; // 🔄 NUEVO HOOK
 import { 
   Wallet, 
   AlertTriangle, 
@@ -13,19 +16,15 @@ import {
   Plus,
   RefreshCw,
   Shield,
-  Info
+  Info,
+  Zap,
+  TrendingDown,
+  TrendingUp,
+  Activity,
+  Clock
 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { formatCurrency } from '@/lib/formatters';
-
-interface UserCredit {
-  id: string;
-  current_balance: number;
-  warning_threshold: number;
-  critical_threshold: number;
-  is_blocked: boolean;
-  updated_at: string;
-}
 
 interface CreditBalanceProps {
   onRequestRecharge?: () => void;
@@ -35,166 +34,73 @@ interface CreditBalanceProps {
 export function CreditBalance({ onRequestRecharge, showActions = true }: CreditBalanceProps) {
   const { user } = useAuth();
   
-  // 🔍 LOGS DE DEBUG AGREGADOS
-  console.log('=== CREDITBALANCE DEBUG ===');
-  console.log('Full user object:', user);
-  console.log('User ID:', user?.id);
-  console.log('User email:', user?.email);
-  console.log('User role:', user?.role);
-  console.log('User metadata:', user?.user_metadata);
-  console.log('User app_metadata:', user?.app_metadata);
-  console.log('Is super admin check:', user?.role === 'super_admin');
-  console.log('================================');
-  
-  const [credits, setCredits] = useState<UserCredit | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // 🔄 USAR EL NUEVO HOOK CON AUTO-POLLING
+  const { 
+    balanceStats,
+    loading, 
+    error, 
+    lastBalanceChange,
+    isPolling,
+    refreshBalance,
+    canMakeCall,
+    simulateCall,
+    currentBalance,
+    balanceStatus,
+    totalSpentToday,
+    recentTransactionsCount
+  } = useAutoPollingBalance();
+
+  // ESTADOS LOCALES
+  const [showUpdateIndicator, setShowUpdateIndicator] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // NUEVO IMPORT
+  // Hook de agentes para calcular minutos estimados
   const { agents, isLoadingAgents } = useAgents();
 
-  // ✅ NUEVO: Verificación especial para super admin
-  if (user?.user_metadata?.role === 'super_admin') {
-    return (
-      <Card className="border border-black bg-blue-50 rounded-xl shadow-sm">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 rounded-xl bg-blue-100 border border-blue-200">
-                <Shield className="h-6 w-6 text-blue-700" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-blue-900">Super Admin Account</h3>
-                <p className="text-sm text-blue-700 mt-1">
-                  You have full access to manage all user credits and system administration
-                </p>
-              </div>
-            </div>
-            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 font-semibold">
-              Administrator
-            </Badge>
-          </div>
-          
-          <div className="mt-4 pt-4 border-t border-blue-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="h-3 w-3 rounded-full bg-green-500"></div>
-                <span className="text-sm font-medium text-blue-700">
-                  All system features available
-                </span>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => window.location.href = '/admin/credits'}
-                className="border-blue-300 text-blue-700 hover:bg-blue-100"
-              >
-                <Info className="h-4 w-4 mr-2" />
-                Manage User Credits
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // NUEVA FUNCIÓN: Calcular tarifa promedio de agentes asignados al usuario
+  // ✅ EFECTO PARA MOSTRAR INDICADOR DE ACTUALIZACIÓN
+  useEffect(() => {
+    if (lastBalanceChange) {
+      setShowUpdateIndicator(true);
+      
+      // Mostrar indicador por 5 segundos
+      const timer = setTimeout(() => {
+        setShowUpdateIndicator(false);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [lastBalanceChange]);
+  // FUNCIONES AUXILIARES
+  
+  // Calcular tarifa promedio de agentes
   const calculateAverageRate = (): number => {
     if (!agents || agents.length === 0) {
       return 0.02; // Fallback a tarifa genérica
     }
 
-    // USAR LA MISMA LÓGICA QUE FUNCIONA EN MY CALLS
-    // Obtener agentes que tienen tarifas configuradas
     const agentsWithRates = agents.filter(agent => agent.rate_per_minute && agent.rate_per_minute > 0);
     
     if (agentsWithRates.length === 0) {
       return 0.02; // Fallback si no hay tarifas configuradas
     }
 
-    // Calcular promedio de tarifas de todos los agentes disponibles para el usuario
     const totalRate = agentsWithRates.reduce((sum, agent) => sum + agent.rate_per_minute!, 0);
     const averageRate = totalRate / agentsWithRates.length;
     
     return averageRate;
   };
 
-  // NUEVA FUNCIÓN: Calcular minutos estimados con tarifas reales
+  // Calcular minutos estimados con tarifas reales
   const calculateEstimatedMinutes = (): number => {
-    if (!credits || credits.current_balance <= 0) return 0;
+    if (!currentBalance || currentBalance <= 0) return 0;
 
     const averageRate = calculateAverageRate();
-    const estimatedMinutes = Math.floor(credits.current_balance / averageRate);
+    const estimatedMinutes = Math.floor(currentBalance / averageRate);
     
     return estimatedMinutes;
   };
 
-  const fetchCredits = async () => {
-    if (!user?.id) return;
-
-    try {
-      setRefreshing(true);
-      setError(null);
-      
-      console.log('🔍 Fetching credits for user:', user.id);
-      console.log('🔍 About to call supabase.rpc get_user_credits...');
-      
-      const { data, error: fetchError } = await supabase.rpc('get_user_credits', {
-        target_user_id: user.id
-      });
-
-      console.log('🔍 Credits fetch result:', { data, fetchError });
-
-      if (fetchError) {
-        console.error('❌ Error fetching user credits:', fetchError);
-        console.error('❌ Error details:', fetchError.message, fetchError.code, fetchError.details);
-        setError(`Error loading balance: ${fetchError.message}`);
-      } else if (data) {
-        setCredits({
-          id: data.id || '',
-          current_balance: data.current_balance || 0,
-          warning_threshold: data.warning_threshold || 10,
-          critical_threshold: data.critical_threshold || 5,
-          is_blocked: data.is_blocked || false,
-          updated_at: data.updated_at || new Date().toISOString()
-        });
-        console.log('✅ Credits loaded successfully:', data);
-      } else {
-        console.warn('⚠️ No credit data returned from function');
-        setCredits({
-          id: '',
-          current_balance: 0,
-          warning_threshold: 10,
-          critical_threshold: 5,
-          is_blocked: false,
-          updated_at: new Date().toISOString()
-        });
-      }
-    } catch (err: any) {
-      console.error('💥 Unexpected error fetching credits:', err);
-      console.error('💥 Error stack:', err.stack);
-      setError(`Unexpected error: ${err.message}`);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCredits();
-  }, [user?.id]);
-
-  const getBalanceStatus = () => {
-    if (!credits) return 'unknown';
-    
-    if (credits.current_balance <= 0) return 'empty';
-    if (credits.current_balance <= credits.critical_threshold) return 'critical';
-    if (credits.current_balance <= credits.warning_threshold) return 'warning';
-    return 'healthy';
-  };
-
+  // Obtener configuración de estado del balance
   const getStatusConfig = (status: string) => {
     switch (status) {
       case 'empty':
@@ -240,17 +146,73 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
     }
   };
 
-  const handleRefresh = () => {
-    fetchCredits();
+  // Función de refresh manual
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    refreshBalance();
+    
+    // Simular delay mínimo para UX
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
   };
 
-  const status = getBalanceStatus();
-  const config = getStatusConfig(status);
+  // Variables computadas
+  const config = getStatusConfig(balanceStatus);
   const IconComponent = config.icon;
-
-  // NUEVO: Calcular minutos estimados con tarifas reales
   const estimatedMinutes = calculateEstimatedMinutes();
+  const lastDeduction = lastBalanceChange && lastBalanceChange.isDeduction 
+    ? lastBalanceChange.difference 
+    : null;
+  // ✅ RENDERS CONDICIONALES
 
+  // Super Admin View
+  if (user?.user_metadata?.role === 'super_admin') {
+    return (
+      <Card className="border border-black bg-blue-50 rounded-xl shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-xl bg-blue-100 border border-blue-200">
+                <Shield className="h-6 w-6 text-blue-700" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-blue-900">Super Admin Account</h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  You have full access to manage all user credits and system administration
+                </p>
+              </div>
+            </div>
+            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 font-semibold">
+              Administrator
+            </Badge>
+          </div>
+          
+          <div className="mt-4 pt-4 border-t border-blue-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                <span className="text-sm font-medium text-blue-700">
+                  All system features available
+                </span>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.location.href = '/admin/credits'}
+                className="border-blue-300 text-blue-700 hover:bg-blue-100"
+              >
+                <Info className="h-4 w-4 mr-2" />
+                Manage User Credits
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Loading State
   if (loading) {
     return (
       <Card className="border border-black rounded-xl">
@@ -264,6 +226,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
     );
   }
 
+  // Error State
   if (error) {
     return (
       <Card className="border border-black rounded-xl">
@@ -284,24 +247,63 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       </Card>
     );
   }
-
+  // RENDER PRINCIPAL DEL COMPONENTE
   return (
-    <Card className="border border-black bg-white rounded-xl shadow-sm">
+    <Card className="border border-black bg-white rounded-xl shadow-sm relative">
+      {/* 🔄 INDICADOR DE AUTO-POLLING EN TIEMPO REAL */}
+      <div className="absolute top-2 left-2 z-10">
+        <div className={`flex items-center space-x-1 text-xs px-2 py-1 rounded-full transition-all duration-300 ${
+          isPolling 
+            ? 'bg-green-100 text-green-800 border border-green-200' 
+            : 'bg-gray-100 text-gray-600 border border-gray-200'
+        }`}>
+          <Activity className={`h-3 w-3 ${isPolling ? 'animate-pulse' : ''}`} />
+          <span>{isPolling ? 'Live' : 'Offline'}</span>
+        </div>
+      </div>
+
+      {/* ✅ INDICADOR DE ACTUALIZACIÓN EN TIEMPO REAL */}
+      {showUpdateIndicator && lastDeduction && (
+        <div className="absolute top-2 right-2 z-10">
+          <div className="flex items-center space-x-2 bg-red-100 border border-red-300 rounded-lg px-3 py-1 text-xs font-medium text-red-800 animate-bounce">
+            <TrendingDown className="h-3 w-3" />
+            <span>Call cost: -{formatCurrency(lastDeduction)}</span>
+            <Zap className="h-3 w-3" />
+          </div>
+        </div>
+      )}
+      
       <CardContent className="p-3 sm:p-8">
-        {/* RESPONSIVE LAYOUT - Mobile: Vertical Stack, Desktop: Horizontal */}
+        {/* LAYOUT RESPONSIVO */}
         <div className="flex flex-col sm:space-y-8">
           {/* ROW 1: Account Balance + Icon + Amount */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             {/* Left: Account Balance + Icon + Amount */}
             <div className="flex items-center justify-center sm:justify-start space-x-3 mb-4 sm:mb-0">
-              <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 relative">
                 <Wallet className="h-6 w-6 text-blue-600" />
+                {/* Indicador de actualización en el ícono */}
+                {showUpdateIndicator && (
+                  <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-ping"></div>
+                )}
               </div>
               <div className="text-center sm:text-left">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">Account Balance</h3>
-                <p className={`text-2xl sm:text-4xl font-bold ${config.balanceColor} mt-1`}>
-                  {credits ? formatCurrency(credits.current_balance) : '$0.00'}
+                <p className={`text-2xl sm:text-4xl font-bold ${config.balanceColor} mt-1 transition-all duration-300`}>
+                  {formatCurrency(currentBalance)}
                 </p>
+                {/* Mostrar último descuento */}
+                {lastDeduction && showUpdateIndicator && (
+                  <p className="text-sm text-red-600 font-medium mt-1 animate-fade-in">
+                    Last call: -{formatCurrency(lastDeduction)}
+                  </p>
+                )}
+                {/* Mostrar gastos del día */}
+                {totalSpentToday > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Today: -{formatCurrency(totalSpentToday)}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -324,16 +326,16 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                 {onRequestRecharge && (
                   <Button 
                     onClick={onRequestRecharge}
-                    variant={status === 'empty' || status === 'critical' ? 'default' : 'outline'}
+                    variant={balanceStatus === 'empty' || balanceStatus === 'critical' ? 'default' : 'outline'}
                     size="lg"
                     className="px-6 py-3 rounded-lg font-semibold"
                   >
                     <Plus className="h-5 w-5 mr-2" />
-                    {status === 'empty' ? 'Add Funds' : 'Request Recharge'}
+                    {balanceStatus === 'empty' ? 'Add Funds' : 'Request Recharge'}
                   </Button>
                 )}
                 
-                {(status === 'warning' || status === 'critical' || status === 'empty') && (
+                {(balanceStatus === 'warning' || balanceStatus === 'critical' || balanceStatus === 'empty') && (
                   <Button 
                     variant="outline" 
                     size="lg"
@@ -348,7 +350,6 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
               </div>
             )}
           </div>
-
           {/* ROW 2: Mobile Status Badge (centered) */}
           <div className="flex sm:hidden items-center justify-center space-x-3 mb-4">
             <IconComponent className={`h-6 w-6 ${config.iconColor}`} />
@@ -366,16 +367,16 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
               {onRequestRecharge && (
                 <Button 
                   onClick={onRequestRecharge}
-                  variant={status === 'empty' || status === 'critical' ? 'default' : 'outline'}
+                  variant={balanceStatus === 'empty' || balanceStatus === 'critical' ? 'default' : 'outline'}
                   size="lg"
                   className="w-full py-3 rounded-lg font-semibold"
                 >
                   <Plus className="h-5 w-5 mr-2" />
-                  {status === 'empty' ? 'Add Funds' : 'Request Recharge'}
+                  {balanceStatus === 'empty' ? 'Add Funds' : 'Request Recharge'}
                 </Button>
               )}
               
-              {(status === 'warning' || status === 'critical' || status === 'empty') && (
+              {(balanceStatus === 'warning' || balanceStatus === 'critical' || balanceStatus === 'empty') && (
                 <Button 
                   variant="outline" 
                   size="lg"
@@ -395,18 +396,26 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
               {/* Left: Availability Status */}
               <div className="flex items-center justify-center sm:justify-start space-x-2">
-                <div className={`h-3 w-3 rounded-full ${credits && credits.current_balance > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div className={`h-3 w-3 rounded-full ${
+                  currentBalance > 0 ? 'bg-green-500' : 'bg-red-500'
+                } ${showUpdateIndicator ? 'animate-pulse' : ''}`}></div>
                 <p className="text-sm sm:text-base font-medium text-gray-700">
-                  {credits && credits.current_balance > 0 ? 'Available for calls' : 'Service unavailable'}
+                  {currentBalance > 0 ? 'Available for calls' : 'Service unavailable'}
                 </p>
+                {/* Mostrar conteo de transacciones recientes */}
+                {recentTransactionsCount > 0 && (
+                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                    {recentTransactionsCount} recent
+                  </span>
+                )}
               </div>
 
-              {/* Center: Status Message + ESTIMADO CORREGIDO */}
+              {/* Center: Status Message + Estimado */}
               <div className="text-center">
                 <p className="text-sm sm:text-base font-medium text-gray-600">
                   {config.message}
                 </p>
-                {credits && credits.current_balance > 0 && (
+                {currentBalance > 0 && (
                   <p className="text-xs sm:text-sm text-gray-500 mt-1">
                     {isLoadingAgents ? (
                       <span className="flex items-center justify-center gap-1">
@@ -422,20 +431,27 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                 )}
               </div>
 
-              {/* Right: Thresholds + Last Updated */}
+              {/* Right: Thresholds + Controls */}
               <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-6">
-                {credits && (
+                {balanceStats && (
                   <div className="text-center sm:text-right">
                     <div className="flex flex-col sm:flex-row items-center space-y-1 sm:space-y-0 sm:space-x-4 text-xs sm:text-sm font-medium">
                       <span className="text-yellow-700">
-                        Warning: {formatCurrency(credits.warning_threshold)}
+                        Warning: {formatCurrency(balanceStats.warning_threshold)}
                       </span>
                       <span className="text-orange-700">
-                        Critical: {formatCurrency(credits.critical_threshold)}
+                        Critical: {formatCurrency(balanceStats.critical_threshold)}
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Updated {new Date(credits.updated_at).toLocaleDateString()}
+                      Updated {new Date(balanceStats.updated_at).toLocaleDateString()}
+                      {/* Indicador de tiempo real */}
+                      {isPolling && (
+                        <span className="ml-2 text-green-600 font-medium">• Live</span>
+                      )}
+                      {showUpdateIndicator && (
+                        <span className="ml-2 text-blue-600 font-medium animate-pulse">• Updated</span>
+                      )}
                     </p>
                   </div>
                 )}
@@ -450,7 +466,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                   {refreshing ? (
                     <LoadingSpinner size="sm" />
                   ) : (
-                    <RefreshCw className="h-5 w-5" />
+                    <RefreshCw className={`h-5 w-5 ${isPolling ? 'text-green-600' : ''} ${showUpdateIndicator ? 'animate-spin' : ''}`} />
                   )}
                 </Button>
               </div>
