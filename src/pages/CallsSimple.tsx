@@ -278,6 +278,7 @@ export default function CallsSimple() {
       loadAllAudioDurations();
     }
   }, [calls]);
+
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
@@ -648,14 +649,18 @@ export default function CallsSimple() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // ✅ FUNCIÓN formatCurrency CORREGIDA - CAMBIO PRINCIPAL
   const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 4,  // ✅ CAMBIADO A 4 DECIMALES
-    maximumFractionDigits: 4,  // ✅ AGREGADO PARA CONSISTENCIA
-  }).format(amount);
-};
+    // Redondear a 2 decimales para evitar problemas de precisión flotante
+    const roundedAmount = Math.round((amount || 0) * 100) / 100;
+    
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,  // ✅ CAMBIADO de 4 a 2 decimales
+      maximumFractionDigits: 2,  // ✅ CAMBIADO de 4 a 2 decimales
+    }).format(roundedAmount);
+  };
 
   const formatDate = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-US', {
@@ -687,6 +692,7 @@ export default function CallsSimple() {
   };
 
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
+
   if (!user) {
     return (
       <DashboardLayout>
@@ -743,30 +749,6 @@ export default function CallsSimple() {
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Total Calls</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                  </div>
-                  <Phone className="h-8 w-8 text-blue-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Completed</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-
             <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -1138,4 +1120,28 @@ export default function CallsSimple() {
       </div>
     </DashboardLayout>
   );
-}
+}-to-br from-blue-50 to-blue-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Calls</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                  </div>
+                  <Phone className="h-8 w-8 text-blue-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Completed</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient
