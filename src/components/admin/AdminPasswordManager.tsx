@@ -1,4 +1,4 @@
-// src/components/admin/AdminPasswordManager.tsx - PARTE 1
+// src/components/admin/AdminPasswordManager.tsx
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,7 +30,6 @@ interface AdminPasswordManagerProps {
   onPasswordChanged: () => void;
   onClose: () => void;
 }
-// src/components/admin/AdminPasswordManager.tsx - PARTE 2
 
 export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
   targetUserId,
@@ -39,7 +38,6 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
   onPasswordChanged,
   onClose,
 }) => {
-  // Estados del componente
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -48,28 +46,24 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [currentMethod, setCurrentMethod] = useState<'primary' | 'email' | 'api'>('primary');
 
-  // Función para generar contraseña segura
+  // Generar contraseña segura
   const generateTempPassword = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
     let password = '';
     
-    // Asegurar al menos: 1 mayúscula, 1 minúscula, 1 número, 1 especial
     password += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)];
     password += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
     password += '0123456789'[Math.floor(Math.random() * 10)];
     password += '!@#$%'[Math.floor(Math.random() * 5)];
     
-    // Completar hasta 12 caracteres
     for (let i = 4; i < 12; i++) {
       password += chars[Math.floor(Math.random() * chars.length)];
     }
     
-    // Mezclar caracteres
     return password.split('').sort(() => Math.random() - 0.5).join('');
   };
-  // src/components/admin/AdminPasswordManager.tsx - PARTE 3
 
-  // Función de diagnóstico mejorada
+  // Función de diagnóstico
   const debugUser = async () => {
     setLoading(true);
     try {
@@ -97,7 +91,6 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
       setLoading(false);
     }
   };
-  // src/components/admin/AdminPasswordManager.tsx - PARTE 4
 
   // MÉTODO 1: Función principal con múltiples intentos
   const tryPrimaryMethod = async () => {
@@ -164,7 +157,6 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
     
     return data;
   };
-  // src/components/admin/AdminPasswordManager.tsx - PARTE 5
 
   // Función principal que prueba todos los métodos
   const handlePasswordChange = async () => {
@@ -215,7 +207,6 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
           console.log(`❌ [PASSWORD] Method ${i + 1} failed:`, error.message);
           
           if (i === methods.length - 1) {
-            // Último método también falló
             throw new Error(`All methods failed. Last error: ${error.message}`);
           }
         }
@@ -249,7 +240,6 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
         duration: 8000
       });
 
-      // Activar modo debug automáticamente
       setDebugMode(true);
       setTimeout(() => debugUser(), 1000);
       
@@ -269,3 +259,221 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
       duration: 4000
     });
   };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-orange-700">
+            <Key className="h-5 w-5" />
+            Change Password - Multi-Method
+          </CardTitle>
+          
+          <div className="space-y-2">
+            {/* Target user info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <User className="h-3 w-3 text-blue-600" />
+                <span className="text-xs font-medium text-blue-800">Target User</span>
+              </div>
+              <p className="text-sm text-blue-700 font-medium">{targetUserEmail}</p>
+              <p className="text-xs text-blue-600">{targetUserName}</p>
+              <p className="text-xs text-gray-500 mt-1">ID: {targetUserId.slice(0, 8)}...</p>
+            </div>
+            
+            {/* Method selector */}
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Settings className="h-3 w-3 text-purple-600" />
+                <span className="text-xs font-medium text-purple-800">Primary Method</span>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant={currentMethod === 'primary' ? 'default' : 'outline'}
+                  onClick={() => setCurrentMethod('primary')}
+                  className="text-xs h-6"
+                >
+                  <Zap className="h-2 w-2 mr-1" />
+                  Multi-attempt
+                </Button>
+                <Button
+                  size="sm"
+                  variant={currentMethod === 'email' ? 'default' : 'outline'}
+                  onClick={() => setCurrentMethod('email')}
+                  className="text-xs h-6"
+                >
+                  <Mail className="h-2 w-2 mr-1" />
+                  Email-based
+                </Button>
+                <Button
+                  size="sm"
+                  variant={currentMethod === 'api' ? 'default' : 'outline'}
+                  onClick={() => setCurrentMethod('api')}
+                  className="text-xs h-6"
+                >
+                  <Crown className="h-2 w-2 mr-1" />
+                  API
+                </Button>
+              </div>
+            </div>
+            
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2">
+              <div className="flex items-center gap-2">
+                <Shield className="h-3 w-3 text-amber-600" />
+                <span className="text-xs text-amber-800">
+                  <strong>Super Admin Action:</strong> Password will be changed immediately
+                </span>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {/* Formulario de contraseña */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-2">New Password</label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min. 6 characters)"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Confirm Password</label>
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+              />
+            </div>
+
+            {/* Validation indicators */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs">
+                {newPassword.length >= 6 ? (
+                  <CheckCircle className="h-3 w-3 text-green-600" />
+                ) : (
+                  <AlertTriangle className="h-3 w-3 text-amber-600" />
+                )}
+                <span className={newPassword.length >= 6 ? 'text-green-600' : 'text-amber-600'}>
+                  At least 6 characters
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-xs">
+                {newPassword === confirmPassword && newPassword.length > 0 ? (
+                  <CheckCircle className="h-3 w-3 text-green-600" />
+                ) : (
+                  <AlertTriangle className="h-3 w-3 text-amber-600" />
+                )}
+                <span className={newPassword === confirmPassword && newPassword.length > 0 ? 'text-green-600' : 'text-amber-600'}>
+                  Passwords match
+                </span>
+              </div>
+            </div>
+
+            {/* Quick generate button */}
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              onClick={handleGenerateTemp}
+              className="w-full text-purple-600 hover:text-purple-700"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Generate Secure Password
+            </Button>
+          </div>
+
+          {/* Debug section */}
+          {debugMode && (
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Bug className="h-4 w-4 text-red-500" />
+                <span className="text-sm font-medium text-red-700">Debug Mode</span>
+                <Badge variant="destructive" className="text-xs">DEV</Badge>
+              </div>
+              
+              <Button 
+                onClick={debugUser} 
+                disabled={loading}
+                variant="outline"
+                size="sm"
+                className="w-full mb-3"
+              >
+                {loading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Bug className="h-4 w-4 mr-2" />}
+                Debug User Lookup
+              </Button>
+
+              {debugInfo && (
+                <div className="bg-gray-50 rounded p-3 text-xs">
+                  <pre className="whitespace-pre-wrap overflow-auto max-h-32">
+                    {JSON.stringify(debugInfo, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onClose} 
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            
+            {!debugMode && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDebugMode(true)}
+                className="text-red-600 hover:text-red-700"
+              >
+                <Bug className="h-4 w-4 mr-1" />
+                Debug
+              </Button>
+            )}
+            
+            <Button 
+              onClick={handlePasswordChange} 
+              disabled={loading || newPassword.length < 6 || newPassword !== confirmPassword}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                <>
+                  <Key className="w-4 h-4 mr-2" />
+                  Change Password
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
