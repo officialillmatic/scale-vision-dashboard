@@ -84,6 +84,13 @@ interface Agent {
   status: string;
   created_at: string;
   description?: string;
+  
+  // ✅ Campos adicionales del CSV
+  avatar_url?: string;
+  rate_per_minute?: number;
+  updated_at?: string;
+  
+  // ✅ Campos enriquecidos de Retell
   voice_id?: string;
   language?: string;
   llm_id?: string;
@@ -411,132 +418,95 @@ const fetchAllData = useCallback(async () => {
 }, []);
 
 // ========================================
-// ✅ FUNCIÓN FETCHAGENTS COMPLETAMENTE CORREGIDA
+// ✅ FUNCIÓN FETCHAGENTS CORREGIDA - SOLO CUSTOM AGENTS
 // ========================================
 
 const fetchAgents = useCallback(async () => {
   try {
-    console.log('🔍 [TeamPage] Fetching agents from database and Retell API...');
+    console.log('🔍 [TeamPage] Fetching Custom AI Agents from database...');
     
-    // 1. Obtener agentes de la base de datos local
-    const { data: localAgents, error: localError } = await supabase
+    // ✅ SOLO obtener Custom Agents de la base de datos local
+    const { data: customAgents, error: customError } = await supabase
       .from('agents')
-      .select('*');
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    if (localError) {
-      console.error('❌ Error fetching local agents:', localError);
+    if (customError) {
+      console.error('❌ Error fetching custom agents:', customError);
+      throw customError;
     }
 
-    // 2. ✅ Obtener agentes de Retell API con manejo seguro de errores
+    if (!customAgents || customAgents.length === 0) {
+      console.log('⚠️ No custom agents found');
+      setAgents([]);
+      return;
+    }
+
+    // ✅ Obtener información adicional de Retell para enriquecer los datos
     let retellAgents: RetellAgentDetailed[] = [];
     try {
-      console.log('🔍 [TeamPage] Cargando agentes de Retell API...');
+      console.log('🔍 [TeamPage] Obteniendo datos de Retell para enriquecer información...');
       retellAgents = await getAllRetellAgentsForTeam();
-      setRetellAgents(retellAgents);
+      setRetellAgents(retellAgents); // Para usar en el formulario de agregar
       setLastRetellUpdate(new Date());
       setRetellError(null);
-      console.log('✅ [TeamPage] Retell agents fetched:', retellAgents.length);
+      console.log('✅ [TeamPage] Retell data fetched for enrichment:', retellAgents.length);
     } catch (retellError: any) {
-      console.error('⚠️ [TeamPage] Error fetching Retell agents:', retellError);
-      
-      // ✅ Manejo específico de errores
-      let errorMessage = 'Error al cargar agentes de Retell';
-      
-      if (retellError.message.includes('Invalid time value')) {
-        errorMessage = 'Error de formato de fecha en agentes de Retell';
-      } else if (retellError.message.includes('401') || retellError.message.includes('403')) {
-        errorMessage = 'Error de autenticación con Retell AI';
-      } else if (retellError.message.includes('VITE_RETELL_API_KEY')) {
-        errorMessage = 'API key de Retell no configurada';
-      }
-      
-      setRetellError(errorMessage);
-      toast.warning(`⚠️ ${errorMessage}. Mostrando solo agentes locales.`);
+      console.error('⚠️ [TeamPage] Error fetching Retell data for enrichment:', retellError);
+      setRetellError('No se pudieron cargar datos de Retell AI para enriquecimiento');
+      // Continuar sin datos de Retell
     }
 
-    // 3. ✅ Combinar datos locales con datos de Retell de forma segura
-    const combinedAgents: Agent[] = [];
-
-    // Primero, agregar agentes que están en la base de datos local
-    if (localAgents && localAgents.length > 0) {
-      for (const localAgent of localAgents) {
-        try {
-          // ✅ Buscar agente correspondiente en Retell con validación
-          const retellAgent = retellAgents.find(r => r.agent_id === localAgent.retell_agent_id);
+    // ✅ Procesar SOLO los Custom Agents
+    const processedCustomAgents: Agent[] = customAgents.map(customAgent => {
+      try {
+        // Buscar datos de Retell correspondientes para enriquecer información
+        const retellData = retellAgents.find(r => r.agent_id === customAgent.retell_agent_id);
+        
+        return {
+          id: customAgent.id,
+          name: customAgent.name || 'Custom Agent Sin Nombre',
+          retell_agent_id: customAgent.retell_agent_id || 'No asignado',
+          company_id: customAgent.company_id,
+          company_name: null, // Se puede agregar join con companies después
+          assigned_users: 0, // Se puede calcular después con user_agent_assignments
+          total_calls: 0, // Se puede calcular después con calls table
+          status: customAgent.status || 'active',
+          created_at: customAgent.created_at || new Date().toISOString(),
+          description: customAgent.description || (retellData ? `Voz: ${retellData.voice_id}` : 'Sin descripción'),
           
-          combinedAgents.push({
-            id: localAgent.id,
-            name: retellAgent?.agent_name || localAgent.name || 'Agente Sin Nombre',
-            retell_agent_id: localAgent.retell_agent_id || 'N/A',
-            company_id: localAgent.company_id,
-            company_name: null, // Se puede agregar join con companies después
-            assigned_users: 0, // Se puede calcular después
-            total_calls: 0, // Se puede calcular después
-            status: retellAgent ? 'active' : 'inactive',
-            created_at: localAgent.created_at || new Date().toISOString(),
-            description: localAgent.description || `Voz: ${retellAgent?.voice_id || 'N/A'}`,
-            voice_id: retellAgent?.voice_id,
-            language: retellAgent?.language,
-            llm_id: retellAgent?.response_engine?.llm_id,
-            last_modification_time: retellAgent?.last_modification_time
-          });
-        } catch (agentError) {
-          console.warn('⚠️ [TeamPage] Error procesando agente local:', localAgent.id, agentError);
-          // Agregar agente con datos mínimos si hay error
-          combinedAgents.push({
-            id: localAgent.id,
-            name: localAgent.name || 'Agente con Error',
-            retell_agent_id: localAgent.retell_agent_id || 'N/A',
-            company_id: localAgent.company_id,
-            company_name: null,
-            assigned_users: 0,
-            total_calls: 0,
-            status: 'inactive',
-            created_at: localAgent.created_at || new Date().toISOString(),
-            description: 'Error al cargar datos de Retell'
-          });
-        }
-      }
-    }
-
-    // 4. ✅ Agregar agentes que solo están en Retell (no sincronizados) con validación
-    if (retellAgents.length > 0) {
-      for (const retellAgent of retellAgents) {
-        try {
-          const existsLocally = localAgents?.some(l => l.retell_agent_id === retellAgent.agent_id);
+          // ✅ Datos enriquecidos de Retell (si están disponibles)
+          voice_id: retellData?.voice_id || 'No disponible',
+          language: retellData?.language || 'No disponible',
+          llm_id: retellData?.response_engine?.llm_id || 'No disponible',
+          last_modification_time: retellData?.last_modification_time,
           
-          if (!existsLocally && retellAgent.agent_id && retellAgent.agent_name) {
-            combinedAgents.push({
-              id: `retell-${retellAgent.agent_id}`,
-              name: retellAgent.agent_name,
-              retell_agent_id: retellAgent.agent_id,
-              company_id: null,
-              company_name: null,
-              assigned_users: 0,
-              total_calls: 0,
-              status: 'active',
-              created_at: retellAgent.created_time ? 
-                new Date(retellAgent.created_time).toISOString() : 
-                new Date().toISOString(),
-              description: `🔄 Agente de Retell (${retellAgent.voice_id || 'Sin voz'}) - No sincronizado`,
-              voice_id: retellAgent.voice_id,
-              language: retellAgent.language,
-              llm_id: retellAgent.response_engine?.llm_id,
-              last_modification_time: retellAgent.last_modification_time
-            });
-          }
-        } catch (retellAgentError) {
-          console.warn('⚠️ [TeamPage] Error procesando agente de Retell:', retellAgent.agent_id, retellAgentError);
-        }
+          // ✅ Campos adicionales del CSV
+          avatar_url: customAgent.avatar_url,
+          rate_per_minute: customAgent.rate_per_minute
+        };
+      } catch (agentError) {
+        console.warn('⚠️ [TeamPage] Error procesando custom agent:', customAgent.id, agentError);
+        // Devolver agente con datos mínimos si hay error
+        return {
+          id: customAgent.id,
+          name: customAgent.name || 'Custom Agent con Error',
+          retell_agent_id: customAgent.retell_agent_id || 'Error',
+          company_id: customAgent.company_id,
+          company_name: null,
+          assigned_users: 0,
+          total_calls: 0,
+          status: 'inactive',
+          created_at: customAgent.created_at || new Date().toISOString(),
+          description: 'Error al procesar datos del agente',
+          avatar_url: customAgent.avatar_url,
+          rate_per_minute: customAgent.rate_per_minute
+        };
       }
-    }
+    });
 
-    // 5. ✅ Eliminar duplicados y ordenar de forma segura
-    const uniqueAgents = combinedAgents.filter((agent, index, self) => 
-      index === self.findIndex(a => a.id === agent.id)
-    );
-
-    const sortedAgents = uniqueAgents.sort((a, b) => {
+    // ✅ Ordenar por fecha de creación
+    const sortedCustomAgents = processedCustomAgents.sort((a, b) => {
       try {
         // Prioridad: agentes activos primero
         if (a.status === 'active' && b.status !== 'active') return -1;
@@ -552,305 +522,28 @@ const fetchAgents = useCallback(async () => {
         
         return dateB - dateA;
       } catch (sortError) {
-        console.warn('⚠️ Error ordenando agentes:', sortError);
+        console.warn('⚠️ Error ordenando custom agents:', sortError);
         return 0;
       }
     });
 
-    setAgents(sortedAgents);
-    console.log(`✅ [TeamPage] Agents loaded successfully: ${sortedAgents.length} total (${localAgents?.length || 0} local, ${retellAgents.length} from Retell)`);
+    setAgents(sortedCustomAgents);
+    console.log(`✅ [TeamPage] Custom Agents loaded successfully: ${sortedCustomAgents.length} agents`);
+
+    // ✅ Log de los agentes para debugging
+    sortedCustomAgents.forEach(agent => {
+      console.log(`📊 [TeamPage] Custom Agent: ${agent.name} (${agent.retell_agent_id}) - Status: ${agent.status}`);
+    });
 
   } catch (error: any) {
-    console.error('❌ [TeamPage] Error fetching agents:', error);
-    toast.error(`Error al cargar agentes: ${error.message}`);
+    console.error('❌ [TeamPage] Error fetching custom agents:', error);
+    toast.error(`Error al cargar Custom Agents: ${error.message}`);
     setAgents([]); // Limpiar en caso de error total
   }
 }, []);
 
 // ========================================
-// ✅ FUNCIÓN PARA CARGAR AGENTES DE RETELL PARA MODALES
-// ========================================
-
-const loadRetellAgentsForModal = useCallback(async () => {
-  setLoadingRetellAgents(true);
-  setRetellError(null);
-  
-  try {
-    console.log('🔍 [TeamPage] Cargando agentes de Retell para modal...');
-    
-    // ✅ Verificar configuración
-    const apiKey = import.meta.env.VITE_RETELL_API_KEY;
-    if (!apiKey) {
-      throw new Error('VITE_RETELL_API_KEY no está configurada en el archivo .env');
-    }
-    
-    console.log('🔑 [TeamPage] API Key encontrada:', apiKey.slice(0, 10) + '...');
-    
-    // ✅ Limpiar cache para obtener datos frescos
-    clearAgentsCache();
-    
-    const agents = await getAllRetellAgentsForTeam();
-    setRetellAgents(agents);
-    setLastRetellUpdate(new Date());
-    
-    console.log('✅ [TeamPage] Agentes de Retell cargados para modal:', agents.length);
-    
-    if (agents.length === 0) {
-      toast.info('ℹ️ No se encontraron agentes en Retell AI');
-    } else {
-      toast.success(`✅ ${agents.length} agentes cargados de Retell AI`);
-    }
-    
-  } catch (error: any) {
-    console.error('❌ [TeamPage] Error cargando agentes de Retell para modal:', error);
-    
-    let errorMessage = 'Error al cargar agentes de Retell';
-    
-    if (error.message.includes('Invalid time value')) {
-      errorMessage = 'Error de formato de fecha en agentes de Retell';
-    } else if (error.message.includes('401') || error.message.includes('403')) {
-      errorMessage = 'Error de autenticación con Retell AI. Verifica tu API key.';
-    } else if (error.message.includes('VITE_RETELL_API_KEY')) {
-      errorMessage = 'API key de Retell no configurada. Revisa tu archivo .env';
-    } else if (error.message.includes('Network')) {
-      errorMessage = 'Error de conexión. Verifica tu internet';
-    }
-    
-    setRetellError(errorMessage);
-    toast.error(`❌ ${errorMessage}`);
-    setRetellAgents([]);
-  } finally {
-    setLoadingRetellAgents(false);
-  }
-}, []);
-  // TeamPage.tsx - PARTE 4: FUNCIONES FETCH RESTANTES - ✅ SIN CAMBIOS MAYORES
-
-const fetchTeamMembers = useCallback(async () => {
-  try {
-    console.log('🔍 [TeamPage] Fetching team members...');
-    
-    const { data: usersData, error: usersError } = await supabase
-      .from('users')
-      .select('*');
-
-    if (usersError) {
-      console.error('❌ Error fetching users:', usersError);
-      throw usersError;
-    }
-
-    const { data: companyMembersData, error: companyMembersError } = await supabase
-      .from('company_members')
-      .select(`
-        user_id,
-        company_id,
-        role,
-        created_at,
-        companies:company_id (
-          id,
-          name
-        )
-      `);
-
-    if (companyMembersError) {
-      console.error('❌ Error fetching company_members:', companyMembersError);
-    }
-
-    if (!usersData || usersData.length === 0) {
-      console.log('⚠️ No users found');
-      setTeamMembers([]);
-      return;
-    }
-
-    const [creditsResult, callsResult, profilesResult] = await Promise.all([
-      supabase.from('user_credits').select('user_id, current_balance'),
-      supabase.from('calls').select('user_id, cost_usd'),
-      supabase.from('user_profiles').select('id, email, name, role, company_id')
-    ]);
-
-    const creditsData = creditsResult.data || [];
-    const callsData = callsResult.data || [];
-    const profilesData = profilesResult.data || [];
-    const companyMembers = companyMembersData || [];
-
-    const combinedMembers: TeamMember[] = usersData.map(user => {
-      const profile = profilesData.find(p => p.id === user.id);
-      const credit = creditsData.find(c => c.user_id === user.id);
-      const userCalls = callsData.filter(c => c.user_id === user.id);
-      const companyMember = companyMembers.find(cm => cm.user_id === user.id);
-
-      const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-      const currentBalance = credit?.current_balance || 0;
-
-      return {
-        id: user.id,
-        email: user.email || profile?.email || `user-${user.id.slice(0, 8)}`,
-        name: user.name || user.full_name || profile?.name || user.email || 'Usuario',
-        role: companyMember?.role || profile?.role || user.role || 'user',
-        status: currentBalance > 0 ? 'active' : 'inactive',
-        company_id: companyMember?.company_id || profile?.company_id || user.company_id,
-        company_name: companyMember?.companies?.name || null,
-        created_at: user.created_at || new Date().toISOString(),
-        last_login: user.last_sign_in_at,
-        total_calls: userCalls.length,
-        total_spent: totalSpent,
-        current_balance: currentBalance,
-        assigned_agents: 0
-      };
-    });
-
-    const sortedMembers = combinedMembers.sort((a, b) => {
-      if (a.company_id && !b.company_id) return -1;
-      if (!a.company_id && b.company_id) return 1;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-
-    setTeamMembers(sortedMembers);
-    console.log('✅ [TeamPage] Team members loaded successfully:', sortedMembers.length);
-
-  } catch (error: any) {
-    console.error('❌ [TeamPage] Error fetching team members:', error);
-    toast.error(`Error al cargar miembros: ${error.message}`);
-  }
-}, []);
-
-const fetchCompanies = useCallback(async () => {
-  try {
-    const { data: companiesData, error: companiesError } = await supabase
-      .from('companies')
-      .select('*');
-
-    if (companiesError) {
-      console.error('❌ Error fetching companies:', companiesError);
-      throw companiesError;
-    }
-
-    if (!companiesData) {
-      setCompanies([]);
-      return;
-    }
-
-    const combinedCompanies: Company[] = companiesData.map(company => ({
-      id: company.id,
-      name: company.name || 'Empresa Sin Nombre',
-      users_count: 0,
-      agents_count: 0,
-      total_calls: 0,
-      total_spent: 0,
-      created_at: company.created_at || new Date().toISOString(),
-      status: 'active'
-    }));
-
-    setCompanies(combinedCompanies);
-
-  } catch (error: any) {
-    console.error('❌ Error fetching companies:', error);
-    toast.error(`Error al cargar empresas: ${error.message}`);
-  }
-}, []);
-
-const fetchAssignments = useCallback(async () => {
-  try {
-    console.log('🔍 [TeamPage] Fetching user-agent assignments...');
-    
-    const { data: assignmentsData, error: assignmentsError } = await supabase
-      .from('user_agent_assignments')
-      .select(`
-        id,
-        user_id,
-        agent_id,
-        is_primary,
-        created_at
-      `);
-
-    if (assignmentsError) {
-      console.error('❌ Error fetching assignments:', assignmentsError);
-      setAssignments([]);
-      return;
-    }
-
-    if (!assignmentsData || assignmentsData.length === 0) {
-      setAssignments([]);
-      return;
-    }
-
-    const userIds = [...new Set(assignmentsData.map(a => a.user_id))];
-    const agentIds = [...new Set(assignmentsData.map(a => a.agent_id))];
-
-    const [usersResult, agentsResult] = await Promise.all([
-      supabase.from('users').select('id, email, name').in('id', userIds),
-      supabase.from('agents').select('id, name, retell_agent_id').in('id', agentIds)
-    ]);
-
-    const usersData = usersResult.data || [];
-    const agentsData = agentsResult.data || [];
-
-    const combinedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
-      const user = usersData.find(u => u.id === assignment.user_id);
-      const agent = agentsData.find(a => a.id === assignment.agent_id);
-
-      return {
-        id: assignment.id,
-        user_id: assignment.user_id,
-        agent_id: assignment.agent_id,
-        user_email: user?.email || 'usuario@example.com',
-        user_name: user?.name || user?.email || 'Usuario',
-        agent_name: agent?.name || 'Agente',
-        is_primary: assignment.is_primary || false,
-        created_at: assignment.created_at || new Date().toISOString()
-      };
-    });
-
-    setAssignments(combinedAssignments);
-    console.log('✅ [TeamPage] Assignments loaded successfully:', combinedAssignments.length);
-
-  } catch (error: any) {
-    console.error('❌ [TeamPage] Error fetching assignments:', error);
-    setAssignments([]);
-    toast.error(`Error al cargar asignaciones: ${error.message}`);
-  }
-}, []);
-
-const fetchInvitations = useCallback(async () => {
-  try {
-    console.log('🔍 [TeamPage] Fetching invitations...');
-    
-    const { data: invitationsData, error: invitationsError } = await supabase
-      .from('team_invitations')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (invitationsError) {
-      console.error('❌ Error fetching invitations:', invitationsError);
-      return;
-    }
-
-    const combinedInvitations: UserInvitation[] = (invitationsData || []).map(invitation => ({
-      id: invitation.id,
-      email: invitation.email,
-      name: invitation.email,
-      role: invitation.role,
-      company_id: invitation.company_id,
-      company_name: null,
-      token: invitation.invitation_token,
-      expires_at: invitation.expires_at,
-      invited_by: invitation.invited_by,
-      invited_by_email: null,
-      status: invitation.status || 'pending',
-      created_at: invitation.created_at,
-      accepted_at: invitation.accepted_at,
-      user_id: invitation.accepted_by
-    }));
-
-    setInvitations(combinedInvitations);
-
-  } catch (error: any) {
-    console.error('❌ [TeamPage] Error fetching invitations:', error);
-  }
-}, []);
-  // TeamPage.tsx - PARTE 5: HANDLERS DE AGENTES - ✅ CORREGIDOS
-
-// ========================================
-// ✅ HANDLERS DE AGENTES MEJORADOS
+// ✅ ACTUALIZACIÓN DEL HANDLE ADD AGENT
 // ========================================
 
 const handleAddAgent = useCallback(async (agentData: { 
@@ -860,28 +553,28 @@ const handleAddAgent = useCallback(async (agentData: {
   description?: string;
 }) => {
   try {
-    console.log('📝 [TeamPage] Adding new agent:', agentData);
+    console.log('📝 [TeamPage] Adding new Custom AI Agent:', agentData);
 
-    // ✅ Validar que el agente existe en Retell
+    // ✅ Validar que el agente de Retell existe
     const exists = await verifyRetellAgentExists(agentData.retell_agent_id);
     if (!exists) {
-      toast.error('❌ Agente no encontrado en Retell AI');
+      toast.error('❌ Agente de Retell AI no encontrado');
       return;
     }
 
-    // ✅ Verificar si ya está registrado
+    // ✅ Verificar si ya hay un Custom Agent con ese retell_agent_id
     const { data: existingAgent } = await supabase
       .from('agents')
-      .select('id')
+      .select('id, name')
       .eq('retell_agent_id', agentData.retell_agent_id)
       .single();
 
     if (existingAgent) {
-      toast.error('❌ Este agente ya está registrado en la base de datos');
+      toast.error(`❌ Ya existe un Custom Agent "${existingAgent.name}" asignado a este agente de Retell`);
       return;
     }
 
-    // ✅ Insertar nuevo agente
+    // ✅ Crear nuevo Custom Agent
     const { error: insertError } = await supabase
       .from('agents')
       .insert({
@@ -890,23 +583,23 @@ const handleAddAgent = useCallback(async (agentData: {
         company_id: agentData.company_id || null,
         description: agentData.description || null,
         status: 'active',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
 
     if (insertError) {
       throw insertError;
     }
 
-    toast.success('✅ Agente agregado exitosamente');
-    await fetchAgents(); // Recargar lista
+    toast.success('✅ Custom AI Agent creado exitosamente');
+    await fetchAgents(); // Recargar lista de Custom Agents
     setAddAgentModal(false);
 
   } catch (error: any) {
-    console.error('❌ [TeamPage] Error adding agent:', error);
-    toast.error(`Error al agregar agente: ${error.message}`);
+    console.error('❌ [TeamPage] Error adding Custom Agent:', error);
+    toast.error(`Error al crear Custom Agent: ${error.message}`);
   }
 }, [fetchAgents]);
-
 const handleViewAgent = useCallback(async (agent: Agent) => {
   try {
     console.log('👁️ [TeamPage] Viewing agent details:', agent.id);
@@ -1935,9 +1628,10 @@ return (
             </TabsContent>
 
             {/* Tab: Agentes AI */}
+            {/* Tab: Custom AI Agents - ✅ ACTUALIZADO */}
             <TabsContent value="agents" className="space-y-4 mt-0">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">Agentes AI ({filteredAgents.length})</h3>
+                <h3 className="text-lg font-semibold">Custom AI Agents ({filteredAgents.length})</h3>
                 <div className="flex gap-2">
                   <Button onClick={fetchAgents} variant="outline" size="sm" disabled={loading}>
                     <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -1945,19 +1639,34 @@ return (
                   </Button>
                   <Button onClick={() => setAddAgentModal(true)} size="sm">
                     <Plus className="w-4 h-4 mr-2" />
-                    Agregar Agente
+                    Crear Custom Agent
                   </Button>
+                </div>
+              </div>
+
+              {/* ✅ Información sobre el flujo */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <Bot className="h-4 w-4 text-blue-600 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <strong>Custom AI Agents:</strong> Estos son tus agentes personalizados. Cada uno tiene asignado un agente de Retell AI como motor de voz.
+                    {retellError && (
+                      <div className="text-orange-700 mt-1">
+                        ⚠️ {retellError} - Los datos de voz pueden no estar actualizados.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {filteredAgents.length === 0 ? (
                 <div className="text-center py-8">
                   <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No se encontraron agentes</h3>
-                  <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
-                  <Button onClick={fetchAgents} variant="outline" disabled={loading}>
-                    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                    Actualizar Agentes
+                  <h3 className="text-lg font-semibold mb-2">No hay Custom AI Agents</h3>
+                  <p className="text-gray-600 mb-4">Crea tu primer Custom Agent y asígnale un agente de Retell AI.</p>
+                  <Button onClick={() => setAddAgentModal(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Crear Primer Custom Agent
                   </Button>
                 </div>
               ) : (
@@ -1968,20 +1677,35 @@ return (
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-center space-x-4 flex-1">
+                        {/* ✅ Avatar si existe */}
+                        {agent.avatar_url && (
+                          <img 
+                            src={agent.avatar_url} 
+                            alt={agent.name}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        )}
+                        
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             <p className="font-medium text-sm">{agent.name}</p>
-                            <span className="text-xs text-gray-500">ID: {agent.retell_agent_id}</span>
+                            <span className="text-xs text-gray-500">Custom Agent</span>
                             
                             <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>
                               <Bot className="h-3 w-3 mr-1" />
                               {agent.status}
                             </Badge>
 
-                            {agent.id.startsWith('retell-') && (
-                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                            {/* ✅ Indicador de conexión con Retell */}
+                            {agent.retell_agent_id && agent.retell_agent_id !== 'No asignado' ? (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Retell Conectado
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
                                 <AlertTriangle className="h-3 w-3 mr-1" />
-                                No sincronizado
+                                Sin Retell
                               </Badge>
                             )}
                           </div>
@@ -1990,16 +1714,22 @@ return (
                             <span>Empresa: <strong>{agent.company_name || 'N/A'}</strong></span>
                             <span>Usuarios: <strong>{agent.assigned_users}</strong></span>
                             <span>Llamadas: <strong>{agent.total_calls}</strong></span>
-                            <span>Creado: <strong>{formatDate(agent.created_at)}</strong></span>
+                            <span>Tarifa: <strong>{agent.rate_per_minute ? `$${agent.rate_per_minute}/min` : 'N/A'}</strong></span>
                           </div>
                           
-                          {agent.voice_id && (
+                          {/* ✅ Información de Retell enriquecida */}
+                          {agent.voice_id && agent.voice_id !== 'No disponible' && (
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-purple-600 mt-1">
                               <span>Voz: <strong>{agent.voice_id}</strong></span>
                               <span>Idioma: <strong>{agent.language || 'N/A'}</strong></span>
                               <span>LLM: <strong>{agent.llm_id || 'N/A'}</strong></span>
                             </div>
                           )}
+                          
+                          {/* ✅ Retell Agent ID */}
+                          <div className="text-xs text-gray-500 mt-1">
+                            <span>Retell ID: <code className="bg-gray-100 px-1 rounded">{agent.retell_agent_id}</code></span>
+                          </div>
                           
                           {agent.description && (
                             <p className="text-xs text-gray-500 mt-1">{agent.description}</p>
@@ -2026,23 +1756,19 @@ return (
                           Editar
                         </Button>
 
-                        {agent.id.startsWith('retell-') && (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => {
-                              handleAddAgent({
-                                retell_agent_id: agent.retell_agent_id,
-                                name: agent.name,
-                                description: agent.description
-                              });
-                            }}
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          >
-                            <RefreshCw className="h-4 w-4 mr-1" />
-                            Sincronizar
-                          </Button>
-                        )}
+                        {/* ✅ Botón para reasignar agente de Retell */}
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            // Abrir modal para cambiar retell_agent_id
+                            toast.info('Función de reasignar agente de Retell en desarrollo');
+                          }}
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-1" />
+                          Reasignar Retell
+                        </Button>
                       </div>
                     </div>
                   ))}
