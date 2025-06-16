@@ -413,7 +413,6 @@ export default function TeamPage() {
       setLoading(false);
     }
   }, []);
-
   // ========================================
   // ✅ FUNCIÓN FETCHAGENTS CORREGIDA - SOLO CUSTOM AGENTS
   // ========================================
@@ -755,7 +754,6 @@ export default function TeamPage() {
       console.error('❌ [TeamPage] Error fetching invitations:', error);
     }
   }, []);
-
   // ========================================
   // ✅ FUNCIÓN PARA CARGAR AGENTES DE RETELL PARA MODALES
   // ========================================
@@ -1089,6 +1087,10 @@ export default function TeamPage() {
   // Verificación de permisos de super admin
   if (!isSuperAdmin) {
     return (
+      <Dash
+        // Verificación de permisos de super admin
+  if (!isSuperAdmin) {
+    return (
       <DashboardLayout>
         <div className="min-h-screen flex items-center justify-center p-6">
           <Card className="max-w-md mx-auto">
@@ -1119,6 +1121,7 @@ export default function TeamPage() {
       </DashboardLayout>
     );
   }
+
   // ========================================
   // COMPONENTES DE MODALES SIMPLES
   // ========================================
@@ -1201,61 +1204,232 @@ export default function TeamPage() {
       </div>
     );
   };
+  // ========================================
+  // ✅ MODAL ADDAGENT NUEVO Y MEJORADO CON DESPLEGABLE
+  // ========================================
 
-  // ✅ Modal placeholder para agregar agente (se necesitará crear componente real)
-  const SimpleAddAgentModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-96 max-w-full mx-4">
-        <CardHeader>
-          <CardTitle>Crear Custom Agent</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target as HTMLFormElement);
-            handleAddAgent({
-              retell_agent_id: formData.get('retell_agent_id') as string,
-              name: formData.get('name') as string,
-              company_id: formData.get('company_id') as string || undefined,
-              description: formData.get('description') as string || undefined
-            });
-          }} className="space-y-4">
-            <Input
-              name="name"
-              placeholder="Nombre del Custom Agent"
-              required
-            />
-            <Input
-              name="retell_agent_id"
-              placeholder="ID del Agente de Retell"
-              required
-            />
-            <select
-              name="company_id"
-              className="w-full border rounded px-3 py-2"
-            >
-              <option value="">Sin empresa</option>
-              {companies.map(company => (
-                <option key={company.id} value={company.id}>{company.name}</option>
-              ))}
-            </select>
-            <Input
-              name="description"
-              placeholder="Descripción (opcional)"
-            />
-            <div className="flex justify-end space-x-2 mt-6">
-              <Button type="button" variant="outline" onClick={() => setAddAgentModal(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit">
-                Crear Agent
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  interface AddAgentModalProps {
+    onClose: () => void;
+    onSave: (data: { retell_agent_id: string; name: string; company_id?: string; description?: string }) => void;
+    companies: Company[];
+    retellAgents: RetellAgentDetailed[];
+    loadingRetellAgents: boolean;
+    onLoadRetellAgents: () => void;
+    retellError: string | null;
+  }
+
+  const AddAgentModal: React.FC<AddAgentModalProps> = ({ 
+    onClose, 
+    onSave, 
+    companies, 
+    retellAgents, 
+    loadingRetellAgents, 
+    onLoadRetellAgents,
+    retellError 
+  }) => {
+    const [formData, setFormData] = useState({
+      retell_agent_id: '',
+      name: '',
+      company_id: '',
+      description: ''
+    });
+
+    const [selectedRetellAgent, setSelectedRetellAgent] = useState<RetellAgentDetailed | null>(null);
+
+    // Cargar agentes de Retell al abrir el modal
+    useEffect(() => {
+      if (retellAgents.length === 0 && !loadingRetellAgents && !retellError) {
+        onLoadRetellAgents();
+      }
+    }, []);
+
+    // Actualizar nombre automáticamente cuando se selecciona un agente de Retell
+    useEffect(() => {
+      if (selectedRetellAgent && !formData.name) {
+        setFormData(prev => ({
+          ...prev,
+          name: selectedRetellAgent.agent_name || `Agent ${selectedRetellAgent.agent_id.slice(0, 8)}`,
+          description: `Agente con voz ${selectedRetellAgent.voice_id} (${selectedRetellAgent.language})`
+        }));
+      }
+    }, [selectedRetellAgent]);
+
+    const handleRetellAgentChange = (agentId: string) => {
+      const agent = retellAgents.find(a => a.agent_id === agentId);
+      setSelectedRetellAgent(agent || null);
+      setFormData(prev => ({
+        ...prev,
+        retell_agent_id: agentId
+      }));
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      if (!formData.retell_agent_id) {
+        toast.error('Por favor selecciona un agente de Retell AI');
+        return;
+      }
+      
+      if (!formData.name.trim()) {
+        toast.error('Por favor ingresa un nombre para el Custom Agent');
+        return;
+      }
+
+      onSave({
+        retell_agent_id: formData.retell_agent_id,
+        name: formData.name.trim(),
+        company_id: formData.company_id || undefined,
+        description: formData.description.trim() || undefined
+      });
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <Card className="w-[500px] max-w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-purple-500" />
+              Crear Custom AI Agent
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              
+              {/* Sección de Agentes de Retell */}
+              <div className="space-y-3">
+                <label className="text-sm font-medium">Agente de Retell AI *</label>
+                
+                {retellError ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-red-800 text-sm">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>{retellError}</span>
+                    </div>
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={onLoadRetellAgents}
+                      disabled={loadingRetellAgents}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loadingRetellAgents ? 'animate-spin' : ''}`} />
+                      Reintentar cargar agentes
+                    </Button>
+                  </div>
+                ) : loadingRetellAgents ? (
+                  <div className="flex items-center gap-2 text-gray-600 text-sm p-3 bg-blue-50 rounded-lg">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Cargando agentes de Retell AI...</span>
+                  </div>
+                ) : retellAgents.length === 0 ? (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="text-yellow-800 text-sm">
+                      No se encontraron agentes de Retell AI disponibles.
+                    </div>
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={onLoadRetellAgents}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Cargar agentes
+                    </Button>
+                  </div>
+                ) : (
+                  <select
+                    value={formData.retell_agent_id}
+                    onChange={(e) => handleRetellAgentChange(e.target.value)}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  >
+                    <option value="">Selecciona un agente de Retell AI</option>
+                    {retellAgents.map(agent => (
+                      <option key={agent.agent_id} value={agent.agent_id}>
+                        {agent.agent_name || `Agent ${agent.agent_id.slice(0, 8)}`} - {agent.voice_id} ({agent.language})
+                      </option>
+                    ))}
+                  </select>
+                )}
+                
+                {!loadingRetellAgents && (
+                  <div className="text-xs text-gray-500">
+                    Total de agentes disponibles: {retellAgents.length}
+                  </div>
+                )}
+              </div>
+
+              {/* Información del agente seleccionado */}
+              {selectedRetellAgent && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-purple-800 mb-2">Agente Seleccionado</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-purple-700">
+                    <div><strong>Nombre:</strong> {selectedRetellAgent.agent_name || 'Sin nombre'}</div>
+                    <div><strong>Voz:</strong> {selectedRetellAgent.voice_id}</div>
+                    <div><strong>Idioma:</strong> {selectedRetellAgent.language}</div>
+                    <div><strong>Motor:</strong> {selectedRetellAgent.response_engine?.type || 'N/A'}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Nombre del Custom Agent */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nombre del Custom Agent *</label>
+                <Input
+                  placeholder="Ej: Asistente de Ventas Solar"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  required
+                />
+              </div>
+
+              {/* Empresa */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Empresa (opcional)</label>
+                <select
+                  value={formData.company_id}
+                  onChange={(e) => setFormData(prev => ({ ...prev, company_id: e.target.value }))}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="">Sin empresa asignada</option>
+                  {companies.map(company => (
+                    <option key={company.id} value={company.id}>{company.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Descripción */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Descripción (opcional)</label>
+                <Input
+                  placeholder="Descripción del agente y su función"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                />
+              </div>
+
+              {/* Botones */}
+              <div className="flex justify-end space-x-2 mt-6 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={!formData.retell_agent_id || !formData.name.trim() || loadingRetellAgents}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Crear Custom Agent
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
   // ========================================
   // RENDER PRINCIPAL DEL COMPONENTE
   // ========================================
@@ -1491,7 +1665,6 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-
               {/* Tab: Custom AI Agents */}
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1501,7 +1674,17 @@ export default function TeamPage() {
                       <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                       Actualizar
                     </Button>
-                    <Button onClick={() => setAddAgentModal(true)} size="sm">
+                    <Button 
+                      onClick={() => {
+                        setAddAgentModal(true);
+                        // Cargar agentes de Retell si no están cargados o están obsoletos
+                        if (retellAgents.length === 0 || retellError || !lastRetellUpdate || 
+                            (new Date().getTime() - lastRetellUpdate.getTime()) > 300000) { // 5 minutos
+                          loadRetellAgentsForModal();
+                        }
+                      }} 
+                      size="sm"
+                    >
                       <Plus className="w-4 h-4 mr-2" />
                       Crear Custom Agent
                     </Button>
@@ -1527,7 +1710,12 @@ export default function TeamPage() {
                     <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No hay Custom AI Agents</h3>
                     <p className="text-gray-600 mb-4">Crea tu primer Custom Agent y asígnale un agente de Retell AI.</p>
-                    <Button onClick={() => setAddAgentModal(true)}>
+                    <Button onClick={() => {
+                      setAddAgentModal(true);
+                      if (retellAgents.length === 0) {
+                        loadRetellAgentsForModal();
+                      }
+                    }}>
                       <Plus className="w-4 h-4 mr-2" />
                       Crear Primer Custom Agent
                     </Button>
@@ -1619,9 +1807,7 @@ export default function TeamPage() {
                     ))}
                   </div>
                 )}
-              </TabsContent>
-
-              {/* Tabs placeholder para otros contenidos */}
+              </TabsContent>{/* Tabs placeholder para otros contenidos */}
               <TabsContent value="companies" className="space-y-4 mt-0">
                 <div className="text-center py-8">
                   <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -1648,7 +1834,6 @@ export default function TeamPage() {
             </CardContent>
           </Tabs>
         </Card>
-
         {/* ========================================
             MODALES
             ======================================== */}
@@ -1663,10 +1848,19 @@ export default function TeamPage() {
           />
         )}
 
-        {/* Modal Agregar Agente */}
-        {addAgentModal && <SimpleAddAgentModal />}
-
-        {/* Modal para ver detalles del agente */}
+        {/* Modal Agregar Agente - ✅ CORREGIDO CON DESPLEGABLE */}
+        {addAgentModal && (
+          <AddAgentModal
+            onClose={() => setAddAgentModal(false)}
+            onSave={handleAddAgent}
+            companies={companies}
+            retellAgents={retellAgents}
+            loadingRetellAgents={loadingRetellAgents}
+            onLoadRetellAgents={loadRetellAgentsForModal}
+            retellError={retellError}
+          />
+        )}
+        {/* Modal para ver detalles del agente - ✅ CORREGIDO */}
         {agentDetailsModal.open && agentDetailsModal.agent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <Card className="w-[600px] max-w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -1701,14 +1895,24 @@ export default function TeamPage() {
                   <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                     <h4 className="font-medium mb-3">Datos de Retell AI</h4>
                     <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div><strong>Agent ID:</strong> 
-                        <code className="ml-1 bg-white px-2 py-1 rounded text-xs">
-                          {agentDetailsModal.retellData.agent_id}
-                        </code>
+                      {/* ✅ CORREGIDO: Mostrar nombre en lugar de ID */}
+                      <div><strong>Agente Retell:</strong> 
+                        <span className="ml-1 font-medium text-purple-700">
+                          {agentDetailsModal.retellData.agent_name || `Agent ${agentDetailsModal.retellData.agent_id.slice(0, 8)}`}
+                        </span>
                       </div>
                       <div><strong>Voz:</strong> {agentDetailsModal.retellData.voice_id}</div>
                       <div><strong>Idioma:</strong> {agentDetailsModal.retellData.language}</div>
                       <div><strong>Motor:</strong> {agentDetailsModal.retellData.response_engine?.type || 'N/A'}</div>
+                    </div>
+                    {/* ✅ ID solo en información técnica adicional */}
+                    <div className="mt-3 pt-3 border-t border-purple-200">
+                      <div className="text-xs text-gray-500">
+                        <strong>ID Técnico:</strong> 
+                        <code className="ml-1 bg-white px-2 py-1 rounded text-xs">
+                          {agentDetailsModal.retellData.agent_id}
+                        </code>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -1743,7 +1947,6 @@ export default function TeamPage() {
             </Card>
           </div>
         )}
-
         {/* Modal para editar agente */}
         {editAgentModal.open && editAgentModal.agent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1803,4 +2006,4 @@ export default function TeamPage() {
 // ========================================
 // EXPORT DEL COMPONENTE
 // ========================================
-
+                    
