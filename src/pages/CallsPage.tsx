@@ -13,7 +13,6 @@ import { SyncTestPanel } from "@/components/calls/SyncTestPanel";
 import { CallSyncDebugPanel } from "@/components/calls/CallSyncDebugPanel";
 import { CallDataDebugPanel } from "@/components/debug/CallDataDebugPanel";
 import { WebhookDiagnostics } from "@/components/calls/WebhookDiagnostics";
-// ✅ CAMBIO: Usar useSecureCallData en lugar de useRetellCalls
 import { useSecureCallData } from "@/hooks/useSecureCallData";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
@@ -23,7 +22,7 @@ export default function CallsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   
-  // ✅ CAMBIO: Usar useSecureCallData como fuente principal
+  // Usar useSecureCallData como fuente principal
   const { calls: secureCalls, isLoading: secureLoading, error: secureError } = useSecureCallData();
   
   // ✅ FUNCIÓN PARA REDONDEAR A 2 DECIMALES
@@ -31,20 +30,19 @@ export default function CallsPage() {
     return Math.round((value || 0) * 100) / 100;
   };
 
-  // ✅ FUNCIÓN formatCurrency CORREGIDA con 2 decimales máximo
+  // ✅ FUNCIÓN formatCurrency CORREGIDA
   const formatCurrency = (amount: number) => {
-    // Redondear a 2 decimales para evitar problemas de precisión flotante
     const roundedAmount = roundToTwoDecimals(amount);
     
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2, // ✅ AGREGADO: Limitar a máximo 2 decimales
+      maximumFractionDigits: 2,
     }).format(roundedAmount);
   };
   
-  // ✅ MAPEAR secureCalls al formato esperado por RetellCallDataTable CON REDONDEO
+  // ✅ MAPEAR secureCalls al formato esperado por RetellCallDataTable
   const retellCalls = secureCalls.map(call => ({
     id: call.id,
     call_id: call.call_id,
@@ -54,8 +52,8 @@ export default function CallsPage() {
     start_timestamp: call.timestamp || call.start_time,
     end_timestamp: call.start_time,
     duration_sec: call.duration_sec || 0,
-    cost_usd: roundToTwoDecimals(call.cost_usd), // ✅ REDONDEAR A 2 DECIMALES
-    revenue_amount: roundToTwoDecimals(call.revenue_amount), // ✅ REDONDEAR A 2 DECIMALES
+    cost_usd: roundToTwoDecimals(call.cost_usd),
+    revenue_amount: roundToTwoDecimals(call.revenue_amount),
     call_status: call.call_status || 'unknown',
     from_number: call.from_number,
     to_number: call.to_number,
@@ -65,7 +63,7 @@ export default function CallsPage() {
     sentiment: call.sentiment,
     disposition: call.disposition,
     latency_ms: call.latency_ms,
-    agent: null // Será mapeado si es necesario
+    agent: null
   }));
 
   console.log("🔥 CALLS PAGE - SECURE HOOK DATA:", {
@@ -77,13 +75,12 @@ export default function CallsPage() {
 
   const handleSyncComplete = () => {
     console.log('[CALLS_PAGE] Sync completed, refreshing call data...');
-    // El useSecureCallData debería refrescar automáticamente
   };
 
+  // ✅ CÁLCULOS DE ESTADÍSTICAS
   const totalCalls = retellCalls.length;
   const activeCalls = retellCalls.filter(call => call.call_status === 'completed').length;
   const totalDuration = retellCalls.reduce((sum, call) => sum + (call.duration_sec || 0), 0);
-  // ✅ CALCULAR totalCost con redondeo a 2 decimales
   const totalCost = roundToTwoDecimals(
     retellCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0)
   );
@@ -94,10 +91,8 @@ export default function CallsPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Debug handler para cambios de pestaña
   const handleTabChange = (value: string) => {
     console.log("🔍 PESTAÑA SELECCIONADA:", value);
-    console.log("🔍 TIMESTAMP:", new Date().toISOString());
   };
 
   return (
@@ -120,19 +115,6 @@ export default function CallsPage() {
 
         {/* Show error alert if there's an error */}
         <CallTableErrorAlert error={secureError} />
-
-        {/* Debug Info Card - ACTUALIZADO */}
-        <Card className="border-2 border-green-200 bg-green-50">
-          <CardContent className="p-4">
-            <h3 className="font-medium text-green-800 mb-2">✅ DEBUG INFO - USANDO SECURE HOOK</h3>
-            <div className="text-sm text-green-700 space-y-1">
-              <p><strong>Secure Calls (Fuente Principal):</strong> {secureCalls?.length || 0} | Loading: {secureLoading ? 'Yes' : 'No'} | Error: {secureError?.message || 'None'}</p>
-              <p><strong>Mapped Retell Calls:</strong> {retellCalls?.length || 0}</p>
-              <p><strong>Hook Usado:</strong> useSecureCallData ✅</p>
-              <p><strong>Total Cost (2 decimales):</strong> {formatCurrency(totalCost)} ✅</p>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -183,7 +165,6 @@ export default function CallsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 font-medium">Total Cost</p>
-                  {/* ✅ USAR formatCurrency corregida */}
                   <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalCost)}</p>
                 </div>
                 <div className="p-3 bg-orange-100 rounded-lg">
@@ -218,139 +199,98 @@ export default function CallsPage() {
           </TabsList>
 
           <TabsContent value="calls">
-            {(() => {
-              console.log("🔍 RENDERIZANDO TAB: calls (Call History) - CON SECURE HOOK");
-              return (
-                <Card className="border-0 shadow-sm">
-                  <CardHeader className="border-b border-gray-100">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-xl font-semibold text-gray-900">Recent Calls (Secure Hook ✅)</CardTitle>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="Search calls..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="px-3 py-2 border border-gray-200 rounded-md text-sm"
-                        />
-                        <input
-                          type="date"
-                          value={selectedDate?.toISOString().split('T')[0] || ''}
-                          onChange={(e) => setSelectedDate(e.target.value ? new Date(e.target.value) : undefined)}
-                          className="px-3 py-2 border border-gray-200 rounded-md text-sm"
-                        />
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    {secureLoading ? (
-                      <div className="flex items-center justify-center py-12">
-                        <LoadingSpinner size="lg" />
-                      </div>
-                    ) : (
-                      <RetellCallDataTable
-                        calls={retellCalls}
-                        isLoading={secureLoading}
-                        searchTerm={searchTerm}
-                        date={selectedDate}
-                        onSelectCall={(call) => console.log('Selected call:', call)}
-                      />
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })()}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="border-b border-gray-100">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xl font-semibold text-gray-900">Recent Calls</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Search calls..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-md text-sm"
+                    />
+                    <input
+                      type="date"
+                      value={selectedDate?.toISOString().split('T')[0] || ''}
+                      onChange={(e) => setSelectedDate(e.target.value ? new Date(e.target.value) : undefined)}
+                      className="px-3 py-2 border border-gray-200 rounded-md text-sm"
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {secureLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <LoadingSpinner size="lg" />
+                  </div>
+                ) : (
+                  <RetellCallDataTable
+                    calls={retellCalls}
+                    isLoading={secureLoading}
+                    searchTerm={searchTerm}
+                    date={selectedDate}
+                    onSelectCall={(call) => console.log('Selected call:', call)}
+                  />
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="production-calls">
-            {(() => {
-              console.log("🔍 RENDERIZANDO TAB: production-calls");
-              console.log("🔍 A PUNTO DE RENDERIZAR ProductionCallsTable");
-              console.log("🔍 COMPONENTE ProductionCallsTable:", ProductionCallsTable);
-              return (
-                <Card className="border-0 shadow-sm">
-                  <CardHeader className="border-b border-gray-100">
-                    <CardTitle className="text-xl font-semibold text-gray-900">Production Calls Table (Secure Hook)</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="p-4 bg-blue-50 border border-blue-200 mb-4">
-                      <p className="text-blue-800 font-medium">🔍 DEBUG: About to render ProductionCallsTable</p>
-                      <p className="text-blue-700 text-sm">If you see this but no ProductionCallsTable logs, there's an import or component issue.</p>
-                    </div>
-                    <ProductionCallsTable />
-                  </CardContent>
-                </Card>
-              );
-            })()}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="border-b border-gray-100">
+                <CardTitle className="text-xl font-semibold text-gray-900">Production Calls Table</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ProductionCallsTable />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="analytics">
-            {(() => {
-              console.log("🔍 RENDERIZANDO TAB: analytics");
-              return (
-                <Card className="border-0 shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="text-center py-12 text-gray-500">
-                      <BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-lg font-medium mb-2">Analytics Dashboard</p>
-                      <p className="text-sm">Call analytics and insights will be displayed here.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })()}
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-6">
+                <div className="text-center py-12 text-gray-500">
+                  <BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-lg font-medium mb-2">Analytics Dashboard</p>
+                  <p className="text-sm">Call analytics and insights will be displayed here.</p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="debug">
-            {(() => {
-              console.log("🔍 RENDERIZANDO TAB: debug");
-              return <SyncDebugPanel />;
-            })()}
+            <SyncDebugPanel />
           </TabsContent>
 
           <TabsContent value="test">
-            {(() => {
-              console.log("🔍 RENDERIZANDO TAB: test");
-              return <SyncTestPanel />;
-            })()}
+            <SyncTestPanel />
           </TabsContent>
 
           <TabsContent value="sync-debug">
-            {(() => {
-              console.log("🔍 RENDERIZANDO TAB: sync-debug");
-              return <CallSyncDebugPanel />;
-            })()}
+            <CallSyncDebugPanel />
           </TabsContent>
 
           <TabsContent value="data-debug">
-            {(() => {
-              console.log("🔍 RENDERIZANDO TAB: data-debug");
-              return <CallDataDebugPanel />;
-            })()}
+            <CallDataDebugPanel />
           </TabsContent>
 
           <TabsContent value="webhook-debug">
-            {(() => {
-              console.log("🔍 RENDERIZANDO TAB: webhook-debug");
-              return <WebhookDiagnostics />;
-            })()}
+            <WebhookDiagnostics />
           </TabsContent>
 
           <TabsContent value="settings">
-            {(() => {
-              console.log("🔍 RENDERIZANDO TAB: settings");
-              return (
-                <Card className="border-0 shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="text-center py-12 text-gray-500">
-                      <Settings className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-lg font-medium mb-2">Call Settings</p>
-                      <p className="text-sm">Configuration options for call management.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })()}
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-6">
+                <div className="text-center py-12 text-gray-500">
+                  <Settings className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-lg font-medium mb-2">Call Settings</p>
+                  <p className="text-sm">Configuration options for call management.</p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
