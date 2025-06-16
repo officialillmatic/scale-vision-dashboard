@@ -32,11 +32,13 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  Download
+  Download,
+  Key  // 🔑 NUEVO IMPORT
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { sendInvitationEmail } from '@/services/send-invitation/email';
+import { AdminPasswordManager } from '@/components/admin/AdminPasswordManager'; // 🔑 NUEVO IMPORT
 
 // ========================================
 // INTERFACES
@@ -470,9 +472,16 @@ export default function TeamPage() {
     userName?: string;
   }>({ open: false });
 
+  // 🔑 NUEVO ESTADO PARA MODAL DE CONTRASEÑA
+  const [passwordModal, setPasswordModal] = useState<{
+    open: boolean;
+    member?: TeamMember;
+  }>({ open: false });
+
   // Verificación de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
   const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
+
   useEffect(() => {
     if (user && isSuperAdmin) {
       fetchAllData();
@@ -502,6 +511,12 @@ export default function TeamPage() {
     applyFilters();
   }, [teamMembers, agents, companies, assignments, invitations, searchQuery, statusFilter, activeTab]);
 
+  // 🔑 NUEVA FUNCIÓN PARA MANEJAR CAMBIO DE CONTRASEÑA
+  const handlePasswordChanged = () => {
+    toast.success('✅ Password updated successfully');
+    // Opcional: refrescar datos de usuarios
+    fetchTeamMembers();
+  };
   // ========================================
   // FUNCIONES DE FETCH
   // ========================================
@@ -904,6 +919,7 @@ export default function TeamPage() {
       toast.error(`Error inesperado: ${error.message}`, { id: 'sending-email' });
     }
   };
+
   // Función para editar miembro
   const handleEditMember = async (memberId: string, updatedData: {
     name: string;
@@ -1121,6 +1137,10 @@ export default function TeamPage() {
     });
   };
 
+  // ========================================
+  // STATS Y VERIFICACIONES
+  // ========================================
+
   const stats = {
     totalMembers: teamMembers.length,
     activeMembers: teamMembers.filter(m => m.status === 'active').length,
@@ -1195,13 +1215,13 @@ export default function TeamPage() {
               <span className="text-blue-600 font-bold text-sm">👥</span>
             </div>
             <div>
-              <h3 className="font-semibold text-blue-900">Panel de Gestión de Equipos - Sistema de Invitaciones</h3>
+              <h3 className="font-semibold text-blue-900">Panel de Gestión de Equipos - Sistema de Invitaciones + Contraseñas</h3>
               <p className="text-sm text-blue-700">
-                Sistema completo de gestión con invitaciones por email - Solo Super Admins
+                Sistema completo de gestión con invitaciones por email y cambio de contraseñas - Solo Super Admins
               </p>
             </div>
             <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-              v3.1 - Con Emails Automáticos
+              v3.2 - Con Gestión de Contraseñas
             </Badge>
           </div>
         </div>
@@ -1217,6 +1237,11 @@ export default function TeamPage() {
             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
               <Activity className="w-3 h-3 mr-1" />
               Datos en Tiempo Real
+            </Badge>
+            {/* 🔑 NUEVO BADGE */}
+            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+              <Key className="w-3 h-3 mr-1" />
+              Password Management
             </Badge>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -1285,6 +1310,7 @@ export default function TeamPage() {
             </CardContent>
           </Card>
         </div>
+
         {/* Main Content with Tabs */}
         <Card className="border-0 shadow-sm">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
@@ -1423,6 +1449,21 @@ export default function TeamPage() {
                         </div>
 
                         <div className="flex items-center gap-2 ml-4">
+                          {/* 🔑 NUEVO BOTÓN DE CONTRASEÑA */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPasswordModal({
+                              open: true,
+                              member: member
+                            })}
+                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                            title="Change Password"
+                          >
+                            <Key className="h-4 w-4 mr-1" />
+                            Password
+                          </Button>
+
                           <Button
                             size="sm"
                             variant="outline"
@@ -1568,6 +1609,7 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
+
               {/* Tab: Agentes */}
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1713,6 +1755,7 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
+
               {/* Tab: Asignaciones */}
               <TabsContent value="assignments" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1788,6 +1831,17 @@ export default function TeamPage() {
             </CardContent>
           </Tabs>
         </Card>
+        {/* 🔑 NUEVO MODAL DE GESTIÓN DE CONTRASEÑAS */}
+        {passwordModal.open && passwordModal.member && (
+          <AdminPasswordManager
+            targetUserId={passwordModal.member.id}
+            targetUserEmail={passwordModal.member.email}
+            targetUserName={passwordModal.member.name}
+            onPasswordChanged={handlePasswordChanged}
+            onClose={() => setPasswordModal({ open: false })}
+          />
+        )}
+
         {/* Modal Editar Miembro */}
         {editMemberModal.open && editMemberModal.member && (
           <EditMemberModal
