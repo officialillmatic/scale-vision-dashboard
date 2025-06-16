@@ -1472,7 +1472,7 @@ export default function TeamPage() {
             </CardContent>
           </Card>
         </div>
-        // TeamPage.tsx - PARTE 10: TABS Y CONTENIDO
+        
 
         {/* Main Content with Tabs */}
         <Card className="border-0 shadow-sm">
@@ -1669,7 +1669,7 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-              // TeamPage.tsx - PARTE 11: TAB DE AGENTES
+              
 
               {/* Tab: Agentes AI */}
               <TabsContent value="agents" className="space-y-4 mt-0">
@@ -1786,7 +1786,7 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-              // TeamPage.tsx - PARTE 12: TABS RESTANTES
+              
 
               {/* Tab: Asignaciones Usuario-Agente */}
               <TabsContent value="assignments" className="space-y-4 mt-0">
@@ -2046,7 +2046,7 @@ export default function TeamPage() {
             </CardContent>
           </Tabs>
         </Card>
-        // TeamPage.tsx - PARTE 13: MODALES Y CIERRE FINAL -prueba
+        
 
         {/* ========================================
             MODALES EXISTENTES
