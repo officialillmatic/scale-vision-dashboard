@@ -39,6 +39,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { sendInvitationEmail } from '@/services/send-invitation/email';
 import { AdminPasswordManager } from '@/components/admin/AdminPasswordManager';
+import { AddAgentForm, EditAgentForm, EditAssignmentForm } from '@/components/forms/AgentForms';
 
 // Imports seguros para Retell API
 import { 
