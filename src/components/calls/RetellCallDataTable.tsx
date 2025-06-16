@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -59,13 +58,17 @@ export function RetellCallDataTable({
     return `${minutes}m ${remainingSeconds}s`;
   };
 
+  // ✅ FUNCIÓN formatCost CORREGIDA - CAMBIO PRINCIPAL
   const formatCost = (cost: number) => {
+    // Redondear a 2 decimales para evitar problemas de precisión flotante
+    const roundedCost = Math.round((cost || 0) * 100) / 100;
+    
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2,
-      maximumFractionDigits: 4
-    }).format(cost);
+      maximumFractionDigits: 2 // ✅ CAMBIADO de 4 a 2 decimales
+    }).format(roundedCost);
   };
 
   if (isLoading) {
