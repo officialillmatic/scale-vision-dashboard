@@ -61,7 +61,6 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
-
 // PROCESADOR AUTOMÁTICO DE COSTOS
 const processPendingCallCosts = async (
   calls: Call[], 
@@ -126,7 +125,6 @@ const processPendingCallCosts = async (
 
   console.log('🎉 Finished processing pending call costs');
 };
-
 // COMPONENTE FILTRO DE AGENTES
 const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
   agents: any[];
@@ -216,11 +214,11 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
     </div>
   );
 };
-
 export default function CallsSimple() {
   const { user } = useAuth();
   const { getAgentName, getUniqueAgentsFromCalls, isLoadingAgents } = useAgents();
   
+  // Estados del componente
   const [calls, setCalls] = useState<Call[]>([]);
   const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,6 +241,7 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
+  // Variables derivadas
   const uniqueAgents = getUniqueAgentsFromCalls(calls);
   const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
 
@@ -278,7 +277,6 @@ export default function CallsSimple() {
       loadAllAudioDurations();
     }
   }, [calls]);
-
   // FUNCIÓN: Calcular costo usando tarifa del agente
   const calculateCallCost = (call: Call) => {
     const durationMinutes = getCallDuration(call) / 60;
@@ -347,7 +345,6 @@ export default function CallsSimple() {
       console.log(`❌ Error loading audio duration:`, error);
     }
   };
-
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -442,7 +439,6 @@ export default function CallsSimple() {
 
     setFilteredCalls(filtered);
   };
-
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
@@ -488,6 +484,62 @@ export default function CallsSimple() {
     }
   };
 
+  const formatDuration = (seconds: number) => {
+    if (seconds === null || seconds === undefined || isNaN(seconds)) {
+      return "0:00";
+    }
+    
+    const numSeconds = Number(seconds);
+    if (numSeconds === 0) {
+      return "0:00";
+    }
+    
+    const mins = Math.floor(numSeconds / 60);
+    const secs = Math.floor(numSeconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // ✅ FUNCIÓN formatCurrency CORREGIDA - CAMBIO PRINCIPAL
+  const formatCurrency = (amount: number) => {
+    // Redondear a 2 decimales para evitar problemas de precisión flotante
+    const roundedAmount = Math.round((amount || 0) * 100) / 100;
+    
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,  // ✅ CAMBIADO de 4 a 2 decimales
+      maximumFractionDigits: 2,  // ✅ CAMBIADO de 4 a 2 decimales
+    }).format(roundedAmount);
+  };
+
+  const formatDate = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatTime = (timestamp: string) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone || phone === 'unknown') return 'Unknown';
+    return phone;
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+    return sortOrder === 'asc' ? '↑' : '↓';
+  };
   const fetchCalls = async () => {
     console.log("🚀 FETCHCALLS STARTED - DEBUG TEST");
     console.log("🚀 USER ID:", user?.id);
@@ -609,7 +661,6 @@ export default function CallsSimple() {
       setLoading(false);
     }
   };
-
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -634,65 +685,10 @@ export default function CallsSimple() {
     setSelectedCall(null);
   };
 
-  const formatDuration = (seconds: number) => {
-    if (seconds === null || seconds === undefined || isNaN(seconds)) {
-      return "0:00";
-    }
-    
-    const numSeconds = Number(seconds);
-    if (numSeconds === 0) {
-      return "0:00";
-    }
-    
-    const mins = Math.floor(numSeconds / 60);
-    const secs = Math.floor(numSeconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // ✅ FUNCIÓN formatCurrency CORREGIDA - CAMBIO PRINCIPAL
-  const formatCurrency = (amount: number) => {
-    // Redondear a 2 decimales para evitar problemas de precisión flotante
-    const roundedAmount = Math.round((amount || 0) * 100) / 100;
-    
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,  // ✅ CAMBIADO de 4 a 2 decimales
-      maximumFractionDigits: 2,  // ✅ CAMBIADO de 4 a 2 decimales
-    }).format(roundedAmount);
-  };
-
-  const formatDate = (timestamp: string) => {
-    return new Date(timestamp).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  const formatPhoneNumber = (phone: string) => {
-    if (!phone || phone === 'unknown') return 'Unknown';
-    return phone;
-  };
-
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
-    return sortOrder === 'asc' ? '↑' : '↓';
-  };
-
+  // Variables auxiliares
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
 
+  // Verificación de usuario
   if (!user) {
     return (
       <DashboardLayout>
@@ -704,7 +700,6 @@ export default function CallsSimple() {
       </DashboardLayout>
     );
   }
-
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
@@ -746,9 +741,32 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           )}
-
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Calls</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                  </div>
+                  <Phone className="h-8 w-8 text-blue-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Completed</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -785,7 +803,6 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           </div>
-
           {/* Filters */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
@@ -858,7 +875,6 @@ export default function CallsSimple() {
               </div>
             </CardContent>
           </Card>
-
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -1003,7 +1019,6 @@ export default function CallsSimple() {
                               }
                             </div>
                           </td>
-                          
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {formatCurrency(calculateCallCost(call))}
@@ -1120,28 +1135,4 @@ export default function CallsSimple() {
       </div>
     </DashboardLayout>
   );
-}-to-br from-blue-50 to-blue-100/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Total Calls</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                  </div>
-                  <Phone className="h-8 w-8 text-blue-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Completed</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-sm bg-gradient
+}
