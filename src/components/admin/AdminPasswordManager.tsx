@@ -1,4 +1,4 @@
-// src/components/admin/AdminPasswordManager.tsx
+// src/components/admin/AdminPasswordManager.tsx - VERSIÓN CORREGIDA
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,7 +44,7 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
-  const [currentMethod, setCurrentMethod] = useState<'primary' | 'email' | 'api'>('primary');
+  const [currentMethod, setCurrentMethod] = useState<'auto' | 'bypass' | 'email'>('auto');
 
   // Generar contraseña segura
   const generateTempPassword = () => {
@@ -92,15 +92,15 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
     }
   };
 
-  // MÉTODO 1: Función principal con múltiples intentos
-  const tryPrimaryMethod = async () => {
+  // MÉTODO 1: Función principal (multi-método automático)
+  const tryAutoMethod = async () => {
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     
     if (!currentUser) {
       throw new Error('No authenticated user found');
     }
 
-    console.log('🔐 [METHOD 1] Using primary method with multiple attempts');
+    console.log('🔐 [AUTO] Using automatic multi-method approach');
     
     const { data, error } = await supabase.rpc('admin_change_user_password', {
       target_user_id: targetUserId,
@@ -109,12 +109,34 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
     });
 
     if (error) throw error;
-    if (!data?.success) throw new Error(data?.message || 'Primary method failed');
+    if (!data?.success) throw new Error(data?.message || 'Auto method failed');
     
     return data;
   };
 
-  // MÉTODO 2: Por email como fallback
+  // MÉTODO 2: Bypass RLS directo
+  const tryBypassMethod = async () => {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    
+    if (!currentUser) {
+      throw new Error('No authenticated user found');
+    }
+
+    console.log('🔐 [BYPASS] Using direct RLS bypass method');
+    
+    const { data, error } = await supabase.rpc('admin_change_user_password_bypass', {
+      target_user_id: targetUserId,
+      new_password: newPassword,
+      admin_user_id: currentUser.id
+    });
+
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.message || 'Bypass method failed');
+    
+    return data;
+  };
+
+  // MÉTODO 3: Service Role por email
   const tryEmailMethod = async () => {
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     
@@ -122,9 +144,9 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
       throw new Error('No authenticated user found');
     }
 
-    console.log('🔐 [METHOD 2] Using email-based method');
+    console.log('🔐 [EMAIL] Using service role email method');
     
-    const { data, error } = await supabase.rpc('admin_force_password_reset', {
+    const { data, error } = await supabase.rpc('admin_service_role_password_change', {
       target_user_email: targetUserEmail,
       new_password: newPassword,
       admin_user_id: currentUser.id
@@ -136,29 +158,7 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
     return data;
   };
 
-  // MÉTODO 3: API de Supabase
-  const tryApiMethod = async () => {
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    
-    if (!currentUser) {
-      throw new Error('No authenticated user found');
-    }
-
-    console.log('🔐 [METHOD 3] Using Supabase API method');
-    
-    const { data, error } = await supabase.rpc('admin_update_user_auth', {
-      target_user_id: targetUserId,
-      new_password: newPassword,
-      admin_user_id: currentUser.id
-    });
-
-    if (error) throw error;
-    if (!data?.success) throw new Error(data?.message || 'API method failed');
-    
-    return data;
-  };
-
-  // Función principal que prueba todos los métodos
+  // Función principal que maneja el cambio de contraseña
   const handlePasswordChange = async () => {
     if (!newPassword || newPassword.length < 6) {
       toast.error('❌ Password must be at least 6 characters long');
@@ -173,49 +173,43 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
     setLoading(true);
     
     try {
-      console.log('🔐 [PASSWORD] Starting multi-method password change');
+      console.log('🔐 [PASSWORD] Starting password change');
       console.log('🎯 [PASSWORD] Target:', { targetUserId, targetUserEmail });
+      console.log('🔧 [PASSWORD] Method:', currentMethod);
 
       let result = null;
       let methodUsed = '';
 
-      // Intentar métodos en orden según la selección del usuario
-      const methods = currentMethod === 'primary' 
-        ? [tryPrimaryMethod, tryEmailMethod, tryApiMethod]
-        : currentMethod === 'email'
-        ? [tryEmailMethod, tryPrimaryMethod, tryApiMethod]
-        : [tryApiMethod, tryPrimaryMethod, tryEmailMethod];
-
-      const methodNames = currentMethod === 'primary'
-        ? ['Primary (Multi-attempt)', 'Email-based', 'API-based']
-        : currentMethod === 'email'
-        ? ['Email-based', 'Primary (Multi-attempt)', 'API-based']
-        : ['API-based', 'Primary (Multi-attempt)', 'Email-based'];
-
-      for (let i = 0; i < methods.length; i++) {
-        try {
-          console.log(`🔄 [PASSWORD] Trying method ${i + 1}: ${methodNames[i]}`);
-          toast.loading(`🔄 Trying ${methodNames[i]}...`, { id: 'password-change' });
-          
-          result = await methods[i]();
-          methodUsed = methodNames[i];
-          
-          console.log(`✅ [PASSWORD] Method ${i + 1} successful:`, result);
-          break;
-          
-        } catch (error: any) {
-          console.log(`❌ [PASSWORD] Method ${i + 1} failed:`, error.message);
-          
-          if (i === methods.length - 1) {
-            throw new Error(`All methods failed. Last error: ${error.message}`);
-          }
-        }
+      // Seleccionar método según configuración
+      if (currentMethod === 'auto') {
+        // Método automático que prueba todos
+        console.log('🔄 [PASSWORD] Using automatic multi-method');
+        toast.loading('🔄 Trying automatic method...', { id: 'password-change' });
+        
+        result = await tryAutoMethod();
+        methodUsed = 'Automatic (Multi-method)';
+        
+      } else if (currentMethod === 'bypass') {
+        // Método de bypass directo
+        console.log('🔄 [PASSWORD] Using direct bypass method');
+        toast.loading('🔄 Trying RLS bypass...', { id: 'password-change' });
+        
+        result = await tryBypassMethod();
+        methodUsed = 'Direct RLS Bypass';
+        
+      } else if (currentMethod === 'email') {
+        // Método por email
+        console.log('🔄 [PASSWORD] Using email method');
+        toast.loading('🔄 Trying email method...', { id: 'password-change' });
+        
+        result = await tryEmailMethod();
+        methodUsed = 'Service Role (Email)';
       }
 
       if (result?.success) {
         toast.success('✅ Password changed successfully!', {
           id: 'password-change',
-          description: `Method used: ${methodUsed}`,
+          description: `Method: ${methodUsed}`,
           duration: 5000
         });
         
@@ -228,11 +222,11 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
         setTimeout(() => onClose(), 2000);
         
       } else {
-        throw new Error('Password change returned unsuccessful result');
+        throw new Error(result?.message || 'Password change returned unsuccessful result');
       }
 
     } catch (error: any) {
-      console.error('❌ [PASSWORD] All methods failed:', error);
+      console.error('❌ [PASSWORD] Password change failed:', error);
       
       toast.error('❌ Password change failed', {
         id: 'password-change',
@@ -240,6 +234,7 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
         duration: 8000
       });
 
+      // Activar modo debug automáticamente en caso de error
       setDebugMode(true);
       setTimeout(() => debugUser(), 1000);
       
@@ -266,7 +261,7 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-orange-700">
             <Key className="h-5 w-5" />
-            Change Password - Multi-Method
+            Change Password - Super Admin
           </CardTitle>
           
           <div className="space-y-2">
@@ -285,17 +280,26 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-2">
                 <Settings className="h-3 w-3 text-purple-600" />
-                <span className="text-xs font-medium text-purple-800">Primary Method</span>
+                <span className="text-xs font-medium text-purple-800">Change Method</span>
               </div>
               <div className="flex gap-1">
                 <Button
                   size="sm"
-                  variant={currentMethod === 'primary' ? 'default' : 'outline'}
-                  onClick={() => setCurrentMethod('primary')}
+                  variant={currentMethod === 'auto' ? 'default' : 'outline'}
+                  onClick={() => setCurrentMethod('auto')}
                   className="text-xs h-6"
                 >
                   <Zap className="h-2 w-2 mr-1" />
-                  Multi-attempt
+                  Auto
+                </Button>
+                <Button
+                  size="sm"
+                  variant={currentMethod === 'bypass' ? 'default' : 'outline'}
+                  onClick={() => setCurrentMethod('bypass')}
+                  className="text-xs h-6"
+                >
+                  <Shield className="h-2 w-2 mr-1" />
+                  Bypass
                 </Button>
                 <Button
                   size="sm"
@@ -304,25 +308,21 @@ export const AdminPasswordManager: React.FC<AdminPasswordManagerProps> = ({
                   className="text-xs h-6"
                 >
                   <Mail className="h-2 w-2 mr-1" />
-                  Email-based
-                </Button>
-                <Button
-                  size="sm"
-                  variant={currentMethod === 'api' ? 'default' : 'outline'}
-                  onClick={() => setCurrentMethod('api')}
-                  className="text-xs h-6"
-                >
-                  <Crown className="h-2 w-2 mr-1" />
-                  API
+                  Email
                 </Button>
               </div>
+              <p className="text-xs text-purple-600 mt-1">
+                {currentMethod === 'auto' && 'Tries all methods automatically'}
+                {currentMethod === 'bypass' && 'Direct RLS bypass for super admins'}
+                {currentMethod === 'email' && 'Service role via email lookup'}
+              </p>
             </div>
             
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-2">
               <div className="flex items-center gap-2">
-                <Shield className="h-3 w-3 text-amber-600" />
+                <Crown className="h-3 w-3 text-amber-600" />
                 <span className="text-xs text-amber-800">
-                  <strong>Super Admin Action:</strong> Password will be changed immediately
+                  <strong>Super Admin Action:</strong> Password will bypass RLS restrictions
                 </span>
               </div>
             </div>
