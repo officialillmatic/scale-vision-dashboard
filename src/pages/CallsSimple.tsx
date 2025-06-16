@@ -28,6 +28,183 @@ import {
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAgents } from "@/hooks/useAgents";
+// ============================================================================
+// FUNCIONES DE DESCUENTO AUTOMÁTICO - AGREGAR DESPUÉS DE LOS IMPORTS
+// ============================================================================
+
+// FUNCIÓN: Descontar costo de llamada del balance del usuario
+const deductCallCost = async (callId: string, callCost: number, userId: string) => {
+  if (!callCost || callCost <= 0) {
+    console.log(`⚠️ No se descuenta - costo inválido: $${callCost}`);
+    return false;
+  }
+
+  try {
+    console.log(`💳 Descontando $${callCost.toFixed(4)} del balance del usuario ${userId}`);
+
+    // Verificar si ya se descontó este costo anteriormente
+    const { data: existingTransaction, error: checkError } = await supabase
+      .from('credit_transactions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('call_id', callId)
+      .eq('transaction_type', 'debit')
+      .single();
+
+    if (existingTransaction) {
+      console.log(`✅ El costo ya fue descontado para la llamada ${callId}`);
+      return true;
+    }
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
+      console.error('❌ Error verificando transacción existente:', checkError);
+      return false;
+    }
+
+    // Obtener balance actual del usuario
+    const { data: userCredit, error: creditError } = await supabase
+      .from('user_credits')
+      .select('current_balance')
+      .eq('user_id', userId)
+      .single();
+
+    if (creditError) {
+      console.error('❌ Error obteniendo balance:', creditError);
+      return false;
+    }
+
+    const currentBalance = userCredit?.current_balance || 0;
+    const newBalance = currentBalance - callCost;
+
+    if (newBalance < 0) {
+      console.warn(`⚠️ Balance insuficiente: $${currentBalance} < $${callCost}`);
+      // Continuar con el descuento aunque quede negativo (decisión de negocio)
+    }
+
+    // Actualizar balance del usuario
+    const { error: updateError } = await supabase
+      .from('user_credits')
+      .update({ 
+        current_balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('❌ Error actualizando balance:', updateError);
+      return false;
+    }
+
+    // Registrar la transacción
+    const { error: transactionError } = await supabase
+      .from('credit_transactions')
+      .insert({
+        user_id: userId,
+        call_id: callId,
+        amount: callCost,
+        transaction_type: 'debit',
+        description: `Call cost deduction - Call ID: ${callId}`,
+        created_at: new Date().toISOString()
+      });
+
+    if (transactionError) {
+      console.error('❌ Error registrando transacción:', transactionError);
+      // Revertir el balance si falla el registro
+      await supabase
+        .from('user_credits')
+        .update({ current_balance: currentBalance })
+        .eq('user_id', userId);
+      return false;
+    }
+
+    console.log(`✅ Descuento exitoso: $${currentBalance} → $${newBalance.toFixed(4)}`);
+    return true;
+
+  } catch (error) {
+    console.error('💥 Excepción en descuento de créditos:', error);
+    return false;
+  }
+};
+
+// FUNCIÓN: Procesar llamadas pendientes CON descuento automático
+const processPendingCallCostsWithDeduction = async (
+  calls: Call[], 
+  setCalls: React.Dispatch<React.SetStateAction<Call[]>>,
+  calculateCallCost: (call: Call) => number,
+  getCallDuration: (call: Call) => number,
+  userId: string
+) => {
+  console.log('🔍 Procesando costos y descuentos automáticos...');
+  
+  const pendingCalls = calls.filter(call => {
+    const duration = getCallDuration(call);
+    const currentCost = call.cost_usd || 0;
+    const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+    
+    return (
+      call.call_status === 'completed' &&
+      duration > 0 &&
+      currentCost === 0 &&
+      hasAgentRate
+    );
+  });
+
+  if (pendingCalls.length === 0) {
+    console.log('✅ Todas las llamadas tienen costos y descuentos procesados');
+    return;
+  }
+
+  console.log(`🎯 Procesando ${pendingCalls.length} llamadas con descuentos`);
+
+  for (const call of pendingCalls) {
+    const calculatedCost = calculateCallCost(call);
+    
+    if (calculatedCost > 0) {
+      try {
+        console.log(`💾 Actualizando costo para llamada ${call.call_id}: $${calculatedCost.toFixed(4)}`);
+        
+        // Actualizar costo en la base de datos
+        const { error: updateError } = await supabase
+          .from('calls')
+          .update({ 
+            cost_usd: calculatedCost,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', call.id);
+
+        if (!updateError) {
+          console.log(`✅ Costo actualizado para llamada ${call.call_id}`);
+          
+          // 🎯 DESCONTAR DEL BALANCE DEL USUARIO
+          const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, userId);
+          
+          if (deductionSuccess) {
+            console.log(`🎉 Descuento aplicado exitosamente para llamada ${call.call_id}`);
+          } else {
+            console.warn(`⚠️ Falló el descuento para llamada ${call.call_id}`);
+          }
+          
+          // Actualizar estado local
+          setCalls(prevCalls => 
+            prevCalls.map(c => 
+              c.id === call.id 
+                ? { ...c, cost_usd: calculatedCost }
+                : c
+            )
+          );
+        } else {
+          console.error(`❌ Error actualizando costo para llamada ${call.call_id}:`, updateError);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (err) {
+        console.error('❌ Excepción procesando llamada:', err);
+      }
+    }
+  }
+
+  console.log('🎉 Finalizó el procesamiento de costos y descuentos');
+};
 
 interface Call {
   id: string;
