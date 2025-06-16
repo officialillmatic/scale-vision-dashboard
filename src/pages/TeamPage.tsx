@@ -2046,7 +2046,7 @@ export default function TeamPage() {
             </CardContent>
           </Tabs>
         </Card>
-        // TeamPage.tsx - PARTE 13: MODALES Y CIERRE FINAL
+        // TeamPage.tsx - PARTE 13: MODALES Y CIERRE FINAL -prueba
 
         {/* ========================================
             MODALES EXISTENTES
