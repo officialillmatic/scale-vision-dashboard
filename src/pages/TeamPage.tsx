@@ -50,7 +50,6 @@ import {
   safeFormatDateTime,
   RetellAgentDetailed 
 } from '@/services/agentService';
-
 // ========================================
 // INTERFACES Y TIPOS - ✅ ACTUALIZADAS
 // ========================================
@@ -133,7 +132,7 @@ interface UserInvitation {
   accepted_at?: string;
   user_id?: string;
 }
-// TeamPage.tsx - PARTE 2: COMPONENTE PRINCIPAL Y ESTADOS - ✅ CORREGIDO
+// TeamPage.tsx - PARTE 3: COMPONENTE PRINCIPAL Y ESTADOS - ✅ CORREGIDO
 
 export default function TeamPage() {
   const { user } = useAuth();
@@ -210,7 +209,6 @@ export default function TeamPage() {
   // Verificación de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
   const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
-
   // ✅ useEffect principal
   useEffect(() => {
     if (user && isSuperAdmin) {
@@ -321,7 +319,6 @@ export default function TeamPage() {
       console.error('❌ Error aplicando filtros:', error);
     }
   }, [teamMembers, agents, companies, assignments, invitations, searchQuery, statusFilter]);
-
   // ✅ Función para exportar datos
   const exportData = useCallback(() => {
     try {
@@ -1088,10 +1085,6 @@ export default function TeamPage() {
   if (!isSuperAdmin) {
     return (
       <DashboardLayout>
-        // Verificación de permisos de super admin
-  if (!isSuperAdmin) {
-    return (
-      <DashboardLayout>
         <div className="min-h-screen flex items-center justify-center p-6">
           <Card className="max-w-md mx-auto">
             <CardContent className="p-6 text-center">
@@ -1121,7 +1114,6 @@ export default function TeamPage() {
       </DashboardLayout>
     );
   }
-
   // ========================================
   // COMPONENTES DE MODALES SIMPLES
   // ========================================
@@ -1482,7 +1474,6 @@ export default function TeamPage() {
             </AlertDescription>
           </Alert>
         )}
-
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -1807,7 +1798,8 @@ export default function TeamPage() {
                     ))}
                   </div>
                 )}
-              </TabsContent>{/* Tabs placeholder para otros contenidos */}
+              </TabsContent>
+              {/* Tabs placeholder para otros contenidos */}
               <TabsContent value="companies" className="space-y-4 mt-0">
                 <div className="text-center py-8">
                   <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -2006,4 +1998,3 @@ export default function TeamPage() {
 // ========================================
 // EXPORT DEL COMPONENTE
 // ========================================
-                    
