@@ -1,4 +1,4 @@
-// TeamPage.tsx - PARTE 1: IMPORTS Y TIPOS
+// TeamPage.tsx - PARTE 1: IMPORTS E INTERFACES COMPLETAS
 
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
@@ -617,6 +617,7 @@ export default function TeamPage() {
       toast.error(`Error al cargar agentes: ${error.message}`);
     }
   };
+  // TeamPage.tsx - PARTE 5: FETCH RESTANTES
 
   const fetchCompanies = async () => {
     try {
@@ -752,7 +753,7 @@ export default function TeamPage() {
       console.error('❌ Error fetching invitations:', error);
     }
   };
-  // TeamPage.tsx - PARTE 5: FUNCIONES AUXILIARES Y HANDLERS
+  // TeamPage.tsx - PARTE 6: FUNCIONES AUXILIARES
 
   // ========================================
   // FUNCIONES AUXILIARES
@@ -873,6 +874,7 @@ export default function TeamPage() {
       day: 'numeric'
     });
   };
+  // TeamPage.tsx - PARTE 7: HANDLERS DE AGENTES
 
   // ========================================
   // FUNCIONES HANDLERS PARA AGENTES
@@ -1018,6 +1020,7 @@ export default function TeamPage() {
       toast.error(`Error al actualizar agente: ${error.message}`);
     }
   };
+  // TeamPage.tsx - PARTE 8: HANDLERS DE ASIGNACIONES Y MIEMBROS
 
   // ========================================
   // FUNCIONES HANDLERS PARA ASIGNACIONES
@@ -1137,7 +1140,6 @@ export default function TeamPage() {
       toast.error(`Error al crear asignación: ${error.message}`);
     }
   };
-  // TeamPage.tsx - PARTE 6: HANDLERS DE MIEMBROS
 
   // ========================================
   // FUNCIONES HANDLERS PARA MIEMBROS
@@ -1316,7 +1318,7 @@ export default function TeamPage() {
       toast.error(`Error al eliminar usuario: ${error.message}`, { id: 'deleting-user' });
     }
   };
-  // TeamPage.tsx - PARTE 7: RENDER PRINCIPAL Y STATS
+  // TeamPage.tsx - PARTE 9: RENDER PRINCIPAL Y STATS
 
   // ========================================
   // STATS Y VERIFICACIONES FINALES
@@ -1387,24 +1389,6 @@ export default function TeamPage() {
   return (
     <DashboardLayout>
       <div className="w-full space-y-4 sm:space-y-6">
-        {/* Banner identificador */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-              <span className="text-blue-600 font-bold text-sm">👥</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-blue-900">Panel de Gestión de Equipos - Sistema de Invitaciones + Contraseñas</h3>
-              <p className="text-sm text-blue-700">
-                Sistema completo de gestión con invitaciones por email y cambio de contraseñas - Solo Super Admins
-              </p>
-            </div>
-            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-              v3.2 - Con Gestión de Contraseñas
-            </Badge>
-          </div>
-        </div>
-
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
           <div className="flex items-center space-x-3">
@@ -1488,7 +1472,7 @@ export default function TeamPage() {
             </CardContent>
           </Card>
         </div>
-        // TeamPage.tsx - PARTE 8: TABS Y CONTENIDO PRINCIPAL
+        // TeamPage.tsx - PARTE 10: TABS Y CONTENIDO
 
         {/* Main Content with Tabs */}
         <Card className="border-0 shadow-sm">
@@ -1685,7 +1669,7 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-              // TeamPage.tsx - PARTE 9: TAB DE AGENTES
+              // TeamPage.tsx - PARTE 11: TAB DE AGENTES
 
               {/* Tab: Agentes AI */}
               <TabsContent value="agents" className="space-y-4 mt-0">
@@ -1802,7 +1786,7 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-              // TeamPage.tsx - PARTE 10: TAB DE ASIGNACIONES
+              // TeamPage.tsx - PARTE 12: TABS RESTANTES
 
               {/* Tab: Asignaciones Usuario-Agente */}
               <TabsContent value="assignments" className="space-y-4 mt-0">
@@ -1885,7 +1869,6 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-              // TeamPage.tsx - PARTE 11: TABS DE INVITACIONES Y EMPRESAS
 
               {/* Tab: Invitaciones Enviadas */}
               <TabsContent value="invitations" className="space-y-4 mt-0">
@@ -2063,7 +2046,7 @@ export default function TeamPage() {
             </CardContent>
           </Tabs>
         </Card>
-        // TeamPage.tsx - PARTE 12: MODALES Y CIERRE
+        // TeamPage.tsx - PARTE 13: MODALES Y CIERRE FINAL
 
         {/* ========================================
             MODALES EXISTENTES
