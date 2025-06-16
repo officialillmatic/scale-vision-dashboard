@@ -27,6 +27,33 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 import { CreditBalance } from "@/components/credits/CreditBalance";
+// ============================================================================
+// FUNCIÓN PARA REFRESCAR BALANCE DE CRÉDITOS
+// ============================================================================
+const refreshCreditBalance = async (userId: string) => {
+  try {
+    console.log('🔄 Refrescando balance de créditos en dashboard...');
+    
+    const { data: creditData, error } = await supabase
+      .from('user_credits')
+      .select('current_balance')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.error('❌ Error obteniendo balance actualizado:', error);
+      return;
+    }
+
+    console.log(`✅ Balance verificado: $${creditData.current_balance}`);
+    
+    // El componente CreditBalance se actualizará automáticamente
+    // ya que probablemente use su propio hook para obtener los datos
+    
+  } catch (error) {
+    console.error('💥 Excepción refrescando balance:', error);
+  }
+};
 
 interface Call {
   id: string;
@@ -107,14 +134,16 @@ export default function DashboardPage() {
   const [userDistribution, setUserDistribution] = useState<any[]>([]);
 
   useEffect(() => {
-    if (user?.id) {
-      if (isSuperAdmin) {
-        fetchAdminStats();
-      } else {
-        fetchCallsData();
-      }
+  if (user?.id) {
+    if (isSuperAdmin) {
+      fetchAdminStats();
+    } else {
+      fetchCallsData();
+      // 🎯 NUEVA LÍNEA para refrescar balance automáticamente
+      refreshCreditBalance(user.id);
     }
-  }, [user?.id, isSuperAdmin]);
+  }
+}, [user?.id, isSuperAdmin]);
 
   // 🤖 FUNCIONES DEL SUPER ADMIN
   const fetchAdminStats = async () => {
