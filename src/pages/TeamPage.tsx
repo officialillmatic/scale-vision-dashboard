@@ -1,3 +1,6 @@
+// TeamPage.tsx - PARTE 1: IMPORTS Y TIPOS
+// Reemplaza la sección de imports completa con esto:
+
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,15 +36,23 @@ import {
   XCircle,
   Eye,
   Download,
-  Key  // 🔑 NUEVO IMPORT
+  Key
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { sendInvitationEmail } from '@/services/send-invitation/email';
-import { AdminPasswordManager } from '@/components/admin/AdminPasswordManager'; // 🔑 NUEVO IMPORT
+import { AdminPasswordManager } from '@/components/admin/AdminPasswordManager';
+
+// 🆕 IMPORTS SEGUROS PARA RETELL API
+import { 
+  getAllRetellAgentsForTeam, 
+  getRetellAgentDetailsForTeam, 
+  verifyRetellAgentExists,
+  RetellAgentDetailed 
+} from '@/services/agentService';
 
 // ========================================
-// INTERFACES
+// INTERFACES Y TIPOS
 // ========================================
 
 interface TeamMember {
@@ -60,6 +71,7 @@ interface TeamMember {
   assigned_agents: number;
 }
 
+// 🆕 INTERFAZ AGENT ACTUALIZADA CON DATOS DE RETELL
 interface Agent {
   id: string;
   name: string;
@@ -71,6 +83,11 @@ interface Agent {
   status: string;
   created_at: string;
   description?: string;
+  // 🆕 NUEVOS CAMPOS DE RETELL
+  voice_id?: string;
+  language?: string;
+  llm_id?: string;
+  last_modification_time?: number;
 }
 
 interface Company {
@@ -111,336 +128,20 @@ interface UserInvitation {
   accepted_at?: string;
   user_id?: string;
 }
-// ========================================
-// MODAL PARA INVITAR MIEMBRO (NUEVO)
-// ========================================
-
-const AddMemberModal: React.FC<{
-  onClose: () => void;
-  onSave: (memberData: { email: string; name: string; company_id?: string; role: string }) => Promise<void>;
-  companies: Company[];
-  currentUser: any;
-}> = ({ onClose, onSave, companies, currentUser }) => {
-  const [formData, setFormData] = useState({
-    email: '',
-    name: '',
-    company_id: '',
-    role: 'user'
-  });
-  const [saving, setSaving] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.email.trim() || !formData.name.trim()) {
-      toast.error('Email y nombre son obligatorios');
-      return;
-    }
-
-    // Validar formato de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      toast.error('Formato de email inválido');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await onSave({
-        email: formData.email.trim(),
-        name: formData.name.trim(),
-        company_id: formData.company_id || undefined,
-        role: formData.role
-      });
-    } catch (error) {
-      // Error ya manejado en onSave
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-96">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5 text-blue-500" />
-            Invitar Nuevo Miembro
-          </CardTitle>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Se enviará una invitación por email para unirse al equipo
-            </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-              <div className="flex items-center gap-2">
-                <Crown className="h-3 w-3 text-blue-600" />
-                <span className="text-xs text-blue-800 font-medium">
-                  Super Admin: {currentUser?.email}
-                </span>
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Email *</label>
-              <Input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                placeholder="usuario@ejemplo.com"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Se enviará la invitación a este email
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Nombre completo *</label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Nombre completo del usuario"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Empresa</label>
-              <select 
-                value={formData.company_id}
-                onChange={(e) => setFormData(prev => ({ ...prev, company_id: e.target.value }))}
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="">Sin empresa asignada</option>
-                {companies.map(company => (
-                  <option key={company.id} value={company.id}>{company.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Rol</label>
-              <select 
-                value={formData.role}
-                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="user">Usuario</option>
-                <option value="admin">Administrador</option>
-                <option value="super_admin">Super Administrador</option>
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                El usuario tendrá estos permisos una vez que acepte
-              </p>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-              <div className="flex items-start gap-2">
-                <Shield className="h-4 w-4 text-amber-600 mt-0.5" />
-                <div className="text-sm">
-                  <p className="text-amber-800 font-medium">🔒 Privilegios de Super Admin</p>
-                  <ul className="text-amber-700 text-xs mt-1 space-y-1">
-                    <li>• Solo super admins pueden invitar usuarios</li>
-                    <li>• Esta acción queda registrada para auditoría</li>
-                    <li>• El usuario recibirá email de invitación</li>
-                    <li>• La invitación expira en 7 días</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-4 h-4 mr-2" />
-                    Enviar Invitación
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-// ========================================
-// MODAL PARA EDITAR MIEMBRO (EXISTENTE)
-// ========================================
-
-const EditMemberModal: React.FC<{
-  member: TeamMember;
-  onClose: () => void;
-  onSave: (memberId: string, updatedData: { name: string; email: string; role: string }) => Promise<void>;
-}> = ({ member, onClose, onSave }) => {
-  const [formData, setFormData] = useState({
-    name: member.name,
-    email: member.email,
-    role: member.role
-  });
-  const [saving, setSaving] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name.trim() || !formData.email.trim()) {
-      toast.error('Nombre y email son obligatorios');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await onSave(member.id, formData);
-    } catch (error) {
-      // Error ya manejado en onSave
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-96">
-        <CardHeader>
-          <CardTitle>Editar Usuario</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            ID: {member.id.slice(0, 8)}...
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Nombre</label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Nombre completo"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Email</label>
-              <Input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                placeholder="email@ejemplo.com"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Rol</label>
-              <select 
-                value={formData.role}
-                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="member">Miembro</option>
-                <option value="admin">Administrador</option>
-                <option value="super_admin">Super Administrador</option>
-              </select>
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar Cambios'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-// ========================================
-// MODAL PARA ELIMINAR MIEMBRO (EXISTENTE)
-// ========================================
-
-const DeleteMemberModal: React.FC<{
-  member: TeamMember;
-  onClose: () => void;
-  onConfirm: (memberId: string, memberEmail: string) => Promise<void>;
-}> = ({ member, onClose, onConfirm }) => {
-  const [deleting, setDeleting] = useState(false);
-
-  const handleDelete = async () => {
-    setDeleting(true);
-    try {
-      await onConfirm(member.id, member.email);
-    } catch (error) {
-      // Error ya manejado en onConfirm
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-96">
-        <CardHeader>
-          <CardTitle className="text-red-600 flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
-            Confirmar Eliminación
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-700">
-                ¿Estás seguro de eliminar a <strong>{member.name}</strong> ({member.email})?
-              </p>
-              <p className="text-xs text-red-600 mt-1">
-                Se eliminará completamente del sistema.
-              </p>
-            </div>
-
-            <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={onClose} disabled={deleting}>
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handleDelete} 
-                disabled={deleting}
-                variant="destructive"
-              >
-                {deleting ? 'Eliminando...' : 'Eliminar'}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-// ========================================
-// COMPONENTE PRINCIPAL - INICIO
-// ========================================
+// TeamPage.tsx - PARTE 2: ESTADOS Y CONFIGURACIÓN INICIAL
 
 export default function TeamPage() {
   const { user } = useAuth();
+  
+  // ========================================
+  // ESTADOS PRINCIPALES
+  // ========================================
   const [activeTab, setActiveTab] = useState('members');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   
-  // Estados para cada pestaña
+  // Estados para datos
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -454,7 +155,7 @@ export default function TeamPage() {
   const [filteredAssignments, setFilteredAssignments] = useState<UserAgentAssignment[]>([]);
   const [filteredInvitations, setFilteredInvitations] = useState<UserInvitation[]>([]);
   
-  // Estados de modales
+  // Estados de modales existentes
   const [addMemberModal, setAddMemberModal] = useState(false);
   const [addAgentModal, setAddAgentModal] = useState(false);
   const [addCompanyModal, setAddCompanyModal] = useState(false);
@@ -471,54 +172,71 @@ export default function TeamPage() {
     userId?: string;
     userName?: string;
   }>({ open: false });
-
-  // 🔑 NUEVO ESTADO PARA MODAL DE CONTRASEÑA
   const [passwordModal, setPasswordModal] = useState<{
     open: boolean;
     member?: TeamMember;
   }>({ open: false });
 
+  // 🆕 NUEVOS ESTADOS PARA FUNCIONALIDAD DE AGENTES
+  const [retellAgents, setRetellAgents] = useState<RetellAgentDetailed[]>([]);
+  const [loadingRetellAgents, setLoadingRetellAgents] = useState(false);
+  const [agentDetailsModal, setAgentDetailsModal] = useState<{
+    open: boolean;
+    agent?: Agent;
+    retellData?: RetellAgentDetailed;
+  }>({ open: false });
+  const [editAgentModal, setEditAgentModal] = useState<{
+    open: boolean;
+    agent?: Agent;
+  }>({ open: false });
+
+  // 🆕 NUEVOS ESTADOS PARA ASIGNACIONES
+  const [editAssignmentModal, setEditAssignmentModal] = useState<{
+    open: boolean;
+    assignment?: UserAgentAssignment;
+  }>({ open: false });
+  const [deleteAssignmentModal, setDeleteAssignmentModal] = useState<{
+    open: boolean;
+    assignment?: UserAgentAssignment;
+  }>({ open: false });
+
+  // ========================================
+  // CONFIGURACIÓN Y VERIFICACIONES
+  // ========================================
+  
   // Verificación de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
   const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
 
+  // useEffect principal
   useEffect(() => {
     if (user && isSuperAdmin) {
       fetchAllData();
       
-      // 🔄 LISTENER PARA REFRESCAR CUANDO SE REGISTRA UN USUARIO
+      // Listener para refrescar cuando se registra un usuario
       const handleTeamMemberRegistered = (event: any) => {
         console.log('🔄 [TeamPage] Team member registered event received:', event.detail);
-        
-        // Esperar un poco y luego refrescar
         setTimeout(() => {
           console.log('🔄 [TeamPage] Refreshing team data after new registration...');
           fetchAllData();
         }, 1000);
       };
 
-      // Escuchar eventos de registro
       window.addEventListener('teamMemberRegistered', handleTeamMemberRegistered);
-
-      // Cleanup
       return () => {
         window.removeEventListener('teamMemberRegistered', handleTeamMemberRegistered);
       };
     }
   }, [user, isSuperAdmin]);
 
+  // useEffect para filtros
   useEffect(() => {
     applyFilters();
   }, [teamMembers, agents, companies, assignments, invitations, searchQuery, statusFilter, activeTab]);
+  // TeamPage.tsx - PARTE 3: FUNCIONES FETCH PRINCIPALES
 
-  // 🔑 NUEVA FUNCIÓN PARA MANEJAR CAMBIO DE CONTRASEÑA
-  const handlePasswordChanged = () => {
-    toast.success('✅ Password updated successfully');
-    // Opcional: refrescar datos de usuarios
-    fetchTeamMembers();
-  };
   // ========================================
-  // FUNCIONES DE FETCH
+  // FUNCIONES FETCH PRINCIPALES
   // ========================================
 
   const fetchAllData = async () => {
@@ -539,6 +257,7 @@ export default function TeamPage() {
     }
   };
 
+  // Mantener función fetchTeamMembers original (no cambiar)
   const fetchTeamMembers = async () => {
     try {
       console.log('🔍 Fetching team members...');
@@ -554,7 +273,6 @@ export default function TeamPage() {
 
       console.log('📊 Raw users data:', usersData);
 
-      // 2. Consultar miembros de empresas desde company_members
       const { data: companyMembersData, error: companyMembersError } = await supabase
         .from('company_members')
         .select(`
@@ -591,13 +309,10 @@ export default function TeamPage() {
       const profilesData = profilesResult.data || [];
       const companyMembers = companyMembersData || [];
 
-      // 4. Combinar datos de todas las fuentes
       const combinedMembers: TeamMember[] = usersData.map(user => {
         const profile = profilesData.find(p => p.id === user.id);
         const credit = creditsData.find(c => c.user_id === user.id);
         const userCalls = callsData.filter(c => c.user_id === user.id);
-        
-        // 🎯 BUSCAR EN COMPANY_MEMBERS PARA OBTENER LA EMPRESA CORRECTA
         const companyMember = companyMembers.find(cm => cm.user_id === user.id);
 
         const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
@@ -607,10 +322,8 @@ export default function TeamPage() {
           id: user.id,
           email: user.email || profile?.email || `user-${user.id.slice(0, 8)}`,
           name: user.name || user.full_name || profile?.name || user.email || 'Usuario',
-          // 🎯 PRIORIZAR ROLE DE COMPANY_MEMBERS
           role: companyMember?.role || profile?.role || user.role || 'user',
           status: currentBalance > 0 ? 'active' : 'inactive',
-          // 🎯 PRIORIZAR COMPANY DE COMPANY_MEMBERS
           company_id: companyMember?.company_id || profile?.company_id || user.company_id,
           company_name: companyMember?.companies?.name || null,
           created_at: user.created_at || new Date().toISOString(),
@@ -622,19 +335,14 @@ export default function TeamPage() {
         };
       });
 
-      // 5. Ordenar: primero los que tienen empresa, luego por fecha
       const sortedMembers = combinedMembers.sort((a, b) => {
-        // Priorizar usuarios con empresa
         if (a.company_id && !b.company_id) return -1;
         if (!a.company_id && b.company_id) return 1;
-        
-        // Luego por fecha de creación (más recientes primero)
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
 
       setTeamMembers(sortedMembers);
       console.log('✅ Team members loaded successfully:', sortedMembers.length);
-      console.log('👥 Members with companies:', sortedMembers.filter(m => m.company_id).length);
 
     } catch (error: any) {
       console.error('❌ Error fetching team members:', error);
@@ -642,43 +350,103 @@ export default function TeamPage() {
     }
   };
 
+  // 🆕 NUEVA FUNCIÓN fetchAgents MEJORADA CON RETELL
   const fetchAgents = async () => {
     try {
-      const { data: agentsData, error: agentsError } = await supabase
+      console.log('🔍 Fetching agents from database and Retell API...');
+      
+      // 1. Obtener agentes de la base de datos local
+      const { data: localAgents, error: localError } = await supabase
         .from('agents')
         .select('*');
 
-      if (agentsError) {
-        console.error('❌ Error fetching agents:', agentsError);
-        throw agentsError;
+      if (localError) {
+        console.error('❌ Error fetching local agents:', localError);
       }
 
-      if (!agentsData) {
-        setAgents([]);
-        return;
+      // 2. Obtener agentes de Retell API
+      let retellAgents: RetellAgentDetailed[] = [];
+      try {
+        retellAgents = await getAllRetellAgentsForTeam();
+        setRetellAgents(retellAgents); // Guardar para el modal
+        console.log('✅ Retell agents fetched:', retellAgents.length);
+      } catch (retellError) {
+        console.error('⚠️ Error fetching Retell agents:', retellError);
+        toast.warning('No se pudieron cargar agentes de Retell API');
       }
 
-      const combinedAgents: Agent[] = agentsData.map(agent => ({
-        id: agent.id,
-        name: agent.name || 'Agente Sin Nombre',
-        retell_agent_id: agent.retell_agent_id || 'N/A',
-        company_id: agent.company_id,
-        company_name: null,
-        assigned_users: 0,
-        total_calls: 0,
-        status: 'active',
-        created_at: agent.created_at || new Date().toISOString(),
-        description: agent.description
-      }));
+      // 3. Combinar datos locales con datos de Retell
+      const combinedAgents: Agent[] = [];
 
-      setAgents(combinedAgents);
+      // Primero, agregar agentes que están en la base de datos local
+      if (localAgents) {
+        for (const localAgent of localAgents) {
+          const retellAgent = retellAgents.find(r => r.agent_id === localAgent.retell_agent_id);
+          
+          combinedAgents.push({
+            id: localAgent.id,
+            name: retellAgent?.agent_name || localAgent.name || 'Agente Sin Nombre',
+            retell_agent_id: localAgent.retell_agent_id || 'N/A',
+            company_id: localAgent.company_id,
+            company_name: null,
+            assigned_users: 0,
+            total_calls: 0,
+            status: retellAgent ? 'active' : 'inactive',
+            created_at: localAgent.created_at || new Date().toISOString(),
+            description: localAgent.description || `Voz: ${retellAgent?.voice_id || 'N/A'}`,
+            // Datos adicionales de Retell
+            voice_id: retellAgent?.voice_id,
+            language: retellAgent?.language,
+            llm_id: retellAgent?.response_engine?.llm_id,
+            last_modification_time: retellAgent?.last_modification_time
+          });
+        }
+      }
+
+      // 4. Agregar agentes que solo están en Retell (no sincronizados)
+      for (const retellAgent of retellAgents) {
+        const existsLocally = localAgents?.some(l => l.retell_agent_id === retellAgent.agent_id);
+        
+        if (!existsLocally) {
+          combinedAgents.push({
+            id: `retell-${retellAgent.agent_id}`,
+            name: retellAgent.agent_name,
+            retell_agent_id: retellAgent.agent_id,
+            company_id: null,
+            company_name: null,
+            assigned_users: 0,
+            total_calls: 0,
+            status: 'active',
+            created_at: new Date(retellAgent.created_time).toISOString(),
+            description: `🔄 Agente de Retell (${retellAgent.voice_id}) - No sincronizado`,
+            voice_id: retellAgent.voice_id,
+            language: retellAgent.language,
+            llm_id: retellAgent.response_engine?.llm_id,
+            last_modification_time: retellAgent.last_modification_time
+          });
+        }
+      }
+
+      // 5. Ordenar agentes
+      const sortedAgents = combinedAgents.sort((a, b) => {
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (a.status !== 'active' && b.status === 'active') return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      setAgents(sortedAgents);
+      console.log('✅ Agents loaded successfully:', sortedAgents.length);
+      console.log('📊 Active agents:', sortedAgents.filter(a => a.status === 'active').length);
+      console.log('🔄 Unsynced Retell agents:', sortedAgents.filter(a => a.id.startsWith('retell-')).length);
 
     } catch (error: any) {
       console.error('❌ Error fetching agents:', error);
       toast.error(`Error al cargar agentes: ${error.message}`);
     }
   };
+  // TeamPage.tsx - PARTE 4: FUNCIONES FETCH RESTANTES
 
+  // Mantener funciones fetchCompanies e fetchInvitations originales
   const fetchCompanies = async () => {
     try {
       const { data: companiesData, error: companiesError } = await supabase
@@ -714,11 +482,21 @@ export default function TeamPage() {
     }
   };
 
+  // 🆕 NUEVA FUNCIÓN fetchAssignments MEJORADA
   const fetchAssignments = async () => {
     try {
+      console.log('🔍 Fetching user-agent assignments...');
+      
+      // Obtener asignaciones básicas
       const { data: assignmentsData, error: assignmentsError } = await supabase
         .from('user_agent_assignments')
-        .select('*');
+        .select(`
+          id,
+          user_id,
+          agent_id,
+          is_primary,
+          created_at
+        `);
 
       if (assignmentsError) {
         console.error('❌ Error fetching assignments:', assignmentsError);
@@ -726,27 +504,47 @@ export default function TeamPage() {
         return;
       }
 
-      if (!assignmentsData) {
+      if (!assignmentsData || assignmentsData.length === 0) {
         setAssignments([]);
         return;
       }
 
-      const combinedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => ({
-        id: assignment.id,
-        user_id: assignment.user_id,
-        agent_id: assignment.agent_id,
-        user_email: 'user@example.com',
-        user_name: 'Usuario',
-        agent_name: 'Agente',
-        is_primary: assignment.is_primary || false,
-        created_at: new Date().toISOString()
-      }));
+      // Obtener información de usuarios y agentes por separado
+      const userIds = [...new Set(assignmentsData.map(a => a.user_id))];
+      const agentIds = [...new Set(assignmentsData.map(a => a.agent_id))];
+
+      const [usersResult, agentsResult] = await Promise.all([
+        supabase.from('users').select('id, email, name').in('id', userIds),
+        supabase.from('agents').select('id, name, retell_agent_id').in('id', agentIds)
+      ]);
+
+      const usersData = usersResult.data || [];
+      const agentsData = agentsResult.data || [];
+
+      // Combinar datos
+      const combinedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
+        const user = usersData.find(u => u.id === assignment.user_id);
+        const agent = agentsData.find(a => a.id === assignment.agent_id);
+
+        return {
+          id: assignment.id,
+          user_id: assignment.user_id,
+          agent_id: assignment.agent_id,
+          user_email: user?.email || 'usuario@example.com',
+          user_name: user?.name || user?.email || 'Usuario',
+          agent_name: agent?.name || 'Agente',
+          is_primary: assignment.is_primary || false,
+          created_at: assignment.created_at || new Date().toISOString()
+        };
+      });
 
       setAssignments(combinedAssignments);
+      console.log('✅ Assignments loaded successfully:', combinedAssignments.length);
 
     } catch (error: any) {
       console.error('❌ Error fetching assignments:', error);
       setAssignments([]);
+      toast.error(`Error al cargar asignaciones: ${error.message}`);
     }
   };
 
@@ -770,7 +568,7 @@ export default function TeamPage() {
       const combinedInvitations: UserInvitation[] = (invitationsData || []).map(invitation => ({
         id: invitation.id,
         email: invitation.email,
-        name: invitation.email, // Usar email como nombre temporalmente
+        name: invitation.email,
         role: invitation.role,
         company_id: invitation.company_id,
         company_name: null,
@@ -791,232 +589,7 @@ export default function TeamPage() {
       console.error('❌ Error fetching invitations:', error);
     }
   };
-  // ========================================
-  // FUNCIONES DE MANEJO
-  // ========================================
 
-  // Función para enviar invitación CON EMAIL AUTOMÁTICO
-  const handleSendInvitation = async (memberData: {
-    email: string;
-    name: string;
-    company_id?: string;
-    role: string;
-  }) => {
-    try {
-      // 🔒 VERIFICACIÓN CRÍTICA DE SEGURIDAD
-      if (!isSuperAdmin) {
-        toast.error('❌ Acceso denegado: Solo super administradores pueden enviar invitaciones');
-        console.error('🚨 Intento no autorizado de enviar invitación por:', user?.email);
-        return;
-      }
-
-      console.log('📧 Super admin enviando invitación:', user?.email, '→', memberData.email);
-
-      // 1. Verificar que el email no exista ya como usuario
-      const { data: existingUser } = await supabase
-        .from('user_profiles')
-        .select('email')
-        .eq('email', memberData.email)
-        .single();
-
-      if (existingUser) {
-        toast.error('❌ Ya existe un usuario registrado con ese email');
-        return;
-      }
-
-      // 2. Verificar que no haya invitación pendiente
-      const { data: existingInvitation } = await supabase
-        .from('team_invitations')
-        .select('id, status, created_at')
-        .eq('email', memberData.email)
-        .eq('status', 'pending')
-        .single();
-
-      if (existingInvitation) {
-        const createdDate = new Date(existingInvitation.created_at).toLocaleDateString();
-        toast.error(`❌ Ya hay una invitación pendiente para este email (enviada el ${createdDate})`);
-        return;
-      }
-
-      // 3. Generar token único y fecha de expiración
-      const invitationToken = crypto.randomUUID();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // Expira en 7 días
-
-      // 4. Crear invitación en la base de datos
-      const { data: invitation, error: invitationError } = await supabase
-        .from('team_invitations')
-        .insert({
-          email: memberData.email,
-          role: memberData.role,
-          company_id: memberData.company_id || null,
-          invitation_token: invitationToken,
-          expires_at: expiresAt.toISOString(),
-          invited_by: user?.id,
-          status: 'pending'
-        })
-        .select()
-        .single();
-
-      if (invitationError) {
-        console.error('❌ Error creating invitation:', invitationError);
-        toast.error(`Error creando invitación: ${invitationError.message}`);
-        return;
-      }
-
-      // 5. Enviar email automáticamente
-      toast.loading('📧 Enviando invitación por email...', { id: 'sending-email' });
-      
-      try {
-        await sendInvitationEmail({
-          email: memberData.email,
-          token: invitationToken,
-          role: memberData.role,
-          company_name: 'Dr. Scale AI',
-          invited_by_email: user?.email
-        });
-        
-        // 6. Éxito - Email enviado
-        toast.success('✅ Invitación enviada exitosamente por email', {
-          id: 'sending-email',
-          description: `Invitación enviada a ${memberData.email}`,
-          duration: 5000
-        });
-        
-      } catch (emailError: any) {
-        console.error('❌ Error sending email:', emailError);
-        
-        // 7. Fallback - Mostrar URL manual si el email falla
-        const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitationToken}`;
-        
-        toast.error('⚠️ Error enviando email - URL manual generada', {
-          id: 'sending-email',
-          description: 'La invitación se creó pero no se pudo enviar el email',
-          duration: 10000
-        });
-        
-        toast.info('🔗 URL de invitación (copiar manualmente)', {
-          description: invitationUrl,
-          duration: 15000
-        });
-      }
-
-      // 8. Registrar la acción en logs (para auditoría)
-      console.log(`✅ INVITACIÓN CREADA:
-        Super Admin: ${user?.email}
-        Invitado: ${memberData.email} (${memberData.name})
-        Rol: ${memberData.role}
-        Token: ${invitationToken}
-        Expira: ${expiresAt.toLocaleDateString()}
-      `);
-
-      // 9. Actualizar la lista y cerrar modal
-      await fetchAllData();
-      setAddMemberModal(false);
-
-    } catch (error: any) {
-      console.error('❌ Error enviando invitación:', error);
-      toast.error(`Error inesperado: ${error.message}`, { id: 'sending-email' });
-    }
-  };
-
-  // Función para editar miembro
-  const handleEditMember = async (memberId: string, updatedData: {
-    name: string;
-    email: string;
-    role: string;
-  }) => {
-    try {
-      console.log('✏️ Editando miembro:', memberId, updatedData);
-
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .update({
-          name: updatedData.name,
-          email: updatedData.email,
-          role: updatedData.role
-        })
-        .eq('id', memberId);
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      const { error: userError } = await supabase
-        .from('users')
-        .update({
-          email: updatedData.email,
-          name: updatedData.name
-        })
-        .eq('id', memberId);
-
-      if (userError) {
-        console.warn('Error updating public.users:', userError);
-      }
-
-      toast.success('✅ Usuario actualizado exitosamente');
-      await fetchTeamMembers();
-      setEditMemberModal({ open: false });
-
-    } catch (error: any) {
-      console.error('❌ Error editando miembro:', error);
-      toast.error(`Error al editar usuario: ${error.message}`);
-    }
-  };
-
-  // Función para eliminar miembro COMPLETAMENTE
-  const handleDeleteMember = async (memberId: string, memberEmail: string) => {
-    try {
-      console.log('🗑️ Eliminando miembro completamente:', memberId, memberEmail);
-
-      // Verificación de super admin
-      if (SUPER_ADMIN_EMAILS.includes(memberEmail)) {
-        toast.error('❌ No se puede eliminar a un super administrador');
-        return;
-      }
-
-      // Mostrar loading
-      toast.loading('🗑️ Eliminando usuario...', { id: 'deleting-user' });
-
-      // Eliminar de todas las tablas en paralelo para mayor velocidad
-      const deletePromises = [
-        // Asignaciones usuario-agente
-        supabase.from('user_agent_assignments').delete().eq('user_id', memberId),
-        
-        // Llamadas del usuario
-        supabase.from('calls').delete().eq('user_id', memberId),
-        
-        // Transacciones del usuario
-        supabase.from('transactions').delete().eq('user_id', memberId),
-        
-        // Créditos del usuario
-        supabase.from('user_credits').delete().eq('user_id', memberId),
-        
-        // Perfil del usuario
-        supabase.from('user_profiles').delete().eq('id', memberId),
-        
-        // Usuario de tabla pública
-        supabase.from('users').delete().eq('id', memberId),
-        
-        // Intentar eliminar de Authentication también
-        supabase.auth.admin.deleteUser(memberId)
-      ];
-
-      // Ejecutar todas las eliminaciones en paralelo
-      await Promise.allSettled(deletePromises);
-
-      // Actualizar la lista
-      await fetchTeamMembers();
-      
-      // Cerrar modal y mostrar éxito
-      setDeleteMemberModal({ open: false });
-      toast.success('✅ Usuario eliminado completamente', { id: 'deleting-user' });
-
-    } catch (error: any) {
-      console.error('❌ Error eliminando miembro:', error);
-      toast.error(`Error al eliminar usuario: ${error.message}`, { id: 'deleting-user' });
-    }
-  };
   // ========================================
   // FUNCIONES AUXILIARES
   // ========================================
@@ -1136,9 +709,461 @@ export default function TeamPage() {
       day: 'numeric'
     });
   };
+  // TeamPage.tsx - PARTE 5: FUNCIONES DE MANEJO
 
   // ========================================
-  // STATS Y VERIFICACIONES
+  // 🆕 FUNCIONES PARA MANEJAR AGENTES
+  // ========================================
+
+  // Cargar agentes de Retell para el modal
+  const loadRetellAgentsForModal = async () => {
+    setLoadingRetellAgents(true);
+    try {
+      const agents = await getAllRetellAgentsForTeam();
+      setRetellAgents(agents);
+    } catch (error) {
+      console.error('Error loading Retell agents:', error);
+      toast.error('Error al cargar agentes de Retell');
+      setRetellAgents([]);
+    } finally {
+      setLoadingRetellAgents(false);
+    }
+  };
+
+  // Función para agregar agente
+  const handleAddAgent = async (agentData: { 
+    retell_agent_id: string; 
+    name: string; 
+    company_id?: string; 
+    description?: string;
+  }) => {
+    try {
+      console.log('📝 Adding new agent:', agentData);
+
+      // Verificar que el agente de Retell existe
+      const exists = await verifyRetellAgentExists(agentData.retell_agent_id);
+      if (!exists) {
+        toast.error('❌ Agente no encontrado en Retell AI');
+        return;
+      }
+
+      // Verificar que no esté ya agregado
+      const { data: existingAgent } = await supabase
+        .from('agents')
+        .select('id')
+        .eq('retell_agent_id', agentData.retell_agent_id)
+        .single();
+
+      if (existingAgent) {
+        toast.error('❌ Este agente ya está registrado');
+        return;
+      }
+
+      // Insertar en la base de datos
+      const { error: insertError } = await supabase
+        .from('agents')
+        .insert({
+          name: agentData.name,
+          retell_agent_id: agentData.retell_agent_id,
+          company_id: agentData.company_id || null,
+          description: agentData.description || null,
+          status: 'active',
+          created_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      toast.success('✅ Agente agregado exitosamente');
+      await fetchAgents();
+      setAddAgentModal(false);
+
+    } catch (error: any) {
+      console.error('❌ Error adding agent:', error);
+      toast.error(`Error: ${error.message}`);
+    }
+  };
+
+  // Función para ver detalles del agente
+  const handleViewAgent = async (agent: Agent) => {
+    try {
+      console.log('👁️ Viewing agent details:', agent.id);
+
+      if (agent.retell_agent_id && !agent.retell_agent_id.includes('N/A')) {
+        try {
+          const retellAgent = await getRetellAgentDetailsForTeam(agent.retell_agent_id);
+          
+          setAgentDetailsModal({
+            open: true,
+            agent: agent,
+            retellData: retellAgent
+          });
+
+        } catch (retellError) {
+          console.error('Error fetching Retell data:', retellError);
+          toast.info(`📊 ${agent.name}`, {
+            description: `Estado: ${agent.status}\nRetell ID: ${agent.retell_agent_id}`,
+            duration: 8000
+          });
+        }
+      } else {
+        toast.info(`📊 ${agent.name}`, {
+          description: `Estado: ${agent.status}\n⚠️ Sin conexión a Retell AI`,
+          duration: 5000
+        });
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error viewing agent:', error);
+      toast.error(`Error al ver agente: ${error.message}`);
+    }
+  };
+
+  // Función para editar agente
+  const handleEditAgent = (agent: Agent) => {
+    setEditAgentModal({
+      open: true,
+      agent: agent
+    });
+  };
+
+  // Función para guardar cambios del agente
+  const handleSaveAgentChanges = async (
+    agentId: string, 
+    updatedData: { 
+      name: string; 
+      company_id?: string; 
+      description?: string; 
+    }
+  ) => {
+    try {
+      console.log('💾 Saving agent changes:', agentId, updatedData);
+
+      const { error: updateError } = await supabase
+        .from('agents')
+        .update({
+          name: updatedData.name,
+          company_id: updatedData.company_id || null,
+          description: updatedData.description || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', agentId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      toast.success('✅ Agente actualizado exitosamente');
+      await fetchAgents();
+      setEditAgentModal({ open: false });
+
+    } catch (error: any) {
+      console.error('❌ Error saving agent changes:', error);
+      toast.error(`Error al actualizar agente: ${error.message}`);
+    }
+  };
+
+  // ========================================
+  // 🆕 FUNCIONES PARA MANEJAR ASIGNACIONES
+  // ========================================
+
+  const handleEditAssignment = (assignment: UserAgentAssignment) => {
+    setEditAssignmentModal({
+      open: true,
+      assignment: assignment
+    });
+  };
+
+  const handleDeleteAssignment = (assignment: UserAgentAssignment) => {
+    setDeleteAssignmentModal({
+      open: true,
+      assignment: assignment
+    });
+  };
+
+  const handleSaveAssignmentChanges = async (
+    assignmentId: string,
+    updatedData: {
+      agent_id: string;
+      is_primary: boolean;
+    }
+  ) => {
+    try {
+      const { error: updateError } = await supabase
+        .from('user_agent_assignments')
+        .update({
+          agent_id: updatedData.agent_id,
+          is_primary: updatedData.is_primary,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', assignmentId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      toast.success('✅ Asignación actualizada exitosamente');
+      await fetchAssignments();
+      setEditAssignmentModal({ open: false });
+
+    } catch (error: any) {
+      console.error('❌ Error updating assignment:', error);
+      toast.error(`Error al actualizar asignación: ${error.message}`);
+    }
+  };
+
+  const handleConfirmDeleteAssignment = async (assignmentId: string) => {
+    try {
+      const { error: deleteError } = await supabase
+        .from('user_agent_assignments')
+        .delete()
+        .eq('id', assignmentId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      toast.success('✅ Asignación eliminada exitosamente');
+      await fetchAssignments();
+      setDeleteAssignmentModal({ open: false });
+
+    } catch (error: any) {
+      console.error('❌ Error deleting assignment:', error);
+      toast.error(`Error al eliminar asignación: ${error.message}`);
+    }
+  };
+
+  const handleCreateAssignment = async (assignmentData: {
+    user_id: string;
+    agent_id: string;
+    is_primary: boolean;
+  }) => {
+    try {
+      const { data: existingAssignment } = await supabase
+        .from('user_agent_assignments')
+        .select('id')
+        .eq('user_id', assignmentData.user_id)
+        .eq('agent_id', assignmentData.agent_id)
+        .single();
+
+      if (existingAssignment) {
+        toast.error('❌ Esta asignación ya existe');
+        return;
+      }
+
+      if (assignmentData.is_primary) {
+        await supabase
+          .from('user_agent_assignments')
+          .update({ is_primary: false })
+          .eq('user_id', assignmentData.user_id)
+          .eq('is_primary', true);
+      }
+
+      const { error: insertError } = await supabase
+        .from('user_agent_assignments')
+        .insert({
+          user_id: assignmentData.user_id,
+          agent_id: assignmentData.agent_id,
+          is_primary: assignmentData.is_primary,
+          created_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      toast.success('✅ Asignación creada exitosamente');
+      await fetchAssignments();
+      setAssignmentModal({ open: false });
+
+    } catch (error: any) {
+      console.error('❌ Error creating assignment:', error);
+      toast.error(`Error al crear asignación: ${error.message}`);
+    }
+  };
+
+  // ========================================
+  // FUNCIONES EXISTENTES DE MIEMBROS (mantener como están)
+  // ========================================
+
+  const handlePasswordChanged = () => {
+    toast.success('✅ Password updated successfully');
+    fetchTeamMembers();
+  };
+
+  const handleSendInvitation = async (memberData: {
+    email: string;
+    name: string;
+    company_id?: string;
+    role: string;
+  }) => {
+    try {
+      if (!isSuperAdmin) {
+        toast.error('❌ Acceso denegado: Solo super administradores pueden enviar invitaciones');
+        return;
+      }
+
+      const { data: existingUser } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .eq('email', memberData.email)
+        .single();
+
+      if (existingUser) {
+        toast.error('❌ Ya existe un usuario registrado con ese email');
+        return;
+      }
+
+      const { data: existingInvitation } = await supabase
+        .from('team_invitations')
+        .select('id, status, created_at')
+        .eq('email', memberData.email)
+        .eq('status', 'pending')
+        .single();
+
+      if (existingInvitation) {
+        const createdDate = new Date(existingInvitation.created_at).toLocaleDateString();
+        toast.error(`❌ Ya hay una invitación pendiente para este email (enviada el ${createdDate})`);
+        return;
+      }
+
+      const invitationToken = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const { data: invitation, error: invitationError } = await supabase
+        .from('team_invitations')
+        .insert({
+          email: memberData.email,
+          role: memberData.role,
+          company_id: memberData.company_id || null,
+          invitation_token: invitationToken,
+          expires_at: expiresAt.toISOString(),
+          invited_by: user?.id,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (invitationError) {
+        throw invitationError;
+      }
+
+      toast.loading('📧 Enviando invitación por email...', { id: 'sending-email' });
+      
+      try {
+        await sendInvitationEmail({
+          email: memberData.email,
+          token: invitationToken,
+          role: memberData.role,
+          company_name: 'Dr. Scale AI',
+          invited_by_email: user?.email
+        });
+        
+        toast.success('✅ Invitación enviada exitosamente por email', {
+          id: 'sending-email',
+          description: `Invitación enviada a ${memberData.email}`,
+          duration: 5000
+        });
+        
+      } catch (emailError: any) {
+        const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitationToken}`;
+        
+        toast.error('⚠️ Error enviando email - URL manual generada', {
+          id: 'sending-email',
+          duration: 10000
+        });
+        
+        toast.info('🔗 URL de invitación (copiar manualmente)', {
+          description: invitationUrl,
+          duration: 15000
+        });
+      }
+
+      await fetchAllData();
+      setAddMemberModal(false);
+
+    } catch (error: any) {
+      console.error('❌ Error enviando invitación:', error);
+      toast.error(`Error inesperado: ${error.message}`, { id: 'sending-email' });
+    }
+  };
+
+  const handleEditMember = async (memberId: string, updatedData: {
+    name: string;
+    email: string;
+    role: string;
+  }) => {
+    try {
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .update({
+          name: updatedData.name,
+          email: updatedData.email,
+          role: updatedData.role
+        })
+        .eq('id', memberId);
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const { error: userError } = await supabase
+        .from('users')
+        .update({
+          email: updatedData.email,
+          name: updatedData.name
+        })
+        .eq('id', memberId);
+
+      if (userError) {
+        console.warn('Error updating public.users:', userError);
+      }
+
+      toast.success('✅ Usuario actualizado exitosamente');
+      await fetchTeamMembers();
+      setEditMemberModal({ open: false });
+
+    } catch (error: any) {
+      console.error('❌ Error editando miembro:', error);
+      toast.error(`Error al editar usuario: ${error.message}`);
+    }
+  };
+
+  const handleDeleteMember = async (memberId: string, memberEmail: string) => {
+    try {
+      if (SUPER_ADMIN_EMAILS.includes(memberEmail)) {
+        toast.error('❌ No se puede eliminar a un super administrador');
+        return;
+      }
+
+      toast.loading('🗑️ Eliminando usuario...', { id: 'deleting-user' });
+
+      const deletePromises = [
+        supabase.from('user_agent_assignments').delete().eq('user_id', memberId),
+        supabase.from('calls').delete().eq('user_id', memberId),
+        supabase.from('transactions').delete().eq('user_id', memberId),
+        supabase.from('user_credits').delete().eq('user_id', memberId),
+        supabase.from('user_profiles').delete().eq('id', memberId),
+        supabase.from('users').delete().eq('id', memberId),
+        supabase.auth.admin.deleteUser(memberId)
+      ];
+
+      await Promise.allSettled(deletePromises);
+      await fetchTeamMembers();
+      setDeleteMemberModal({ open: false });
+      toast.success('✅ Usuario eliminado completamente', { id: 'deleting-user' });
+
+    } catch (error: any) {
+      console.error('❌ Error eliminando miembro:', error);
+      toast.error(`Error al eliminar usuario: ${error.message}`, { id: 'deleting-user' });
+    }
+  };
+  // TeamPage.tsx - PARTE 6A: JSX - HEADER Y STATS
+
+  // ========================================
+  // STATS Y VERIFICACIONES FINALES
   // ========================================
 
   const stats = {
@@ -1154,10 +1179,7 @@ export default function TeamPage() {
     pendingInvitations: invitations.filter(i => i.status === 'pending').length
   };
 
-  // ========================================
-  // VERIFICACIONES DE SEGURIDAD
-  // ========================================
-
+  // Verificaciones de seguridad
   if (!user) {
     return (
       <DashboardLayout>
@@ -1201,8 +1223,9 @@ export default function TeamPage() {
       </DashboardLayout>
     );
   }
+
   // ========================================
-  // RETURN JSX - PARTE 1: HEADER Y STATS
+  // RENDER PRINCIPAL - HEADER Y STATS
   // ========================================
 
   return (
@@ -1238,7 +1261,6 @@ export default function TeamPage() {
               <Activity className="w-3 h-3 mr-1" />
               Datos en Tiempo Real
             </Badge>
-            {/* 🔑 NUEVO BADGE */}
             <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
               <Key className="w-3 h-3 mr-1" />
               Password Management
@@ -1310,6 +1332,7 @@ export default function TeamPage() {
             </CardContent>
           </Card>
         </div>
+        // TeamPage.tsx - PARTE 6B: JSX - TABS Y SECCIÓN DE AGENTES
 
         {/* Main Content with Tabs */}
         <Card className="border-0 shadow-sm">
@@ -1364,7 +1387,212 @@ export default function TeamPage() {
             </CardHeader>
 
             <CardContent>
-              {/* Tab: Miembros del Equipo */}
+              {/* 🆕 Tab: Agentes AI (ACTUALIZADO) */}
+              <TabsContent value="agents" className="space-y-4 mt-0">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Agentes AI ({filteredAgents.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchAgents} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAddAgentModal(true)} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Agregar Agente
+                    </Button>
+                  </div>
+                </div>
+
+                {filteredAgents.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No se encontraron agentes</h3>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchAgents} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Agentes
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredAgents.map((agent) => (
+                      <div
+                        key={agent.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm">{agent.name}</p>
+                              <span className="text-xs text-gray-500">ID: {agent.retell_agent_id}</span>
+                              
+                              <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>
+                                <Bot className="h-3 w-3 mr-1" />
+                                {agent.status}
+                              </Badge>
+
+                              {/* 🆕 BADGE PARA AGENTES NO SINCRONIZADOS */}
+                              {agent.id.startsWith('retell-') && (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  No sincronizado
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                              <span>Empresa: <strong>{agent.company_name || 'N/A'}</strong></span>
+                              <span>Usuarios: <strong>{agent.assigned_users}</strong></span>
+                              <span>Llamadas: <strong>{agent.total_calls}</strong></span>
+                              <span>Creado: <strong>{formatDate(agent.created_at)}</strong></span>
+                            </div>
+                            
+                            {/* 🆕 INFORMACIÓN ADICIONAL DE RETELL */}
+                            {agent.voice_id && (
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-purple-600 mt-1">
+                                <span>Voz: <strong>{agent.voice_id}</strong></span>
+                                <span>Idioma: <strong>{agent.language || 'N/A'}</strong></span>
+                                <span>LLM: <strong>{agent.llm_id || 'N/A'}</strong></span>
+                              </div>
+                            )}
+                            
+                            {agent.description && (
+                              <p className="text-xs text-gray-500 mt-1">{agent.description}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 🆕 BOTONES ACTUALIZADOS */}
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleViewAgent(agent)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Ver
+                          </Button>
+                          
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleEditAgent(agent)}
+                          >
+                            <Edit3 className="h-4 w-4 mr-1" />
+                            Editar
+                          </Button>
+
+                          {/* 🔄 BOTÓN ADICIONAL PARA SINCRONIZAR SI ES AGENTE NO SINCRONIZADO */}
+                          {agent.id.startsWith('retell-') && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                // Convertir agente de Retell a agente local
+                                handleAddAgent({
+                                  retell_agent_id: agent.retell_agent_id,
+                                  name: agent.name,
+                                  description: agent.description
+                                });
+                              }}
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Sincronizar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+              // TeamPage.tsx - PARTE 6C: JSX - SECCIÓN DE ASIGNACIONES
+
+              {/* 🆕 Tab: Asignaciones Usuario-Agente (ACTUALIZADO) */}
+              <TabsContent value="assignments" className="space-y-4 mt-0">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Asignaciones Usuario-Agente ({filteredAssignments.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchAssignments} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button onClick={() => setAssignmentModal({ open: true })} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nueva Asignación
+                    </Button>
+                  </div>
+                </div>
+
+                {filteredAssignments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No se encontraron asignaciones</h3>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
+                    <Button onClick={fetchAssignments} variant="outline" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar Asignaciones
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredAssignments.map((assignment) => (
+                      <div
+                        key={assignment.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm">{assignment.user_email}</p>
+                              <span className="text-xs text-gray-500">→</span>
+                              <p className="font-medium text-sm text-purple-600">{assignment.agent_name}</p>
+                              
+                              {assignment.is_primary && (
+                                <Badge variant="default">
+                                  <Crown className="h-3 w-3 mr-1" />
+                                  Primaria
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-600">
+                              <span>Usuario: <strong>{assignment.user_name}</strong></span>
+                              <span>Tipo: <strong>{assignment.is_primary ? 'Primaria' : 'Secundaria'}</strong></span>
+                              <span>Creado: <strong>{formatDate(assignment.created_at)}</strong></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 🆕 BOTONES ACTUALIZADOS PARA ASIGNACIONES */}
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditAssignment(assignment)}
+                          >
+                            <Edit3 className="h-4 w-4 mr-1" />
+                            Editar
+                          </Button>
+                          
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteAssignment(assignment)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Eliminar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Tab: Miembros del Equipo (mantener como está) */}
               <TabsContent value="members" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Miembros del Equipo ({filteredMembers.length})</h3>
@@ -1449,7 +1677,6 @@ export default function TeamPage() {
                         </div>
 
                         <div className="flex items-center gap-2 ml-4">
-                          {/* 🔑 NUEVO BOTÓN DE CONTRASEÑA */}
                           <Button
                             size="sm"
                             variant="outline"
@@ -1507,6 +1734,8 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
+              // TeamPage.tsx - PARTE 6D: JSX - TABS RESTANTES (INVITACIONES Y EMPRESAS)
+
               {/* Tab: Invitaciones Enviadas */}
               <TabsContent value="invitations" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1610,81 +1839,6 @@ export default function TeamPage() {
                 )}
               </TabsContent>
 
-              {/* Tab: Agentes */}
-              <TabsContent value="agents" className="space-y-4 mt-0">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Agentes AI ({filteredAgents.length})</h3>
-                  <div className="flex gap-2">
-                    <Button onClick={fetchAgents} variant="outline" size="sm" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar
-                    </Button>
-                    <Button onClick={() => setAddAgentModal(true)} size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Agregar Agente
-                    </Button>
-                  </div>
-                </div>
-
-                {filteredAgents.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No se encontraron agentes</h3>
-                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
-                    <Button onClick={fetchAgents} variant="outline" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar Agentes
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredAgents.map((agent) => (
-                      <div
-                        key={agent.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center space-x-4 flex-1">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <p className="font-medium text-sm">{agent.name}</p>
-                              <span className="text-xs text-gray-500">ID: {agent.retell_agent_id}</span>
-                              
-                              <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>
-                                <Bot className="h-3 w-3 mr-1" />
-                                {agent.status}
-                              </Badge>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                              <span>Empresa: <strong>{agent.company_name || 'N/A'}</strong></span>
-                              <span>Usuarios: <strong>{agent.assigned_users}</strong></span>
-                              <span>Llamadas: <strong>{agent.total_calls}</strong></span>
-                              <span>Creado: <strong>{formatDate(agent.created_at)}</strong></span>
-                            </div>
-                            
-                            {agent.description && (
-                              <p className="text-xs text-gray-500 mt-1">{agent.description}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 ml-4">
-                          <Button size="sm" variant="outline">
-                            <Eye className="h-4 w-4 mr-1" />
-                            Ver
-                          </Button>
-                          
-                          <Button size="sm" variant="outline">
-                            <Edit3 className="h-4 w-4 mr-1" />
-                            Editar
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-
               {/* Tab: Empresas */}
               <TabsContent value="companies" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1755,83 +1909,16 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-
-              {/* Tab: Asignaciones */}
-              <TabsContent value="assignments" className="space-y-4 mt-0">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Asignaciones Usuario-Agente ({filteredAssignments.length})</h3>
-                  <div className="flex gap-2">
-                    <Button onClick={fetchAssignments} variant="outline" size="sm" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar
-                    </Button>
-                    <Button onClick={() => setAssignmentModal({ open: true })} size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Nueva Asignación
-                    </Button>
-                  </div>
-                </div>
-
-                {filteredAssignments.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No se encontraron asignaciones</h3>
-                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda o actualizar los datos.</p>
-                    <Button onClick={fetchAssignments} variant="outline" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar Asignaciones
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredAssignments.map((assignment) => (
-                      <div
-                        key={assignment.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center space-x-4 flex-1">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <p className="font-medium text-sm">{assignment.user_email}</p>
-                              <span className="text-xs text-gray-500">→</span>
-                              <p className="font-medium text-sm text-purple-600">{assignment.agent_name}</p>
-                              
-                              {assignment.is_primary && (
-                                <Badge variant="default">
-                                  <Crown className="h-3 w-3 mr-1" />
-                                  Primaria
-                                </Badge>
-                              )}
-                            </div>
-                            
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-600">
-                              <span>Usuario: <strong>{assignment.user_name}</strong></span>
-                              <span>Tipo: <strong>{assignment.is_primary ? 'Primaria' : 'Secundaria'}</strong></span>
-                              <span>Creado: <strong>{formatDate(assignment.created_at)}</strong></span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 ml-4">
-                          <Button size="sm" variant="outline">
-                            <Edit3 className="h-4 w-4 mr-1" />
-                            Editar
-                          </Button>
-                          
-                          <Button size="sm" variant="outline">
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Eliminar
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
             </CardContent>
           </Tabs>
         </Card>
-        {/* 🔑 NUEVO MODAL DE GESTIÓN DE CONTRASEÑAS */}
+        // TeamPage.tsx - PARTE 7: JSX - MODALES COMPLETOS
+
+        {/* ========================================
+            MODALES EXISTENTES (mantener como están)
+            ======================================== */}
+        
+        {/* 🔑 Modal de gestión de contraseñas */}
         {passwordModal.open && passwordModal.member && (
           <AdminPasswordManager
             targetUserId={passwordModal.member.id}
@@ -1860,7 +1947,7 @@ export default function TeamPage() {
           />
         )}
 
-        {/* Modal Invitar Miembro (NUEVO) */}
+        {/* Modal Invitar Miembro */}
         {addMemberModal && (
           <AddMemberModal
             onClose={() => setAddMemberModal(false)}
@@ -1870,34 +1957,126 @@ export default function TeamPage() {
           />
         )}
 
-        {/* Modales Placeholder (Sin cambios) */}
+        {/* ========================================
+            🆕 NUEVOS MODALES PARA AGENTES
+            ======================================== */}
+
+        {/* 🆕 Modal para agregar agente */}
         {addAgentModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-96">
+            <Card className="w-[500px] max-w-full mx-4 max-h-[90vh] overflow-y-auto">
               <CardHeader>
-                <CardTitle>Agregar Nuevo Agente</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-purple-500" />
+                  Agregar Nuevo Agente
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Selecciona un agente de Retell AI para añadir a tu equipo
+                </p>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <Input placeholder="Nombre del agente" />
-                  <Input placeholder="Retell Agent ID" />
-                  <select className="w-full border rounded px-3 py-2">
-                    <option value="">Seleccionar empresa</option>
-                    {companies.map(company => (
-                      <option key={company.id} value={company.id}>{company.name}</option>
-                    ))}
-                  </select>
-                  <Input placeholder="Descripción (opcional)" />
+                <AddAgentForm 
+                  onClose={() => setAddAgentModal(false)}
+                  onSave={handleAddAgent}
+                  companies={companies}
+                  retellAgents={retellAgents}
+                  loadingRetellAgents={loadingRetellAgents}
+                  onLoadRetellAgents={loadRetellAgentsForModal}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* 🆕 Modal para ver detalles del agente */}
+        {agentDetailsModal.open && agentDetailsModal.agent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-[600px] max-w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-purple-500" />
+                  Detalles del Agente
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Información completa del agente y datos de Retell AI
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* INFORMACIÓN BÁSICA */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Información Básica
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div><strong>Nombre:</strong> {agentDetailsModal.agent.name}</div>
+                    <div><strong>Estado:</strong> 
+                      <Badge className="ml-2" variant={agentDetailsModal.agent.status === 'active' ? 'default' : 'secondary'}>
+                        {agentDetailsModal.agent.status}
+                      </Badge>
+                    </div>
+                    <div><strong>Empresa:</strong> {agentDetailsModal.agent.company_name || 'N/A'}</div>
+                    <div><strong>Usuarios asignados:</strong> {agentDetailsModal.agent.assigned_users}</div>
+                    <div><strong>Total llamadas:</strong> {agentDetailsModal.agent.total_calls}</div>
+                    <div><strong>Creado:</strong> {formatDate(agentDetailsModal.agent.created_at)}</div>
+                  </div>
+                  {agentDetailsModal.agent.description && (
+                    <div className="mt-3">
+                      <strong>Descripción:</strong> 
+                      <p className="text-gray-600 mt-1">{agentDetailsModal.agent.description}</p>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-end space-x-2 mt-6">
-                  <Button variant="outline" onClick={() => setAddAgentModal(false)}>
-                    Cancelar
+
+                {/* INFORMACIÓN DE RETELL */}
+                {agentDetailsModal.retellData ? (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <h4 className="font-medium mb-3 flex items-center gap-2">
+                      <Bot className="h-4 w-4 text-purple-600" />
+                      Datos de Retell AI
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><strong>Agent ID:</strong> 
+                        <code className="ml-1 bg-white px-2 py-1 rounded text-xs">
+                          {agentDetailsModal.retellData.agent_id}
+                        </code>
+                      </div>
+                      <div><strong>Voz:</strong> {agentDetailsModal.retellData.voice_id}</div>
+                      <div><strong>Idioma:</strong> {agentDetailsModal.retellData.language}</div>
+                      <div><strong>Motor:</strong> {agentDetailsModal.retellData.response_engine?.type || 'N/A'}</div>
+                      <div><strong>LLM:</strong> {agentDetailsModal.retellData.response_engine?.llm_id || 'N/A'}</div>
+                      <div><strong>Última modificación:</strong> 
+                        {new Date(agentDetailsModal.retellData.last_modification_time).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-orange-600" />
+                      <span className="text-sm text-orange-800">
+                        No se pudieron obtener datos actualizados de Retell AI
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* BOTONES */}
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setAgentDetailsModal({ open: false })}
+                  >
+                    Cerrar
                   </Button>
-                  <Button onClick={() => {
-                    toast.success('Funcionalidad en desarrollo');
-                    setAddAgentModal(false);
-                  }}>
-                    Agregar
+                  <Button 
+                    onClick={() => {
+                      setAgentDetailsModal({ open: false });
+                      setEditAgentModal({ open: true, agent: agentDetailsModal.agent });
+                    }}
+                  >
+                    <Edit3 className="w-4 h-4 mr-2" />
+                    Editar Agente
                   </Button>
                 </div>
               </CardContent>
@@ -1905,6 +2084,101 @@ export default function TeamPage() {
           </div>
         )}
 
+        {/* 🆕 Modal para editar agente */}
+        {editAgentModal.open && editAgentModal.agent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-96 max-w-full mx-4">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Edit3 className="h-5 w-5 text-blue-500" />
+                  Editar Agente
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  ID: {editAgentModal.agent.retell_agent_id}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <EditAgentForm 
+                  agent={editAgentModal.agent}
+                  onClose={() => setEditAgentModal({ open: false })}
+                  onSave={handleSaveAgentChanges}
+                  companies={companies}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ========================================
+            🆕 NUEVOS MODALES PARA ASIGNACIONES
+            ======================================== */}
+
+        {/* 🆕 Modal para editar asignación */}
+        {editAssignmentModal.open && editAssignmentModal.assignment && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-96 max-w-full mx-4">
+              <CardHeader>
+                <CardTitle>Editar Asignación</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EditAssignmentForm 
+                  assignment={editAssignmentModal.assignment}
+                  onClose={() => setEditAssignmentModal({ open: false })}
+                  onSave={handleSaveAssignmentChanges}
+                  agents={agents}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* 🆕 Modal para eliminar asignación */}
+        {deleteAssignmentModal.open && deleteAssignmentModal.assignment && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-96 max-w-full mx-4">
+              <CardHeader>
+                <CardTitle className="text-red-600 flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  Confirmar Eliminación
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-700">
+                      ¿Estás seguro de eliminar la asignación de <strong>{deleteAssignmentModal.assignment.user_name}</strong> al agente <strong>{deleteAssignmentModal.assignment.agent_name}</strong>?
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      Esta acción no se puede deshacer.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end space-x-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setDeleteAssignmentModal({ open: false })}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={() => handleConfirmDeleteAssignment(deleteAssignmentModal.assignment!.id)}
+                      variant="destructive"
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ========================================
+            MODALES PLACEHOLDER (mantener como están)
+            ======================================== */}
+
+        {/* Modal Agregar Empresa */}
         {addCompanyModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <Card className="w-96">
@@ -1932,6 +2206,7 @@ export default function TeamPage() {
           </div>
         )}
 
+        {/* Modal Asignaciones */}
         {assignmentModal.open && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <Card className="w-96">
