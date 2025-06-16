@@ -1809,19 +1809,256 @@ export default function TeamPage() {
               </TabsContent>
 
               <TabsContent value="assignments" className="space-y-4 mt-0">
-                <div className="text-center py-8">
-                  <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Asignaciones Usuario-Agente</h3>
-                  <p className="text-gray-600">Funcionalidad en desarrollo...</p>
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Asignaciones Usuario-Agente ({filteredAssignments.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchAssignments} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button 
+                      onClick={() => setAssignmentModal({ open: true })} 
+                      size="sm"
+                      disabled={!isSuperAdmin}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nueva Asignación
+                    </Button>
+                  </div>
                 </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Settings className="h-4 w-4 text-green-600 mt-0.5" />
+                    <div className="text-sm text-green-800">
+                      <strong>Asignaciones:</strong> Gestiona qué usuarios tienen acceso a qué Custom AI Agents. 
+                      Las asignaciones primarias indican el agente principal del usuario.
+                    </div>
+                  </div>
+                </div>
+
+                {filteredAssignments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No hay asignaciones</h3>
+                    <p className="text-gray-600 mb-4">
+                      Aún no se han asignado Custom AI Agents a los usuarios.
+                    </p>
+                    {teamMembers.length > 0 && agents.length > 0 ? (
+                      <Button 
+                        onClick={() => setAssignmentModal({ open: true })}
+                        disabled={!isSuperAdmin}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Crear Primera Asignación
+                      </Button>
+                    ) : (
+                      <div className="text-sm text-gray-500">
+                        {teamMembers.length === 0 && 'Necesitas tener miembros en el equipo '}
+                        {agents.length === 0 && 'Necesitas tener Custom AI Agents '}
+                        para crear asignaciones.
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredAssignments.map((assignment) => (
+                      <div
+                        key={assignment.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-blue-500" />
+                              <p className="font-medium text-sm">{assignment.user_name}</p>
+                              <span className="text-xs text-gray-500">({assignment.user_email})</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400">→</span>
+                              <Bot className="h-4 w-4 text-purple-500" />
+                              <p className="font-medium text-sm text-purple-700">{assignment.agent_name}</p>
+                            </div>
+                            
+                            {assignment.is_primary && (
+                              <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">
+                                <Crown className="h-3 w-3 mr-1" />
+                                Primario
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-600">
+                            <span>Tipo: <strong>{assignment.is_primary ? 'Asignación Primaria' : 'Asignación Secundaria'}</strong></span>
+                            <span>Creada: <strong>{formatDate(assignment.created_at)}</strong></span>
+                            <span>Estado: <strong className="text-green-600">Activa</strong></span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => setEditAssignmentModal({ 
+                              open: true, 
+                              assignment: assignment 
+                            })}
+                            disabled={!isSuperAdmin}
+                          >
+                            <Edit3 className="h-4 w-4 mr-1" />
+                            Editar
+                          </Button>
+                          
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => setDeleteAssignmentModal({ 
+                              open: true, 
+                              assignment: assignment 
+                            })}
+                            disabled={!isSuperAdmin}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Eliminar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="invitations" className="space-y-4 mt-0">
-                <div className="text-center py-8">
-                  <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Invitaciones Enviadas</h3>
-                  <p className="text-gray-600">Funcionalidad en desarrollo...</p>
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchInvitations} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button 
+                      onClick={() => setAddMemberModal(true)} 
+                      size="sm"
+                      disabled={!isSuperAdmin}
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Nueva Invitación
+                    </Button>
+                  </div>
                 </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Mail className="h-4 w-4 text-amber-600 mt-0.5" />
+                    <div className="text-sm text-amber-800">
+                      <strong>Invitaciones:</strong> Aquí puedes ver todas las invitaciones enviadas a nuevos miembros del equipo.
+                      Las invitaciones pendientes expiran en 7 días.
+                    </div>
+                  </div>
+                </div>
+
+                {filteredInvitations.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No hay invitaciones</h3>
+                    <p className="text-gray-600 mb-4">Aún no se han enviado invitaciones a nuevos miembros.</p>
+                    <Button 
+                      onClick={() => setAddMemberModal(true)}
+                      disabled={!isSuperAdmin}
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Enviar Primera Invitación
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredInvitations.map((invitation) => (
+                      <div
+                        key={invitation.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <p className="font-medium text-sm">{invitation.email}</p>
+                            <span className="text-xs text-gray-500">({invitation.name})</span>
+                            
+                            <Badge variant={
+                              invitation.status === 'pending' ? 'default' : 
+                              invitation.status === 'accepted' ? 'secondary' :
+                              invitation.status === 'expired' ? 'destructive' : 'outline'
+                            }>
+                              {invitation.status === 'pending' && (
+                                <Clock className="h-3 w-3 mr-1" />
+                              )}
+                              {invitation.status === 'accepted' && (
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                              )}
+                              {invitation.status === 'expired' && (
+                                <XCircle className="h-3 w-3 mr-1" />
+                              )}
+                              {invitation.status === 'pending' ? 'Pendiente' : 
+                               invitation.status === 'accepted' ? 'Aceptada' :
+                               invitation.status === 'expired' ? 'Expirada' : invitation.status}
+                            </Badge>
+                            
+                            {invitation.role === 'admin' && (
+                              <Badge variant="destructive">
+                                <Crown className="h-3 w-3 mr-1" />
+                                Admin
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                            <span>Rol: <strong>{invitation.role}</strong></span>
+                            <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
+                            <span>Enviada: <strong>{formatDate(invitation.created_at)}</strong></span>
+                            <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
+                          </div>
+                          
+                          {invitation.accepted_at && (
+                            <div className="text-xs text-green-600 mt-1">
+                              ✅ Aceptada el {formatDate(invitation.accepted_at)}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          {invitation.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
+                                navigator.clipboard.writeText(invitationUrl);
+                                toast.success('🔗 URL de invitación copiada al portapapeles');
+                              }}
+                            >
+                              <Key className="h-4 w-4 mr-1" />
+                              Copiar URL
+                            </Button>
+                          )}
+                          
+                          {invitation.status === 'accepted' && invitation.user_id && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setActiveTab('members');
+                                setSearchQuery(invitation.email);
+                              }}
+                            >
+                              <User className="h-4 w-4 mr-1" />
+                              Ver Usuario
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
             </CardContent>
           </Tabs>
