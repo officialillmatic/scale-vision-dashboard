@@ -883,11 +883,37 @@ export default function TeamPage() {
   const loadRetellAgentsForModal = async () => {
     setLoadingRetellAgents(true);
     try {
+      console.log('🔍 [TeamPage] Cargando agentes de Retell...');
+      
+      // Verificar que tenemos la API key
+      const apiKey = import.meta.env.VITE_RETELL_API_KEY;
+      if (!apiKey) {
+        throw new Error('VITE_RETELL_API_KEY no está configurada');
+      }
+      
+      console.log('🔑 [TeamPage] API Key encontrada:', apiKey.slice(0, 10) + '...');
+      
       const agents = await getAllRetellAgentsForTeam();
       setRetellAgents(agents);
-    } catch (error) {
-      console.error('Error loading Retell agents:', error);
-      toast.error('Error al cargar agentes de Retell');
+      
+      console.log('✅ [TeamPage] Agentes de Retell cargados:', agents.length);
+      
+      if (agents.length === 0) {
+        toast.info('No se encontraron agentes en Retell AI');
+      }
+      
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error cargando agentes de Retell:', error);
+      
+      // Mostrar error específico según el tipo
+      if (error.message.includes('401') || error.message.includes('403')) {
+        toast.error('Error de autenticación con Retell AI. Verifica tu API key.');
+      } else if (error.message.includes('VITE_RETELL_API_KEY')) {
+        toast.error('API key de Retell no configurada. Revisa tu archivo .env');
+      } else {
+        toast.error(`Error al cargar agentes de Retell: ${error.message}`);
+      }
+      
       setRetellAgents([]);
     } finally {
       setLoadingRetellAgents(false);
@@ -944,6 +970,28 @@ export default function TeamPage() {
       toast.error(`Error: ${error.message}`);
     }
   };
+  // ========================================
+  // FUNCIÓN DE DEBUGGING (temporal)
+  // ========================================
+
+  const debugRetellConfiguration = () => {
+    console.log('🔧 [TeamPage] Debug - Configuración Retell:');
+    console.log('API Key:', import.meta.env.VITE_RETELL_API_KEY ? '✅ Configurada' : '❌ No configurada');
+    console.log('Base URL:', import.meta.env.VITE_RETELL_API_BASE_URL || 'https://api.retellai.com/v2');
+    console.log('Debug Mode:', import.meta.env.VITE_DEBUG_RETELL_API);
+    
+    // Test básico de conectividad
+    if (import.meta.env.VITE_RETELL_API_KEY) {
+      loadRetellAgentsForModal();
+    } else {
+      console.error('❌ No se puede probar conectividad sin API key');
+    }
+  };
+
+  // Hacer la función accesible desde la consola del navegador (temporal)
+  if (typeof window !== 'undefined') {
+    (window as any).debugRetellConfiguration = debugRetellConfiguration;
+  }
 
   const handleViewAgent = async (agent: Agent) => {
     try {
@@ -2095,65 +2143,23 @@ export default function TeamPage() {
             MODALES PARA AGENTES
             ======================================== */}
 
-        {/* Modal para agregar agente */}
+        {/* Modal para agregar agente - CORREGIDO */}
         {addAgentModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-[500px] max-w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bot className="h-5 w-5 text-purple-500" />
-                  Agregar Nuevo Agente
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Selecciona un agente de Retell AI para añadir a tu equipo
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Button 
-                    onClick={loadRetellAgentsForModal} 
-                    disabled={loadingRetellAgents}
-                    className="w-full"
-                  >
-                    {loadingRetellAgents ? 'Cargando...' : 'Cargar Agentes de Retell'}
-                  </Button>
-                  
-                  {retellAgents.length > 0 && (
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {retellAgents.map((retellAgent) => (
-                        <div key={retellAgent.agent_id} className="border rounded p-3">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium">{retellAgent.agent_name}</p>
-                              <p className="text-xs text-gray-500">ID: {retellAgent.agent_id}</p>
-                              <p className="text-xs text-gray-500">Voz: {retellAgent.voice_id}</p>
-                            </div>
-                            <Button 
-                              size="sm"
-                              onClick={() => handleAddAgent({
-                                retell_agent_id: retellAgent.agent_id,
-                                name: retellAgent.agent_name,
-                                description: `Voz: ${retellAgent.voice_id}, Idioma: ${retellAgent.language}`
-                              })}
-                            >
-                              Agregar
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="flex justify-end space-x-2 mt-6">
-                  <Button variant="outline" onClick={() => setAddAgentModal(false)}>
-                    Cancelar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <AddAgentForm
+                  onClose={() => setAddAgentModal(false)}
+                  onSave={handleAddAgent}
+                  companies={companies}
+                  retellAgents={retellAgents}
+                  loadingRetellAgents={loadingRetellAgents}
+                  onLoadRetellAgents={loadRetellAgentsForModal}
+                />
+              </div>
+            </div>
           </div>
         )}
-
         {/* Modal para ver detalles del agente */}
         {agentDetailsModal.open && agentDetailsModal.agent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
