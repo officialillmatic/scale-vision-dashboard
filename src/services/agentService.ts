@@ -1,4 +1,4 @@
-// services/agentService.ts - PARTE 1
+// services/agentService.ts
 // Main agent service - exports all functionality from modular files
 
 // ========================================
@@ -79,14 +79,13 @@ export interface RetellApiResponse<T> {
   error?: string;
   status?: number;
 }
-// services/agentService.ts - PARTE 2
-// Configuración y utilidades de red
 
 // ========================================
-// CONFIGURACIÓN Y CONSTANTES
+// CONFIGURACIÓN Y CONSTANTES - ✅ CORREGIDO
 // ========================================
 
-const RETELL_API_BASE_URL = 'https://api.retellai.com/v2';
+// ✅ URL CORREGIDA - SIN /v2
+const RETELL_API_BASE_URL = 'https://api.retellai.com';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 segundo
 
@@ -98,7 +97,8 @@ function getRetellApiKey(): string {
   // Intenta primero con Vite, luego con Next.js
   const apiKey = import.meta.env?.VITE_RETELL_API_KEY || 
                  process.env.NEXT_PUBLIC_RETELL_API_KEY || 
-                 process.env.RETELL_API_KEY;
+                 process.env.RETELL_API_KEY ||
+                 'key_95bd60545651d5d45eda5de17b2c'; // Fallback con tu API key
   
   if (!apiKey) {
     console.warn('⚠️ RETELL_API_KEY no está configurada en las variables de entorno');
@@ -172,21 +172,21 @@ async function fetchWithRetry(
 
   throw lastError || new Error('Error desconocido en petición a Retell API');
 }
-// services/agentService.ts - PARTE 3
-// Funciones principales para TeamPage
 
 // ========================================
-// 🆕 FUNCIONES PARA INTEGRACIÓN CON RETELL API (TEAMPAGE)
+// 🆕 FUNCIONES PARA INTEGRACIÓN CON RETELL API (TEAMPAGE) - ✅ CORREGIDO
 // ========================================
 
 /**
  * 📡 Obtener todos los agentes directamente de Retell API
  * Específicamente para uso en TeamPage y gestión de equipos
+ * ✅ URL CORREGIDA
  */
 export async function getAllRetellAgentsForTeam(): Promise<RetellAgentDetailed[]> {
   try {
     console.log('🔍 [TeamPage] Fetching agents from Retell API...');
     
+    // ✅ URL CORREGIDA - SIN /v2
     const response = await fetchWithRetry(`${RETELL_API_BASE_URL}/list-agents`, {
       method: 'GET',
       headers: getRetellHeaders()
@@ -207,6 +207,17 @@ export async function getAllRetellAgentsForTeam(): Promise<RetellAgentDetailed[]
     }
 
     console.log(`✅ [TeamPage] ${agents.length} agentes obtenidos exitosamente`);
+    
+    // Log del primer agente para debugging
+    if (agents.length > 0) {
+      console.log('📊 [TeamPage] Primer agente:', {
+        id: agents[0].agent_id,
+        name: agents[0].agent_name,
+        voice: agents[0].voice_id,
+        language: agents[0].language
+      });
+    }
+    
     return agents;
 
   } catch (error: any) {
@@ -226,6 +237,7 @@ export async function getAllRetellAgentsForTeam(): Promise<RetellAgentDetailed[]
 /**
  * 🔍 Obtener un agente específico de Retell API
  * Para mostrar detalles completos en TeamPage
+ * ✅ URL CORREGIDA
  */
 export async function getRetellAgentDetailsForTeam(agentId: string): Promise<RetellAgentDetailed> {
   try {
@@ -235,6 +247,7 @@ export async function getRetellAgentDetailsForTeam(agentId: string): Promise<Ret
       throw new Error('ID de agente no válido');
     }
 
+    // ✅ URL CORREGIDA - SIN /v2
     const response = await fetchWithRetry(`${RETELL_API_BASE_URL}/get-agent/${agentId}`, {
       method: 'GET',
       headers: getRetellHeaders()
@@ -318,15 +331,14 @@ export async function getRetellAgentStats(agentId: string): Promise<{
     return null;
   }
 }
-// services/agentService.ts - PARTE 4
-// Funciones CRUD adicionales para Retell API
 
 // ========================================
-// FUNCIONES ADICIONALES DE RETELL API
+// FUNCIONES ADICIONALES DE RETELL API - ✅ URLS CORREGIDAS
 // ========================================
 
 /**
  * Crea un nuevo agente en Retell AI
+ * ✅ URL CORREGIDA
  */
 export async function createRetellAgent(agentData: {
   agent_name: string;
@@ -347,6 +359,7 @@ export async function createRetellAgent(agentData: {
       }
     };
 
+    // ✅ URL CORREGIDA - SIN /v2
     const response = await fetchWithRetry(`${RETELL_API_BASE_URL}/create-agent`, {
       method: 'POST',
       headers: getRetellHeaders(),
@@ -366,6 +379,7 @@ export async function createRetellAgent(agentData: {
 
 /**
  * Actualiza un agente existente en Retell AI
+ * ✅ URL CORREGIDA
  */
 export async function updateRetellAgent(
   agentId: string, 
@@ -374,6 +388,7 @@ export async function updateRetellAgent(
   try {
     console.log(`🔧 [AgentService] Actualizando agente ${agentId}`);
 
+    // ✅ URL CORREGIDA - SIN /v2
     const response = await fetchWithRetry(`${RETELL_API_BASE_URL}/update-agent/${agentId}`, {
       method: 'PATCH',
       headers: getRetellHeaders(),
@@ -393,11 +408,13 @@ export async function updateRetellAgent(
 
 /**
  * Elimina un agente de Retell AI
+ * ✅ URL CORREGIDA
  */
 export async function deleteRetellAgent(agentId: string): Promise<void> {
   try {
     console.log(`🗑️ [AgentService] Eliminando agente ${agentId}`);
 
+    // ✅ URL CORREGIDA - SIN /v2
     await fetchWithRetry(`${RETELL_API_BASE_URL}/delete-agent/${agentId}`, {
       method: 'DELETE',
       headers: getRetellHeaders()
@@ -413,11 +430,13 @@ export async function deleteRetellAgent(agentId: string): Promise<void> {
 
 /**
  * Obtiene las voces disponibles en Retell AI
+ * ✅ URL CORREGIDA
  */
 export async function getAvailableVoices(): Promise<any[]> {
   try {
     console.log('🎵 [AgentService] Obteniendo voces disponibles...');
 
+    // ✅ URL CORREGIDA - SIN /v2
     const response = await fetchWithRetry(`${RETELL_API_BASE_URL}/list-voices`, {
       method: 'GET',
       headers: getRetellHeaders()
@@ -436,11 +455,13 @@ export async function getAvailableVoices(): Promise<any[]> {
 
 /**
  * Obtiene los modelos LLM disponibles en Retell AI
+ * ✅ URL CORREGIDA
  */
 export async function getAvailableLLMs(): Promise<any[]> {
   try {
     console.log('🧠 [AgentService] Obteniendo modelos LLM disponibles...');
 
+    // ✅ URL CORREGIDA - SIN /v2
     const response = await fetchWithRetry(`${RETELL_API_BASE_URL}/list-llms`, {
       method: 'GET',
       headers: getRetellHeaders()
@@ -482,8 +503,6 @@ export async function testRetellConnection(): Promise<RetellApiResponse<string>>
     };
   }
 }
-// services/agentService.ts - PARTE 5
-// Funciones auxiliares y exports finales
 
 // ========================================
 // FUNCIONES AUXILIARES
