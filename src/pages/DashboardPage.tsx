@@ -803,12 +803,14 @@ export default function DashboardPage() {
               Live Data
             </Badge>
             <Button
-              onClick={fetchCallsData}
-              disabled={loading}
-              variant="outline"
-              size="sm"
-              className="text-xs sm:text-sm"
-            >
+  onClick={() => {
+    fetchCallsData();
+    if (user?.id) refreshCreditBalance(user.id);
+  }}
+  disabled={loading}
+  variant="outline"
+  size="sm"
+>
               {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
             </Button>
           </div>
