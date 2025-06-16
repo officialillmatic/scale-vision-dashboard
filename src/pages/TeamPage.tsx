@@ -1930,7 +1930,6 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-
               <TabsContent value="invitations" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
