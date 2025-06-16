@@ -706,6 +706,7 @@ export default function TeamPage() {
       });
 
       setAssignments(combinedAssignments);
+      console.log('✅ [DEBUG] Assignments loaded:', combinedAssignments);
       console.log('✅ [TeamPage] Assignments loaded successfully:', combinedAssignments.length);
 
     } catch (error: any) {
