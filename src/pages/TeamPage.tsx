@@ -1087,7 +1087,7 @@ export default function TeamPage() {
   // Verificación de permisos de super admin
   if (!isSuperAdmin) {
     return (
-      <Dash
+      <DashboardLayout>
         // Verificación de permisos de super admin
   if (!isSuperAdmin) {
     return (
