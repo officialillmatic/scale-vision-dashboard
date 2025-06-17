@@ -167,27 +167,25 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-{true && (
-            <Button 
-              variant="outline" 
-              onClick={handleMigrateUsers} 
-              disabled={isMigrating || isLoading}
-              size="sm"
-              className="bg-green-50 border-green-200 hover:bg-green-100"
-            >
-              {isMigrating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin mr-2" />
-                  Migrando...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Migrar Usuarios
-                </>
-              )}
-            </Button>
-          )}
+<Button 
+  variant="outline" 
+  onClick={handleMigrateUsers} 
+  disabled={isMigrating || isLoading}
+  size="sm"
+  style={{backgroundColor: '#f0fdf4', borderColor: '#bbf7d0'}}
+>
+  {isMigrating ? (
+    <>
+      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+      Migrando...
+    </>
+  ) : (
+    <>
+      <UserPlus className="mr-2 h-4 w-4" />
+      Migrar Usuarios
+    </>
+  )}
+</Button>
           
           <Button onClick={openInviteDialog} disabled={isInviting || isLoading}>
             <UserPlus className="mr-2 h-4 w-4" />
