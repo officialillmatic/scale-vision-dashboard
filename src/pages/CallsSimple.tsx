@@ -537,17 +537,6 @@ useEffect(() => {
       console.log('🧹 Timer de respaldo limpiado');
     };
   }
-}, [calls.length]); // Solo cuando cambia la cantidad de calls
-    
-    // Delay pequeño para asegurar que todo esté estable
-    const timer = setTimeout(() => {
-      processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
-    }, 500);
-    
-    // Cleanup del timer
-    return () => clearTimeout(timer);
-  }
-}, [calls, user?.id, loading]); 
 
   // 🧪 FUNCIÓN DE PRUEBA MANUAL
 const testManualDeduction = async () => {
