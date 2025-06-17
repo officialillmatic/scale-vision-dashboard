@@ -286,6 +286,23 @@ export function useAutoPollingBalance() {
     };
   }, [user?.id, updateData, startPolling, stopPolling]);
 
+  // 🆕 LISTENER PARA ACTUALIZACIONES INMEDIATAS DESDE CALLS
+useEffect(() => {
+  const handleBalanceUpdate = (event: any) => {
+    console.log('🔔 Balance update event received:', event.detail);
+    // Actualizar inmediatamente cuando se reciba el evento
+    updateData(true);
+  };
+
+  // Escuchar el evento que enviamos desde CallsSimple.tsx
+  window.addEventListener('balanceUpdated', handleBalanceUpdate);
+
+  // Cleanup
+  return () => {
+    window.removeEventListener('balanceUpdated', handleBalanceUpdate);
+  };
+}, [updateData]);
+
   // Effect para limpiar el indicador de último cambio después de 10 segundos
   useEffect(() => {
     if (lastBalanceChange) {
