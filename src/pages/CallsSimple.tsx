@@ -463,6 +463,62 @@ export default function CallsSimple() {
   }
 }, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
 
+  // 🧪 FUNCIÓN DE PRUEBA MANUAL
+const testManualDeduction = async () => {
+  console.log('🧪 INICIANDO PRUEBA MANUAL DE DESCUENTO...');
+  
+  if (!user?.id) {
+    alert('Usuario no identificado');
+    return;
+  }
+
+  // Buscar la llamada específica que sabemos que existe
+  const testCall = calls.find(call => call.call_id === 'call_78a0aae4402d94f9f1ebf56a9ad');
+  
+  if (!testCall) {
+    alert('No se encontró la llamada de prueba. Recarga la página.');
+    return;
+  }
+
+  console.log('🎯 Llamada de prueba encontrada:', testCall);
+  
+  // Calcular costo manualmente
+  const duration = testCall.duration_sec || 180; // 3 minutos
+  const agentRate = 0.50; // Asumimos $0.50 por minuto
+  const calculatedCost = (duration / 60) * agentRate;
+  
+  console.log(`💰 Cálculo manual:
+    Duración: ${duration} segundos = ${duration/60} minutos
+    Tarifa: $${agentRate}/minuto
+    Costo total: $${calculatedCost.toFixed(4)}`);
+
+  // Aplicar descuento manualmente
+  try {
+    const deductionSuccess = await deductCallCost(testCall.call_id, calculatedCost, user.id);
+    
+    if (deductionSuccess) {
+      alert(`✅ ¡ÉXITO! Se descontó $${calculatedCost.toFixed(4)} del balance`);
+      
+      // Actualizar costo en la base de datos
+      const { error } = await supabase
+        .from('calls')
+        .update({ cost_usd: calculatedCost })
+        .eq('id', testCall.id);
+        
+      if (!error) {
+        // Recargar datos
+        fetchCalls();
+        alert('💾 Costo actualizado en la base de datos');
+      }
+    } else {
+      alert('❌ Falló el descuento. Revisa la consola.');
+    }
+  } catch (error) {
+    console.error('💥 Error en prueba manual:', error);
+    alert('💥 Error en la prueba. Revisa la consola.');
+  }
+};
+
   useEffect(() => {
     const loadAllAudioDurations = async () => {
       const callsWithAudio = calls.filter(call => call.recording_url);
@@ -951,6 +1007,15 @@ const getCallDuration = (call: any) => {
                 size="sm"
               >
                 {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
+              </Button>
+              <Button
+                onClick={testManualDeduction}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+                className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+              >
+                🧪 Test Deduction
               </Button>
             </div>
           </div>
