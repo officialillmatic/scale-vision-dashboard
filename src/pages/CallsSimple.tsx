@@ -1470,27 +1470,31 @@ for (const call of data) {
               >
                 {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
               </Button>
-              <Button
-                onClick={testManualDeduction}
-                disabled={loading}
-                variant="outline"
-                size="sm"
-                className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
-              >
-                🧪 Test Deduction
-              </Button>
-
               
+              {/* 🔒 BOTONES SOLO PARA USUARIO DE PRUEBAS */}
+              {user?.email === 'alexbuenhombre2012@gmail.com' && (
+                <>
+                  <Button
+                    onClick={testManualDeduction}
+                    disabled={loading}
+                    variant="outline"
+                    size="sm"
+                    className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                  >
+                    🧪 Test Deduction
+                  </Button>             
 
-<Button
-  onClick={verifyAutoDeductionSystem}
-  disabled={loading}
-  variant="outline"
-  size="sm"
-  className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
->
-  🔍 Verify System
-</Button>
+                  <Button
+                    onClick={verifyAutoDeductionSystem}
+                    disabled={loading}
+                    variant="outline"
+                    size="sm"
+                    className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                  >
+                    🔍 Verify System
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
