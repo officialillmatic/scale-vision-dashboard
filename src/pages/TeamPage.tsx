@@ -1362,21 +1362,24 @@ export default function TeamPage() {
             <CardContent>
               {/* Tab: Miembros del Equipo */}
               <TabsContent value="members" className="space-y-4 mt-0">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Miembros del Equipo ({filteredMembers.length})</h3>
-                  <div className="flex gap-2">
-                    <Button onClick={fetchTeamMembers} variant="outline" size="sm" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar
-                    </Button>
-                    <Button 
-                      onClick={() => setAddMemberModal(true)} 
-                      size="sm"
-                      disabled={!isSuperAdmin}
-                    >
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      Invitar Miembro
-                    </Button>
+                <div className="flex gap-2">
+  <Button onClick={fetchTeamMembers} variant="outline" size="sm" disabled={loading}>
+    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+    Actualizar
+  </Button>
+  <Button variant="outline" size="sm" onClick={() => console.log('Botón configurar')}>
+    <Settings className="w-4 h-4 mr-2" />
+    Configurar
+  </Button>
+  <Button 
+    onClick={() => setAddMemberModal(true)} 
+    size="sm"
+    disabled={!isSuperAdmin}
+  >
+    <UserPlus className="w-4 h-4 mr-2" />
+    Invitar Miembro
+  </Button>
+</div>
                   </div>
                 </div>
 
