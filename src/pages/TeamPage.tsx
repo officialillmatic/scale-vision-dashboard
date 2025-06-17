@@ -724,6 +724,110 @@ await Promise.all([
     toast.error(`Error al cargar usuarios registrados: ${error.message}`);
   }
 }, []);
+  const fetchAgents = useCallback(async () => {
+  try {
+    console.log('🔍 [TeamPage] Fetching Custom AI Agents from database...');
+    
+    const { data: customAgents, error: customError } = await supabase
+      .from('agents')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (customError) {
+      console.error('❌ Error fetching custom agents:', customError);
+      throw customError;
+    }
+
+    if (!customAgents || customAgents.length === 0) {
+      console.log('⚠️ No custom agents found');
+      setAgents([]);
+      return;
+    }
+
+    // Obtener información adicional de Retell para enriquecer los datos
+    let retellAgents: RetellAgentDetailed[] = [];
+    try {
+      console.log('🔍 [TeamPage] Obteniendo datos de Retell para enriquecer información...');
+      retellAgents = await getAllRetellAgentsForTeam();
+      setRetellAgents(retellAgents);
+      setLastRetellUpdate(new Date());
+      setRetellError(null);
+      console.log('✅ [TeamPage] Retell data fetched for enrichment:', retellAgents.length);
+    } catch (retellError: any) {
+      console.error('⚠️ [TeamPage] Error fetching Retell data for enrichment:', retellError);
+      setRetellError('No se pudieron cargar datos de Retell AI para enriquecimiento');
+    }
+
+    // Procesar SOLO los Custom Agents
+    const processedCustomAgents: Agent[] = customAgents.map(customAgent => {
+      try {
+        const retellData = retellAgents.find(r => r.agent_id === customAgent.retell_agent_id);
+        
+        return {
+          id: customAgent.id,
+          name: customAgent.name || 'Custom Agent Sin Nombre',
+          retell_agent_id: customAgent.retell_agent_id || 'No asignado',
+          company_id: customAgent.company_id,
+          company_name: null,
+          assigned_users: 0,
+          total_calls: 0,
+          status: customAgent.status || 'active',
+          created_at: customAgent.created_at || new Date().toISOString(),
+          description: customAgent.description || (retellData ? `Voz: ${retellData.voice_id}` : 'Sin descripción'),
+          voice_id: retellData?.voice_id || 'No disponible',
+          language: retellData?.language || 'No disponible',
+          llm_id: retellData?.response_engine?.llm_id || 'No disponible',
+          last_modification_time: retellData?.last_modification_time,
+          avatar_url: customAgent.avatar_url,
+          rate_per_minute: customAgent.rate_per_minute
+        };
+      } catch (agentError) {
+        console.warn('⚠️ [TeamPage] Error procesando custom agent:', customAgent.id, agentError);
+        return {
+          id: customAgent.id,
+          name: customAgent.name || 'Custom Agent con Error',
+          retell_agent_id: customAgent.retell_agent_id || 'Error',
+          company_id: customAgent.company_id,
+          company_name: null,
+          assigned_users: 0,
+          total_calls: 0,
+          status: 'inactive',
+          created_at: customAgent.created_at || new Date().toISOString(),
+          description: 'Error al procesar datos del agente',
+          avatar_url: customAgent.avatar_url,
+          rate_per_minute: customAgent.rate_per_minute
+        };
+      }
+    });
+
+    const sortedCustomAgents = processedCustomAgents.sort((a, b) => {
+      try {
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (a.status !== 'active' && b.status === 'active') return 1;
+        
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
+        
+        if (isNaN(dateA) && isNaN(dateB)) return 0;
+        if (isNaN(dateA)) return 1;
+        if (isNaN(dateB)) return -1;
+        
+        return dateB - dateA;
+      } catch (sortError) {
+        console.warn('⚠️ Error ordenando custom agents:', sortError);
+        return 0;
+      }
+    });
+
+    setAgents(sortedCustomAgents);
+    console.log(`✅ [TeamPage] Custom Agents loaded successfully: ${sortedCustomAgents.length} agents`);
+
+  } catch (error: any) {
+    console.error('❌ [TeamPage] Error fetching custom agents:', error);
+    toast.error(`Error al cargar Custom Agents: ${error.message}`);
+    setAgents([]);
+  }
+}, []);
   // ========================================
   // ✅ HANDLERS DE ASIGNACIONES CORREGIDOS
   // ========================================
