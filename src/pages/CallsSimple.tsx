@@ -1111,7 +1111,7 @@ const updateCallCostInDatabase = async (callId: string, calculatedCost: number) 
 };
   
   /// 🔧 FUNCIÓN MODIFICADA - Reemplazar tu calculateCallCost existente con esta
-const calculateCallCost = async (call: Call) => {
+const calculateCallCost = async (call: Call, forceUpdate = false) => {
   const durationMinutes = getCallDuration(call) / 60;
   let agentRate = 0;
   
@@ -1129,17 +1129,25 @@ const calculateCallCost = async (call: Call) => {
   }
   
   const calculatedCost = durationMinutes * agentRate;
+  const currentCost = parseFloat(call.cost_usd || 0);
   
   console.log(`🧮 COST CALCULATION:
     📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
     💵 Rate: $${agentRate}/min
     🎯 Calculated: $${calculatedCost.toFixed(4)}
-    🗄️ DB Cost: $${call.cost_usd || 0} (IGNORED)`);
+    🗄️ DB Cost: $${currentCost} (IGNORED)`);
   
-  // 🆕 NUEVA LÓGICA: Actualizar en la base de datos automáticamente
-  if (calculatedCost > 0 && calculatedCost !== parseFloat(call.cost_usd || 0)) {
-    console.log(`💾 Costo diferente detectado, actualizando BD: $${call.cost_usd || 0} → $${calculatedCost.toFixed(4)}`);
+  // 🚀 OPTIMIZACIÓN: Solo actualizar si es necesario
+  const needsUpdate = forceUpdate || 
+    (calculatedCost > 0 && 
+     Math.abs(calculatedCost - currentCost) > 0.01 && // Diferencia mayor a 1 centavo
+     currentCost === 0); // Solo si el costo actual es 0 (llamadas nuevas)
+  
+  if (needsUpdate) {
+    console.log(`💾 Actualizando costo necesario: $${currentCost} → $${calculatedCost.toFixed(4)}`);
     await updateCallCostInDatabase(call.call_id, calculatedCost);
+  } else {
+    console.log(`⏭️ Costo ya actualizado, saltando: ${call.call_id}`);
   }
   
   return calculatedCost;
@@ -1498,9 +1506,17 @@ const getCallDuration = (call: any) => {
       setCalls(data || []);
 
       if (data && data.length > 0) {
-        let totalCost = 0;
+        // 🚀 OPTIMIZACIÓN: Calcular costo total sin actualizar BD
+let totalCost = 0;
 for (const call of data) {
-  totalCost += await calculateCallCost(call);
+  const durationMinutes = getCallDuration(call) / 60;
+  const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || 0;
+  
+  if (agentRate > 0) {
+    totalCost += durationMinutes * agentRate;
+  } else {
+    totalCost += call.cost_usd || 0;
+  }
 }
         const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
         const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
