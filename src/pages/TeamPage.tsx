@@ -411,7 +411,7 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
         fetchAgents(),
         fetchCompanies(),
         fetchAssignments(), // ✅ AGREGADO
-        fetchInvitations()
+        fetchInvitations(),
         fetchAllRegisteredUsers()
       ]);
       
