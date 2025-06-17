@@ -406,13 +406,18 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
     try {
       console.log('🔄 [TeamPage] Cargando todos los datos...');
       
-      await Promise.all([
+      // Primero cargar usuarios
+await Promise.all([
   fetchTeamMembers(),
+  fetchAllRegisteredUsers()
+]);
+
+// Después cargar todo lo demás incluyendo asignaciones
+await Promise.all([
   fetchAgents(),
   fetchCompanies(),
-  fetchAssignments(),
   fetchInvitations(),
-  fetchAllRegisteredUsers()
+  fetchAssignments()
 ]);
       
       console.log('✅ [TeamPage] Todos los datos cargados exitosamente');
@@ -430,185 +435,53 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
   // ========================================
 
   const fetchAssignments = useCallback(async () => {
-    try {
-      console.log('🔍 [TeamPage] Fetching user-agent assignments...');
+  try {
+    console.log('🔍 [TeamPage] Fetching user-agent assignments...');
+    
+    // ✅ USAR LA FUNCIÓN DEL SERVICE QUE YA FUNCIONA
+    const assignmentsData = await fetchUserAgentAssignments();
+    
+    // ✅ AHORA SÍ DEBERÍAN ESTAR DISPONIBLES teamMembers y registeredUsers
+    const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
+      let userEmail = `usuario-${assignment.user_id.slice(0, 8)}@unknown.com`;
+      let userName = `Usuario ${assignment.user_id.slice(0, 8)}`;
       
-      // ✅ USAR LA FUNCIÓN DEL SERVICE QUE YA FUNCIONA
-      const assignmentsData = await fetchUserAgentAssignments();
+      // Buscar en teamMembers primero
+      const teamMember = teamMembers.find(member => member.id === assignment.user_id);
+      if (teamMember) {
+        userEmail = teamMember.email;
+        userName = teamMember.name || teamMember.email;
+      }
+      // Si no está en teamMembers, buscar en registeredUsers
+      else {
+        const registeredUser = registeredUsers.find(user => user.id === assignment.user_id);
+        if (registeredUser) {
+          userEmail = registeredUser.email;
+          userName = registeredUser.name || registeredUser.email;
+        }
+      }
       
-      // ✅ CONVERTIR AL FORMATO QUE ESPERA TU CÓDIGO ORIGINAL - CORRIGIENDO EMAIL
-      const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
-        // 🔧 CORREGIR EL MAPEO DEL EMAIL Y NOMBRE - VERSIÓN MEJORADA
-        let userEmail = 'usuario@example.com';
-        let userName = 'Usuario';
+      return {
+        id: assignment.id,
+        user_id: assignment.user_id,
+        agent_id: assignment.agent_id,
+        user_email: userEmail,
+        user_name: userName,
+        agent_name: assignment.agent_details?.name || 'Agente',
+        is_primary: assignment.is_primary || false,
+        created_at: assignment.assigned_at || new Date().toISOString()
+      };
+    });
 
-        // 1. Primero intentar obtener del user_details
-        if (assignment.user_details?.email) {
-          userEmail = assignment.user_details.email;
-          userName = assignment.user_details.full_name || assignment.user_details.name || assignment.user_details.email;
-        }
-        // 2. Si no hay user_details, buscar en teamMembers (datos que ya tenemos)
-        else if (teamMembers && teamMembers.length > 0) {
-          const teamMember = teamMembers.find(member => member.id === assignment.user_id);
-          if (teamMember) {
-            userEmail = teamMember.email;
-            userName = teamMember.name || teamMember.email;
-          }
-        }
-        // 3. Si tampoco está en teamMembers, buscar en registeredUsers
-        else if (registeredUsers && registeredUsers.length > 0) {
-          const registeredUser = registeredUsers.find(user => user.id === assignment.user_id);
-          if (registeredUser) {
-            userEmail = registeredUser.email;
-            userName = registeredUser.name || registeredUser.email;
-          }
-        }
-        // 4. Si no encontramos el usuario, usar el ID como fallback
-        else {
-          console.warn('⚠️ No se encontró información del usuario:', assignment.user_id);
-          userEmail = `usuario-${assignment.user_id.slice(0, 8)}@unknown.com`;
-          userName = `Usuario ${assignment.user_id.slice(0, 8)}`;
-        }
-        
-        return {
-          id: assignment.id,
-          user_id: assignment.user_id,
-          agent_id: assignment.agent_id,
-          user_email: userEmail,
-          user_name: userName,
-          agent_name: assignment.agent_details?.name || 'Agente',
-          is_primary: assignment.is_primary || false,
-          created_at: assignment.assigned_at || new Date().toISOString()
-        };
-      });
+    setAssignments(formattedAssignments);
+    console.log('✅ [TeamPage] Assignments loaded successfully:', formattedAssignments.length);
 
-      setAssignments(formattedAssignments);
-      console.log('✅ [TeamPage] Assignments loaded successfully:', formattedAssignments.length);
-      console.log('🔍 [DEBUG] Formatted assignments:', formattedAssignments);
-
-    } catch (error: any) {
-      console.error('❌ [TeamPage] Error fetching assignments:', error);
-      setAssignments([]);
-      toast.error(`Error al cargar asignaciones: ${error.message}`);
-    }
-  }, [teamMembers, registeredUsers]);
-
-  // ========================================
-  // ✅ FUNCIÓN FETCHAGENTS ORIGINAL (mantener igual)
-  // ========================================
-
-  const fetchAgents = useCallback(async () => {
-    try {
-      console.log('🔍 [TeamPage] Fetching Custom AI Agents from database...');
-      
-      // ✅ SOLO obtener Custom Agents de la base de datos local
-      const { data: customAgents, error: customError } = await supabase
-        .from('agents')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (customError) {
-        console.error('❌ Error fetching custom agents:', customError);
-        throw customError;
-      }
-
-      if (!customAgents || customAgents.length === 0) {
-        console.log('⚠️ No custom agents found');
-        setAgents([]);
-        return;
-      }
-
-      // ✅ Obtener información adicional de Retell para enriquecer los datos
-      let retellAgents: RetellAgentDetailed[] = [];
-      try {
-        console.log('🔍 [TeamPage] Obteniendo datos de Retell para enriquecer información...');
-        retellAgents = await getAllRetellAgentsForTeam();
-        setRetellAgents(retellAgents);
-        setLastRetellUpdate(new Date());
-        setRetellError(null);
-        console.log('✅ [TeamPage] Retell data fetched for enrichment:', retellAgents.length);
-      } catch (retellError: any) {
-        console.error('⚠️ [TeamPage] Error fetching Retell data for enrichment:', retellError);
-        setRetellError('No se pudieron cargar datos de Retell AI para enriquecimiento');
-      }
-
-      // ✅ Procesar SOLO los Custom Agents
-      const processedCustomAgents: Agent[] = customAgents.map(customAgent => {
-        try {
-          // Buscar datos de Retell correspondientes para enriquecer información
-          const retellData = retellAgents.find(r => r.agent_id === customAgent.retell_agent_id);
-          
-          return {
-            id: customAgent.id,
-            name: customAgent.name || 'Custom Agent Sin Nombre',
-            retell_agent_id: customAgent.retell_agent_id || 'No asignado',
-            company_id: customAgent.company_id,
-            company_name: null,
-            assigned_users: 0,
-            total_calls: 0,
-            status: customAgent.status || 'active',
-            created_at: customAgent.created_at || new Date().toISOString(),
-            description: customAgent.description || (retellData ? `Voz: ${retellData.voice_id}` : 'Sin descripción'),
-            
-            // ✅ Datos enriquecidos de Retell (si están disponibles)
-            voice_id: retellData?.voice_id || 'No disponible',
-            language: retellData?.language || 'No disponible',
-            llm_id: retellData?.response_engine?.llm_id || 'No disponible',
-            last_modification_time: retellData?.last_modification_time,
-            
-            // ✅ Campos adicionales del CSV
-            avatar_url: customAgent.avatar_url,
-            rate_per_minute: customAgent.rate_per_minute
-          };
-        } catch (agentError) {
-          console.warn('⚠️ [TeamPage] Error procesando custom agent:', customAgent.id, agentError);
-          return {
-            id: customAgent.id,
-            name: customAgent.name || 'Custom Agent con Error',
-            retell_agent_id: customAgent.retell_agent_id || 'Error',
-            company_id: customAgent.company_id,
-            company_name: null,
-            assigned_users: 0,
-            total_calls: 0,
-            status: 'inactive',
-            created_at: customAgent.created_at || new Date().toISOString(),
-            description: 'Error al procesar datos del agente',
-            avatar_url: customAgent.avatar_url,
-            rate_per_minute: customAgent.rate_per_minute
-          };
-        }
-      });
-
-      // ✅ Ordenar por fecha de creación
-      const sortedCustomAgents = processedCustomAgents.sort((a, b) => {
-        try {
-          if (a.status === 'active' && b.status !== 'active') return -1;
-          if (a.status !== 'active' && b.status === 'active') return 1;
-          
-          const dateA = new Date(a.created_at).getTime();
-          const dateB = new Date(b.created_at).getTime();
-          
-          if (isNaN(dateA) && isNaN(dateB)) return 0;
-          if (isNaN(dateA)) return 1;
-          if (isNaN(dateB)) return -1;
-          
-          return dateB - dateA;
-        } catch (sortError) {
-          console.warn('⚠️ Error ordenando custom agents:', sortError);
-          return 0;
-        }
-      });
-
-      setAgents(sortedCustomAgents);
-      console.log(`✅ [TeamPage] Custom Agents loaded successfully: ${sortedCustomAgents.length} agents`);
-
-    } catch (error: any) {
-      console.error('❌ [TeamPage] Error fetching custom agents:', error);
-      toast.error(`Error al cargar Custom Agents: ${error.message}`);
-      setAgents([]);
-    }
-  }, []);
-
+  } catch (error: any) {
+    console.error('❌ [TeamPage] Error fetching assignments:', error);
+    setAssignments([]);
+    toast.error(`Error al cargar asignaciones: ${error.message}`);
+  }
+}, [teamMembers, registeredUsers]);
   // ========================================
   // ✅ FUNCIONES FETCH RESTANTES (mantener originales)
   // ========================================
