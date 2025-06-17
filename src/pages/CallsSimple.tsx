@@ -628,47 +628,51 @@ const subscriptionRef = useRef(null);
     }
   };
   
-  // Aplicar filtros primero
-  applyFiltersAndSort();
-  
-  // 🎯 PROCESAMIENTO DE DESCUENTOS CON MÚLTIPLES INTENTOS
-  if (calls.length > 0 && user?.id) {
-    console.log('✅ Condiciones cumplidas - Iniciando descuentos automáticos');
+  // ✅ SISTEMA DE FILTROS Y PROCESAMIENTO
+  useEffect(() => {
+    console.log('🔄 Hook de filtros y procesamiento activado');
     
-    // Intento inmediato
-    processCallsWithRetry(0);
+    // Aplicar filtros primero
+    applyFiltersAndSort();
     
-    // Intento con delay de 1 segundo
-    setTimeout(() => processCallsWithRetry(1), 1000);
-    
-    // Intento con delay de 3 segundos (backup)
-    setTimeout(() => processCallsWithRetry(2), 3000);
-  } else {
-    console.log('❌ Condiciones no cumplidas:', {
-      hasCalls: calls.length > 0,
-      hasUser: !!user?.id,
-      callsLength: calls.length
-    });
-  }
-  
-  // Función de procesamiento con reintentos
-  function processCallsWithRetry(attempt: number) {
-    console.log(`🔄 Intento ${attempt + 1} de procesamiento de descuentos`);
-    
-    if (calls.length === 0) {
-      console.log(`⏸️ Intento ${attempt + 1} cancelado: sin llamadas`);
-      return;
+    // 🎯 PROCESAMIENTO DE DESCUENTOS CON MÚLTIPLES INTENTOS
+    if (calls.length > 0 && user?.id && !loading) {
+      console.log('✅ Condiciones cumplidas - Iniciando descuentos automáticos');
+      
+      // Función de procesamiento con reintentos
+      const processCallsWithRetry = (attempt) => {
+        console.log(`🔄 Intento ${attempt + 1} de procesamiento de descuentos`);
+        
+        if (calls.length === 0) {
+          console.log(`⏸️ Intento ${attempt + 1} cancelado: sin llamadas`);
+          return;
+        }
+        
+        try {
+          processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
+          console.log(`✅ Intento ${attempt + 1} ejecutado exitosamente`);
+        } catch (error) {
+          console.error(`❌ Error en intento ${attempt + 1}:`, error);
+        }
+      };
+      
+      // Intento inmediato
+      processCallsWithRetry(0);
+      
+      // Intento con delay de 1 segundo
+      setTimeout(() => processCallsWithRetry(1), 1000);
+      
+      // Intento con delay de 3 segundos (backup)
+      setTimeout(() => processCallsWithRetry(2), 3000);
+    } else {
+      console.log('❌ Condiciones no cumplidas:', {
+        hasCalls: calls.length > 0,
+        hasUser: !!user?.id,
+        callsLength: calls.length,
+        loading: loading
+      });
     }
-    
-    try {
-      processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
-      console.log(`✅ Intento ${attempt + 1} ejecutado exitosamente`);
-    } catch (error) {
-      console.error(`❌ Error en intento ${attempt + 1}:`, error);
-    }
-  }
-  
-}, [calls, user?.id, loading]);
+  }, [calls, user?.id, loading, searchTerm, statusFilter, agentFilter, dateFilter, customDate, sortField, sortOrder]);
 
 // 🔥 HOOK ADICIONAL PARA CAMBIOS EN CALLS (SISTEMA DE RESPALDO)
 useEffect(() => {
