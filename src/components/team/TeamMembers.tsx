@@ -52,10 +52,8 @@ console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
 
   // NUEVA FUNCIÓN: Migración Automática de Usuarios Registrados
   const handleMigrateUsers = async () => {
-    if (!company?.id) {
-      toast.error('No company ID found');
-      return;
-    }
+    const companyId = company?.id || 'default-company';
+console.log('🔍 [MIGRATION] Using company ID:', companyId);
 
     setIsMigrating(true);
     
@@ -64,7 +62,7 @@ console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
       toast.info('Iniciando migración de usuarios...');
       
       // Ejecutar la migración
-      const result = await manualMigratePendingUsers(company.id);
+      const result = await manualMigratePendingUsers(companyId);
       
       console.log('📊 [MIGRATION] Result:', result);
       
