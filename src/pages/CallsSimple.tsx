@@ -485,88 +485,118 @@ const subscriptionRef = useRef(null);
     }
   }, [user?.id]);
 
-  // ✅ SISTEMA AUTOMÁTICO DE DESCUENTOS - LLAMADAS REALES
+// ✅ SISTEMA INMEDIATO - REAL TIME
 useEffect(() => {
   if (!user?.id) return;
 
-  console.log('🔄 Iniciando sistema automático de descuentos...');
+  console.log('⚡ Iniciando sistema INMEDIATO de descuentos...');
   
-  const processNewCalls = async () => {
-    try {
-      // Buscar llamadas nuevas sin procesar (últimos 5 minutos)
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      
-      const { data: newCalls, error } = await supabase
-        .from('calls')
-        .select('*')
-        .eq('call_status', 'completed')
-        .gt('duration_sec', 0)
-        .eq('cost_usd', 0)
-        .gte('timestamp', fiveMinutesAgo)
-        .order('timestamp', { ascending: false });
-
-      if (error) {
-        console.error('❌ Error buscando llamadas nuevas:', error);
-        return;
-      }
-
-      if (!newCalls || newCalls.length === 0) {
-        console.log('📞 No hay llamadas nuevas sin procesar');
-        return;
-      }
-
-      console.log(`🎯 Procesando ${newCalls.length} llamadas nuevas automáticamente...`);
-
-      for (const call of newCalls) {
-        // Procesar cada llamada nueva
-        const ratePerMinute = 0.5; // Tu tarifa por minuto
-        const costAmount = (call.duration_sec / 60) * ratePerMinute;
+  // Configurar Real-time listener
+  const channel = supabase
+    .channel('calls-realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'calls'
+      },
+      async (payload) => {
+        console.log('🔔 LLAMADA DETECTADA EN TIEMPO REAL:', payload);
         
-        console.log(`💰 Auto-procesando ${call.call_id}: $${costAmount.toFixed(4)}`);
-
-        // Actualizar costo en la llamada
-        await supabase
-          .from('calls')
-          .update({ cost_usd: costAmount })
-          .eq('call_id', call.call_id);
-
-        // Descontar del balance del usuario
-        const { data: userCredit } = await supabase
-          .from('user_credits')
-          .select('current_balance')
-          .eq('user_id', user.id)
-          .single();
-
-        if (userCredit) {
-          const newBalance = userCredit.current_balance - costAmount;
+        const { eventType, new: newRecord } = payload;
+        
+        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+          const call = newRecord;
           
-          await supabase
-            .from('user_credits')
-            .update({ current_balance: newBalance })
-            .eq('user_id', user.id);
+          // Verificar si es una llamada completada que necesita procesamiento
+          if (call.call_status === 'completed' && 
+              call.duration_sec > 0 && 
+              (!call.cost_usd || call.cost_usd === 0)) {
+            
+            console.log('⚡ PROCESANDO INMEDIATAMENTE:', call.call_id);
+            
+            // Procesar inmediatamente
+            const ratePerMinute = 0.5;
+            const costAmount = (call.duration_sec / 60) * ratePerMinute;
+            
+            console.log(`💰 Costo calculado: $${costAmount.toFixed(4)}`);
+            
+            try {
+              // 1. Actualizar costo en la llamada
+              const { error: updateError } = await supabase
+                .from('calls')
+                .update({ cost_usd: costAmount })
+                .eq('call_id', call.call_id);
 
-          console.log(`✅ Auto-descuento aplicado: $${userCredit.current_balance.toFixed(4)} → $${newBalance.toFixed(4)}`);
+              if (updateError) {
+                console.error('❌ Error actualizando llamada:', updateError);
+                return;
+              }
+
+              // 2. Descontar del balance inmediatamente
+              const { data: userCredit, error: creditError } = await supabase
+                .from('user_credits')
+                .select('current_balance')
+                .eq('user_id', user.id)
+                .single();
+
+              if (creditError) {
+                console.error('❌ Error obteniendo balance:', creditError);
+                return;
+              }
+
+              const currentBalance = userCredit.current_balance;
+              const newBalance = currentBalance - costAmount;
+
+              // Actualizar balance
+              const { error: balanceError } = await supabase
+                .from('user_credits')
+                .update({ 
+                  current_balance: newBalance,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('user_id', user.id);
+
+              if (balanceError) {
+                console.error('❌ Error actualizando balance:', balanceError);
+                return;
+              }
+
+              // 3. Registrar transacción
+              await supabase
+                .from('credit_transactions')
+                .insert({
+                  user_id: user.id,
+                  amount: costAmount,
+                  transaction_type: 'debit',
+                  description: `Auto-deduction - ${call.call_id}`,
+                  created_at: new Date().toISOString()
+                });
+
+              console.log(`🎉 DESCUENTO INMEDIATO APLICADO:`);
+              console.log(`   • Llamada: ${call.call_id}`);
+              console.log(`   • Costo: $${costAmount.toFixed(4)}`);
+              console.log(`   • Balance: $${currentBalance.toFixed(4)} → $${newBalance.toFixed(4)}`);
+              
+              // Recargar datos
+              fetchCalls();
+
+            } catch (error) {
+              console.error('❌ Error en procesamiento inmediato:', error);
+            }
+          }
         }
       }
+    )
+    .subscribe();
 
-      // Recargar llamadas para mostrar cambios
-      fetchCalls();
-
-    } catch (error) {
-      console.error('❌ Error en procesamiento automático:', error);
-    }
-  };
-
-  // Ejecutar cada 30 segundos
-  const interval = setInterval(processNewCalls, 30000);
-
-  // Limpiar al desmontar
   return () => {
-    console.log('🧹 Deteniendo sistema automático');
-    clearInterval(interval);
+    console.log('🧹 Limpiando listener real-time');
+    supabase.removeChannel(channel);
   };
 }, [user?.id]);
-
+  
   // 🔧 REEMPLAZAR EL useEffect QUE ESTÁ EN LA LÍNEA ~300 APROXIMADAMENTE
 // Buscar este useEffect y reemplazarlo completamente:
 
