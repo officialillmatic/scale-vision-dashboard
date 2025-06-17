@@ -317,11 +317,20 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
         (invitation.company_name?.toLowerCase() || '').includes(query)
       );
       setFilteredInvitations(filteredInvitationsResult);
-
+// Filtrar usuarios registrados
+let filteredRegisteredUsersResult = registeredUsers.filter(user => 
+  (user.email?.toLowerCase() || '').includes(query) ||
+  (user.name?.toLowerCase() || '').includes(query) ||
+  (user.company_name?.toLowerCase() || '').includes(query)
+);
+if (statusFilter !== 'all') {
+  filteredRegisteredUsersResult = filteredRegisteredUsersResult.filter(user => user.status === statusFilter);
+}
+setFilteredRegisteredUsers(filteredRegisteredUsersResult);
     } catch (error) {
       console.error('❌ Error aplicando filtros:', error);
     }
-  }, [teamMembers, agents, companies, assignments, invitations, searchQuery, statusFilter]);
+  }, [teamMembers, agents, companies, assignments, invitations, registeredUsers, searchQuery, statusFilter]);
 
   // ✅ Función para exportar datos
   const exportData = useCallback(() => {
@@ -403,6 +412,7 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
         fetchCompanies(),
         fetchAssignments(), // ✅ AGREGADO
         fetchInvitations()
+        fetchAllRegisteredUsers()
       ]);
       
       console.log('✅ [TeamPage] Todos los datos cargados exitosamente');
@@ -756,6 +766,84 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
       console.error('❌ [TeamPage] Error fetching invitations:', error);
     }
   }, []);
+
+  const fetchAllRegisteredUsers = useCallback(async () => {
+  try {
+    console.log('🔍 [TeamPage] Fetching ALL registered users...');
+    
+    // Obtener TODOS los usuarios de la tabla auth.users a través de user_profiles
+    const { data: usersData, error: usersError } = await supabase
+      .from('user_profiles')
+      .select('*');
+
+    if (usersError) {
+      console.error('❌ Error fetching all users:', usersError);
+      throw usersError;
+    }
+
+    if (!usersData || usersData.length === 0) {
+      console.log('⚠️ No registered users found');
+      setRegisteredUsers([]);
+      return;
+    }
+
+    // Obtener datos adicionales
+    const [creditsResult, callsResult, companyMembersResult] = await Promise.all([
+      supabase.from('user_credits').select('user_id, current_balance'),
+      supabase.from('calls').select('user_id, cost_usd'),
+      supabase.from('company_members').select(`
+        user_id,
+        company_id,
+        role,
+        created_at,
+        companies:company_id (
+          id,
+          name
+        )
+      `)
+    ]);
+
+    const creditsData = creditsResult.data || [];
+    const callsData = callsResult.data || [];
+    const companyMembers = companyMembersResult.data || [];
+
+    const allUsers: TeamMember[] = usersData.map(user => {
+      const credit = creditsData.find(c => c.user_id === user.id);
+      const userCalls = callsData.filter(c => c.user_id === user.id);
+      const companyMember = companyMembers.find(cm => cm.user_id === user.id);
+
+      const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+      const currentBalance = credit?.current_balance || 0;
+
+      return {
+        id: user.id,
+        email: user.email || `user-${user.id.slice(0, 8)}`,
+        name: user.name || user.full_name || user.email || 'Usuario',
+        role: companyMember?.role || user.role || 'user',
+        status: currentBalance > 0 ? 'active' : 'inactive',
+        company_id: companyMember?.company_id || user.company_id,
+        company_name: companyMember?.companies?.name || null,
+        created_at: user.created_at || new Date().toISOString(),
+        last_login: user.last_sign_in_at,
+        total_calls: userCalls.length,
+        total_spent: totalSpent,
+        current_balance: currentBalance,
+        assigned_agents: 0
+      };
+    });
+
+    const sortedUsers = allUsers.sort((a, b) => {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    setRegisteredUsers(sortedUsers);
+    console.log('✅ [TeamPage] ALL registered users loaded:', sortedUsers.length);
+
+  } catch (error: any) {
+    console.error('❌ [TeamPage] Error fetching all registered users:', error);
+    toast.error(`Error al cargar usuarios registrados: ${error.message}`);
+  }
+}, []);
   // ========================================
   // ✅ HANDLERS DE ASIGNACIONES CORREGIDOS
   // ========================================
@@ -1130,6 +1218,8 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
   const stats = {
     totalMembers: teamMembers.length,
     activeMembers: teamMembers.filter(m => m.status === 'active').length,
+    totalRegistered: registeredUsers.length,
+activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
     totalAgents: agents.length,
     activeAgents: agents.filter(a => a.status === 'active').length,
     totalCompanies: companies.length,
@@ -1257,6 +1347,19 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
               </div>
             </CardContent>
           </Card>
+
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-cyan-50 to-cyan-100/50">
+  <CardContent className="p-4">
+    <div className="flex items-center space-x-2">
+      <User className="h-4 w-4 text-cyan-500" />
+      <div>
+        <p className="text-xs text-muted-foreground">Usuarios Registrados</p>
+        <p className="text-xl font-bold">{stats.totalRegistered}</p>
+        <p className="text-xs text-green-600">{stats.activeRegistered} activos</p>
+      </div>
+    </div>
+  </CardContent>
+</Card>
 
           <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
             <CardContent className="p-4">
@@ -1428,6 +1531,128 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
                             <span>Llamadas: <strong>{member.total_calls}</strong></span>
                             <span>Agentes: <strong>{member.assigned_agents}</strong></span>
                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+              {/* Tab: Usuarios Registrados */}
+              <TabsContent value="registered-users" className="space-y-4 mt-0">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Usuarios Registrados ({filteredRegisteredUsers.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchAllRegisteredUsers} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => console.log('Botón configurar registrados')}>
+                      <Settings className="w-4 h-4 mr-2" />
+                      Configurar
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <User className="h-4 w-4 text-cyan-600 mt-0.5" />
+                    <div className="text-sm text-cyan-800">
+                      <strong>Usuarios Registrados:</strong> Aquí aparecen TODOS los usuarios que se han registrado en la plataforma, 
+                      incluyendo aquellos que se registraron directamente sin invitación.
+                    </div>
+                  </div>
+                </div>
+
+                {filteredRegisteredUsers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No se encontraron usuarios registrados</h3>
+                    <p className="text-gray-600 mb-4">Intenta ajustar los filtros de búsqueda.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredRegisteredUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <p className="font-medium text-sm">{user.email}</p>
+                            <span className="text-xs text-gray-500">({user.name})</span>
+                            
+                            <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
+                              {user.status === 'active' ? (
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                              ) : (
+                                <XCircle className="h-3 w-3 mr-1" />
+                              )}
+                              {user.status}
+                            </Badge>
+                            
+                            {user.role === 'admin' && (
+                              <Badge variant="destructive">
+                                <Crown className="h-3 w-3 mr-1" />
+                                Admin
+                              </Badge>
+                            )}
+
+                            {/* Indicador de origen del registro */}
+                            {teamMembers.find(m => m.id === user.id) ? (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                <Mail className="h-3 w-3 mr-1" />
+                                Por Invitación
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                <User className="h-3 w-3 mr-1" />
+                                Registro Directo
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs text-gray-600">
+                            <span>Empresa: <strong>{user.company_name || 'N/A'}</strong></span>
+                            <span>Balance: <strong className="text-green-600">{formatCurrency(user.current_balance)}</strong></span>
+                            <span>Gastado: <strong className="text-red-600">{formatCurrency(user.total_spent)}</strong></span>
+                            <span>Llamadas: <strong>{user.total_calls}</strong></span>
+                            <span>Agentes: <strong>{user.assigned_agents}</strong></span>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-500 mt-1">
+                            <span>Registrado: <strong>{formatDate(user.created_at)}</strong></span>
+                            <span>Último acceso: <strong>{user.last_login ? formatDate(user.last_login) : 'Nunca'}</strong></span>
+                            <span>ID: <code className="bg-gray-100 px-1 rounded text-xs">{user.id.slice(0, 8)}...</code></span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              setActiveTab('assignments');
+                              setSearchQuery(user.email);
+                            }}
+                          >
+                            <Settings className="h-4 w-4 mr-1" />
+                            Ver Asignaciones
+                          </Button>
+                          
+                          {!teamMembers.find(m => m.id === user.id) && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="text-blue-600 hover:text-blue-700"
+                              onClick={() => {
+                                console.log('Agregar usuario a gestión de equipo:', user.email);
+                                toast.info('Funcionalidad de agregar a equipo en desarrollo');
+                              }}
+                            >
+                              <UserPlus className="h-4 w-4 mr-1" />
+                              Agregar a Equipo
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
