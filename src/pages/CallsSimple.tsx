@@ -485,117 +485,7 @@ const subscriptionRef = useRef(null);
     }
   }, [user?.id]);
 
-// ✅ SISTEMA INMEDIATO - REAL TIME
-useEffect(() => {
-  if (!user?.id) return;
 
-  console.log('⚡ Iniciando sistema INMEDIATO de descuentos...');
-  
-  // Configurar Real-time listener
-  const channel = supabase
-    .channel('calls-realtime')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'calls'
-      },
-      async (payload) => {
-        console.log('🔔 LLAMADA DETECTADA EN TIEMPO REAL:', payload);
-        
-        const { eventType, new: newRecord } = payload;
-        
-        if (eventType === 'INSERT' || eventType === 'UPDATE') {
-          const call = newRecord;
-          
-          // Verificar si es una llamada completada que necesita procesamiento
-          if (call.call_status === 'completed' && 
-              call.duration_sec > 0 && 
-              (!call.cost_usd || call.cost_usd === 0)) {
-            
-            console.log('⚡ PROCESANDO INMEDIATAMENTE:', call.call_id);
-            
-            // Procesar inmediatamente
-            const ratePerMinute = 0.5;
-            const costAmount = (call.duration_sec / 60) * ratePerMinute;
-            
-            console.log(`💰 Costo calculado: $${costAmount.toFixed(4)}`);
-            
-            try {
-              // 1. Actualizar costo en la llamada
-              const { error: updateError } = await supabase
-                .from('calls')
-                .update({ cost_usd: costAmount })
-                .eq('call_id', call.call_id);
-
-              if (updateError) {
-                console.error('❌ Error actualizando llamada:', updateError);
-                return;
-              }
-
-              // 2. Descontar del balance inmediatamente
-              const { data: userCredit, error: creditError } = await supabase
-                .from('user_credits')
-                .select('current_balance')
-                .eq('user_id', user.id)
-                .single();
-
-              if (creditError) {
-                console.error('❌ Error obteniendo balance:', creditError);
-                return;
-              }
-
-              const currentBalance = userCredit.current_balance;
-              const newBalance = currentBalance - costAmount;
-
-              // Actualizar balance
-              const { error: balanceError } = await supabase
-                .from('user_credits')
-                .update({ 
-                  current_balance: newBalance,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('user_id', user.id);
-
-              if (balanceError) {
-                console.error('❌ Error actualizando balance:', balanceError);
-                return;
-              }
-
-              // 3. Registrar transacción
-              await supabase
-                .from('credit_transactions')
-                .insert({
-                  user_id: user.id,
-                  amount: costAmount,
-                  transaction_type: 'debit',
-                  description: `Auto-deduction - ${call.call_id}`,
-                  created_at: new Date().toISOString()
-                });
-
-              console.log(`🎉 DESCUENTO INMEDIATO APLICADO:`);
-              console.log(`   • Llamada: ${call.call_id}`);
-              console.log(`   • Costo: $${costAmount.toFixed(4)}`);
-              console.log(`   • Balance: $${currentBalance.toFixed(4)} → $${newBalance.toFixed(4)}`);
-              
-              // Recargar datos
-              fetchCalls();
-
-            } catch (error) {
-              console.error('❌ Error en procesamiento inmediato:', error);
-            }
-          }
-        }
-      }
-    )
-    .subscribe();
-
-  return () => {
-    console.log('🧹 Limpiando listener real-time');
-    supabase.removeChannel(channel);
-  };
-}, [user?.id]);
   
   // 🔧 REEMPLAZAR EL useEffect QUE ESTÁ EN LA LÍNEA ~300 APROXIMADAMENTE
 // Buscar este useEffect y reemplazarlo completamente:
@@ -605,39 +495,7 @@ useEffect(() => {
 // 🔥 SISTEMA DEFINITIVO - REEMPLAZAR TODO EL useEffect PROBLEMÁTICO
 // Buscar AMBOS useEffect que modificaste y reemplazarlos con ESTE ÚNICO:
 
-// ✅ NUEVO SISTEMA AUTOMÁTICO DE DESCUENTOS - Real-time
-  useEffect(() => {
-    // Solo ejecutar si tenemos usuario
-    if (!user?.id) return;
 
-    console.log('🔔 Configurando notificaciones automáticas...');
-    
-    // Crear el "notificador" de Supabase
-    subscriptionRef.current = supabase
-      .channel('calls-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Detecta INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'calls',
-          filter: `agent_id=in.(${uniqueAgents.map(a => a.id).join(',')})` // Solo TUS agentes
-        },
-        (payload) => {
-          console.log('🔔 ¡Nueva llamada detectada!:', payload);
-          handleCallChange(payload);
-        }
-      )
-      .subscribe();
-
-    // Limpiar cuando el componente se cierre
-    return () => {
-      console.log('🧹 Limpiando notificaciones...');
-      if (subscriptionRef.current) {
-        supabase.removeChannel(subscriptionRef.current);
-      }
-    };
-  }, [user?.id, uniqueAgents]);
 
   // ✅ FUNCIÓN: Maneja las notificaciones de cambios
   const handleCallChange = async (payload) => {
@@ -770,92 +628,69 @@ useEffect(() => {
   // 🎯 PASO 2: REEMPLAZAR EL useEffect PROBLEMÁTICO (línea ~578)
 // Elimina el useEffect existente y reemplázalo con este:
 
+// 🎯 SISTEMA ÚNICO Y SIMPLE - Reemplazar todos los useEffect anteriores
 useEffect(() => {
-  console.log('🔄 Hook de filtros y procesamiento automático activado');
+  if (!calls.length || !user?.id || loading) return;
   
-  // Aplicar filtros primero
+  console.log('🚀 SISTEMA ÚNICO: Procesando llamadas...');
+  
+  // Aplicar filtros
   applyFiltersAndSort();
   
-  // 🎯 DESCUENTO AUTOMÁTICO MEJORADO
-  if (calls.length > 0 && user?.id && !loading) {
-    console.log('✅ Iniciando descuentos automáticos mejorados');
+  // Buscar llamadas que necesitan costo
+  const needsProcessing = calls.filter(call => {
+    const duration = getCallDuration(call);
+    const currentCost = parseFloat(call.cost_usd || 0);
+    const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+    const isComplete = call.call_status === 'completed' || call.call_status === 'ended';
     
-    // Buscar llamadas que necesitan descuento automático
-    const pendingCalls = calls.filter(call => {
+    return isComplete && duration > 0 && currentCost === 0 && hasRate > 0;
+  });
+  
+  console.log(`🎯 Llamadas a procesar: ${needsProcessing.length}`);
+  
+  // Procesar cada llamada
+  needsProcessing.forEach(async (call) => {
+    try {
       const duration = getCallDuration(call);
-      const currentCost = call.cost_usd || 0;
-      const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-      const validStatus = call.call_status === 'completed' || call.call_status === 'ended';
+      const rate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+      const cost = (duration / 60) * rate;
       
-      return validStatus && duration > 0 && currentCost === 0 && hasAgentRate > 0;
-    });
-
-    console.log(`🎯 Encontradas ${pendingCalls.length} llamadas para procesamiento automático`);
-
-    // Procesar cada llamada pendiente INMEDIATAMENTE
-    if (pendingCalls.length > 0) {
-      console.log(`⚡ PROCESANDO ${pendingCalls.length} LLAMADAS AUTOMÁTICAMENTE`);
+      console.log(`💰 Procesando: ${call.call_id} - $${cost.toFixed(4)}`);
       
-      pendingCalls.forEach(async (call, index) => {
-        console.log(`💳 Procesando llamada ${index + 1}/${pendingCalls.length}: ${call.call_id}`);
+      // 1. Actualizar costo en BD
+      const { error } = await supabase
+        .from('calls')
+        .update({ cost_usd: cost })
+        .eq('call_id', call.call_id);
         
-        const calculatedCost = await calculateCallCost(call);
+      if (error) {
+        console.error(`❌ Error actualizando ${call.call_id}:`, error);
+        return;
+      }
+      
+      console.log(`✅ Costo guardado: ${call.call_id}`);
+      
+      // 2. Descontar del balance
+      const success = await deductCallCost(call.call_id, cost, user.id);
+      
+      if (success) {
+        console.log(`🎉 DESCUENTO EXITOSO: ${call.call_id} - $${cost.toFixed(4)}`);
         
-        if (calculatedCost > 0) {
-          try {
-            console.log(`💰 Costo calculado: $${calculatedCost.toFixed(4)} para ${call.call_id}`);
-            
-            // 1. Actualizar costo en la base de datos
-            console.log(`💾 Guardando costo en base de datos...`);
-            const { error: updateError } = await supabase
-              .from('calls')
-              .update({ 
-                cost_usd: calculatedCost,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', call.id);
-
-            if (updateError) {
-              console.error(`❌ Error actualizando llamada ${call.call_id}:`, updateError);
-              return;
-            }
-
-            console.log(`✅ Costo guardado exitosamente para ${call.call_id}`);
-            
-            // 2. EJECUTAR DESCUENTO AUTOMÁTICO DEL BALANCE
-            console.log(`💳 Ejecutando descuento automático...`);
-            const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, user.id);
-            
-            if (deductionSuccess) {
-              console.log(`🎉 ¡DESCUENTO AUTOMÁTICO EXITOSO!`);
-              console.log(`   • Llamada: ${call.call_id}`);
-              console.log(`   • Costo: $${calculatedCost.toFixed(4)}`);
-              console.log(`   • Balance actualizado automáticamente`);
-              
-              // 3. Actualizar estado local
-              setCalls(prevCalls => 
-                prevCalls.map(c => 
-                  c.id === call.id 
-                    ? { ...c, cost_usd: calculatedCost }
-                    : c
-                )
-              );
-              
-              // 4. Mostrar notificación visual (opcional)
-              console.log(`🔔 NOTIFICACIÓN: Descuento automático de $${calculatedCost.toFixed(4)} aplicado`);
-              
-            } else {
-              console.warn(`⚠️ Falló el descuento automático para ${call.call_id}`);
-            }
-            
-          } catch (error) {
-            console.error(`❌ Error en procesamiento automático de ${call.call_id}:`, error);
-          }
-        }
-      });
+        // 3. Actualizar estado local
+        setCalls(prev => prev.map(c => 
+          c.call_id === call.call_id ? { ...c, cost_usd: cost } : c
+        ));
+      } else {
+        console.error(`❌ Falló descuento: ${call.call_id}`);
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error procesando ${call.call_id}:`, error);
     }
-  }
-}, [calls, user?.id, loading, searchTerm, statusFilter, agentFilter, dateFilter, customDate, sortField, sortOrder]);
+  });
+  
+}, [calls.length, user?.id, loading]); // Solo cuando cambie el número de llamadas
 
 // 🔔 PASO 4: REEMPLAZAR EL SEGUNDO useEffect (línea ~610)
 // Elimina el useEffect de "respaldo" y reemplázalo con este detector de llamadas nuevas:
