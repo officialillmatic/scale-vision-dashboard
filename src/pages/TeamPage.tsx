@@ -408,14 +408,12 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
       
       await Promise.all([
   fetchTeamMembers(),
-  fetchAllRegisteredUsers(),
   fetchAgents(),
   fetchCompanies(),
-  fetchInvitations()
+  fetchAssignments(),
+  fetchInvitations(),
+  fetchAllRegisteredUsers()
 ]);
-
-// Cargar asignaciones después de que tengamos los usuarios
-await fetchAssignments();
       
       console.log('✅ [TeamPage] Todos los datos cargados exitosamente');
       
