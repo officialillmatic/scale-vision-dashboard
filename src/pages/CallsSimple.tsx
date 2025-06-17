@@ -454,14 +454,27 @@ export default function CallsSimple() {
     }
   }, [user?.id]);
 
-  useEffect(() => {
+  // 🔧 REEMPLAZAR EL useEffect QUE ESTÁ EN LA LÍNEA ~300 APROXIMADAMENTE
+// Buscar este useEffect y reemplazarlo completamente:
+
+useEffect(() => {
+  console.log('🔄 useEffect triggered - calls length:', calls.length);
+  
   applyFiltersAndSort();
   
-  if (calls.length > 0) {
-    // 🎯 NUEVA FUNCIÓN CON DESCUENTO AUTOMÁTICO
+  if (calls.length > 0 && user?.id) {
+    console.log('🎯 Ejecutando procesamiento automático de descuentos...');
+    console.log('👤 User ID para descuentos:', user.id);
+    
+    // 🎯 EJECUTAR DESCUENTOS AUTOMÁTICOS
     processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
+  } else {
+    console.log('⚠️ No se ejecuta descuento automático:', {
+      callsLength: calls.length,
+      userId: user?.id
+    });
   }
-}, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate]);
+}, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate, user?.id]);
 
   // 🧪 FUNCIÓN DE PRUEBA MANUAL
 const testManualDeduction = async () => {
