@@ -537,6 +537,7 @@ useEffect(() => {
       console.log('🧹 Timer de respaldo limpiado');
     };
   }
+  }, [calls.length]);
 
   // 🧪 FUNCIÓN DE PRUEBA MANUAL
 const testManualDeduction = async () => {
