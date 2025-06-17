@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export const migrateRegisteredUsers = async (companyId: string) => {
@@ -71,9 +70,113 @@ export const migrateRegisteredUsers = async (companyId: string) => {
   }
 };
 
-export const getConfirmedTeamMembers = async (companyId: string) => {
+// FUNCIÓN CORREGIDA - Aplicando lógica de SuperAdminCredits para Super Admins
+export const getConfirmedTeamMembers = async (companyId: string, isSuperAdmin?: boolean) => {
   try {
-    console.log('🔍 Fetching confirmed team members from company_members...');
+    console.log('🔍 Fetching confirmed team members...');
+    console.log('🔍 Super Admin mode:', isSuperAdmin);
+    console.log('🔍 Company ID:', companyId);
+    
+    // NUEVA LÓGICA: Para Super Admins, usar la misma lógica que SuperAdminCredits
+    if (isSuperAdmin) {
+      console.log('✅ [SUPER ADMIN] Using SuperCredits logic for all users');
+      
+      // PASO 1: Obtener todos los usuarios con créditos (como SuperAdminCreditPage)
+      const { data: creditsData, error: creditsError } = await supabase
+        .from('user_credits')
+        .select('user_id');
+
+      if (creditsError) {
+        console.error('❌ Error fetching user_credits:', creditsError);
+        // Fallback: obtener todos los users directamente
+        const { data: allUsers, error: usersError } = await supabase
+          .from('users')
+          .select('id, email, name, avatar_url, created_at, updated_at')
+          .order('created_at', { ascending: false });
+
+        if (usersError) throw usersError;
+
+        return allUsers?.map(user => ({
+          id: user.id,
+          email: user.email || 'No email',
+          full_name: user.name || user.email?.split('@')?.[0] || 'User',
+          avatar_url: user.avatar_url,
+          role: 'member',
+          status: 'active' as const,
+          created_at: user.created_at,
+          last_sign_in_at: null,
+          email_confirmed_at: user.created_at,
+          user_details: {
+            name: user.name || user.email?.split('@')?.[0] || 'User',
+            email: user.email || 'No email'
+          }
+        })) || [];
+      }
+
+      // PASO 2: Obtener IDs de usuarios con créditos
+      const userIds = creditsData?.map(c => c.user_id) || [];
+      console.log(`🔍 [SUPER ADMIN] Found ${userIds.length} users with credits`);
+
+      if (userIds.length === 0) {
+        console.log('⚠️ [SUPER ADMIN] No users with credits found');
+        return [];
+      }
+
+      // PASO 3: Intentar obtener perfiles de usuarios (SIN full_name)
+      const { data: profilesData } = await supabase
+        .from('user_profiles')
+        .select('id, email, name, avatar_url, created_at, updated_at, role')
+        .in('id', userIds);
+
+      // PASO 4: Fallback a users si no hay user_profiles (CLAVE!)
+      let userProfiles = profilesData || [];
+      if (!profilesData || profilesData.length < userIds.length) {
+        console.log('🔄 [SUPER ADMIN] Falling back to users table...');
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, email, name, avatar_url, created_at, updated_at')
+          .in('id', userIds);
+        
+        // Combinar profiles existentes con datos de users
+        const profileEmails = new Set(profilesData?.map(p => p.id) || []);
+        const missingUsers = usersData?.filter(u => !profileEmails.has(u.id)) || [];
+        
+        const usersAsProfiles = missingUsers.map(u => ({
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          avatar_url: u.avatar_url,
+          created_at: u.created_at,
+          updated_at: u.updated_at,
+          role: 'member'
+        }));
+
+        userProfiles = [...(profilesData || []), ...usersAsProfiles];
+      }
+
+      console.log(`✅ [SUPER ADMIN] Total users found: ${userProfiles.length}`);
+      console.log('🔍 [SUPER ADMIN] Sample user:', userProfiles?.[0]);
+
+      // PASO 5: Transformar datos al formato TeamMember
+      return userProfiles?.map(profile => ({
+        id: profile.id,
+        email: profile.email || 'No email',
+        full_name: profile.name || profile.email?.split('@')?.[0] || 'User',
+        avatar_url: profile.avatar_url,
+        role: profile.role || 'member',
+        status: 'active' as const,
+        created_at: profile.created_at,
+        last_sign_in_at: null,
+        email_confirmed_at: profile.created_at,
+        user_details: {
+          name: profile.name || profile.email?.split('@')?.[0] || 'User',
+          email: profile.email || 'No email'
+        }
+      })) || [];
+    }
+
+    // LÓGICA ORIGINAL: Para usuarios normales, mantener exactamente igual
+    console.log('🔍 [REGULAR USER] Using original company_members logic');
     
     // First, try to get members with user_id JOIN
     const { data: membersWithUserId, error: joinError } = await supabase
