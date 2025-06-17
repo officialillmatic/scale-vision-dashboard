@@ -1,3 +1,5 @@
+import { manualMigratePendingUsers } from '@/services/teamMigration';
+import { Upload } from 'lucide-react';
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
@@ -23,6 +25,7 @@ const companyIdToUse = isSuperAdmin ? undefined : company?.id;
 console.log("🔥 [TEAM_MEMBERS] isSuperAdmin:", isSuperAdmin);
 console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
   
   const { 
     teamMembers,
@@ -44,6 +47,57 @@ console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
   const handleRefresh = async () => {
     if (fetchInvitations) {
       await fetchInvitations();
+    }
+  };
+
+  // NUEVA FUNCIÓN: Migración Automática de Usuarios Registrados
+  const handleMigrateUsers = async () => {
+    if (!company?.id) {
+      toast.error('No company ID found');
+      return;
+    }
+
+    setIsMigrating(true);
+    
+    try {
+      console.log('🚀 [MIGRATION] Starting automatic user migration...');
+      toast.info('Iniciando migración de usuarios...');
+      
+      // Ejecutar la migración
+      const result = await manualMigratePendingUsers(company.id);
+      
+      console.log('📊 [MIGRATION] Result:', result);
+      
+      if (result.success) {
+        if (result.count && result.count > 0) {
+          toast.success(
+            `✅ Migración exitosa: ${result.count} usuario(s) agregado(s) al equipo`,
+            {
+              description: `Usuarios migrados: ${result.users?.join(', ') || 'Ver consola para detalles'}`,
+              duration: 5000
+            }
+          );
+          
+          console.log('✅ [MIGRATION] Migrated users:', result.users);
+          
+          // Refrescar la lista después de la migración
+          setTimeout(() => {
+            handleRefresh();
+          }, 1000);
+          
+        } else {
+          toast.info('ℹ️ No se encontraron usuarios que requieran migración');
+        }
+      } else {
+        toast.error(`❌ Error en migración: ${result.message}`);
+        console.error('❌ [MIGRATION] Error:', result.error);
+      }
+      
+    } catch (error: any) {
+      console.error('💥 [MIGRATION] Unexpected error:', error);
+      toast.error(`💥 Error inesperado: ${error.message}`);
+    } finally {
+      setIsMigrating(false);
     }
   };
 
@@ -115,6 +169,28 @@ console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
+{isSuperAdmin && (
+            <Button 
+              variant="outline" 
+              onClick={handleMigrateUsers} 
+              disabled={isMigrating || isLoading}
+              size="sm"
+              className="bg-green-50 border-green-200 hover:bg-green-100"
+            >
+              {isMigrating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin mr-2" />
+                  Migrando...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Migrar Usuarios
+                </>
+              )}
+            </Button>
+          )}
+          
           <Button onClick={openInviteDialog} disabled={isInviting || isLoading}>
             <UserPlus className="mr-2 h-4 w-4" />
             {isInviting ? "Inviting..." : "Invite Member"}
