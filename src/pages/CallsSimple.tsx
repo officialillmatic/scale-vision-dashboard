@@ -476,6 +476,27 @@ useEffect(() => {
   }
 }, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate, user?.id]);
 
+  // 🎯 AGREGAR ESTE useEffect SEPARADO - NO REEMPLAZAR EL ACTUAL
+useEffect(() => {
+  // Este useEffect se ejecuta solo cuando calls cambia y tiene contenido
+  if (calls.length > 0 && user?.id && !loading) {
+    console.log('🚀 useEffect SEPARADO - Procesando descuentos automáticos...');
+    console.log('📊 Datos:', {
+      callsLength: calls.length,
+      userId: user.id,
+      loading: loading
+    });
+    
+    // Delay pequeño para asegurar que todo esté estable
+    const timer = setTimeout(() => {
+      processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
+    }, 500);
+    
+    // Cleanup del timer
+    return () => clearTimeout(timer);
+  }
+}, [calls, user?.id, loading]); // Solo depende de calls, user y loading
+
   // 🧪 FUNCIÓN DE PRUEBA MANUAL
 const testManualDeduction = async () => {
   console.log('🧪 INICIANDO PRUEBA MANUAL DE DESCUENTO...');
