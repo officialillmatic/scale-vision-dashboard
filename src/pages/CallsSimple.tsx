@@ -1153,6 +1153,25 @@ const calculateCallCost = async (call: Call, forceUpdate = false) => {
   return calculatedCost;
 };
 
+  // 🔧 FUNCIÓN AUXILIAR: Calcular costo solo para mostrar (sin actualizar BD)
+const calculateCallCostSync = (call: Call) => {
+  const durationMinutes = getCallDuration(call) / 60;
+  let agentRate = 0;
+  
+  if (call.call_agent?.rate_per_minute) {
+    agentRate = call.call_agent.rate_per_minute;
+  } else if (call.agents?.rate_per_minute) {
+    agentRate = call.agents.rate_per_minute;
+  }
+  
+  if (agentRate === 0) {
+    return call.cost_usd || 0;
+  }
+  
+  const calculatedCost = durationMinutes * agentRate;
+  return calculatedCost;
+};
+
   // 🔧 REEMPLAZAR LA FUNCIÓN getCallDuration EN CallsSimple.tsx (línea ~348)
 
 const getCallDuration = (call: any) => {
@@ -1933,7 +1952,7 @@ for (const call of data) {
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
-                              {formatCurrency(calculateCallCost(call))}
+                              {formatCurrencycalculateCallCostSync(call))}
                             </div>
                             <div className="text-xs text-gray-500">
                               {(() => {
