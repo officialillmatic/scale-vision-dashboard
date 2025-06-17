@@ -1952,7 +1952,7 @@ for (const call of data) {
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
-                              {formatCurrencycalculateCallCostSync(call))}
+                              {formatCurrency(calculateCallCostSync(call))}
                             </div>
                             <div className="text-xs text-gray-500">
                               {(() => {
