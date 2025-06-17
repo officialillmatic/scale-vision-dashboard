@@ -730,60 +730,81 @@ useEffect(() => {
 
   // 🧪 FUNCIÓN DE PRUEBA MANUAL
 const testManualDeduction = async () => {
-  console.log('🧪 INICIANDO PRUEBA MANUAL DE DESCUENTO...');
+  console.log('🧪 PROBANDO SISTEMA DE BALANCE...');
   
   if (!user?.id) {
     alert('Usuario no identificado');
     return;
   }
 
-  // Buscar la llamada específica que sabemos que existe
-  const testCall = calls.find(call => call.call_id === 'call_78a0aae4402d94f9f1ebf56a9ad');
-  
-  if (!testCall) {
-    alert('No se encontró la llamada de prueba. Recarga la página.');
-    return;
-  }
-
-  console.log('🎯 Llamada de prueba encontrada:', testCall);
-  
-  // Calcular costo manualmente
-  const duration = testCall.duration_sec || 180; // 3 minutos
-  const agentRate = 0.50; // Asumimos $0.50 por minuto
-  const calculatedCost = (duration / 60) * agentRate;
-  
-  console.log(`💰 Cálculo manual:
-    Duración: ${duration} segundos = ${duration/60} minutos
-    Tarifa: $${agentRate}/minuto
-    Costo total: $${calculatedCost.toFixed(4)}`);
-
-  // Aplicar descuento manualmente
   try {
-    const deductionSuccess = await deductCallCost(testCall.call_id, calculatedCost, user.id);
+    // Company ID fijo - ajustar si es diferente
+    const companyId = '1e3d4267-f288-4921-8360-3855100ff4a';
     
-    if (deductionSuccess) {
-      alert(`✅ ¡ÉXITO! Se descontó $${calculatedCost.toFixed(4)} del balance`);
-      
-      // Actualizar costo en la base de datos
-      const { error } = await supabase
-        .from('calls')
-        .update({ cost_usd: calculatedCost })
-        .eq('id', testCall.id);
-        
-      if (!error) {
-        // Recargar datos
-        fetchCalls();
-        alert('💾 Costo actualizado en la base de datos');
-      }
-    } else {
-      alert('❌ Falló el descuento. Revisa la consola.');
+    console.log('🔍 Buscando llamadas sin procesar...');
+    
+    // Buscar llamadas completadas sin costo asignado
+    const { data: unprocessedCalls, error } = await supabase
+      .from('calls')
+      .select(`
+        id,
+        call_id,
+        duration_sec,
+        cost_usd,
+        call_status,
+        agent_id
+      `)
+      .eq('call_status', 'completed')
+      .gt('duration_sec', 0)
+      .eq('cost_usd', 0)
+      .limit(5);
+
+    if (error) {
+      console.error('❌ Error obteniendo llamadas:', error);
+      alert('❌ Error obteniendo llamadas');
+      return;
     }
+
+    console.log(`📞 Encontradas ${unprocessedCalls?.length || 0} llamadas sin procesar`);
+
+    if (!unprocessedCalls || unprocessedCalls.length === 0) {
+      alert('📞 No hay llamadas sin procesar');
+      return;
+    }
+
+    // Procesar cada llamada
+    for (const call of unprocessedCalls) {
+      console.log(`⚙️ Procesando llamada: ${call.call_id}`);
+      
+      // Tarifa fija para prueba
+      const ratePerMinute = 0.5;
+      const costAmount = (call.duration_sec / 60) * ratePerMinute;
+      
+      console.log(`💰 Costo: ${call.duration_sec}s × $${ratePerMinute}/min = $${costAmount.toFixed(4)}`);
+      
+      // Actualizar costo en calls
+      const { error: updateError } = await supabase
+        .from('calls')
+        .update({ cost_usd: costAmount })
+        .eq('id', call.id);
+
+      if (updateError) {
+        console.error('❌ Error actualizando llamada:', updateError);
+      } else {
+        console.log(`✅ Llamada ${call.call_id} procesada exitosamente`);
+      }
+    }
+
+    alert(`✅ Procesadas ${unprocessedCalls.length} llamadas! Revisa la consola.`);
+    
+    // Recargar llamadas
+    await fetchCalls();
+
   } catch (error) {
-    console.error('💥 Error en prueba manual:', error);
-    alert('💥 Error en la prueba. Revisa la consola.');
+    console.error('❌ Error:', error);
+    alert('❌ Error en el procesamiento');
   }
 };
-
   useEffect(() => {
     const loadAllAudioDurations = async () => {
       const callsWithAudio = calls.filter(call => call.recording_url);
