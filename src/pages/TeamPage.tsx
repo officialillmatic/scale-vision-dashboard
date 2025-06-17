@@ -430,34 +430,61 @@ export default function TeamPage() {
   // ========================================
 
   const fetchAssignments = useCallback(async () => {
-    try {
-      console.log('🔍 [TeamPage] Fetching user-agent assignments...');
+  try {
+    console.log('🔍 [TeamPage] Fetching user-agent assignments...');
+    
+    // ✅ USAR LA FUNCIÓN DEL SERVICE QUE YA FUNCIONA
+    const assignmentsData = await fetchUserAgentAssignments();
+    
+    // ✅ CONVERTIR AL FORMATO QUE ESPERA TU CÓDIGO ORIGINAL - CORRIGIENDO EMAIL
+    const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
+      // 🔧 CORREGIR EL MAPEO DEL EMAIL Y NOMBRE
+      let userEmail = 'usuario@example.com';
+      let userName = 'Usuario';
       
-      // ✅ USAR LA FUNCIÓN DEL SERVICE QUE YA FUNCIONA
-      const assignmentsData = await fetchUserAgentAssignments();
+      // Primero intentar obtener el email del user_details
+      if (assignment.user_details?.email) {
+        userEmail = assignment.user_details.email;
+      }
       
-      // ✅ CONVERTIR AL FORMATO QUE ESPERA TU CÓDIGO ORIGINAL
-      const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => ({
+      // Luego intentar obtener el nombre, con fallback al email
+      if (assignment.user_details?.full_name) {
+        userName = assignment.user_details.full_name;
+      } else if (assignment.user_details?.email) {
+        userName = assignment.user_details.email;
+      }
+      
+      // Si no hay user_details, buscar en teamMembers
+      if (!assignment.user_details?.email) {
+        const teamMember = teamMembers.find(member => member.id === assignment.user_id);
+        if (teamMember) {
+          userEmail = teamMember.email;
+          userName = teamMember.name || teamMember.email;
+        }
+      }
+      
+      return {
         id: assignment.id,
         user_id: assignment.user_id,
         agent_id: assignment.agent_id,
-        user_email: assignment.user_details?.email || 'unknown@email.com',
-        user_name: assignment.user_details?.full_name || assignment.user_details?.email || 'Usuario',
+        user_email: userEmail,
+        user_name: userName,
         agent_name: assignment.agent_details?.name || 'Agente',
         is_primary: assignment.is_primary || false,
         created_at: assignment.assigned_at || new Date().toISOString()
-      }));
+      };
+    });
 
-      setAssignments(formattedAssignments);
-      console.log('✅ [TeamPage] Assignments loaded successfully:', formattedAssignments.length);
+    setAssignments(formattedAssignments);
+    console.log('✅ [TeamPage] Assignments loaded successfully:', formattedAssignments.length);
+    console.log('🔍 [DEBUG] Formatted assignments:', formattedAssignments);
 
-    } catch (error: any) {
-      console.error('❌ [TeamPage] Error fetching assignments:', error);
-      setAssignments([]);
-      toast.error(`Error al cargar asignaciones: ${error.message}`);
-    }
-  }, []);
-
+  } catch (error: any) {
+    console.error('❌ [TeamPage] Error fetching assignments:', error);
+    setAssignments([]);
+    toast.error(`Error al cargar asignaciones: ${error.message}`);
+  }
+}, [teamMembers]);
   // ========================================
   // ✅ FUNCIÓN FETCHAGENTS ORIGINAL (mantener igual)
   // ========================================
