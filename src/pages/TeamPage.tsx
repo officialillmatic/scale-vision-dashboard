@@ -156,6 +156,8 @@ export default function TeamPage() {
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
   const [filteredAssignments, setFilteredAssignments] = useState<UserAgentAssignment[]>([]);
   const [filteredInvitations, setFilteredInvitations] = useState<UserInvitation[]>([]);
+  const [registeredUsers, setRegisteredUsers] = useState<TeamMember[]>([]);
+const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMember[]>([]);
   
   // Estados de modales básicos
   const [addMemberModal, setAddMemberModal] = useState(false);
@@ -1308,11 +1310,15 @@ export default function TeamPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
             <CardHeader className="pb-2">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-                <TabsList className="grid w-full max-w-2xl grid-cols-5 bg-gray-100/80 p-1 rounded-lg">
+                <TabsList className="grid w-full max-w-2xl grid-cols-6 bg-gray-100/80 p-1 rounded-lg">
                   <TabsTrigger value="members" className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     <span className="hidden sm:inline">Miembros</span>
                   </TabsTrigger>
+                  <TabsTrigger value="registered-users" className="flex items-center gap-2">
+  <User className="h-4 w-4" />
+  <span className="hidden sm:inline">Registrados</span>
+</TabsTrigger>
                   <TabsTrigger value="invitations" className="flex items-center gap-2">
                     <Mail className="h-4 w-4" />
                     <span className="hidden sm:inline">Invitaciones</span>
