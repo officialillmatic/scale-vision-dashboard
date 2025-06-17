@@ -782,11 +782,13 @@ const testManualDeduction = async () => {
       
       console.log(`💰 Costo: ${call.duration_sec}s × $${ratePerMinute}/min = $${costAmount.toFixed(4)}`);
       
-      // Actualizar costo en calls
-      const { error: updateError } = await supabase
-        .from('calls')
-        .update({ cost_usd: costAmount })
-        .eq('id', call.id);
+      // Actualizar costo en calls - VERSIÓN CORREGIDA
+const { error: updateError } = await supabase
+  .from('calls')
+  .update({ 
+    cost_usd: costAmount
+  })
+  .eq('call_id', call.call_id); // Usar call_id en lugar de id
 
       if (updateError) {
         console.error('❌ Error actualizando llamada:', updateError);
