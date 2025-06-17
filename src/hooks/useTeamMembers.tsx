@@ -152,7 +152,7 @@ export function useTeamMembers(companyId?: string) {
         if (!targetCompanyId) return [];
 
         console.log('🔍 [REGULAR USER] Fetching company team members only');
-        return await getConfirmedTeamMembers(targetCompanyId, false);
+        return await getConfirmedTeamMembers(targetCompanyId, isSuperAdmin);
       } catch (error) {
         console.error('❌ [useTeamMembers] Error fetching team members:', error);
         return [];
