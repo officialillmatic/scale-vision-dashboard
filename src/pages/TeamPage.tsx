@@ -116,18 +116,6 @@ interface Company {
   status: string;
 }
 
-// ✅ USANDO LA INTERFAZ CORRECTA PARA ASIGNACIONES
-interface UserAgentAssignment {
-  id: string;
-  user_id: string;
-  agent_id: string;
-  user_email: string;
-  user_name: string;
-  agent_name: string;
-  is_primary: boolean;
-  created_at: string;
-}
-
 interface UserInvitation {
   id: string;
   email: string;
@@ -430,61 +418,62 @@ export default function TeamPage() {
   // ========================================
 
   const fetchAssignments = useCallback(async () => {
-  try {
-    console.log('🔍 [TeamPage] Fetching user-agent assignments...');
-    
-    // ✅ USAR LA FUNCIÓN DEL SERVICE QUE YA FUNCIONA
-    const assignmentsData = await fetchUserAgentAssignments();
-    
-    // ✅ CONVERTIR AL FORMATO QUE ESPERA TU CÓDIGO ORIGINAL - CORRIGIENDO EMAIL
-    const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
-      // 🔧 CORREGIR EL MAPEO DEL EMAIL Y NOMBRE
-      let userEmail = 'usuario@example.com';
-      let userName = 'Usuario';
+    try {
+      console.log('🔍 [TeamPage] Fetching user-agent assignments...');
       
-      // Primero intentar obtener el email del user_details
-      if (assignment.user_details?.email) {
-        userEmail = assignment.user_details.email;
-      }
+      // ✅ USAR LA FUNCIÓN DEL SERVICE QUE YA FUNCIONA
+      const assignmentsData = await fetchUserAgentAssignments();
       
-      // Luego intentar obtener el nombre, con fallback al email
-      if (assignment.user_details?.full_name) {
-        userName = assignment.user_details.full_name;
-      } else if (assignment.user_details?.email) {
-        userName = assignment.user_details.email;
-      }
-      
-      // Si no hay user_details, buscar en teamMembers
-      if (!assignment.user_details?.email) {
-        const teamMember = teamMembers.find(member => member.id === assignment.user_id);
-        if (teamMember) {
-          userEmail = teamMember.email;
-          userName = teamMember.name || teamMember.email;
+      // ✅ CONVERTIR AL FORMATO QUE ESPERA TU CÓDIGO ORIGINAL - CORRIGIENDO EMAIL
+      const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
+        // 🔧 CORREGIR EL MAPEO DEL EMAIL Y NOMBRE
+        let userEmail = 'usuario@example.com';
+        let userName = 'Usuario';
+        
+        // Primero intentar obtener el email del user_details
+        if (assignment.user_details?.email) {
+          userEmail = assignment.user_details.email;
         }
-      }
-      
-      return {
-        id: assignment.id,
-        user_id: assignment.user_id,
-        agent_id: assignment.agent_id,
-        user_email: userEmail,
-        user_name: userName,
-        agent_name: assignment.agent_details?.name || 'Agente',
-        is_primary: assignment.is_primary || false,
-        created_at: assignment.assigned_at || new Date().toISOString()
-      };
-    });
+        
+        // Luego intentar obtener el nombre, con fallback al email
+        if (assignment.user_details?.full_name) {
+          userName = assignment.user_details.full_name;
+        } else if (assignment.user_details?.email) {
+          userName = assignment.user_details.email;
+        }
+        
+        // Si no hay user_details, buscar en teamMembers
+        if (!assignment.user_details?.email) {
+          const teamMember = teamMembers.find(member => member.id === assignment.user_id);
+          if (teamMember) {
+            userEmail = teamMember.email;
+            userName = teamMember.name || teamMember.email;
+          }
+        }
+        
+        return {
+          id: assignment.id,
+          user_id: assignment.user_id,
+          agent_id: assignment.agent_id,
+          user_email: userEmail,
+          user_name: userName,
+          agent_name: assignment.agent_details?.name || 'Agente',
+          is_primary: assignment.is_primary || false,
+          created_at: assignment.assigned_at || new Date().toISOString()
+        };
+      });
 
-    setAssignments(formattedAssignments);
-    console.log('✅ [TeamPage] Assignments loaded successfully:', formattedAssignments.length);
-    console.log('🔍 [DEBUG] Formatted assignments:', formattedAssignments);
+      setAssignments(formattedAssignments);
+      console.log('✅ [TeamPage] Assignments loaded successfully:', formattedAssignments.length);
+      console.log('🔍 [DEBUG] Formatted assignments:', formattedAssignments);
 
-  } catch (error: any) {
-    console.error('❌ [TeamPage] Error fetching assignments:', error);
-    setAssignments([]);
-    toast.error(`Error al cargar asignaciones: ${error.message}`);
-  }
-}, [teamMembers]);
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error fetching assignments:', error);
+      setAssignments([]);
+      toast.error(`Error al cargar asignaciones: ${error.message}`);
+    }
+  }, [teamMembers]);
+
   // ========================================
   // ✅ FUNCIÓN FETCHAGENTS ORIGINAL (mantener igual)
   // ========================================
@@ -600,6 +589,7 @@ export default function TeamPage() {
       setAgents([]);
     }
   }, []);
+
   // ========================================
   // ✅ FUNCIONES FETCH RESTANTES (mantener originales)
   // ========================================
@@ -939,6 +929,7 @@ export default function TeamPage() {
       toast.error(`Error al crear Custom Agent: ${error.message}`);
     }
   }, [fetchAgents]);
+
   const handleViewAgent = useCallback(async (agent: Agent) => {
     try {
       console.log('👁️ [TeamPage] Viewing agent details:', agent.id);
@@ -1222,6 +1213,10 @@ export default function TeamPage() {
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Actualizar
             </Button>
+            <Button variant="outline" size="sm" onClick={() => console.log('Botón configurar')}>
+              <Settings className="w-4 h-4 mr-2" />
+              Configurar
+            </Button>
           </div>
         </div>
 
@@ -1307,6 +1302,7 @@ export default function TeamPage() {
             </CardContent>
           </Card>
         </div>
+
         {/* Main Content with Tabs */}
         <Card className="border-0 shadow-sm">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
@@ -1362,24 +1358,25 @@ export default function TeamPage() {
             <CardContent>
               {/* Tab: Miembros del Equipo */}
               <TabsContent value="members" className="space-y-4 mt-0">
-                <div className="flex gap-2">
-  <Button onClick={fetchTeamMembers} variant="outline" size="sm" disabled={loading}>
-    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-    Actualizar
-  </Button>
-  <Button variant="outline" size="sm" onClick={() => console.log('Botón configurar')}>
-    <Settings className="w-4 h-4 mr-2" />
-    Configurar
-  </Button>
-  <Button 
-    onClick={() => setAddMemberModal(true)} 
-    size="sm"
-    disabled={!isSuperAdmin}
-  >
-    <UserPlus className="w-4 h-4 mr-2" />
-    Invitar Miembro
-  </Button>
-</div>
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Miembros del Equipo ({filteredMembers.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchTeamMembers} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => console.log('Botón configurar miembros')}>
+                      <Settings className="w-4 h-4 mr-2" />
+                      Configurar
+                    </Button>
+                    <Button 
+                      onClick={() => setAddMemberModal(true)} 
+                      size="sm"
+                      disabled={!isSuperAdmin}
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Invitar Miembro
+                    </Button>
                   </div>
                 </div>
 
@@ -1431,7 +1428,6 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-
               {/* Tab: Custom AI Agents */}
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1569,6 +1565,138 @@ export default function TeamPage() {
                             <Edit3 className="h-4 w-4 mr-1" />
                             Editar
                           </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Tab: Invitaciones */}
+              <TabsContent value="invitations" className="space-y-4 mt-0">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchInvitations} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button 
+                      onClick={() => setAddMemberModal(true)} 
+                      size="sm"
+                      disabled={!isSuperAdmin}
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Nueva Invitación
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Mail className="h-4 w-4 text-amber-600 mt-0.5" />
+                    <div className="text-sm text-amber-800">
+                      <strong>Invitaciones:</strong> Aquí puedes ver todas las invitaciones enviadas a nuevos miembros del equipo.
+                      Las invitaciones pendientes expiran en 7 días.
+                    </div>
+                  </div>
+                </div>
+
+                {filteredInvitations.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No hay invitaciones</h3>
+                    <p className="text-gray-600 mb-4">Aún no se han enviado invitaciones a nuevos miembros.</p>
+                    <Button 
+                      onClick={() => setAddMemberModal(true)}
+                      disabled={!isSuperAdmin}
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Enviar Primera Invitación
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredInvitations.map((invitation) => (
+                      <div
+                        key={invitation.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <p className="font-medium text-sm">{invitation.email}</p>
+                            <span className="text-xs text-gray-500">({invitation.name})</span>
+                            
+                            <Badge variant={
+                              invitation.status === 'pending' ? 'default' : 
+                              invitation.status === 'accepted' ? 'secondary' :
+                              invitation.status === 'expired' ? 'destructive' : 'outline'
+                            }>
+                              {invitation.status === 'pending' && (
+                                <Clock className="h-3 w-3 mr-1" />
+                              )}
+                              {invitation.status === 'accepted' && (
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                              )}
+                              {invitation.status === 'expired' && (
+                                <XCircle className="h-3 w-3 mr-1" />
+                              )}
+                              {invitation.status === 'pending' ? 'Pendiente' : 
+                               invitation.status === 'accepted' ? 'Aceptada' :
+                               invitation.status === 'expired' ? 'Expirada' : invitation.status}
+                            </Badge>
+                            
+                            {invitation.role === 'admin' && (
+                              <Badge variant="destructive">
+                                <Crown className="h-3 w-3 mr-1" />
+                                Admin
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                            <span>Rol: <strong>{invitation.role}</strong></span>
+                            <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
+                            <span>Enviada: <strong>{formatDate(invitation.created_at)}</strong></span>
+                            <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
+                          </div>
+                          
+                          {invitation.accepted_at && (
+                            <div className="text-xs text-green-600 mt-1">
+                              ✅ Aceptada el {formatDate(invitation.accepted_at)}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          {invitation.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
+                                navigator.clipboard.writeText(invitationUrl);
+                                toast.success('🔗 URL de invitación copiada al portapapeles');
+                              }}
+                            >
+                              <Key className="h-4 w-4 mr-1" />
+                              Copiar URL
+                            </Button>
+                          )}
+                          
+                          {invitation.status === 'accepted' && invitation.user_id && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setActiveTab('members');
+                                setSearchQuery(invitation.email);
+                              }}
+                            >
+                              <User className="h-4 w-4 mr-1" />
+                              Ver Usuario
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1717,137 +1845,6 @@ export default function TeamPage() {
                   <h3 className="text-lg font-semibold mb-2">Gestión de Empresas</h3>
                   <p className="text-gray-600">Funcionalidad en desarrollo...</p>
                 </div>
-              </TabsContent>
-
-              <TabsContent value="invitations" className="space-y-4 mt-0">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
-                  <div className="flex gap-2">
-                    <Button onClick={fetchInvitations} variant="outline" size="sm" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar
-                    </Button>
-                    <Button 
-                      onClick={() => setAddMemberModal(true)} 
-                      size="sm"
-                      disabled={!isSuperAdmin}
-                    >
-                      <Mail className="w-4 h-4 mr-2" />
-                      Nueva Invitación
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <div className="flex items-start gap-2">
-                    <Mail className="h-4 w-4 text-amber-600 mt-0.5" />
-                    <div className="text-sm text-amber-800">
-                      <strong>Invitaciones:</strong> Aquí puedes ver todas las invitaciones enviadas a nuevos miembros del equipo.
-                      Las invitaciones pendientes expiran en 7 días.
-                    </div>
-                  </div>
-                </div>
-
-                {filteredInvitations.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No hay invitaciones</h3>
-                    <p className="text-gray-600 mb-4">Aún no se han enviado invitaciones a nuevos miembros.</p>
-                    <Button 
-                      onClick={() => setAddMemberModal(true)}
-                      disabled={!isSuperAdmin}
-                    >
-                      <Mail className="w-4 h-4 mr-2" />
-                      Enviar Primera Invitación
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredInvitations.map((invitation) => (
-                      <div
-                        key={invitation.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <p className="font-medium text-sm">{invitation.email}</p>
-                            <span className="text-xs text-gray-500">({invitation.name})</span>
-                            
-                            <Badge variant={
-                              invitation.status === 'pending' ? 'default' : 
-                              invitation.status === 'accepted' ? 'secondary' :
-                              invitation.status === 'expired' ? 'destructive' : 'outline'
-                            }>
-                              {invitation.status === 'pending' && (
-                                <Clock className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'accepted' && (
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'expired' && (
-                                <XCircle className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'pending' ? 'Pendiente' : 
-                               invitation.status === 'accepted' ? 'Aceptada' :
-                               invitation.status === 'expired' ? 'Expirada' : invitation.status}
-                            </Badge>
-                            
-                            {invitation.role === 'admin' && (
-                              <Badge variant="destructive">
-                                <Crown className="h-3 w-3 mr-1" />
-                                Admin
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                            <span>Rol: <strong>{invitation.role}</strong></span>
-                            <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
-                            <span>Enviada: <strong>{formatDate(invitation.created_at)}</strong></span>
-                            <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
-                          </div>
-                          
-                          {invitation.accepted_at && (
-                            <div className="text-xs text-green-600 mt-1">
-                              ✅ Aceptada el {formatDate(invitation.accepted_at)}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 ml-4">
-                          {invitation.status === 'pending' && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
-                                navigator.clipboard.writeText(invitationUrl);
-                                toast.success('🔗 URL de invitación copiada al portapapeles');
-                              }}
-                            >
-                              <Key className="h-4 w-4 mr-1" />
-                              Copiar URL
-                            </Button>
-                          )}
-                          
-                          {invitation.status === 'accepted' && invitation.user_id && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                setActiveTab('members');
-                                setSearchQuery(invitation.email);
-                              }}
-                            >
-                              <User className="h-4 w-4 mr-1" />
-                              Ver Usuario
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </TabsContent>
             </CardContent>
           </Tabs>
