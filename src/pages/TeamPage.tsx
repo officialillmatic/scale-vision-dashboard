@@ -438,28 +438,46 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
       
       // ✅ CONVERTIR AL FORMATO QUE ESPERA TU CÓDIGO ORIGINAL - CORRIGIENDO EMAIL
       const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
-        // 🔧 CORREGIR EL MAPEO DEL EMAIL Y NOMBRE
+        // 🔧 CORREGIR EL MAPEO DEL EMAIL Y NOMBRE - VERSIÓN MEJORADA
         let userEmail = 'usuario@example.com';
         let userName = 'Usuario';
-        
-        // Primero intentar obtener el email del user_details
+
+        // 1. Primero intentar obtener del user_details
         if (assignment.user_details?.email) {
           userEmail = assignment.user_details.email;
+          userName = assignment.user_details.full_name || assignment.user_details.name || assignment.user_details.email;
         }
-        
-        // Luego intentar obtener el nombre, con fallback al email
-        if (assignment.user_details?.full_name) {
-          userName = assignment.user_details.full_name;
-        } else if (assignment.user_details?.email) {
-          userName = assignment.user_details.email;
-        }
-        
-        // Si no hay user_details, buscar en teamMembers
-        if (!assignment.user_details?.email) {
+        // 2. Si no hay user_details, buscar en teamMembers (datos que ya tenemos)
+        else if (teamMembers && teamMembers.length > 0) {
           const teamMember = teamMembers.find(member => member.id === assignment.user_id);
           if (teamMember) {
             userEmail = teamMember.email;
             userName = teamMember.name || teamMember.email;
+          }
+        }
+        // 3. Si tampoco está en teamMembers, buscar en registeredUsers
+        else if (registeredUsers && registeredUsers.length > 0) {
+          const registeredUser = registeredUsers.find(user => user.id === assignment.user_id);
+          if (registeredUser) {
+            userEmail = registeredUser.email;
+            userName = registeredUser.name || registeredUser.email;
+          }
+        }
+        // 4. Como último recurso, hacer una consulta directa a user_profiles
+        else {
+          try {
+            const { data: userProfile } = await supabase
+              .from('user_profiles')
+              .select('email, name, full_name')
+              .eq('id', assignment.user_id)
+              .single();
+            
+            if (userProfile) {
+              userEmail = userProfile.email;
+              userName = userProfile.name || userProfile.full_name || userProfile.email;
+            }
+          } catch (error) {
+            console.warn('⚠️ No se pudo obtener perfil de usuario:', assignment.user_id);
           }
         }
         
@@ -484,7 +502,7 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
       setAssignments([]);
       toast.error(`Error al cargar asignaciones: ${error.message}`);
     }
-  }, [teamMembers]);
+  }, [teamMembers, registeredUsers]);
 
   // ========================================
   // ✅ FUNCIÓN FETCHAGENTS ORIGINAL (mantener igual)
