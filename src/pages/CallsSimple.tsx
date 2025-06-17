@@ -127,6 +127,8 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
 };
 
 // FUNCIÓN: Procesar llamadas pendientes CON descuento automático
+// 🔧 REEMPLAZAR LA FUNCIÓN processPendingCallCostsWithDeduction EN CallsSimple.tsx (línea ~119)
+
 const processPendingCallCostsWithDeduction = async (
   calls: Call[], 
   setCalls: React.Dispatch<React.SetStateAction<Call[]>>,
@@ -135,20 +137,44 @@ const processPendingCallCostsWithDeduction = async (
   userId: string
 ) => {
   console.log('🔍 Procesando costos y descuentos automáticos...');
+  console.log('📞 Total calls recibidas:', calls.length);
+  console.log('👤 User ID:', userId);
+
+  // 🎯 DEBUG: Analizar todas las llamadas
+  calls.forEach((call, index) => {
+    const duration = getCallDuration(call);
+    const currentCost = call.cost_usd || 0;
+    const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || false;
+    
+    console.log(`📞 Call ${index + 1}:`, {
+      id: call.call_id.substring(0, 12),
+      status: call.call_status,
+      duration: duration,
+      currentCost: currentCost,
+      agentRate: hasAgentRate,
+      passes_filter: call.call_status === 'completed' && duration > 0 && currentCost === 0 && hasAgentRate
+    });
+  });
   
+  // 🔧 FILTRO CORREGIDO Y MÁS PERMISIVO
   const pendingCalls = calls.filter(call => {
     const duration = getCallDuration(call);
     const currentCost = call.cost_usd || 0;
     const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
     
+    // ✅ INCLUIR TANTO 'completed' COMO 'ended'
+    const validStatus = call.call_status === 'completed' || call.call_status === 'ended';
+    
     return (
-      call.call_status === 'completed' &&
+      validStatus &&
       duration > 0 &&
       currentCost === 0 &&
-      hasAgentRate
+      hasAgentRate > 0  // ✅ Verificar que la tarifa sea > 0
     );
   });
 
+  console.log(`🔍 Llamadas que pasan el filtro: ${pendingCalls.length}`);
+  
   if (pendingCalls.length === 0) {
     console.log('✅ Todas las llamadas tienen costos y descuentos procesados');
     return;
@@ -205,7 +231,6 @@ const processPendingCallCostsWithDeduction = async (
 
   console.log('🎉 Finalizó el procesamiento de costos y descuentos');
 };
-
 interface Call {
   id: string;
   call_id: string;
@@ -484,21 +509,40 @@ export default function CallsSimple() {
     return calculatedCost;
   };
 
-  const getCallDuration = (call: any) => {
-    if (audioDurations[call.id]) {
-      return audioDurations[call.id];
+  // 🔧 REEMPLAZAR LA FUNCIÓN getCallDuration EN CallsSimple.tsx (línea ~348)
+
+const getCallDuration = (call: any) => {
+  console.log(`🔍 getCallDuration para call ${call.call_id}:`, {
+    duration_sec: call.duration_sec,
+    audioDuration: audioDurations[call.id],
+    id: call.id
+  });
+
+  // ✅ PRIORIDAD 1: Usar duration_sec de la base de datos
+  if (call.duration_sec && call.duration_sec > 0) {
+    console.log(`✅ Usando duration_sec: ${call.duration_sec}s`);
+    return call.duration_sec;
+  }
+  
+  // ✅ PRIORIDAD 2: Usar audio duration si está disponible
+  if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+    console.log(`✅ Usando audioDuration: ${audioDurations[call.id]}s`);
+    return audioDurations[call.id];
+  }
+  
+  // ✅ PRIORIDAD 3: Buscar en otros campos posibles
+  const possibleFields = ['billing_duration_sec', 'duration', 'call_duration', 'length', 'time_duration', 'total_duration'];
+  
+  for (const field of possibleFields) {
+    if (call[field] && call[field] > 0) {
+      console.log(`✅ Usando campo ${field}: ${call[field]}s`);
+      return call[field];
     }
-    
-    const possibleFields = ['duration_sec', 'duration', 'call_duration', 'length', 'time_duration', 'total_duration'];
-    
-    for (const field of possibleFields) {
-      if (call[field] && call[field] > 0) {
-        return call[field];
-      }
-    }
-    
-    return 0;
-  };
+  }
+  
+  console.log(`❌ No se encontró duración válida para call ${call.call_id}`);
+  return 0;
+};
 
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
