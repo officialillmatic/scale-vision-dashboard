@@ -547,7 +547,7 @@ useEffect(() => {
     // Cleanup del timer
     return () => clearTimeout(timer);
   }
-}, [calls, user?.id, loading]); // Solo depende de calls, user y loading
+}, [calls, user?.id, loading]); 
 
   // 🧪 FUNCIÓN DE PRUEBA MANUAL
 const testManualDeduction = async () => {
