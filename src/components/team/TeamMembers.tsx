@@ -169,7 +169,7 @@ console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-{isSuperAdmin && (
+{true && (
             <Button 
               variant="outline" 
               onClick={handleMigrateUsers} 
