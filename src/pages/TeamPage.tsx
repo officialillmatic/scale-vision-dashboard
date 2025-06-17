@@ -235,7 +235,7 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
   // useEffect para filtros
   useEffect(() => {
     applyFilters();
-  }, [teamMembers, agents, companies, assignments, invitations, searchQuery, statusFilter, activeTab]);
+  }, [teamMembers, agents, companies, assignments, invitations, registeredUsers, searchQuery, statusFilter, activeTab]);
 
   // ========================================
   // ✅ FUNCIONES AUXILIARES MEJORADAS
