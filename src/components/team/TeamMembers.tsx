@@ -161,6 +161,7 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
             </Badge>
           )}
         </div>
+        <Button size="sm">TEST</Button>
         
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} size="sm">
