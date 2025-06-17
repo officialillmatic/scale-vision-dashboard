@@ -16,6 +16,7 @@ import { UserPlus, Users, AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { RegisteredMembers } from './RegisteredMembers';
 
 export function TeamMembers() {
   const { company } = useAuth();
@@ -25,6 +26,7 @@ const companyIdToUse = isSuperAdmin ? undefined : company?.id;
 console.log("🔥 [TEAM_MEMBERS] isSuperAdmin:", isSuperAdmin);
 console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('members');
   const [isMigrating, setIsMigrating] = useState(false);
   
   const { 
@@ -194,109 +196,151 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
           </Button>
         </div>
       </div>
+
+      {/* NUEVA: Navegación de pestañas */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('members')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'members'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Users className="w-4 h-4 inline mr-2" />
+            Miembros del Equipo
+          </button>
+          
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab('registered')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'registered'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Database className="w-4 h-4 inline mr-2" />
+              Miembros Registrados
+            </button>
+          )}
+        </nav>
+      </div>
       
       <EmailConfigWarning />
       
-      {/* Team members list */}
-      <Card className="p-6">
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Team Members</h2>
-            {!isLoading && teamMembers.length > 0 && (
-              <div className="text-sm text-muted-foreground">
-                {teamMembers.length} team members
+      {/* Contenido condicional según pestaña activa */}
+      {activeTab === 'members' ? (
+        <>
+          {/* Team members list - CONTENIDO ORIGINAL */}
+          <Card className="p-6">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold">Team Members</h2>
+                {!isLoading && teamMembers.length > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    {teamMembers.length} team members
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          <p className="text-muted-foreground">
-            Manage your team members and their roles.
-          </p>
-          
-          <div className="border rounded-md">
-            {isLoading ? (
-              <div className="p-8 flex items-center justify-center">
-                <LoadingSpinner size="md" />
-                <span className="ml-2 text-muted-foreground">Loading team members...</span>
-              </div>
-            ) : error ? (
-              <Alert variant="destructive" className="m-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Error loading team members: {typeof error === 'string' ? error : 'Unknown error'}
-                </AlertDescription>
-              </Alert>
-            ) : teamMembers.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No team members found</p>
-                <p className="text-sm">Invite team members to get started</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Member</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {teamMembers.map((member) => {
-                    const userDetails = member.user_details!;
-                    return (
-                      <TableRow key={member.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">
-                              {userDetails.name || userDetails.email.split('@')[0] || 'Team Member'}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {userDetails.email}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="capitalize">
-                            {member.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={member.status === 'active' ? 'default' : 'outline'}
-                            className="capitalize"
-                          >
-                            {member.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleEditRole(member)}
-                            >
-                              Edit Role
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleRemoveUser(member)}
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        </TableCell>
+              <p className="text-muted-foreground">
+                Manage your team members and their roles.
+              </p>
+              
+              <div className="border rounded-md">
+                {isLoading ? (
+                  <div className="p-8 flex items-center justify-center">
+                    <LoadingSpinner size="md" />
+                    <span className="ml-2 text-muted-foreground">Loading team members...</span>
+                  </div>
+                ) : error ? (
+                  <Alert variant="destructive" className="m-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Error loading team members: {typeof error === 'string' ? error : 'Unknown error'}
+                    </AlertDescription>
+                  </Alert>
+                ) : teamMembers.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg font-medium">No team members found</p>
+                    <p className="text-sm">Invite team members to get started</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Member</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-        </div>
-      </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {teamMembers.map((member) => {
+                        const userDetails = member.user_details!;
+                        return (
+                          <TableRow key={member.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">
+                                  {userDetails.name || userDetails.email.split('@')[0] || 'Team Member'}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {userDetails.email}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="capitalize">
+                                {member.role}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={member.status === 'active' ? 'default' : 'outline'}
+                                className="capitalize"
+                              >
+                                {member.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleEditRole(member)}
+                                >
+                                  Edit Role
+                                </Button>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => handleRemoveUser(member)}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </div>
+          </Card>
+          
+          {/* Pending invitations section */}
+          <TeamInvitations />
+        </>
+      ) : (
+        /* Nueva pestaña: Miembros Registrados */
+        <RegisteredMembers />
+      )}
       
       {/* Pending invitations section */}
       <TeamInvitations />
