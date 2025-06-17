@@ -407,13 +407,15 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
       console.log('🔄 [TeamPage] Cargando todos los datos...');
       
       await Promise.all([
-        fetchTeamMembers(),
-        fetchAgents(),
-        fetchCompanies(),
-        fetchAssignments(), // ✅ AGREGADO
-        fetchInvitations(),
-        fetchAllRegisteredUsers()
-      ]);
+  fetchTeamMembers(),
+  fetchAllRegisteredUsers(),
+  fetchAgents(),
+  fetchCompanies(),
+  fetchInvitations()
+]);
+
+// Cargar asignaciones después de que tengamos los usuarios
+await fetchAssignments();
       
       console.log('✅ [TeamPage] Todos los datos cargados exitosamente');
       
