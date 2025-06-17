@@ -41,13 +41,14 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
 
   try {
     console.log(`💳 Descontando $${callCost.toFixed(4)} del balance del usuario ${userId}`);
+    console.log(`🔍 Call ID recibido: ${callId}`);
 
-    // Verificar si ya se descontó este costo anteriormente
+    // ✅ CORECCIÓN: Verificar transacción existente usando call_id como STRING
     const { data: existingTransaction, error: checkError } = await supabase
       .from('credit_transactions')
       .select('id')
       .eq('user_id', userId)
-      .eq('call_id', callId)
+      .eq('call_id', callId) // Ahora usamos call_id como string
       .eq('transaction_type', 'debit')
       .single();
 
@@ -76,8 +77,11 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
     const currentBalance = userCredit?.current_balance || 0;
     const newBalance = currentBalance - callCost;
 
+    console.log(`💰 Balance actual: $${currentBalance.toFixed(4)}`);
+    console.log(`💰 Nuevo balance: $${newBalance.toFixed(4)}`);
+
     if (newBalance < 0) {
-      console.warn(`⚠️ Balance insuficiente: $${currentBalance} < $${callCost}`);
+      console.warn(`⚠️ Balance quedará negativo: $${currentBalance} - $${callCost} = $${newBalance}`);
       // Continuar con el descuento aunque quede negativo (decisión de negocio)
     }
 
@@ -95,12 +99,14 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    // Registrar la transacción
+    console.log('✅ Balance actualizado exitosamente');
+
+    // ✅ CORECCIÓN: Registrar transacción con call_id como string
     const { error: transactionError } = await supabase
       .from('credit_transactions')
       .insert({
         user_id: userId,
-        call_id: callId,
+        call_id: callId, // String del call_id, no UUID
         amount: callCost,
         transaction_type: 'debit',
         description: `Call cost deduction - Call ID: ${callId}`,
@@ -109,6 +115,8 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
 
     if (transactionError) {
       console.error('❌ Error registrando transacción:', transactionError);
+      console.error('❌ Detalles del error:', JSON.stringify(transactionError, null, 2));
+      
       // Revertir el balance si falla el registro
       await supabase
         .from('user_credits')
@@ -117,7 +125,7 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    console.log(`✅ Descuento exitoso: $${currentBalance} → $${newBalance.toFixed(4)}`);
+    console.log(`🎉 DESCUENTO EXITOSO: $${currentBalance.toFixed(4)} → $${newBalance.toFixed(4)}`);
     return true;
 
   } catch (error) {
@@ -125,7 +133,6 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
     return false;
   }
 };
-
 // FUNCIÓN: Procesar llamadas pendientes CON descuento automático
 // 🔧 REEMPLAZAR LA FUNCIÓN processPendingCallCostsWithDeduction EN CallsSimple.tsx (línea ~119)
 
