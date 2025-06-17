@@ -33,6 +33,7 @@ import { useAgents } from "@/hooks/useAgents";
 // ============================================================================
 
 // FUNCIÓN: Descontar costo de llamada del balance del usuario
+// ✅ FUNCIÓN CORREGIDA FINAL: Descontar costo de llamada del balance del usuario
 const deductCallCost = async (callId: string, callCost: number, userId: string) => {
   if (!callCost || callCost <= 0) {
     console.log(`⚠️ No se descuenta - costo inválido: $${callCost}`);
@@ -41,14 +42,29 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
 
   try {
     console.log(`💳 Descontando $${callCost.toFixed(4)} del balance del usuario ${userId}`);
-    console.log(`🔍 Call ID recibido: ${callId}`);
+    console.log(`🔍 Call ID string recibido: ${callId}`);
 
-    // ✅ CORECCIÓN: Verificar transacción existente usando call_id como STRING
+    // ✅ PASO 1: Buscar el UUID real de la llamada usando call_id
+    const { data: callData, error: callError } = await supabase
+      .from('calls')
+      .select('id, call_id')
+      .eq('call_id', callId)
+      .single();
+
+    if (callError || !callData) {
+      console.error('❌ No se encontró la llamada:', callError);
+      return false;
+    }
+
+    const callUUID = callData.id; // Este es el UUID real
+    console.log(`🆔 UUID real de la llamada: ${callUUID}`);
+
+    // ✅ PASO 2: Verificar transacción existente usando el UUID real
     const { data: existingTransaction, error: checkError } = await supabase
       .from('credit_transactions')
       .select('id')
       .eq('user_id', userId)
-      .eq('call_id', callId) // Ahora usamos call_id como string
+      .eq('call_id', callUUID) // Usar UUID, no string
       .eq('transaction_type', 'debit')
       .single();
 
@@ -62,7 +78,7 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    // Obtener balance actual del usuario
+    // ✅ PASO 3: Obtener balance actual del usuario
     const { data: userCredit, error: creditError } = await supabase
       .from('user_credits')
       .select('current_balance')
@@ -85,7 +101,7 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       // Continuar con el descuento aunque quede negativo (decisión de negocio)
     }
 
-    // Actualizar balance del usuario
+    // ✅ PASO 4: Actualizar balance del usuario
     const { error: updateError } = await supabase
       .from('user_credits')
       .update({ 
@@ -101,12 +117,12 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
 
     console.log('✅ Balance actualizado exitosamente');
 
-    // ✅ CORECCIÓN: Registrar transacción con call_id como string
+    // ✅ PASO 5: Registrar transacción con UUID real
     const { error: transactionError } = await supabase
       .from('credit_transactions')
       .insert({
         user_id: userId,
-        call_id: callId, // String del call_id, no UUID
+        call_id: callUUID, // ¡Ahora usamos el UUID real!
         amount: callCost,
         transaction_type: 'debit',
         description: `Call cost deduction - Call ID: ${callId}`,
@@ -125,7 +141,11 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    console.log(`🎉 DESCUENTO EXITOSO: $${currentBalance.toFixed(4)} → $${newBalance.toFixed(4)}`);
+    console.log(`🎉 DESCUENTO EXITOSO COMPLETO:`);
+    console.log(`   • Balance: $${currentBalance.toFixed(4)} → $${newBalance.toFixed(4)}`);
+    console.log(`   • Transacción registrada con UUID: ${callUUID}`);
+    console.log(`   • Call ID original: ${callId}`);
+    
     return true;
 
   } catch (error) {
