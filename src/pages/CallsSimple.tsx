@@ -457,35 +457,87 @@ export default function CallsSimple() {
   // 🔧 REEMPLAZAR EL useEffect QUE ESTÁ EN LA LÍNEA ~300 APROXIMADAMENTE
 // Buscar este useEffect y reemplazarlo completamente:
 
-useEffect(() => {
-  console.log('🔄 useEffect triggered - calls length:', calls.length);
-  
-  applyFiltersAndSort();
-  
-  if (calls.length > 0 && user?.id) {
-    console.log('🎯 Ejecutando procesamiento automático de descuentos...');
-    console.log('👤 User ID para descuentos:', user.id);
-    
-    // 🎯 EJECUTAR DESCUENTOS AUTOMÁTICOS
-    processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
-  } else {
-    console.log('⚠️ No se ejecuta descuento automático:', {
-      callsLength: calls.length,
-      userId: user?.id
-    });
-  }
-}, [calls, searchTerm, statusFilter, agentFilter, sortField, sortOrder, dateFilter, customDate, user?.id]);
 
   // 🎯 AGREGAR ESTE useEffect SEPARADO - NO REEMPLAZAR EL ACTUAL
+// 🔥 SISTEMA DEFINITIVO - REEMPLAZAR TODO EL useEffect PROBLEMÁTICO
+// Buscar AMBOS useEffect que modificaste y reemplazarlos con ESTE ÚNICO:
+
 useEffect(() => {
-  // Este useEffect se ejecuta solo cuando calls cambia y tiene contenido
-  if (calls.length > 0 && user?.id && !loading) {
-    console.log('🚀 useEffect SEPARADO - Procesando descuentos automáticos...');
-    console.log('📊 Datos:', {
-      callsLength: calls.length,
-      userId: user.id,
-      loading: loading
+  console.log('🔥 SISTEMA DEFINITIVO DE DESCUENTOS INICIADO');
+  console.log('📊 Estado actual:', {
+    callsLength: calls.length,
+    userId: user?.id,
+    loading: loading
+  });
+  
+  // Aplicar filtros primero
+  applyFiltersAndSort();
+  
+  // 🎯 PROCESAMIENTO DE DESCUENTOS CON MÚLTIPLES INTENTOS
+  if (calls.length > 0 && user?.id) {
+    console.log('✅ Condiciones cumplidas - Iniciando descuentos automáticos');
+    
+    // Intento inmediato
+    processCallsWithRetry(0);
+    
+    // Intento con delay de 1 segundo
+    setTimeout(() => processCallsWithRetry(1), 1000);
+    
+    // Intento con delay de 3 segundos (backup)
+    setTimeout(() => processCallsWithRetry(2), 3000);
+  } else {
+    console.log('❌ Condiciones no cumplidas:', {
+      hasCalls: calls.length > 0,
+      hasUser: !!user?.id,
+      callsLength: calls.length
     });
+  }
+  
+  // Función de procesamiento con reintentos
+  function processCallsWithRetry(attempt: number) {
+    console.log(`🔄 Intento ${attempt + 1} de procesamiento de descuentos`);
+    
+    if (calls.length === 0) {
+      console.log(`⏸️ Intento ${attempt + 1} cancelado: sin llamadas`);
+      return;
+    }
+    
+    try {
+      processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
+      console.log(`✅ Intento ${attempt + 1} ejecutado exitosamente`);
+    } catch (error) {
+      console.error(`❌ Error en intento ${attempt + 1}:`, error);
+    }
+  }
+  
+}, [calls, user?.id, loading]);
+
+// 🔥 HOOK ADICIONAL PARA CAMBIOS EN CALLS (SISTEMA DE RESPALDO)
+useEffect(() => {
+  console.log('🔄 Hook de respaldo activado - calls cambió');
+  console.log('📞 Nueva cantidad de calls:', calls.length);
+  
+  if (calls.length > 0 && user?.id && !loading) {
+    console.log('🎯 Ejecutando sistema de respaldo de descuentos...');
+    
+    // Delay mayor para asegurar estabilidad
+    const backupTimer = setTimeout(() => {
+      console.log('⚡ Sistema de respaldo procesando descuentos...');
+      
+      try {
+        processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
+        console.log('✅ Sistema de respaldo completado');
+      } catch (error) {
+        console.error('❌ Error en sistema de respaldo:', error);
+      }
+    }, 2000); // 2 segundos de delay
+    
+    return () => {
+      clearTimeout(backupTimer);
+      console.log('🧹 Timer de respaldo limpiado');
+    };
+  }
+}, [calls.length]); // Solo cuando cambia la cantidad de calls
     
     // Delay pequeño para asegurar que todo esté estable
     const timer = setTimeout(() => {
