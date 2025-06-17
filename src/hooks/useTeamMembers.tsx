@@ -41,7 +41,7 @@ export function useTeamMembers(companyId?: string) {
   
   const targetCompanyId = companyId || company?.id;
 
-  // Query for team members - VERSIÓN CORREGIDA CON LÓGICA DE SUPERCREDITS
+  // Query for team members - VERSIÓN CORREGIDA SIN full_name
   const { data: members, isLoading: membersLoading, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['team-members', targetCompanyId],
     queryFn: async () => {
@@ -62,7 +62,7 @@ export function useTeamMembers(companyId?: string) {
             // Fallback: obtener todos los users directamente
             const { data: allUsers, error: usersError } = await supabase
               .from('users')
-              .select('id, email, name, full_name, avatar_url, created_at, updated_at')
+              .select('id, email, name, avatar_url, created_at, updated_at')
               .order('created_at', { ascending: false });
 
             if (usersError) throw usersError;
@@ -70,7 +70,7 @@ export function useTeamMembers(companyId?: string) {
             return allUsers?.map(user => ({
               id: user.id,
               email: user.email || 'No email',
-              full_name: user.name || user.full_name || user.email?.split('@')?.[0] || 'User',
+              full_name: user.name || user.email?.split('@')?.[0] || 'User',
               avatar_url: user.avatar_url,
               role: 'member',
               status: 'active' as const,
@@ -79,7 +79,7 @@ export function useTeamMembers(companyId?: string) {
               company_id: null,
               email_confirmed_at: user.created_at,
               user_details: {
-                name: user.name || user.full_name || user.email?.split('@')?.[0] || 'User',
+                name: user.name || user.email?.split('@')?.[0] || 'User',
                 email: user.email || 'No email'
               }
             })) || [];
@@ -94,7 +94,7 @@ export function useTeamMembers(companyId?: string) {
             return [];
           }
 
-          // PASO 3: Intentar obtener perfiles de usuarios
+          // PASO 3: Intentar obtener perfiles de usuarios (SIN full_name)
           const { data: profilesData } = await supabase
             .from('user_profiles')
             .select('id, email, name, avatar_url, created_at, updated_at, role')
@@ -106,7 +106,7 @@ export function useTeamMembers(companyId?: string) {
             console.log('🔄 [SUPER ADMIN] Falling back to users table...');
             const { data: usersData } = await supabase
               .from('users')
-              .select('id, email, name, full_name, avatar_url, created_at, updated_at')
+              .select('id, email, name, avatar_url, created_at, updated_at')
               .in('id', userIds);
             
             // Combinar profiles existentes con datos de users
@@ -116,7 +116,7 @@ export function useTeamMembers(companyId?: string) {
             const usersAsProfiles = missingUsers.map(u => ({
               id: u.id,
               email: u.email,
-              name: u.name || u.full_name,
+              name: u.name,
               avatar_url: u.avatar_url,
               created_at: u.created_at,
               updated_at: u.updated_at,
