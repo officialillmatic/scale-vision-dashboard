@@ -145,6 +145,15 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
     console.log(`   • Balance: $${currentBalance.toFixed(4)} → $${newBalance.toFixed(4)}`);
     console.log(`   • Transacción registrada con UUID: ${callUUID}`);
     console.log(`   • Call ID original: ${callId}`);
+    // 🆕 NUEVA LÍNEA: Forzar actualización del balance en tiempo real
+window.dispatchEvent(new CustomEvent('balanceUpdated', { 
+  detail: { 
+    newBalance, 
+    userId,
+    deduction: callCost,
+    callId: callId
+  } 
+}));
     
     return true;
 
