@@ -210,7 +210,7 @@ const processPendingCallCostsWithDeduction = async (
   console.log(`🎯 Procesando ${pendingCalls.length} llamadas con descuentos`);
 
   for (const call of pendingCalls) {
-    const calculatedCost = calculateCallCost(call);
+    const calculatedCost = await calculateCallCost(call);
     
     if (calculatedCost > 0) {
       try {
@@ -320,7 +320,7 @@ const processPendingCallCosts = async (
   console.log(`🎯 Found ${pendingCalls.length} calls that need cost calculation`);
 
   for (const call of pendingCalls) {
-    const calculatedCost = calculateCallCost(call);
+    const calculatedCost = await calculateCallCost(call);
     
     if (calculatedCost > 0) {
       try {
@@ -799,7 +799,7 @@ useEffect(() => {
       pendingCalls.forEach(async (call, index) => {
         console.log(`💳 Procesando llamada ${index + 1}/${pendingCalls.length}: ${call.call_id}`);
         
-        const calculatedCost = calculateCallCost(call);
+        const calculatedCost = await calculateCallCost(call);
         
         if (calculatedCost > 0) {
           try {
@@ -968,11 +968,10 @@ const testManualDeduction = async () => {
     for (const call of unprocessedCalls) {
       console.log(`⚙️ Procesando llamada: ${call.call_id}`);
       
-      // Tarifa fija para prueba
-      const ratePerMinute = 0.5;
-      const costAmount = (call.duration_sec / 60) * ratePerMinute;
-      
-      console.log(`💰 Costo: ${call.duration_sec}s × $${ratePerMinute}/min = $${costAmount.toFixed(4)}`);
+      // Usar tu función calculateCallCost para obtener el costo correcto
+const costAmount = await calculateCallCost(call);
+
+console.log(`💰 Costo calculado con calculateCallCost: $${costAmount.toFixed(4)}`);
       
       // Actualizar costo en calls - VERSIÓN CORREGIDA
 const { error: updateError } = await supabase
@@ -1085,34 +1084,66 @@ Revisa la consola para detalles completos.`;
       loadAllAudioDurations();
     }
   }, [calls]);
-  // FUNCIÓN: Calcular costo usando tarifa del agente
-  const calculateCallCost = (call: Call) => {
-    const durationMinutes = getCallDuration(call) / 60;
-    let agentRate = 0;
+  
+// 🆕 NUEVA FUNCIÓN - Agregar esto ANTES de calculateCallCost
+const updateCallCostInDatabase = async (callId: string, calculatedCost: number) => {
+  try {
+    console.log(`🔄 Actualizando costo en BD para ${callId}: $${calculatedCost.toFixed(2)}`);
     
-    if (call.call_agent?.rate_per_minute) {
-      agentRate = call.call_agent.rate_per_minute;
-      console.log(`💰 Using call_agent rate: $${agentRate}/min`);
-    } else if (call.agents?.rate_per_minute) {
-      agentRate = call.agents.rate_per_minute;
-      console.log(`💰 Using agents rate: $${agentRate}/min`);
+    const { error } = await supabase
+      .from('calls')
+      .update({ 
+        cost_usd: calculatedCost 
+      })
+      .eq('call_id', callId);
+
+    if (error) {
+      console.error('❌ Error actualizando costo:', error);
+      return false;
     }
-    
-    if (agentRate === 0) {
-      console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
-      return call.cost_usd || 0;
-    }
-    
-    const calculatedCost = durationMinutes * agentRate;
-    
-    console.log(`🧮 COST CALCULATION:
-      📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
-      💵 Rate: $${agentRate}/min
-      🎯 Calculated: $${calculatedCost.toFixed(4)}
-      🗄️ DB Cost: $${call.cost_usd || 0} (IGNORED)`);
-    
-    return calculatedCost;
-  };
+
+    console.log(`✅ Costo actualizado en BD: ${callId} → $${calculatedCost.toFixed(2)}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error en updateCallCostInDatabase:', error);
+    return false;
+  }
+};
+  
+  /// 🔧 FUNCIÓN MODIFICADA - Reemplazar tu calculateCallCost existente con esta
+const calculateCallCost = async (call: Call) => {
+  const durationMinutes = getCallDuration(call) / 60;
+  let agentRate = 0;
+  
+  if (call.call_agent?.rate_per_minute) {
+    agentRate = call.call_agent.rate_per_minute;
+    console.log(`💰 Using call_agent rate: $${agentRate}/min`);
+  } else if (call.agents?.rate_per_minute) {
+    agentRate = call.agents.rate_per_minute;
+    console.log(`💰 Using agents rate: $${agentRate}/min`);
+  }
+  
+  if (agentRate === 0) {
+    console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
+    return call.cost_usd || 0;
+  }
+  
+  const calculatedCost = durationMinutes * agentRate;
+  
+  console.log(`🧮 COST CALCULATION:
+    📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
+    💵 Rate: $${agentRate}/min
+    🎯 Calculated: $${calculatedCost.toFixed(4)}
+    🗄️ DB Cost: $${call.cost_usd || 0} (IGNORED)`);
+  
+  // 🆕 NUEVA LÓGICA: Actualizar en la base de datos automáticamente
+  if (calculatedCost > 0 && calculatedCost !== parseFloat(call.cost_usd || 0)) {
+    console.log(`💾 Costo diferente detectado, actualizando BD: $${call.cost_usd || 0} → $${calculatedCost.toFixed(4)}`);
+    await updateCallCostInDatabase(call.call_id, calculatedCost);
+  }
+  
+  return calculatedCost;
+};
 
   // 🔧 REEMPLAZAR LA FUNCIÓN getCallDuration EN CallsSimple.tsx (línea ~348)
 
@@ -1467,7 +1498,10 @@ const getCallDuration = (call: any) => {
       setCalls(data || []);
 
       if (data && data.length > 0) {
-        const totalCost = data.reduce((sum, call) => sum + calculateCallCost(call), 0);
+        let totalCost = 0;
+for (const call of data) {
+  totalCost += await calculateCallCost(call);
+}
         const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
         const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
         const completedCalls = data.filter(call => call.call_status === 'completed').length;
