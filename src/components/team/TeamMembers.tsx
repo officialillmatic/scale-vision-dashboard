@@ -1,5 +1,3 @@
-import { manualMigratePendingUsers } from '@/services/teamMigration';
-import { Upload } from 'lucide-react';
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
@@ -12,19 +10,20 @@ import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { TeamInvitations } from './TeamInvitations';
 import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
-import { UserPlus, Users, AlertCircle, RefreshCw } from 'lucide-react';
+import { UserPlus, Users, AlertCircle, RefreshCw, Database } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { RegisteredMembers } from './RegisteredMembers';
-
+import { manualMigratePendingUsers } from '@/services/teamMigration';
 export function TeamMembers() {
   const { company } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
-const companyIdToUse = isSuperAdmin ? undefined : company?.id;
+  const companyIdToUse = isSuperAdmin ? undefined : company?.id;
 
-console.log("🔥 [TEAM_MEMBERS] isSuperAdmin:", isSuperAdmin);
-console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
+  console.log("🔥 [TEAM_MEMBERS] isSuperAdmin:", isSuperAdmin);
+  console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
+  
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('members');
   const [isMigrating, setIsMigrating] = useState(false);
@@ -37,7 +36,6 @@ console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
     handleInvite,
     fetchInvitations
   } = useTeamMembers(companyIdToUse);
-
   const openInviteDialog = () => {
     setIsInviteDialogOpen(true);
   };
@@ -51,11 +49,9 @@ console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
       await fetchInvitations();
     }
   };
-
-  // NUEVA FUNCIÓN: Migración Automática de Usuarios Registrados
   const handleMigrateUsers = async () => {
     const companyId = company?.id || 'default-company';
-console.log('🔍 [MIGRATION] Using company ID:', companyId);
+    console.log('🔍 [MIGRATION] Using company ID:', companyId);
 
     setIsMigrating(true);
     
@@ -63,7 +59,6 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
       console.log('🚀 [MIGRATION] Starting automatic user migration...');
       toast.info('Iniciando migración de usuarios...');
       
-      // Ejecutar la migración
       const result = await manualMigratePendingUsers(companyId);
       
       console.log('📊 [MIGRATION] Result:', result);
@@ -80,7 +75,6 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
           
           console.log('✅ [MIGRATION] Migrated users:', result.users);
           
-          // Refrescar la lista después de la migración
           setTimeout(() => {
             handleRefresh();
           }, 1000);
@@ -100,14 +94,12 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
       setIsMigrating(false);
     }
   };
-
   const handleEditRole = (member: any) => {
     console.log('Edit role for:', member.email);
     alert(`Edit role for ${member.email}\nCurrent role: ${member.role}`);
   };
 
   const handleRemoveUser = async (member: any) => {
-    // Security confirmation
     const confirmed = window.confirm(
       `Are you sure you want to remove ${member.email} from the team?\n\nThis action will:\n- Remove their profile\n- Remove from company members\n- Delete their invitations\n- Allow them to be re-invited`
     );
@@ -118,7 +110,6 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
       console.log('🗑️ Cleaning user for re-invite:', member.email);
       console.log('🗑️ Member ID:', member.id);
       
-      // Use cleanup function that preserves auth account
       const { data, error } = await supabase.rpc('cleanup_user_for_reinvite', {
         user_id_to_clean: member.id
       });
@@ -134,7 +125,6 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
       if (data && data.success) {
         toast.success(`${member.email} removed from team (can be re-invited)`);
         console.log('✅ User cleaned successfully, refreshing page...');
-        // Force refresh after successful cleanup
         setTimeout(() => {
           window.location.reload();
         }, 1000);
@@ -148,7 +138,6 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
       toast.error(`Error removing user: ${error.message}`);
     }
   };
-
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
@@ -163,32 +152,32 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
             </Badge>
           )}
         </div>
-        <Button size="sm">TEST</Button>
         
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} size="sm">
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-<Button 
-  variant="outline" 
-  onClick={handleMigrateUsers} 
-  disabled={isMigrating || isLoading}
-  size="sm"
-  style={{backgroundColor: '#f0fdf4', borderColor: '#bbf7d0'}}
->
-  {isMigrating ? (
-    <>
-      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-      Migrando...
-    </>
-  ) : (
-    <>
-      <UserPlus className="mr-2 h-4 w-4" />
-      Migrar Usuarios
-    </>
-  )}
-</Button>
+          
+          <Button 
+            variant="outline" 
+            onClick={handleMigrateUsers} 
+            disabled={isMigrating || isLoading}
+            size="sm"
+            style={{backgroundColor: '#f0fdf4', borderColor: '#bbf7d0'}}
+          >
+            {isMigrating ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Migrando...
+              </>
+            ) : (
+              <>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Migrar Usuarios
+              </>
+            )}
+          </Button>
           
           <Button onClick={openInviteDialog} disabled={isInviting || isLoading}>
             <UserPlus className="mr-2 h-4 w-4" />
@@ -196,7 +185,6 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
           </Button>
         </div>
       </div>
-
       {/* NUEVA: Navegación de pestañas */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
@@ -229,7 +217,6 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
       </div>
       
       <EmailConfigWarning />
-      
       {/* Contenido condicional según pestaña activa */}
       {activeTab === 'members' ? (
         <>
@@ -341,10 +328,6 @@ console.log('🔍 [MIGRATION] Using company ID:', companyId);
         /* Nueva pestaña: Miembros Registrados */
         <RegisteredMembers />
       )}
-      
-      {/* Pending invitations section */}
-      <TeamInvitations />
-      
       {/* Invite dialog */}
       <TeamInviteDialog
         isOpen={isInviteDialogOpen}
