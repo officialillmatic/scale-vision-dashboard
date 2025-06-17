@@ -40,9 +40,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { sendInvitationEmail } from '@/services/send-invitation/email';
 
-// ✅ NUEVO IMPORT AGREGADO
-import { AgentAssignmentManager } from '@/components/team/AgentAssignmentManager';
-
 // ✅ Imports corregidos para Retell API con funciones seguras
 import { 
   getAllRetellAgentsForTeam, 
@@ -54,6 +51,15 @@ import {
   safeFormatDateTime,
   RetellAgentDetailed 
 } from '@/services/agentService';
+
+// ✅ NUEVO IMPORT AGREGADO PARA ASIGNACIONES
+import { 
+  fetchUserAgentAssignments, 
+  createUserAgentAssignment, 
+  removeUserAgentAssignment,
+  updateUserAgentAssignmentPrimary,
+  UserAgentAssignment 
+} from '@/services/agent/userAgentAssignmentQueries';
 
 // ========================================
 // INTERFACES Y TIPOS - ✅ ACTUALIZADAS
@@ -110,6 +116,18 @@ interface Company {
   status: string;
 }
 
+// ✅ USANDO LA INTERFAZ CORRECTA PARA ASIGNACIONES
+interface UserAgentAssignment {
+  id: string;
+  user_id: string;
+  agent_id: string;
+  user_email: string;
+  user_name: string;
+  agent_name: string;
+  is_primary: boolean;
+  created_at: string;
+}
+
 interface UserInvitation {
   id: string;
   email: string;
@@ -126,7 +144,7 @@ interface UserInvitation {
   accepted_at?: string;
   user_id?: string;
 }
-// TeamPage.tsx - PARTE 2: COMPONENTE PRINCIPAL Y ESTADOS - ✅ LIMPIADO
+// TeamPage.tsx - PARTE 2: COMPONENTE PRINCIPAL Y ESTADOS - ✅ CORREGIDO
 
 export default function TeamPage() {
   const { user } = useAuth();
@@ -141,12 +159,14 @@ export default function TeamPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [assignments, setAssignments] = useState<UserAgentAssignment[]>([]);
   const [invitations, setInvitations] = useState<UserInvitation[]>([]);
   
   // Estados de filtrado
   const [filteredMembers, setFilteredMembers] = useState<TeamMember[]>([]);
   const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
+  const [filteredAssignments, setFilteredAssignments] = useState<UserAgentAssignment[]>([]);
   const [filteredInvitations, setFilteredInvitations] = useState<UserInvitation[]>([]);
   
   // Estados de modales básicos
@@ -183,7 +203,20 @@ export default function TeamPage() {
     agent?: Agent;
   }>({ open: false });
 
-  // ✅ YA NO HAY ESTADOS DE ASIGNACIONES - ELIMINADOS
+  // Estados para asignaciones
+  const [assignmentModal, setAssignmentModal] = useState<{
+    open: boolean;
+    userId?: string;
+    userName?: string;
+  }>({ open: false });
+  const [editAssignmentModal, setEditAssignmentModal] = useState<{
+    open: boolean;
+    assignment?: UserAgentAssignment;
+  }>({ open: false });
+  const [deleteAssignmentModal, setDeleteAssignmentModal] = useState<{
+    open: boolean;
+    assignment?: UserAgentAssignment;
+  }>({ open: false });
 
   // Verificación de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
@@ -212,7 +245,7 @@ export default function TeamPage() {
   // useEffect para filtros
   useEffect(() => {
     applyFilters();
-  }, [teamMembers, agents, companies, invitations, searchQuery, statusFilter, activeTab]);
+  }, [teamMembers, agents, companies, assignments, invitations, searchQuery, statusFilter, activeTab]);
 
   // ========================================
   // ✅ FUNCIONES AUXILIARES MEJORADAS
@@ -243,7 +276,7 @@ export default function TeamPage() {
     }
   }, []);
 
-  // ✅ Función mejorada para aplicar filtros - SIN ASSIGNMENTS
+  // ✅ Función mejorada para aplicar filtros
   const applyFilters = useCallback(() => {
     try {
       const query = searchQuery.toLowerCase();
@@ -279,6 +312,14 @@ export default function TeamPage() {
       }
       setFilteredCompanies(filteredCompaniesResult);
 
+      // Filtrar asignaciones
+      const filteredAssignmentsResult = assignments.filter(assignment => 
+        (assignment.user_email?.toLowerCase() || '').includes(query) ||
+        (assignment.user_name?.toLowerCase() || '').includes(query) ||
+        (assignment.agent_name?.toLowerCase() || '').includes(query)
+      );
+      setFilteredAssignments(filteredAssignmentsResult);
+
       // Filtrar invitaciones
       const filteredInvitationsResult = invitations.filter(invitation => 
         (invitation.email?.toLowerCase() || '').includes(query) ||
@@ -290,7 +331,7 @@ export default function TeamPage() {
     } catch (error) {
       console.error('❌ Error aplicando filtros:', error);
     }
-  }, [teamMembers, agents, companies, invitations, searchQuery, statusFilter]);
+  }, [teamMembers, agents, companies, assignments, invitations, searchQuery, statusFilter]);
 
   // ✅ Función para exportar datos
   const exportData = useCallback(() => {
@@ -326,6 +367,15 @@ export default function TeamPage() {
           ].join('\n');
           filename = 'companies';
           break;
+        case 'assignments':
+          csvContent = [
+            'User Email,User Name,Agent Name,Is Primary,Created',
+            ...filteredAssignments.map(assignment => 
+              `"${assignment.user_email || ''}","${assignment.user_name || ''}","${assignment.agent_name || ''}","${assignment.is_primary ? 'Yes' : 'No'}","${formatDate(assignment.created_at)}"`
+            )
+          ].join('\n');
+          filename = 'user_agent_assignments';
+          break;
         default:
           throw new Error('Pestaña no válida para exportar');
       }
@@ -345,9 +395,9 @@ export default function TeamPage() {
       console.error('❌ Error exportando datos:', error);
       toast.error(`Error al exportar: ${error.message}`);
     }
-  }, [activeTab, filteredMembers, filteredAgents, filteredCompanies, formatDate]);
+  }, [activeTab, filteredMembers, filteredAgents, filteredCompanies, filteredAssignments, formatDate]);
   // ========================================
-  // ✅ FUNCIÓN FETCHALLDATA LIMPIADA - SIN ASSIGNMENTS
+  // ✅ FUNCIÓN FETCHALLDATA CORREGIDA
   // ========================================
 
   const fetchAllData = useCallback(async () => {
@@ -361,8 +411,8 @@ export default function TeamPage() {
         fetchTeamMembers(),
         fetchAgents(),
         fetchCompanies(),
+        fetchAssignments(), // ✅ AGREGADO
         fetchInvitations()
-        // ✅ YA NO HAY fetchAssignments()
       ]);
       
       console.log('✅ [TeamPage] Todos los datos cargados exitosamente');
@@ -376,7 +426,40 @@ export default function TeamPage() {
   }, []);
 
   // ========================================
-  // ✅ FUNCIÓN FETCHAGENTS CORREGIDA - SOLO CUSTOM AGENTS
+  // ✅ FUNCIÓN FETCHASSIGNMENTS CORREGIDA
+  // ========================================
+
+  const fetchAssignments = useCallback(async () => {
+    try {
+      console.log('🔍 [TeamPage] Fetching user-agent assignments...');
+      
+      // ✅ USAR LA FUNCIÓN DEL SERVICE QUE YA FUNCIONA
+      const assignmentsData = await fetchUserAgentAssignments();
+      
+      // ✅ CONVERTIR AL FORMATO QUE ESPERA TU CÓDIGO ORIGINAL
+      const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => ({
+        id: assignment.id,
+        user_id: assignment.user_id,
+        agent_id: assignment.agent_id,
+        user_email: assignment.user_details?.email || 'unknown@email.com',
+        user_name: assignment.user_details?.full_name || assignment.user_details?.email || 'Usuario',
+        agent_name: assignment.agent_details?.name || 'Agente',
+        is_primary: assignment.is_primary || false,
+        created_at: assignment.assigned_at || new Date().toISOString()
+      }));
+
+      setAssignments(formattedAssignments);
+      console.log('✅ [TeamPage] Assignments loaded successfully:', formattedAssignments.length);
+
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error fetching assignments:', error);
+      setAssignments([]);
+      toast.error(`Error al cargar asignaciones: ${error.message}`);
+    }
+  }, []);
+
+  // ========================================
+  // ✅ FUNCIÓN FETCHAGENTS ORIGINAL (mantener igual)
   // ========================================
 
   const fetchAgents = useCallback(async () => {
@@ -491,7 +574,7 @@ export default function TeamPage() {
     }
   }, []);
   // ========================================
-  // ✅ FUNCIONES FETCH RESTANTES
+  // ✅ FUNCIONES FETCH RESTANTES (mantener originales)
   // ========================================
 
   const fetchTeamMembers = useCallback(async () => {
@@ -655,7 +738,80 @@ export default function TeamPage() {
     }
   }, []);
   // ========================================
-  // ✅ HANDLERS DE AGENTES Y MIEMBROS
+  // ✅ HANDLERS DE ASIGNACIONES CORREGIDOS
+  // ========================================
+
+  const handleCreateAssignment = useCallback(async (assignmentData: {
+    user_id: string;
+    agent_id: string;
+    is_primary: boolean;
+  }) => {
+    try {
+      console.log('📝 [TeamPage] Creating new assignment:', assignmentData);
+
+      // ✅ Verificar si ya existe la asignación
+      const existingAssignment = assignments.find(
+        a => a.user_id === assignmentData.user_id && a.agent_id === assignmentData.agent_id
+      );
+      
+      if (existingAssignment) {
+        toast.error('❌ Ya existe una asignación entre este usuario y agente');
+        return;
+      }
+
+      // ✅ USAR LA FUNCIÓN DEL SERVICE
+      await createUserAgentAssignment(
+        assignmentData.user_id, 
+        assignmentData.agent_id, 
+        assignmentData.is_primary
+      );
+      
+      toast.success('✅ Asignación creada exitosamente');
+      await fetchAssignments(); // Recargar datos
+      setAssignmentModal({ open: false });
+
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error creating assignment:', error);
+      toast.error(`Error al crear asignación: ${error.message}`);
+    }
+  }, [assignments, fetchAssignments]);
+
+  const handleUpdatePrimary = useCallback(async (
+    assignmentId: string,
+    isPrimary: boolean,
+    userId: string
+  ) => {
+    try {
+      console.log('🔄 [TeamPage] Updating primary assignment:', { assignmentId, isPrimary, userId });
+
+      await updateUserAgentAssignmentPrimary(assignmentId, isPrimary, userId);
+      
+      toast.success(isPrimary ? '✅ Marcado como agente primario' : '✅ Desmarcado como agente primario');
+      await fetchAssignments(); // Recargar datos
+
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error updating primary assignment:', error);
+      toast.error(`Error al actualizar asignación: ${error.message}`);
+    }
+  }, [fetchAssignments]);
+
+  const handleRemoveAssignment = useCallback(async (assignmentId: string) => {
+    try {
+      console.log('🗑️ [TeamPage] Removing assignment:', assignmentId);
+
+      await removeUserAgentAssignment(assignmentId);
+      
+      toast.success('✅ Asignación eliminada exitosamente');
+      await fetchAssignments(); // Recargar datos
+
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error removing assignment:', error);
+      toast.error(`Error al eliminar asignación: ${error.message}`);
+    }
+  }, [fetchAssignments]);
+
+  // ========================================
+  // ✅ HANDLERS DE AGENTES (mantener originales)
   // ========================================
 
   const loadRetellAgentsForModal = useCallback(async () => {
@@ -756,7 +912,6 @@ export default function TeamPage() {
       toast.error(`Error al crear Custom Agent: ${error.message}`);
     }
   }, [fetchAgents]);
-
   const handleViewAgent = useCallback(async (agent: Agent) => {
     try {
       console.log('👁️ [TeamPage] Viewing agent details:', agent.id);
@@ -949,7 +1104,7 @@ export default function TeamPage() {
   }, [isSuperAdmin, user?.id, user?.email, fetchAllData]);
 
   // ========================================
-  // ✅ ESTADÍSTICAS LIMPIADAS - SIN ASSIGNMENTS
+  // ✅ ESTADÍSTICAS
   // ========================================
 
   const stats = {
@@ -959,13 +1114,11 @@ export default function TeamPage() {
     activeAgents: agents.filter(a => a.status === 'active').length,
     totalCompanies: companies.length,
     activeCompanies: companies.filter(c => c.status === 'active').length,
+    totalAssignments: assignments.length,
+    primaryAssignments: assignments.filter(a => a.is_primary).length,
     totalInvitations: invitations.length,
     pendingInvitations: invitations.filter(i => i.status === 'pending').length
   };
-  // ========================================
-  // ✅ VERIFICACIONES Y RENDERS DE ESTADO
-  // ========================================
-
   // Verificación de usuario autenticado
   if (!user) {
     return (
@@ -1012,6 +1165,7 @@ export default function TeamPage() {
       </DashboardLayout>
     );
   }
+
   // ========================================
   // JSX PRINCIPAL - RENDER DEL COMPONENTE
   // ========================================
@@ -1248,138 +1402,6 @@ export default function TeamPage() {
                 )}
               </TabsContent>
 
-              {/* Tab: Invitaciones */}
-              <TabsContent value="invitations" className="space-y-4 mt-0">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
-                  <div className="flex gap-2">
-                    <Button onClick={fetchInvitations} variant="outline" size="sm" disabled={loading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Actualizar
-                    </Button>
-                    <Button 
-                      onClick={() => setAddMemberModal(true)} 
-                      size="sm"
-                      disabled={!isSuperAdmin}
-                    >
-                      <Mail className="w-4 h-4 mr-2" />
-                      Nueva Invitación
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <div className="flex items-start gap-2">
-                    <Mail className="h-4 w-4 text-amber-600 mt-0.5" />
-                    <div className="text-sm text-amber-800">
-                      <strong>Invitaciones:</strong> Aquí puedes ver todas las invitaciones enviadas a nuevos miembros del equipo.
-                      Las invitaciones pendientes expiran en 7 días.
-                    </div>
-                  </div>
-                </div>
-
-                {filteredInvitations.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No hay invitaciones</h3>
-                    <p className="text-gray-600 mb-4">Aún no se han enviado invitaciones a nuevos miembros.</p>
-                    <Button 
-                      onClick={() => setAddMemberModal(true)}
-                      disabled={!isSuperAdmin}
-                    >
-                      <Mail className="w-4 h-4 mr-2" />
-                      Enviar Primera Invitación
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredInvitations.map((invitation) => (
-                      <div
-                        key={invitation.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <p className="font-medium text-sm">{invitation.email}</p>
-                            <span className="text-xs text-gray-500">({invitation.name})</span>
-                            
-                            <Badge variant={
-                              invitation.status === 'pending' ? 'default' : 
-                              invitation.status === 'accepted' ? 'secondary' :
-                              invitation.status === 'expired' ? 'destructive' : 'outline'
-                            }>
-                              {invitation.status === 'pending' && (
-                                <Clock className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'accepted' && (
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'expired' && (
-                                <XCircle className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'pending' ? 'Pendiente' : 
-                               invitation.status === 'accepted' ? 'Aceptada' :
-                               invitation.status === 'expired' ? 'Expirada' : invitation.status}
-                            </Badge>
-                            
-                            {invitation.role === 'admin' && (
-                              <Badge variant="destructive">
-                                <Crown className="h-3 w-3 mr-1" />
-                                Admin
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                            <span>Rol: <strong>{invitation.role}</strong></span>
-                            <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
-                            <span>Enviada: <strong>{formatDate(invitation.created_at)}</strong></span>
-                            <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
-                          </div>
-                          
-                          {invitation.accepted_at && (
-                            <div className="text-xs text-green-600 mt-1">
-                              ✅ Aceptada el {formatDate(invitation.accepted_at)}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 ml-4">
-                          {invitation.status === 'pending' && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
-                                navigator.clipboard.writeText(invitationUrl);
-                                toast.success('🔗 URL de invitación copiada al portapapeles');
-                              }}
-                            >
-                              <Key className="h-4 w-4 mr-1" />
-                              Copiar URL
-                            </Button>
-                          )}
-                          
-                          {invitation.status === 'accepted' && invitation.user_id && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                setActiveTab('members');
-                                setSearchQuery(invitation.email);
-                              }}
-                            >
-                              <User className="h-4 w-4 mr-1" />
-                              Ver Usuario
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-
               {/* Tab: Custom AI Agents */}
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1523,19 +1545,38 @@ export default function TeamPage() {
                   </div>
                 )}
               </TabsContent>
-
-              {/* Tab: Empresas */}
-              <TabsContent value="companies" className="space-y-4 mt-0">
-                <div className="text-center py-8">
-                  <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Gestión de Empresas</h3>
-                  <p className="text-gray-600">Funcionalidad en desarrollo...</p>
-                </div>
-              </TabsContent>
-
-              {/* ✅ Tab: Asignaciones - USANDO AGENTASSIGNMENTMANAGER */}
+              {/* ✅ Tab: Asignaciones - CORREGIDO */}
               <TabsContent value="assignments" className="space-y-4 mt-0">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Asignaciones Usuario-Agente ({filteredAssignments.length})</h3>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => {
+                        console.log('🔄 [TeamPage] Manual refresh of assignments...');
+                        fetchAssignments();
+                      }} 
+                      variant="outline" 
+                      size="sm" 
+                      disabled={loading}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        console.log('➕ [TeamPage] Opening new assignment modal...');
+                        setAssignmentModal({ open: true });
+                      }} 
+                      size="sm"
+                      disabled={!isSuperAdmin || teamMembers.length === 0 || agents.length === 0}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nueva Asignación
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <div className="flex items-start gap-2">
                     <Settings className="h-4 w-4 text-green-600 mt-0.5" />
                     <div className="text-sm text-green-800">
@@ -1545,14 +1586,244 @@ export default function TeamPage() {
                   </div>
                 </div>
 
-                {/* ✅ USAR EL COMPONENTE COMPLETO QUE YA FUNCIONA */}
-                <AgentAssignmentManager />
+                {filteredAssignments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No hay asignaciones</h3>
+                    <p className="text-gray-600 mb-4">
+                      Aún no se han asignado Custom AI Agents a los usuarios.
+                    </p>
+                    {teamMembers.length > 0 && agents.length > 0 ? (
+                      <Button 
+                        onClick={() => {
+                          console.log('➕ [TeamPage] Opening first assignment...');
+                          setAssignmentModal({ open: true });
+                        }}
+                        disabled={!isSuperAdmin}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Crear Primera Asignación
+                      </Button>
+                    ) : (
+                      <div className="text-sm text-gray-500">
+                        {teamMembers.length === 0 && 'Necesitas tener miembros en el equipo '}
+                        {agents.length === 0 && 'Necesitas tener Custom AI Agents '}
+                        para crear asignaciones.
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredAssignments.map((assignment) => (
+                      <div
+                        key={assignment.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-blue-500" />
+                              <p className="font-medium text-sm">{assignment.user_name}</p>
+                              <span className="text-xs text-gray-500">({assignment.user_email})</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400">→</span>
+                              <Bot className="h-4 w-4 text-purple-500" />
+                              <p className="font-medium text-sm text-purple-700">{assignment.agent_name}</p>
+                            </div>
+                            
+                            {assignment.is_primary && (
+                              <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">
+                                <Crown className="h-3 w-3 mr-1" />
+                                Primario
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-600">
+                            <span>Tipo: <strong>{assignment.is_primary ? 'Asignación Primaria' : 'Asignación Secundaria'}</strong></span>
+                            <span>Creada: <strong>{formatDate(assignment.created_at)}</strong></span>
+                            <span>Estado: <strong className="text-green-600">Activa</strong></span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleUpdatePrimary(
+                              assignment.id, 
+                              !assignment.is_primary, 
+                              assignment.user_id
+                            )}
+                            className="text-blue-600 hover:text-blue-700"
+                            disabled={!isSuperAdmin}
+                          >
+                            {assignment.is_primary ? 'Quitar Primario' : 'Hacer Primario'}
+                          </Button>
+                          
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleRemoveAssignment(assignment.id)}
+                            disabled={!isSuperAdmin}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Eliminar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Tabs placeholder para otros contenidos */}
+              <TabsContent value="companies" className="space-y-4 mt-0">
+                <div className="text-center py-8">
+                  <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Gestión de Empresas</h3>
+                  <p className="text-gray-600">Funcionalidad en desarrollo...</p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="invitations" className="space-y-4 mt-0">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
+                  <div className="flex gap-2">
+                    <Button onClick={fetchInvitations} variant="outline" size="sm" disabled={loading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </Button>
+                    <Button 
+                      onClick={() => setAddMemberModal(true)} 
+                      size="sm"
+                      disabled={!isSuperAdmin}
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Nueva Invitación
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Mail className="h-4 w-4 text-amber-600 mt-0.5" />
+                    <div className="text-sm text-amber-800">
+                      <strong>Invitaciones:</strong> Aquí puedes ver todas las invitaciones enviadas a nuevos miembros del equipo.
+                      Las invitaciones pendientes expiran en 7 días.
+                    </div>
+                  </div>
+                </div>
+
+                {filteredInvitations.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No hay invitaciones</h3>
+                    <p className="text-gray-600 mb-4">Aún no se han enviado invitaciones a nuevos miembros.</p>
+                    <Button 
+                      onClick={() => setAddMemberModal(true)}
+                      disabled={!isSuperAdmin}
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Enviar Primera Invitación
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredInvitations.map((invitation) => (
+                      <div
+                        key={invitation.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <p className="font-medium text-sm">{invitation.email}</p>
+                            <span className="text-xs text-gray-500">({invitation.name})</span>
+                            
+                            <Badge variant={
+                              invitation.status === 'pending' ? 'default' : 
+                              invitation.status === 'accepted' ? 'secondary' :
+                              invitation.status === 'expired' ? 'destructive' : 'outline'
+                            }>
+                              {invitation.status === 'pending' && (
+                                <Clock className="h-3 w-3 mr-1" />
+                              )}
+                              {invitation.status === 'accepted' && (
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                              )}
+                              {invitation.status === 'expired' && (
+                                <XCircle className="h-3 w-3 mr-1" />
+                              )}
+                              {invitation.status === 'pending' ? 'Pendiente' : 
+                               invitation.status === 'accepted' ? 'Aceptada' :
+                               invitation.status === 'expired' ? 'Expirada' : invitation.status}
+                            </Badge>
+                            
+                            {invitation.role === 'admin' && (
+                              <Badge variant="destructive">
+                                <Crown className="h-3 w-3 mr-1" />
+                                Admin
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                            <span>Rol: <strong>{invitation.role}</strong></span>
+                            <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
+                            <span>Enviada: <strong>{formatDate(invitation.created_at)}</strong></span>
+                            <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
+                          </div>
+                          
+                          {invitation.accepted_at && (
+                            <div className="text-xs text-green-600 mt-1">
+                              ✅ Aceptada el {formatDate(invitation.accepted_at)}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          {invitation.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
+                                navigator.clipboard.writeText(invitationUrl);
+                                toast.success('🔗 URL de invitación copiada al portapapeles');
+                              }}
+                            >
+                              <Key className="h-4 w-4 mr-1" />
+                              Copiar URL
+                            </Button>
+                          )}
+                          
+                          {invitation.status === 'accepted' && invitation.user_id && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setActiveTab('members');
+                                setSearchQuery(invitation.email);
+                              }}
+                            >
+                              <User className="h-4 w-4 mr-1" />
+                              Ver Usuario
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
             </CardContent>
           </Tabs>
         </Card>
         {/* ========================================
-            MODALES - SOLO MIEMBROS Y AGENTES (NO ASSIGNMENTS)
+            MODALES
             ======================================== */}
         
         {/* Modal Invitar Miembro */}
@@ -1575,6 +1846,16 @@ export default function TeamPage() {
             loadingRetellAgents={loadingRetellAgents}
             onLoadRetellAgents={loadRetellAgentsForModal}
             retellError={retellError}
+          />
+        )}
+
+        {/* ✅ Modal Nueva Asignación - CORREGIDO */}
+        {assignmentModal.open && (
+          <NewAssignmentModal
+            onClose={() => setAssignmentModal({ open: false })}
+            onSave={handleCreateAssignment}
+            users={teamMembers.filter(m => m.status === 'active')}
+            agents={agents.filter(a => a.status === 'active')}
           />
         )}
 
@@ -1716,8 +1997,6 @@ export default function TeamPage() {
           </div>
         )}
 
-        {/* ✅ YA NO HAY MODALES DE ASSIGNMENTS - LOS MANEJA AgentAssignmentManager */}
-
       </div>
     </DashboardLayout>
   );
@@ -1806,7 +2085,394 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ onClose, onSave, compan
   );
 };
 
-// Modal AddAgent se mantiene igual que antes... (por brevedad no lo incluyo aquí)
+// ✅ MODAL PARA NUEVA ASIGNACIÓN - SIMPLIFICADO
+interface NewAssignmentModalProps {
+  onClose: () => void;
+  onSave: (data: { user_id: string; agent_id: string; is_primary: boolean }) => void;
+  users: TeamMember[];
+  agents: Agent[];
+}
+
+const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({ 
+  onClose, 
+  onSave, 
+  users, 
+  agents 
+}) => {
+  const [formData, setFormData] = useState({
+    user_id: '',
+    agent_id: '',
+    is_primary: false
+  });
+
+  const [selectedUser, setSelectedUser] = useState<TeamMember | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.user_id || !formData.agent_id) {
+      toast.error('Por favor selecciona un usuario y un agente');
+      return;
+    }
+
+    onSave({
+      user_id: formData.user_id,
+      agent_id: formData.agent_id,
+      is_primary: formData.is_primary
+    });
+  };
+
+  const handleUserChange = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    setSelectedUser(user || null);
+    setFormData(prev => ({ ...prev, user_id: userId }));
+  };
+
+  const handleAgentChange = (agentId: string) => {
+    const agent = agents.find(a => a.id === agentId);
+    setSelectedAgent(agent || null);
+    setFormData(prev => ({ ...prev, agent_id: agentId }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-[500px] max-w-full mx-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5 text-blue-500" />
+            Nueva Asignación Usuario-Agente
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            
+            {/* Seleccionar Usuario */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Usuario *</label>
+              <select
+                value={formData.user_id}
+                onChange={(e) => handleUserChange(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+                required
+              >
+                <option value="">Selecciona un usuario</option>
+                {users.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} ({user.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Información del usuario seleccionado */}
+            {selectedUser && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">Usuario Seleccionado</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
+                  <div><strong>Nombre:</strong> {selectedUser.name}</div>
+                  <div><strong>Email:</strong> {selectedUser.email}</div>
+                  <div><strong>Empresa:</strong> {selectedUser.company_name || 'N/A'}</div>
+                  <div><strong>Estado:</strong> {selectedUser.status}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Seleccionar Agente */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Custom AI Agent *</label>
+              <select
+                value={formData.agent_id}
+                onChange={(e) => handleAgentChange(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+                required
+              >
+                <option value="">Selecciona un agente</option>
+                {agents.map(agent => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name} {agent.company_name ? `(${agent.company_name})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Información del agente seleccionado */}
+            {selectedAgent && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <h4 className="text-sm font-medium text-purple-800 mb-2">Agente Seleccionado</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs text-purple-700">
+                  <div><strong>Nombre:</strong> {selectedAgent.name}</div>
+                  <div><strong>Estado:</strong> {selectedAgent.status}</div>
+                  <div><strong>Empresa:</strong> {selectedAgent.company_name || 'N/A'}</div>
+                  <div><strong>Retell ID:</strong> {selectedAgent.retell_agent_id}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Checkbox para asignación primaria */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="is_primary"
+                checked={formData.is_primary}
+                onCheckedChange={(checked) => 
+                  setFormData(prev => ({ ...prev, is_primary: checked as boolean }))
+                }
+              />
+              <label htmlFor="is_primary" className="text-sm font-medium">
+                Asignación Primaria
+              </label>
+            </div>
+            
+            {formData.is_primary && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <div className="text-xs text-yellow-800">
+                  <strong>Nota:</strong> Una asignación primaria indica que este será el agente principal del usuario.
+                  Solo puede haber una asignación primaria por usuario.
+                </div>
+              </div>
+            )}
+
+            {/* Botones */}
+            <div className="flex justify-end space-x-2 mt-6 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={!formData.user_id || !formData.agent_id}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Crear Asignación
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// ✅ MODAL ADDAGENT - FUNCIONAL
+interface AddAgentModalProps {
+  onClose: () => void;
+  onSave: (data: { retell_agent_id: string; name: string; company_id?: string; description?: string }) => void;
+  companies: Company[];
+  retellAgents: RetellAgentDetailed[];
+  loadingRetellAgents: boolean;
+  onLoadRetellAgents: () => void;
+  retellError: string | null;
+}
+
+const AddAgentModal: React.FC<AddAgentModalProps> = ({ 
+  onClose, 
+  onSave, 
+  companies, 
+  retellAgents, 
+  loadingRetellAgents, 
+  onLoadRetellAgents,
+  retellError 
+}) => {
+  const [formData, setFormData] = useState({
+    retell_agent_id: '',
+    name: '',
+    company_id: '',
+    description: ''
+  });
+
+  const [selectedRetellAgent, setSelectedRetellAgent] = useState<RetellAgentDetailed | null>(null);
+
+  useEffect(() => {
+    if (retellAgents.length === 0 && !loadingRetellAgents && !retellError) {
+      onLoadRetellAgents();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedRetellAgent && !formData.name) {
+      setFormData(prev => ({
+        ...prev,
+        name: selectedRetellAgent.agent_name || `Agent ${selectedRetellAgent.agent_id.slice(0, 8)}`,
+        description: `Agente con voz ${selectedRetellAgent.voice_id} (${selectedRetellAgent.language})`
+      }));
+    }
+  }, [selectedRetellAgent]);
+
+  const handleRetellAgentChange = (agentId: string) => {
+    const agent = retellAgents.find(a => a.agent_id === agentId);
+    setSelectedRetellAgent(agent || null);
+    setFormData(prev => ({
+      ...prev,
+      retell_agent_id: agentId
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.retell_agent_id) {
+      toast.error('Por favor selecciona un agente de Retell AI');
+      return;
+    }
+    
+    if (!formData.name.trim()) {
+      toast.error('Por favor ingresa un nombre para el Custom Agent');
+      return;
+    }
+
+    onSave({
+      retell_agent_id: formData.retell_agent_id,
+      name: formData.name.trim(),
+      company_id: formData.company_id || undefined,
+      description: formData.description.trim() || undefined
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-[500px] max-w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bot className="h-5 w-5 text-purple-500" />
+            Crear Custom AI Agent
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            
+            {/* Sección de Agentes de Retell */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium">Agente de Retell AI *</label>
+              
+              {retellError ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-red-800 text-sm">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>{retellError}</span>
+                  </div>
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-2"
+                    onClick={onLoadRetellAgents}
+                    disabled={loadingRetellAgents}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${loadingRetellAgents ? 'animate-spin' : ''}`} />
+                    Reintentar cargar agentes
+                  </Button>
+                </div>
+              ) : loadingRetellAgents ? (
+                <div className="flex items-center gap-2 text-gray-600 text-sm p-3 bg-blue-50 rounded-lg">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Cargando agentes de Retell AI...</span>
+                </div>
+              ) : retellAgents.length === 0 ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <div className="text-yellow-800 text-sm">
+                    No se encontraron agentes de Retell AI disponibles.
+                  </div>
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-2"
+                    onClick={onLoadRetellAgents}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Cargar agentes
+                  </Button>
+                </div>
+              ) : (
+                <select
+                  value={formData.retell_agent_id}
+                  onChange={(e) => handleRetellAgentChange(e.target.value)}
+                  className="w-full border rounded px-3 py-2"
+                  required
+                >
+                  <option value="">Selecciona un agente de Retell AI</option>
+                  {retellAgents.map(agent => (
+                    <option key={agent.agent_id} value={agent.agent_id}>
+                      {agent.agent_name || `Agent ${agent.agent_id.slice(0, 8)}`} - {agent.voice_id} ({agent.language})
+                    </option>
+                  ))}
+                </select>
+              )}
+              
+              {!loadingRetellAgents && (
+                <div className="text-xs text-gray-500">
+                  Total de agentes disponibles: {retellAgents.length}
+                </div>
+              )}
+            </div>
+
+            {/* Información del agente seleccionado */}
+            {selectedRetellAgent && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <h4 className="text-sm font-medium text-purple-800 mb-2">Agente Seleccionado</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs text-purple-700">
+                  <div><strong>Nombre:</strong> {selectedRetellAgent.agent_name || 'Sin nombre'}</div>
+                  <div><strong>Voz:</strong> {selectedRetellAgent.voice_id}</div>
+                  <div><strong>Idioma:</strong> {selectedRetellAgent.language}</div>
+                  <div><strong>Motor:</strong> {selectedRetellAgent.response_engine?.type || 'N/A'}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Nombre del Custom Agent */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nombre del Custom Agent *</label>
+              <Input
+                placeholder="Ej: Asistente de Ventas Solar"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                required
+              />
+            </div>
+
+            {/* Empresa */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Empresa (opcional)</label>
+              <select
+                value={formData.company_id}
+                onChange={(e) => setFormData(prev => ({ ...prev, company_id: e.target.value }))}
+                className="w-full border rounded px-3 py-2"
+              >
+                <option value="">Sin empresa asignada</option>
+                {companies.map(company => (
+                  <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Descripción */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Descripción (opcional)</label>
+              <Input
+                placeholder="Descripción del agente y su función"
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+
+            {/* Botones */}
+            <div className="flex justify-end space-x-2 mt-6 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={!formData.retell_agent_id || !formData.name.trim() || loadingRetellAgents}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Crear Custom Agent
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 // ========================================
 // EXPORT DEL COMPONENTE
