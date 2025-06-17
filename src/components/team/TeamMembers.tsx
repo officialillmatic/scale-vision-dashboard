@@ -10,7 +10,7 @@ import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { TeamInvitations } from './TeamInvitations';
 import { TeamInviteDialog } from './TeamInviteDialog';
 import { EmailConfigWarning } from '@/components/common/EmailConfigWarning';
-import { UserPlus, Users, AlertCircle, RefreshCw } from 'lucide-react';
+import { UserPlus, Users, AlertCircle, RefreshCw, Settings } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +45,11 @@ console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
     if (fetchInvitations) {
       await fetchInvitations();
     }
+  };
+
+  const handleNewButton = () => {
+    // Función vacía - sin implementación por ahora
+    console.log('Botón personalizado clickeado');
   };
 
   const handleEditRole = (member: any) => {
@@ -114,6 +119,10 @@ console.log("🔥 [TEAM_MEMBERS] companyIdToUse:", companyIdToUse);
           <Button variant="outline" onClick={handleRefresh} size="sm">
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
+          </Button>
+          <Button variant="outline" onClick={handleNewButton} size="sm">
+            <Settings className="mr-2 h-4 w-4" />
+            Configurar
           </Button>
           <Button onClick={openInviteDialog} disabled={isInviting || isLoading}>
             <UserPlus className="mr-2 h-4 w-4" />
