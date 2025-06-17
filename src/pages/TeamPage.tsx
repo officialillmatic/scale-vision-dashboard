@@ -463,22 +463,11 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
             userName = registeredUser.name || registeredUser.email;
           }
         }
-        // 4. Como último recurso, hacer una consulta directa a user_profiles
+        // 4. Si no encontramos el usuario, usar el ID como fallback
         else {
-          try {
-            const { data: userProfile } = await supabase
-              .from('user_profiles')
-              .select('email, name, full_name')
-              .eq('id', assignment.user_id)
-              .single();
-            
-            if (userProfile) {
-              userEmail = userProfile.email;
-              userName = userProfile.name || userProfile.full_name || userProfile.email;
-            }
-          } catch (error) {
-            console.warn('⚠️ No se pudo obtener perfil de usuario:', assignment.user_id);
-          }
+          console.warn('⚠️ No se encontró información del usuario:', assignment.user_id);
+          userEmail = `usuario-${assignment.user_id.slice(0, 8)}@unknown.com`;
+          userName = `Usuario ${assignment.user_id.slice(0, 8)}`;
         }
         
         return {
