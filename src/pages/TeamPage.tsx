@@ -1,4 +1,4 @@
-// TeamPage.tsx - PARTE 1: IMPORTS E INTERFACES COMPLETAS - ✅ CORREGIDO
+// TeamPage.tsx - PARTE 1: IMPORTS E INTERFACES COMPLETAS - ✅ CORREGIDO Alex
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
