@@ -767,78 +767,158 @@ useEffect(() => {
     }
   };
   
-  // ✅ SISTEMA DE FILTROS Y PROCESAMIENTO
-  useEffect(() => {
-    console.log('🔄 Hook de filtros y procesamiento activado');
+  // 🎯 PASO 2: REEMPLAZAR EL useEffect PROBLEMÁTICO (línea ~578)
+// Elimina el useEffect existente y reemplázalo con este:
+
+useEffect(() => {
+  console.log('🔄 Hook de filtros y procesamiento automático activado');
+  
+  // Aplicar filtros primero
+  applyFiltersAndSort();
+  
+  // 🎯 DESCUENTO AUTOMÁTICO MEJORADO
+  if (calls.length > 0 && user?.id && !loading) {
+    console.log('✅ Iniciando descuentos automáticos mejorados');
     
-    // Aplicar filtros primero
-    applyFiltersAndSort();
-    
-    // 🎯 PROCESAMIENTO DE DESCUENTOS CON MÚLTIPLES INTENTOS
-    if (calls.length > 0 && user?.id && !loading) {
-      console.log('✅ Condiciones cumplidas - Iniciando descuentos automáticos');
+    // Buscar llamadas que necesitan descuento automático
+    const pendingCalls = calls.filter(call => {
+      const duration = getCallDuration(call);
+      const currentCost = call.cost_usd || 0;
+      const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+      const validStatus = call.call_status === 'completed' || call.call_status === 'ended';
       
-      // Función de procesamiento con reintentos
-      const processCallsWithRetry = (attempt) => {
-        console.log(`🔄 Intento ${attempt + 1} de procesamiento de descuentos`);
+      return validStatus && duration > 0 && currentCost === 0 && hasAgentRate > 0;
+    });
+
+    console.log(`🎯 Encontradas ${pendingCalls.length} llamadas para procesamiento automático`);
+
+    // Procesar cada llamada pendiente INMEDIATAMENTE
+    if (pendingCalls.length > 0) {
+      console.log(`⚡ PROCESANDO ${pendingCalls.length} LLAMADAS AUTOMÁTICAMENTE`);
+      
+      pendingCalls.forEach(async (call, index) => {
+        console.log(`💳 Procesando llamada ${index + 1}/${pendingCalls.length}: ${call.call_id}`);
         
-        if (calls.length === 0) {
-          console.log(`⏸️ Intento ${attempt + 1} cancelado: sin llamadas`);
-          return;
-        }
+        const calculatedCost = calculateCallCost(call);
         
-        try {
-          processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
-          console.log(`✅ Intento ${attempt + 1} ejecutado exitosamente`);
-        } catch (error) {
-          console.error(`❌ Error en intento ${attempt + 1}:`, error);
+        if (calculatedCost > 0) {
+          try {
+            console.log(`💰 Costo calculado: $${calculatedCost.toFixed(4)} para ${call.call_id}`);
+            
+            // 1. Actualizar costo en la base de datos
+            console.log(`💾 Guardando costo en base de datos...`);
+            const { error: updateError } = await supabase
+              .from('calls')
+              .update({ 
+                cost_usd: calculatedCost,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', call.id);
+
+            if (updateError) {
+              console.error(`❌ Error actualizando llamada ${call.call_id}:`, updateError);
+              return;
+            }
+
+            console.log(`✅ Costo guardado exitosamente para ${call.call_id}`);
+            
+            // 2. EJECUTAR DESCUENTO AUTOMÁTICO DEL BALANCE
+            console.log(`💳 Ejecutando descuento automático...`);
+            const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, user.id);
+            
+            if (deductionSuccess) {
+              console.log(`🎉 ¡DESCUENTO AUTOMÁTICO EXITOSO!`);
+              console.log(`   • Llamada: ${call.call_id}`);
+              console.log(`   • Costo: $${calculatedCost.toFixed(4)}`);
+              console.log(`   • Balance actualizado automáticamente`);
+              
+              // 3. Actualizar estado local
+              setCalls(prevCalls => 
+                prevCalls.map(c => 
+                  c.id === call.id 
+                    ? { ...c, cost_usd: calculatedCost }
+                    : c
+                )
+              );
+              
+              // 4. Mostrar notificación visual (opcional)
+              console.log(`🔔 NOTIFICACIÓN: Descuento automático de $${calculatedCost.toFixed(4)} aplicado`);
+              
+            } else {
+              console.warn(`⚠️ Falló el descuento automático para ${call.call_id}`);
+            }
+            
+          } catch (error) {
+            console.error(`❌ Error en procesamiento automático de ${call.call_id}:`, error);
+          }
         }
-      };
-      
-      // Intento inmediato
-      processCallsWithRetry(0);
-      
-      // Intento con delay de 1 segundo
-      setTimeout(() => processCallsWithRetry(1), 1000);
-      
-      // Intento con delay de 3 segundos (backup)
-      setTimeout(() => processCallsWithRetry(2), 3000);
-    } else {
-      console.log('❌ Condiciones no cumplidas:', {
-        hasCalls: calls.length > 0,
-        hasUser: !!user?.id,
-        callsLength: calls.length,
-        loading: loading
       });
     }
-  }, [calls, user?.id, loading, searchTerm, statusFilter, agentFilter, dateFilter, customDate, sortField, sortOrder]);
+  }
+}, [calls, user?.id, loading, searchTerm, statusFilter, agentFilter, dateFilter, customDate, sortField, sortOrder]);
 
-// 🔥 HOOK ADICIONAL PARA CAMBIOS EN CALLS (SISTEMA DE RESPALDO)
+// 🔔 PASO 4: REEMPLAZAR EL SEGUNDO useEffect (línea ~610)
+// Elimina el useEffect de "respaldo" y reemplázalo con este detector de llamadas nuevas:
+
 useEffect(() => {
-  console.log('🔄 Hook de respaldo activado - calls cambió');
-  console.log('📞 Nueva cantidad de calls:', calls.length);
+  console.log('🔔 Detector de llamadas nuevas activado');
   
   if (calls.length > 0 && user?.id && !loading) {
-    console.log('🎯 Ejecutando sistema de respaldo de descuentos...');
+    // Encontrar llamadas muy recientes (últimos 5 minutos) sin procesar
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     
-    // Delay mayor para asegurar estabilidad
-    const backupTimer = setTimeout(() => {
-      console.log('⚡ Sistema de respaldo procesando descuentos...');
+    const recentUnprocessedCalls = calls.filter(call => {
+      const callTime = new Date(call.timestamp);
+      const isRecent = callTime > fiveMinutesAgo;
+      const needsProcessing = (call.cost_usd || 0) === 0 && 
+                             getCallDuration(call) > 0 && 
+                             (call.call_status === 'completed' || call.call_status === 'ended');
       
-      try {
-        processPendingCallCostsWithDeduction(calls, setCalls, calculateCallCost, getCallDuration, user.id);
-        console.log('✅ Sistema de respaldo completado');
-      } catch (error) {
-        console.error('❌ Error en sistema de respaldo:', error);
-      }
-    }, 2000); // 2 segundos de delay
-    
-    return () => {
-      clearTimeout(backupTimer);
-      console.log('🧹 Timer de respaldo limpiado');
-    };
+      return isRecent && needsProcessing;
+    });
+
+    if (recentUnprocessedCalls.length > 0) {
+      console.log(`🚨 LLAMADAS NUEVAS DETECTADAS: ${recentUnprocessedCalls.length}`);
+      
+      recentUnprocessedCalls.forEach(async (call) => {
+        console.log(`⚡ PROCESAMIENTO INMEDIATO para llamada nueva: ${call.call_id}`);
+        
+        const cost = calculateCallCost(call);
+        
+        if (cost > 0) {
+          // Actualizar base de datos y descontar balance
+          try {
+            // Actualizar costo en la base de datos
+            await supabase
+              .from('calls')
+              .update({ cost_usd: cost })
+              .eq('id', call.id);
+            
+            // Ejecutar descuento del balance
+            const deductionSuccess = await deductCallCost(call.call_id, cost, user.id);
+            
+            if (deductionSuccess) {
+              console.log(`🎉 NUEVA LLAMADA PROCESADA AUTOMÁTICAMENTE: ${call.call_id} - $${cost.toFixed(4)}`);
+              
+              // Actualizar estado local inmediatamente
+              setCalls(prevCalls => 
+                prevCalls.map(c => 
+                  c.id === call.id 
+                    ? { ...c, cost_usd: cost }
+                    : c
+                )
+              );
+            }
+          } catch (error) {
+            console.error(`❌ Error procesando llamada nueva:`, error);
+          }
+        }
+      });
+    } else {
+      console.log('✅ No hay llamadas nuevas sin procesar');
+    }
   }
-  }, [calls.length]);
+}, [calls.length, user?.id]); // Solo disparar cuando cambie la cantidad de llamadas
 
   // 🧪 FUNCIÓN DE PRUEBA MANUAL
 const testManualDeduction = async () => {
@@ -918,6 +998,75 @@ const { error: updateError } = await supabase
     console.error('❌ Error:', error);
     alert('❌ Error en el procesamiento');
   }
+};
+
+  // 🔍 FUNCIÓN DE VERIFICACIÓN DEL SISTEMA - AGREGAR DESPUÉS DE testManualDeduction
+const verifyAutoDeductionSystem = () => {
+  console.log('🔍 VERIFICANDO SISTEMA DE DESCUENTOS AUTOMÁTICOS');
+  console.log('=====================================');
+  
+  // Analizar estado actual
+  const pendingCalls = calls.filter(call => {
+    const duration = getCallDuration(call);
+    const currentCost = call.cost_usd || 0;
+    const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+    const validStatus = call.call_status === 'completed' || call.call_status === 'ended';
+    
+    return validStatus && duration > 0 && currentCost === 0 && hasAgentRate > 0;
+  });
+  
+  // Analizar llamadas recientes
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const recentCalls = calls.filter(call => {
+    const callTime = new Date(call.timestamp);
+    return callTime > fiveMinutesAgo;
+  });
+  
+  console.log('📊 ESTADO DEL SISTEMA:', {
+    totalCalls: calls.length,
+    userId: user?.id,
+    loading: loading,
+    pendingCallsCount: pendingCalls.length,
+    recentCallsCount: recentCalls.length,
+    systemActive: calls.length > 0 && user?.id && !loading
+  });
+  
+  console.log('🎯 LLAMADAS PENDIENTES DE PROCESAMIENTO:');
+  pendingCalls.forEach((call, index) => {
+    const cost = calculateCallCost(call);
+    console.log(`${index + 1}. ${call.call_id}:`, {
+      status: call.call_status,
+      duration: getCallDuration(call),
+      currentCost: call.cost_usd,
+      calculatedCost: cost,
+      agentRate: call.call_agent?.rate_per_minute
+    });
+  });
+  
+  console.log('⏰ LLAMADAS RECIENTES (últimos 5 minutos):');
+  recentCalls.forEach((call, index) => {
+    console.log(`${index + 1}. ${call.call_id}:`, {
+      timestamp: call.timestamp,
+      status: call.call_status,
+      cost: call.cost_usd
+    });
+  });
+  
+  // Mostrar resultado en pantalla
+  const message = `✅ VERIFICACIÓN COMPLETADA
+  
+📊 Llamadas totales: ${calls.length}
+🎯 Llamadas pendientes: ${pendingCalls.length}
+⏰ Llamadas recientes: ${recentCalls.length}
+🔧 Sistema activo: ${calls.length > 0 && user?.id && !loading ? 'SÍ' : 'NO'}
+
+${pendingCalls.length > 0 ? 
+  '⚠️ HAY LLAMADAS PENDIENTES - El sistema debería procesarlas automáticamente' : 
+  '✅ NO HAY LLAMADAS PENDIENTES'}
+
+Revisa la consola para detalles completos.`;
+  
+  alert(message);
 };
   useEffect(() => {
     const loadAllAudioDurations = async () => {
@@ -1417,6 +1566,18 @@ const getCallDuration = (call: any) => {
               >
                 🧪 Test Deduction
               </Button>
+
+              // 🔍 PASO 5: AGREGAR ESTE BOTÓN DESPUÉS DEL BOTÓN "🧪 Test Deduction"
+
+<Button
+  onClick={verifyAutoDeductionSystem}
+  disabled={loading}
+  variant="outline"
+  size="sm"
+  className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+>
+  🔍 Verify System
+</Button>
             </div>
           </div>
 
