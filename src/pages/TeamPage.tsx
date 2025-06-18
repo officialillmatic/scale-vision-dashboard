@@ -2096,7 +2096,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
           <NewAssignmentModal
             onClose={() => setAssignmentModal({ open: false })}
             onSave={handleCreateAssignment}
-            users={teamMembers.filter(m => m.status === 'active')}
+            users={registeredUsers.filter(u => u.status === 'active')}
             agents={agents.filter(a => a.status === 'active')}
           />
         )}
