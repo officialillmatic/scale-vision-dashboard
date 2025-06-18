@@ -491,6 +491,7 @@ const subscriptionRef = useRef(null);
 console.log("🔍 FILTRO DEBUG - calls.length:", calls.length);
 console.log("🔍 FILTRO DEBUG - uniqueAgents:", uniqueAgents);
 console.log("🔍 FILTRO DEBUG - uniqueAgents.length:", uniqueAgents.length);
+  const uniqueAgents = userAssignedAgents;
   const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
   console.log("🔍 AgentFilter props - agents:", uniqueAgents);
 console.log("🔍 AgentFilter props - isLoading:", isLoadingAgents);
