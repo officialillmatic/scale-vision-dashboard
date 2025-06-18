@@ -91,6 +91,246 @@ interface AdminStats {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
+// ============================================================================
+// FUNCIÓN PARA PROCESAR LLAMADAS PENDIENTES EN DASHBOARD
+// ============================================================================
+const processUnprocessedCalls = async (userId: string) => {
+  try {
+    console.log('🔄 DASHBOARD: Procesando llamadas pendientes...');
+    
+    if (!userId) {
+      alert('❌ Usuario no identificado');
+      return { success: false, message: 'Usuario no identificado' };
+    }
+
+    // Obtener agentes del usuario con sus tarifas
+    const { data: userAgents, error: agentsError } = await supabase
+      .from('user_agent_assignments')
+      .select(`
+        agent_id,
+        agents!inner (
+          id,
+          name,
+          rate_per_minute,
+          retell_agent_id
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('is_primary', true);
+
+    if (agentsError || !userAgents || userAgents.length === 0) {
+      console.error('❌ Error obteniendo agentes del usuario:', agentsError);
+      return { success: false, message: 'No se encontraron agentes asignados' };
+    }
+
+    const userAgentIds = userAgents.map(assignment => assignment.agents.id);
+    console.log('👤 Agentes del usuario:', userAgentIds);
+
+    // Buscar llamadas completadas sin costo asignado
+    const { data: unprocessedCalls, error: callsError } = await supabase
+      .from('calls')
+      .select(`
+        id,
+        call_id,
+        duration_sec,
+        cost_usd,
+        call_status,
+        agent_id
+      `)
+      .in('agent_id', userAgentIds)
+      .in('call_status', ['completed', 'ended'])
+      .gt('duration_sec', 0)
+      .eq('cost_usd', 0)
+      .limit(10); // Procesar máximo 10 llamadas por vez
+
+    if (callsError) {
+      console.error('❌ Error obteniendo llamadas:', callsError);
+      return { success: false, message: 'Error obteniendo llamadas' };
+    }
+
+    if (!unprocessedCalls || unprocessedCalls.length === 0) {
+      console.log('✅ No hay llamadas pendientes de procesar');
+      return { success: true, message: 'No hay llamadas pendientes', processed: 0 };
+    }
+
+    console.log(`🎯 Encontradas ${unprocessedCalls.length} llamadas para procesar`);
+
+    let processedCount = 0;
+    let errors = 0;
+
+    // Procesar cada llamada
+    for (const call of unprocessedCalls) {
+      try {
+        // Encontrar la tarifa del agente
+        const agentData = userAgents.find(assignment => 
+          assignment.agents.id === call.agent_id || 
+          assignment.agents.retell_agent_id === call.agent_id
+        );
+
+        if (!agentData?.agents.rate_per_minute) {
+          console.warn(`⚠️ No se encontró tarifa para agente ${call.agent_id}`);
+          continue;
+        }
+
+        const duration = call.duration_sec;
+        const rate = agentData.agents.rate_per_minute;
+        const cost = (duration / 60) * rate;
+
+        console.log(`💰 Procesando llamada ${call.call_id}: ${duration}s × $${rate}/min = $${cost.toFixed(4)}`);
+
+        // 1. Actualizar costo en la tabla calls
+        const { error: updateError } = await supabase
+          .from('calls')
+          .update({ cost_usd: cost })
+          .eq('call_id', call.call_id);
+
+        if (updateError) {
+          console.error(`❌ Error actualizando llamada ${call.call_id}:`, updateError);
+          errors++;
+          continue;
+        }
+
+        // 2. Verificar si ya existe transacción
+        const { data: existingTransaction } = await supabase
+          .from('credit_transactions')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('call_id', call.id) // Usar UUID real
+          .eq('transaction_type', 'debit')
+          .single();
+
+        if (existingTransaction) {
+          console.log(`✅ Ya existe transacción para llamada ${call.call_id}`);
+          processedCount++;
+          continue;
+        }
+
+        // 3. Obtener balance actual
+        const { data: userCredit, error: creditError } = await supabase
+          .from('user_credits')
+          .select('current_balance')
+          .eq('user_id', userId)
+          .single();
+
+        if (creditError) {
+          console.error('❌ Error obteniendo balance:', creditError);
+          errors++;
+          continue;
+        }
+
+        const currentBalance = userCredit?.current_balance || 0;
+        const newBalance = currentBalance - cost;
+
+        // 4. Actualizar balance
+        const { error: updateBalanceError } = await supabase
+          .from('user_credits')
+          .update({ 
+            current_balance: newBalance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId);
+
+        if (updateBalanceError) {
+          console.error('❌ Error actualizando balance:', updateBalanceError);
+          errors++;
+          continue;
+        }
+
+        // 5. Registrar transacción
+        const { error: transactionError } = await supabase
+          .from('credit_transactions')
+          .insert({
+            user_id: userId,
+            call_id: call.id, // UUID real
+            amount: cost,
+            transaction_type: 'debit',
+            description: `Call cost deduction - Call ID: ${call.call_id}`,
+            created_at: new Date().toISOString()
+          });
+
+        if (transactionError) {
+          console.error('❌ Error registrando transacción:', transactionError);
+          // Revertir balance
+          await supabase
+            .from('user_credits')
+            .update({ current_balance: currentBalance })
+            .eq('user_id', userId);
+          errors++;
+          continue;
+        }
+
+        console.log(`🎉 Llamada ${call.call_id} procesada exitosamente - $${cost.toFixed(4)}`);
+        processedCount++;
+
+        // Pequeña pausa entre llamadas
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (error) {
+        console.error(`❌ Error procesando llamada ${call.call_id}:`, error);
+        errors++;
+      }
+    }
+
+    // Emitir evento para actualizar balance inmediatamente
+    if (typeof window !== 'undefined' && processedCount > 0) {
+      window.dispatchEvent(new CustomEvent('balanceUpdated', {
+        detail: {
+          userId,
+          processed: processedCount,
+          source: 'dashboard-refresh'
+        }
+      }));
+    }
+
+    const message = `✅ Procesadas ${processedCount} llamadas exitosamente${errors > 0 ? ` (${errors} errores)` : ''}`;
+    console.log(message);
+
+    return {
+      success: true,
+      message,
+      processed: processedCount,
+      errors
+    };
+
+  } catch (error) {
+    console.error('💥 Error en processUnprocessedCalls:', error);
+    return {
+      success: false,
+      message: `Error: ${error.message}`,
+      processed: 0
+    };
+  }
+};
+
+// ============================================================================
+// FUNCIÓN PARA EL BOTÓN REFRESH BALANCE
+// ============================================================================
+const handleRefreshBalance = async (userId: string, setRefreshing: (state: boolean) => void) => {
+  setRefreshing(true);
+  
+  try {
+    console.log('🔄 Iniciando Refresh Balance desde Dashboard...');
+    
+    const result = await processUnprocessedCalls(userId);
+    
+    if (result.success) {
+      if (result.processed > 0) {
+        alert(`✅ ¡Balance actualizado!\n\n📞 Llamadas procesadas: ${result.processed}\n💰 Los descuentos se han aplicado automáticamente.\n\nRevisa tu balance actualizado arriba.`);
+      } else {
+        alert('✅ Tu balance está actualizado\n\nNo hay llamadas pendientes de procesar.');
+      }
+    } else {
+      alert(`❌ Error actualizando balance:\n\n${result.message}\n\nPor favor contacta soporte si el problema persiste.`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error en handleRefreshBalance:', error);
+    alert('❌ Error inesperado actualizando balance\n\nPor favor intenta de nuevo o contacta soporte.');
+  } finally {
+    setRefreshing(false);
+  }
+};
+
 export default function DashboardPage() {
   const { user } = useAuth();
   
@@ -106,6 +346,7 @@ export default function DashboardPage() {
   // Estados para usuarios normales
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     totalCalls: 0,
@@ -796,25 +1037,47 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">📊 Dashboard</h1>
             <p className="text-gray-600 text-sm sm:text-base">Real-time analytics for your AI call system</p>
-          </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs sm:text-sm">
-              <Activity className="w-3 h-3 mr-1" />
-              Live Data
-            </Badge>
-            <Button
-  onClick={() => {
-    fetchCallsData();
-    if (user?.id) refreshCreditBalance(user.id);
-  }}
-  disabled={loading}
-  variant="outline"
-  size="sm"
->
-              {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
-            </Button>
-          </div>
-        </div>
+  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs sm:text-sm">
+    <Activity className="w-3 h-3 mr-1" />
+    Live Data
+  </Badge>
+  
+  {/* Botón Refresh Data */}
+  <Button
+    onClick={() => {
+      fetchCallsData();
+      if (user?.id) refreshCreditBalance(user.id);
+    }}
+    disabled={loading || refreshingBalance}
+    variant="outline"
+    size="sm"
+    className="text-xs sm:text-sm"
+  >
+    {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh Data
+  </Button>
+  
+  {/* Nuevo Botón Refresh Balance */}
+  <Button
+    onClick={() => handleRefreshBalance(user?.id, setRefreshingBalance)}
+    disabled={loading || refreshingBalance || !user?.id}
+    variant="default"
+    size="sm"
+    className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-medium"
+  >
+    {refreshingBalance ? (
+      <>
+        <LoadingSpinner size="sm" />
+        <span className="ml-1">Processing...</span>
+      </>
+    ) : (
+      <>
+        <DollarSign className="w-4 h-4 mr-1" />
+        Refresh Balance
+      </>
+    )}
+  </Button>
+</div>
 
         {/* Error Alert */}
         {error && (
