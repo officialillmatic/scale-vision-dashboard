@@ -1046,17 +1046,17 @@ export default function DashboardPage() {
   
   {/* Botón Refresh Data */}
   <Button
-    onClick={() => {
-      fetchCallsData();
-      if (user?.id) refreshCreditBalance(user.id);
-    }}
-    disabled={loading || refreshingBalance}
-    variant="outline"
-    size="sm"
-    className="text-xs sm:text-sm"
-  >
-    {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh Data
-  </Button>
+  onClick={() => {
+    fetchCallsData();
+    if (user?.id) refreshCreditBalance(user.id);
+  }}
+  disabled={loading}
+  variant="outline"
+  size="sm"
+  className="text-xs sm:text-sm"
+>
+  {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh Data
+</Button>
   
 </div>
 
