@@ -488,11 +488,22 @@ const subscriptionRef = useRef(null);
   const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
 
   // useEffect hooks
-  useEffect(() => {
-    if (user?.id) {
-      fetchCalls();
-    }
-  }, [user?.id]);
+  // 🚨 DEBUGGING CRÍTICO - useEffect modificado
+useEffect(() => {
+  console.log('🚨 USER CHANGE DETECTED:', {
+    userId: user?.id,
+    userEmail: user?.email,
+    userExists: !!user,
+    willFetchCalls: !!user?.id
+  });
+  
+  if (user?.id) {
+    console.log('✅ EXECUTING fetchCalls for user:', user.email);
+    fetchCalls();
+  } else {
+    console.log('❌ NOT executing fetchCalls - no user.id');
+  }
+}, [user?.id]);
 
 
   
