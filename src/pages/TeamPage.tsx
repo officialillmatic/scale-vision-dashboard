@@ -979,16 +979,17 @@ await Promise.all([
       }
 
       const { error: insertError } = await supabase
-        .from('agents')
-        .insert({
-          name: agentData.name,
-          retell_agent_id: agentData.retell_agent_id,
-          company_id: agentData.company_id || null,
-          description: agentData.description || null,
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+  .from('agents')
+  .insert({
+    name: agentData.name,
+    retell_agent_id: agentData.retell_agent_id,
+    company_id: agentData.company_id || null,
+    description: agentData.description || null,
+    rate_per_minute: agentData.rate_per_minute || null,
+    status: 'active',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
 
       if (insertError) {
         throw insertError;
@@ -1071,14 +1072,15 @@ await Promise.all([
       console.log('💾 [TeamPage] Saving agent changes:', agentId, updatedData);
 
       const { error: updateError } = await supabase
-        .from('agents')
-        .update({
-          name: updatedData.name,
-          company_id: updatedData.company_id || null,
-          description: updatedData.description || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', agentId);
+  .from('agents')
+  .update({
+    name: updatedData.name,
+    company_id: updatedData.company_id || null,
+    description: updatedData.description || null,
+    rate_per_minute: updatedData.rate_per_minute || null,
+    updated_at: new Date().toISOString()
+  })
+  .eq('id', agentId);
 
       if (updateError) {
         throw updateError;
@@ -2199,10 +2201,11 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                   e.preventDefault();
                   const formData = new FormData(e.target as HTMLFormElement);
                   handleSaveAgentChanges(editAgentModal.agent!.id, {
-                    name: formData.get('name') as string,
-                    company_id: formData.get('company_id') as string || undefined,
-                    description: formData.get('description') as string || undefined
-                  });
+  name: formData.get('name') as string,
+  company_id: formData.get('company_id') as string || undefined,
+  description: formData.get('description') as string || undefined,
+  rate_per_minute: formData.get('rate_per_minute') ? parseFloat(formData.get('rate_per_minute') as string) : undefined
+});
                 }} className="space-y-4">
                   <Input
                     name="name"
@@ -2225,6 +2228,15 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                     placeholder="Descripción (opcional)"
                     defaultValue={editAgentModal.agent.description || ''}
                   />
+                  <Input
+  name="rate_per_minute"
+  type="number"
+  step="0.01"
+  min="0"
+  placeholder="Precio por minuto (USD)"
+  defaultValue={editAgentModal.agent.rate_per_minute || ''}
+/>
+                  
                   <div className="flex justify-end space-x-2 mt-6">
                     <Button type="button" variant="outline" onClick={() => setEditAgentModal({ open: false })}>
                       Cancelar
@@ -2519,6 +2531,7 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({
     name: '',
     company_id: '',
     description: ''
+    rate_per_minute: ''
   });
 
   const [selectedRetellAgent, setSelectedRetellAgent] = useState<RetellAgentDetailed | null>(null);
@@ -2562,11 +2575,12 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({
     }
 
     onSave({
-      retell_agent_id: formData.retell_agent_id,
-      name: formData.name.trim(),
-      company_id: formData.company_id || undefined,
-      description: formData.description.trim() || undefined
-    });
+  retell_agent_id: formData.retell_agent_id,
+  name: formData.name.trim(),
+  company_id: formData.company_id || undefined,
+  description: formData.description.trim() || undefined,
+  rate_per_minute: formData.rate_per_minute ? parseFloat(formData.rate_per_minute) : undefined
+});
   };
 
   return (
@@ -2695,6 +2709,22 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               />
             </div>
+
+            {/* Precio por minuto */}
+<div className="space-y-2">
+  <label className="text-sm font-medium">Precio por minuto (USD)</label>
+  <Input
+    type="number"
+    step="0.01"
+    min="0"
+    placeholder="Ej: 0.05"
+    value={formData.rate_per_minute}
+    onChange={(e) => setFormData(prev => ({ ...prev, rate_per_minute: e.target.value }))}
+  />
+  <p className="text-xs text-gray-500">
+    Precio en dólares por minuto de conversación
+  </p>
+</div>
 
             {/* Botones */}
             <div className="flex justify-end space-x-2 mt-6 pt-4 border-t">
