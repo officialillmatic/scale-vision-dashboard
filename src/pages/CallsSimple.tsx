@@ -460,6 +460,7 @@ export default function CallsSimple() {
   const [calls, setCalls] = useState<Call[]>([]);
   const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userAssignedAgents, setUserAssignedAgents] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -485,7 +486,7 @@ const subscriptionRef = useRef(null);
 
   // Variables derivadas
   // Obtener agentes desde las asignaciones instead de las llamadas
-const uniqueAgents = agentDetails || [];
+
   // 🔍 DEBUGGING DEL FILTRO
 console.log("🔍 FILTRO DEBUG - calls.length:", calls.length);
 console.log("🔍 FILTRO DEBUG - uniqueAgents:", uniqueAgents);
@@ -1334,12 +1335,22 @@ const { data: agentDetails, error: agentsError } = await supabase
   .in('id', agentIds);
 
 console.log("🤖 Agent details found:", agentDetails);
+      
 
 // Simular userAgents para el resto del código
 const userAgents = agentDetails?.map(agent => ({
   agent_id: agent.id,
   agents: agent
 })) || [];
+
+      // Simular userAgents para el resto del código
+const userAgents = agentDetails?.map(agent => ({
+  agent_id: agent.id,
+  agents: agent
+})) || [];
+
+// 🔧 AGREGAR ESTA LÍNEA AQUÍ
+setCalls([]); // Para que uniqueAgents se actualice
 
   // 🔍 Y ESTA LÍNEA JUSTO DESPUÉS DE LA CONSULTA
   console.log("📍 CHECKPOINT 2: userAgents query completed");
