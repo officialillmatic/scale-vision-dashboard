@@ -1300,18 +1300,18 @@ const getCallDuration = (call: any) => {
   console.log("📍 CHECKPOINT 1: user.id =", user.id);
 
   const { data: userAgents, error: agentsError } = await supabase
-    .from('user_agent_assignments')
-    .select(`
-      agent_id,
-      agents!inner (
-        id,
-        name,
-        rate_per_minute,
-        retell_agent_id
-      )
-    `)
-    .eq('user_id', user.id)
-    .eq('is_primary', true);
+  .from('user_agent_assignments')
+  .select(`
+    agent_id,
+    agents (
+      id,
+      name,
+      rate_per_minute,
+      retell_agent_id
+    )
+  `)
+  .eq('user_id', user.id)
+  .eq('is_primary', true);
 
   // 🔍 Y ESTA LÍNEA JUSTO DESPUÉS DE LA CONSULTA
   console.log("📍 CHECKPOINT 2: userAgents query completed");
