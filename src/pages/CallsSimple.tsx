@@ -486,12 +486,12 @@ const subscriptionRef = useRef(null);
 
   // Variables derivadas
   // Obtener agentes desde las asignaciones instead de las llamadas
-
+const uniqueAgents = userAssignedAgents;
   // 🔍 DEBUGGING DEL FILTRO
 console.log("🔍 FILTRO DEBUG - calls.length:", calls.length);
 console.log("🔍 FILTRO DEBUG - uniqueAgents:", uniqueAgents);
 console.log("🔍 FILTRO DEBUG - uniqueAgents.length:", uniqueAgents.length);
-  const uniqueAgents = userAssignedAgents;
+  
   const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
   console.log("🔍 AgentFilter props - agents:", uniqueAgents);
 console.log("🔍 AgentFilter props - isLoading:", isLoadingAgents);
