@@ -188,6 +188,43 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       }
     }
   }, [user?.id, currentBalance, rateLoaded, fetchAgentRateRealTime]);
+
+  // 🔔 ESCUCHAR DESCUENTOS AUTOMÁTICOS DE LLAMADAS
+  useEffect(() => {
+    console.log('🔔 Conectando balance con descuentos automáticos...');
+    
+    if (!user?.id) {
+      return;
+    }
+
+    // Función que se ejecuta cuando hay un descuento automático
+    const handleBalanceUpdate = (event: CustomEvent) => {
+      const { userId, deduction, callId } = event.detail;
+      
+      console.log('💳 Descuento automático detectado:', deduction);
+      
+      // Solo procesar si es para este usuario
+      if (userId === user.id) {
+        console.log('✅ Actualizando balance automáticamente...');
+        
+        // Actualizar balance inmediatamente
+        refreshBalance();
+        
+        // Mostrar indicador visual
+        setShowUpdateIndicator(true);
+      }
+    };
+
+    // Escuchar el evento de descuento
+    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    
+    console.log('✅ Balance conectado con sistema de descuentos');
+    
+    // Limpiar cuando se cierre el componente
+    return () => {
+      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    };
+  }, [user?.id, refreshBalance]);
   // ============================================================================
   // FUNCIONES PARA PROCESAR LLAMADAS PENDIENTES
   // ============================================================================
