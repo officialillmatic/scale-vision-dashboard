@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAgents } from '@/hooks/useAgents';
-import { useAutoPollingBalance } from '@/hooks/useAutoPollingBalance'; // 🔄 NUEVO HOOK
+import { useAutoPollingBalance } from '@/hooks/useAutoPollingBalance';
 import { 
   Wallet, 
   AlertTriangle, 
@@ -71,124 +71,133 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       return () => clearTimeout(timer);
     }
   }, [lastBalanceChange]);
+  // ============================================================================
   // FUNCIONES AUXILIARES
-  // Effect para cargar agentes al inicializar el componente
-useEffect(() => {
-  if (user?.id && !isLoadingAgents) {
-    fetchUserAgentsWithRates();
-  }
-}, [user?.id, isLoadingAgents, fetchUserAgentsWithRates]);
+  // ============================================================================
   
   // Calcular tarifa promedio real del usuario
-const calculateAverageRate = (): number => {
-  if (!user?.id) {
-    console.log('⚠️ No user ID available for rate calculation');
-    return 0.02; // Fallback genérico
-  }
+  const calculateAverageRate = (): number => {
+    if (!user?.id) {
+      console.log('⚠️ No user ID available for rate calculation');
+      return 0.02; // Fallback genérico
+    }
 
-  // Obtener agentes del usuario desde useAgents hook
-  if (!agents || agents.length === 0) {
-    console.log('⚠️ No agents available, usando tarifa fallback');
-    return 0.02; // Fallback si no hay agentes cargados
-  }
+    // Obtener agentes del usuario desde useAgents hook
+    if (!agents || agents.length === 0) {
+      console.log('⚠️ No agents available, usando tarifa fallback');
+      return 0.02; // Fallback si no hay agentes cargados
+    }
 
-  // Filtrar agentes que tienen tarifa configurada
-  const agentsWithRates = agents.filter(agent => 
-    agent.rate_per_minute && 
-    agent.rate_per_minute > 0
-  );
-  
-  console.log('🎯 Agentes con tarifas encontrados:', agentsWithRates.length);
-  console.log('📊 Tarifas de agentes:', agentsWithRates.map(a => ({
-    name: a.name,
-    rate: a.rate_per_minute
-  })));
+    // Filtrar agentes que tienen tarifa configurada
+    const agentsWithRates = agents.filter(agent => 
+      agent.rate_per_minute && 
+      agent.rate_per_minute > 0
+    );
+    
+    console.log('🎯 Agentes con tarifas encontrados:', agentsWithRates.length);
+    console.log('📊 Tarifas de agentes:', agentsWithRates.map(a => ({
+      name: a.name,
+      rate: a.rate_per_minute
+    })));
 
-  if (agentsWithRates.length === 0) {
-    console.log('⚠️ No agents with valid rates, usando tarifa fallback');
-    return 0.02; // Fallback si no hay tarifas válidas
-  }
+    if (agentsWithRates.length === 0) {
+      console.log('⚠️ No agents with valid rates, usando tarifa fallback');
+      return 0.02; // Fallback si no hay tarifas válidas
+    }
 
-  // Calcular promedio ponderado (todos los agentes tienen el mismo peso)
-  const totalRate = agentsWithRates.reduce((sum, agent) => 
-    sum + agent.rate_per_minute!, 0
-  );
-  const averageRate = totalRate / agentsWithRates.length;
-  
-  console.log(`💰 Tarifa promedio calculada: $${averageRate.toFixed(4)}/min`);
-  console.log(`📋 Basado en ${agentsWithRates.length} agentes con tarifas válidas`);
-  
-  return averageRate;
-};
+    // Calcular promedio ponderado (todos los agentes tienen el mismo peso)
+    const totalRate = agentsWithRates.reduce((sum, agent) => 
+      sum + agent.rate_per_minute!, 0
+    );
+    const averageRate = totalRate / agentsWithRates.length;
+    
+    console.log(`💰 Tarifa promedio calculada: $${averageRate.toFixed(4)}/min`);
+    console.log(`📋 Basado en ${agentsWithRates.length} agentes con tarifas válidas`);
+    
+    return averageRate;
+  };
 
   // Calcular minutos estimados con tarifas reales
-const calculateEstimatedMinutes = (): number => {
-  if (!currentBalance || currentBalance <= 0) {
-    console.log('💰 Balance insuficiente para calcular minutos');
-    return 0;
-  }
+  const calculateEstimatedMinutes = (): number => {
+    if (!currentBalance || currentBalance <= 0) {
+      console.log('💰 Balance insuficiente para calcular minutos');
+      return 0;
+    }
 
-  const averageRate = calculateAverageRate();
-  
-  if (averageRate <= 0) {
-    console.log('⚠️ Tarifa promedio inválida, no se pueden calcular minutos');
-    return 0;
-  }
+    const averageRate = calculateAverageRate();
+    
+    if (averageRate <= 0) {
+      console.log('⚠️ Tarifa promedio inválida, no se pueden calcular minutos');
+      return 0;
+    }
 
-  const estimatedMinutes = Math.floor(currentBalance / averageRate);
-  
-  console.log(`🧮 CÁLCULO DE MINUTOS ESTIMADOS:`);
-  console.log(`   💳 Balance actual: $${currentBalance.toFixed(2)}`);
-  console.log(`   💰 Tarifa promedio: $${averageRate.toFixed(4)}/min`);
-  console.log(`   ⏱️ Minutos estimados: ${estimatedMinutes}`);
-  console.log(`   🔢 Cálculo: $${currentBalance.toFixed(2)} ÷ $${averageRate.toFixed(4)} = ${estimatedMinutes} min`);
-  
-  return estimatedMinutes;
-};
+    const estimatedMinutes = Math.floor(currentBalance / averageRate);
+    
+    console.log(`🧮 CÁLCULO DE MINUTOS ESTIMADOS:`);
+    console.log(`   💳 Balance actual: $${currentBalance.toFixed(2)}`);
+    console.log(`   💰 Tarifa promedio: $${averageRate.toFixed(4)}/min`);
+    console.log(`   ⏱️ Minutos estimados: ${estimatedMinutes}`);
+    console.log(`   🔢 Cálculo: $${currentBalance.toFixed(2)} ÷ $${averageRate.toFixed(4)} = ${estimatedMinutes} min`);
+    
+    return estimatedMinutes;
+  };
 
   // Función para obtener agentes en tiempo real
-const fetchUserAgentsWithRates = useCallback(async () => {
-  if (!user?.id) return;
+  const fetchUserAgentsWithRates = useCallback(async () => {
+    if (!user?.id) return;
 
-  try {
-    console.log('🔍 Obteniendo agentes del usuario con tarifas...');
-    
-    const { data: userAgents, error } = await supabase
-      .from('user_agent_assignments')
-      .select(`
-        agent_id,
-        agents!inner (
-          id,
-          name,
-          rate_per_minute,
-          retell_agent_id
-        )
-      `)
-      .eq('user_id', user.id)
-      .eq('is_primary', true);
-
-    if (error) {
-      console.error('❌ Error obteniendo agentes:', error);
-      return;
-    }
-
-    if (userAgents && userAgents.length > 0) {
-      const agentsData = userAgents.map(assignment => assignment.agents);
-      console.log('✅ Agentes obtenidos para cálculo de minutos:', agentsData);
+    try {
+      console.log('🔍 Obteniendo agentes del usuario con tarifas...');
       
-      // Forzar recálculo de minutos estimados
-      const totalRate = agentsData
-        .filter(agent => agent.rate_per_minute > 0)
-        .reduce((sum, agent) => sum + agent.rate_per_minute, 0);
-      
-      const avgRate = agentsData.length > 0 ? totalRate / agentsData.length : 0.02;
-      console.log(`📊 Tarifa promedio actualizada: $${avgRate.toFixed(4)}/min`);
-    }
+      const { data: userAgents, error } = await supabase
+        .from('user_agent_assignments')
+        .select(`
+          agent_id,
+          agents!inner (
+            id,
+            name,
+            rate_per_minute,
+            retell_agent_id
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('is_primary', true);
 
-  } catch (error) {
-    console.error('❌ Error en fetchUserAgentsWithRates:', error);
-  }
-}, [user?.id]);
+      if (error) {
+        console.error('❌ Error obteniendo agentes:', error);
+        return;
+      }
+
+      if (userAgents && userAgents.length > 0) {
+        const agentsData = userAgents.map(assignment => assignment.agents);
+        console.log('✅ Agentes obtenidos para cálculo de minutos:', agentsData);
+        
+        // Forzar recálculo de minutos estimados
+        const validAgents = agentsData.filter(agent => agent && agent.rate_per_minute && agent.rate_per_minute > 0);
+        
+        if (validAgents.length > 0) {
+          const totalRate = validAgents.reduce((sum, agent) => sum + agent.rate_per_minute, 0);
+          const avgRate = totalRate / validAgents.length;
+          console.log(`📊 Tarifa promedio actualizada: $${avgRate.toFixed(4)}/min`);
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Error en fetchUserAgentsWithRates:', error);
+    }
+  }, [user?.id]);
+
+  // Effect para cargar agentes al inicializar el componente
+  useEffect(() => {
+    if (user?.id && !isLoadingAgents && fetchUserAgentsWithRates) {
+      fetchUserAgentsWithRates().catch(error => {
+        console.error('Error en useEffect fetchUserAgentsWithRates:', error);
+      });
+    }
+  }, [user?.id, isLoadingAgents, fetchUserAgentsWithRates]);
+  // ============================================================================
+  // FUNCIONES DE CONFIGURACIÓN
+  // ============================================================================
 
   // Obtener configuración de estado del balance
   const getStatusConfig = (status: string) => {
@@ -247,14 +256,19 @@ const fetchUserAgentsWithRates = useCallback(async () => {
     }, 1000);
   };
 
-  // Variables computadas
+  // ============================================================================
+  // VARIABLES COMPUTADAS
+  // ============================================================================
+  
   const config = getStatusConfig(balanceStatus);
   const IconComponent = config.icon;
   const estimatedMinutes = calculateEstimatedMinutes();
   const lastDeduction = lastBalanceChange && lastBalanceChange.isDeduction 
     ? lastBalanceChange.difference 
     : null;
-  // ✅ RENDERS CONDICIONALES
+  // ============================================================================
+  // RENDERS CONDICIONALES
+  // ============================================================================
 
   // Super Admin View
   if (user?.user_metadata?.role === 'super_admin') {
@@ -337,7 +351,10 @@ const fetchUserAgentsWithRates = useCallback(async () => {
       </Card>
     );
   }
+  // ============================================================================
   // RENDER PRINCIPAL DEL COMPONENTE
+  // ============================================================================
+  
   return (
     <Card className="border border-black bg-white rounded-xl shadow-sm relative">
       {/* 🔄 INDICADOR DE AUTO-POLLING EN TIEMPO REAL */}
@@ -366,8 +383,10 @@ const fetchUserAgentsWithRates = useCallback(async () => {
       <CardContent className="p-3 sm:p-8">
         {/* LAYOUT RESPONSIVO */}
         <div className="flex flex-col sm:space-y-8">
-          {/* ROW 1: Account Balance + Icon + Amount */}
+          
+          {/* ROW 1: Account Balance + Icon + Amount + Status + Actions */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            
             {/* Left: Account Balance + Icon + Amount */}
             <div className="flex items-center justify-center sm:justify-start space-x-3 mb-4 sm:mb-0">
               <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 relative">
@@ -484,6 +503,7 @@ const fetchUserAgentsWithRates = useCallback(async () => {
           {/* BOTTOM ROW - Secondary Information */}
           <div className="border-t border-gray-100 pt-4 sm:pt-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+              
               {/* Left: Availability Status */}
               <div className="flex items-center justify-center sm:justify-start space-x-2">
                 <div className={`h-3 w-3 rounded-full ${
@@ -506,24 +526,24 @@ const fetchUserAgentsWithRates = useCallback(async () => {
                   {config.message}
                 </p>
                 {currentBalance > 0 && (
-  <p className="text-xs sm:text-sm text-gray-500 mt-1">
-    {isLoadingAgents ? (
-      <span className="flex items-center justify-center gap-1">
-        <LoadingSpinner size="sm" />
-        Calculating minutes...
-      </span>
-    ) : (
-      <>
-        Estimated {estimatedMinutes.toLocaleString()} minutes remaining
-        {estimatedMinutes > 0 && (
-          <span className="text-xs text-blue-600 ml-2">
-            (avg ${calculateAverageRate().toFixed(3)}/min)
-          </span>
-        )}
-      </>
-    )}
-  </p>
-)}
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                    {isLoadingAgents ? (
+                      <span className="flex items-center justify-center gap-1">
+                        <LoadingSpinner size="sm" />
+                        Calculating minutes...
+                      </span>
+                    ) : (
+                      <>
+                        Estimated {estimatedMinutes.toLocaleString()} minutes remaining
+                        {estimatedMinutes > 0 && (
+                          <span className="text-xs text-blue-600 ml-2">
+                            (avg ${calculateAverageRate().toFixed(3)}/min)
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </p>
+                )}
               </div>
 
               {/* Right: Thresholds + Controls */}
