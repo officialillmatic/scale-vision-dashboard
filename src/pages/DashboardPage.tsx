@@ -1037,6 +1037,7 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">📊 Dashboard</h1>
             <p className="text-gray-600 text-sm sm:text-base">Real-time analytics for your AI call system</p>
+          </div>
           <div className="flex items-center gap-2 sm:gap-3">
   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs sm:text-sm">
     <Activity className="w-3 h-3 mr-1" />
