@@ -484,7 +484,8 @@ const [isProcessing, setIsProcessing] = useState(false);
 const subscriptionRef = useRef(null);
 
   // Variables derivadas
-  const uniqueAgents = getUniqueAgentsFromCalls(calls);
+  // Obtener agentes desde las asignaciones instead de las llamadas
+const uniqueAgents = agentDetails || [];
   // 🔍 DEBUGGING DEL FILTRO
 console.log("🔍 FILTRO DEBUG - calls.length:", calls.length);
 console.log("🔍 FILTRO DEBUG - uniqueAgents:", uniqueAgents);
