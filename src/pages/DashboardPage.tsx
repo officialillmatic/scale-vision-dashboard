@@ -1287,8 +1287,7 @@ export default function DashboardPage() {
               <p className="text-xs sm:text-sm text-gray-600">Recorded Calls</p>
             </CardContent>
           </Card>
-        </div>
       </div>
-    </DashboardLayout>
-  );
+      </DashboardLayout>
+    );
 }
