@@ -697,3 +697,173 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
               </div>
             )}
           </div>
+{/* ROW 2: Mobile Status Badge (centered) */}
+          <div className="flex sm:hidden items-center justify-center space-x-3 mb-4">
+            <IconComponent className={`h-6 w-6 ${config.iconColor}`} />
+            <Badge 
+              variant={config.badge.variant} 
+              className="text-sm font-semibold px-3 py-1 rounded-lg"
+            >
+              {config.badge.text}
+            </Badge>
+          </div>
+
+          {/* ROW 3: Mobile Action Buttons - CON REFRESH BALANCE INTEGRADO */}
+          {showActions && (
+            <div className="flex sm:hidden flex-col space-y-3 mb-4">
+              {/* Botón Refresh Balance - Mobile */}
+              <Button
+                onClick={handleRefreshBalance}
+                disabled={refreshingBalance || loading}
+                variant="outline"
+                size="lg"
+                className="w-full bg-green-50 hover:bg-green-100 text-green-700 border-green-200 py-3 rounded-lg font-semibold"
+              >
+                {refreshingBalance ? (
+                  <>
+                    <LoadingSpinner size="sm" />
+                    <span className="ml-2">Processing Balance...</span>
+                  </>
+                ) : (
+                  <>
+                    <DollarSign className="h-5 w-5 mr-2" />
+                    Refresh Balance
+                  </>
+                )}
+              </Button>
+
+              {/* Botón Request Recharge - Mobile */}
+              {onRequestRecharge && (
+                <Button 
+                  onClick={onRequestRecharge}
+                  variant={balanceStatus === 'empty' || balanceStatus === 'critical' ? 'default' : 'outline'}
+                  size="lg"
+                  className="w-full py-3 rounded-lg font-semibold"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  {balanceStatus === 'empty' ? 'Add Funds' : 'Request Recharge'}
+                </Button>
+              )}
+              
+              {/* Botón Contact Support - Mobile */}
+              {(balanceStatus === 'warning' || balanceStatus === 'critical' || balanceStatus === 'empty') && (
+                <Button 
+                  variant="outline" 
+                  size="lg"
+                  onClick={() => {
+                    alert('Please contact support to recharge your account: support@drscaleai.com');
+                  }}
+                  className="w-full py-3 rounded-lg font-semibold"
+                >
+                  Contact Support
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* BOTTOM ROW - Secondary Information */}
+          <div className="border-t border-gray-100 pt-4 sm:pt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+              
+              {/* Left: Availability Status */}
+              <div className="flex items-center justify-center sm:justify-start space-x-2">
+                <div className={`h-3 w-3 rounded-full ${
+                  currentBalance > 0 ? 'bg-green-500' : 'bg-red-500'
+                } ${showUpdateIndicator ? 'animate-pulse' : ''}`}></div>
+                <p className="text-sm sm:text-base font-medium text-gray-700">
+                  {currentBalance > 0 ? 'Available for calls' : 'Service unavailable'}
+                </p>
+                {/* Mostrar conteo de transacciones recientes */}
+                {recentTransactionsCount > 0 && (
+                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                    {recentTransactionsCount} recent
+                  </span>
+                )}
+              </div>
+
+              {/* ✅ Center: Status Message + Estimado EN TIEMPO REAL - CORREGIDO */}
+              <div className="text-center">
+                <p className="text-sm sm:text-base font-medium text-gray-600">
+                  {config.message}
+                </p>
+                {currentBalance > 0 && (
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                    {(() => {
+                      if (!rateLoaded) {
+                        return (
+                          <span className="flex items-center justify-center gap-1">
+                            <LoadingSpinner size="sm" />
+                            Getting agent rate...
+                          </span>
+                        );
+                      }
+
+                      const calculation = calculateEstimatedMinutesRealTime();
+                      
+                      if (calculation.hasRate && calculation.minutes > 0) {
+                        return (
+                          <>
+                            Estimated {calculation.minutes.toLocaleString()} minutes remaining
+                            <span className="text-xs text-blue-600 ml-2">
+                              (avg ${calculation.rate!.toFixed(3)}/min)
+                            </span>
+                          </>
+                        );
+                      } else {
+                        return (
+                          <span className="text-orange-600">
+                            Configure agent rate to see estimated minutes
+                          </span>
+                        );
+                      }
+                    })()}
+                  </p>
+                )}
+              </div>
+
+              {/* Right: Thresholds + Controls */}
+              <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-6">
+                {balanceStats && (
+                  <div className="text-center sm:text-right">
+                    <div className="flex flex-col sm:flex-row items-center space-y-1 sm:space-y-0 sm:space-x-4 text-xs sm:text-sm font-medium">
+                      <span className="text-yellow-700">
+                        Warning: {formatCurrency(balanceStats.warning_threshold)}
+                      </span>
+                      <span className="text-orange-700">
+                        Critical: {formatCurrency(balanceStats.critical_threshold)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Updated {new Date(balanceStats.updated_at).toLocaleDateString()}
+                      {/* Indicador de tiempo real */}
+                      {isPolling && (
+                        <span className="ml-2 text-green-600 font-medium">• Live</span>
+                      )}
+                      {showUpdateIndicator && (
+                        <span className="ml-2 text-blue-600 font-medium animate-pulse">• Updated</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                
+                <Button 
+                  onClick={handleRefresh} 
+                  variant="ghost" 
+                  size="sm"
+                  disabled={refreshing}
+                  className="h-10 w-10 p-0 rounded-lg"
+                >
+                  {refreshing ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <RefreshCw className={`h-5 w-5 ${isPolling ? 'text-green-600' : ''} ${showUpdateIndicator ? 'animate-spin' : ''}`} />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
