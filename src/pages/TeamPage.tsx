@@ -2530,7 +2530,7 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({
     retell_agent_id: '',
     name: '',
     company_id: '',
-    description: ''
+    description: '',
     rate_per_minute: ''
   });
 
