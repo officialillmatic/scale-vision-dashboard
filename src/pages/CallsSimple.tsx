@@ -1311,8 +1311,8 @@ const getCallDuration = (call: any) => {
   const { data: assignments } = await supabase
   .from('user_agent_assignments')
   .select('agent_id')
-  .eq('user_id', user.id)
-  .eq('is_primary', true);
+  .eq('user_id', user.id);
+  // .eq('is_primary', true);  // ← Comentado o eliminado
 
 if (!assignments || assignments.length === 0) {
   console.log("⚠️ No assignments found");
