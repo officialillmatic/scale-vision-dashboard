@@ -1343,11 +1343,6 @@ const userAgents = agentDetails?.map(agent => ({
   agents: agent
 })) || [];
 
-      // Simular userAgents para el resto del código
-const userAgents = agentDetails?.map(agent => ({
-  agent_id: agent.id,
-  agents: agent
-})) || [];
 
 // 🔧 AGREGAR ESTA LÍNEA AQUÍ
 setCalls([]); // Para que uniqueAgents se actualice
