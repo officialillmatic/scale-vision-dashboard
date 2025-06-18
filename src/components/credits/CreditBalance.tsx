@@ -921,8 +921,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
             </div>
           </div>
         </div>
-      </div>
-    </CardContent>
-  </Card>
-);
+      </CardContent>
+    </Card>
+  );
 }
