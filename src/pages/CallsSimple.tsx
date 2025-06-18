@@ -1299,19 +1299,40 @@ const getCallDuration = (call: any) => {
   console.log("📍 CHECKPOINT 1: About to query user_agent_assignments");
   console.log("📍 CHECKPOINT 1: user.id =", user.id);
 
-  const { data: userAgents, error: agentsError } = await supabase
+  const { data: assignments } = await supabase
   .from('user_agent_assignments')
-  .select(`
-    agent_id,
-    agents (
-      id,
-      name,
-      rate_per_minute,
-      retell_agent_id
-    )
-  `)
+  .select('agent_id')
   .eq('user_id', user.id)
   .eq('is_primary', true);
+
+if (!assignments || assignments.length === 0) {
+  console.log("⚠️ No assignments found");
+  setCalls([]);
+  setStats({
+    total: 0,
+    totalCost: 0,
+    totalDuration: 0,
+    avgDuration: 0,
+    completedCalls: 0
+  });
+  return;
+}
+
+const agentIds = assignments.map(a => a.agent_id);
+console.log("🎯 Agent IDs from assignments:", agentIds);
+
+const { data: agentDetails, error: agentsError } = await supabase
+  .from('agents')
+  .select('id, name, rate_per_minute, retell_agent_id')
+  .in('id', agentIds);
+
+console.log("🤖 Agent details found:", agentDetails);
+
+// Simular userAgents para el resto del código
+const userAgents = agentDetails?.map(agent => ({
+  agent_id: agent.id,
+  agents: agent
+})) || [];
 
   // 🔍 Y ESTA LÍNEA JUSTO DESPUÉS DE LA CONSULTA
   console.log("📍 CHECKPOINT 2: userAgents query completed");
