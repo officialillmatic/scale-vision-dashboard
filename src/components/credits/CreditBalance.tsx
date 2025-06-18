@@ -22,7 +22,8 @@ import {
   TrendingDown,
   TrendingUp,
   Activity,
-  Clock
+  Clock,
+  DollarSign
 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { formatCurrency } from '@/lib/formatters';
@@ -54,6 +55,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   // ESTADOS LOCALES
   const [showUpdateIndicator, setShowUpdateIndicator] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
 
   // Hook de agentes para calcular minutos estimados
   const { agents, isLoadingAgents } = useAgents();
@@ -186,6 +188,226 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       console.error('❌ Error en fetchUserAgentsWithRates:', error);
     }
   }, [user?.id]);
+
+  // NUEVAS FUNCIONES PARA PROCESAR LLAMADAS PENDIENTES
+  const processUnprocessedCalls = async (userId: string) => {
+    try {
+      console.log('🔄 CREDITBALANCE: Procesando llamadas pendientes...');
+      
+      if (!userId) {
+        return { success: false, message: 'Usuario no identificado' };
+      }
+
+      // Obtener agentes del usuario con sus tarifas
+      const { data: userAgents, error: agentsError } = await supabase
+        .from('user_agent_assignments')
+        .select(`
+          agent_id,
+          agents!inner (
+            id,
+            name,
+            rate_per_minute,
+            retell_agent_id
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('is_primary', true);
+
+      if (agentsError || !userAgents || userAgents.length === 0) {
+        console.error('❌ Error obteniendo agentes del usuario:', agentsError);
+        return { success: false, message: 'No se encontraron agentes asignados' };
+      }
+
+      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
+
+      // Buscar llamadas completadas sin costo asignado
+      const { data: unprocessedCalls, error: callsError } = await supabase
+        .from('calls')
+        .select(`
+          id,
+          call_id,
+          duration_sec,
+          cost_usd,
+          call_status,
+          agent_id
+        `)
+        .in('agent_id', userAgentIds)
+        .in('call_status', ['completed', 'ended'])
+        .gt('duration_sec', 0)
+        .eq('cost_usd', 0)
+        .limit(10);
+
+      if (callsError) {
+        console.error('❌ Error obteniendo llamadas:', callsError);
+        return { success: false, message: 'Error obteniendo llamadas' };
+      }
+
+      if (!unprocessedCalls || unprocessedCalls.length === 0) {
+        console.log('✅ No hay llamadas pendientes de procesar');
+        return { success: true, message: 'No hay llamadas pendientes', processed: 0 };
+      }
+
+      let processedCount = 0;
+      let errors = 0;
+
+      // Procesar cada llamada
+      for (const call of unprocessedCalls) {
+        try {
+          const agentData = userAgents.find(assignment => 
+            assignment.agents.id === call.agent_id || 
+            assignment.agents.retell_agent_id === call.agent_id
+          );
+
+          if (!agentData?.agents.rate_per_minute) {
+            console.warn(`⚠️ No se encontró tarifa para agente ${call.agent_id}`);
+            continue;
+          }
+
+          const duration = call.duration_sec;
+          const rate = agentData.agents.rate_per_minute;
+          const cost = (duration / 60) * rate;
+
+          // Actualizar costo en calls
+          const { error: updateError } = await supabase
+            .from('calls')
+            .update({ cost_usd: cost })
+            .eq('call_id', call.call_id);
+
+          if (updateError) {
+            console.error(`❌ Error actualizando llamada ${call.call_id}:`, updateError);
+            errors++;
+            continue;
+          }
+
+          // Verificar transacción existente
+          const { data: existingTransaction } = await supabase
+            .from('credit_transactions')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('call_id', call.id)
+            .eq('transaction_type', 'debit')
+            .single();
+
+          if (existingTransaction) {
+            processedCount++;
+            continue;
+          }
+
+          // Obtener y actualizar balance
+          const { data: userCredit, error: creditError } = await supabase
+            .from('user_credits')
+            .select('current_balance')
+            .eq('user_id', userId)
+            .single();
+
+          if (creditError) {
+            console.error('❌ Error obteniendo balance:', creditError);
+            errors++;
+            continue;
+          }
+
+          const currentBalance = userCredit?.current_balance || 0;
+          const newBalance = currentBalance - cost;
+
+          const { error: updateBalanceError } = await supabase
+            .from('user_credits')
+            .update({ 
+              current_balance: newBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', userId);
+
+          if (updateBalanceError) {
+            console.error('❌ Error actualizando balance:', updateBalanceError);
+            errors++;
+            continue;
+          }
+
+          // Registrar transacción
+          const { error: transactionError } = await supabase
+            .from('credit_transactions')
+            .insert({
+              user_id: userId,
+              call_id: call.id,
+              amount: cost,
+              transaction_type: 'debit',
+              description: `Call cost deduction - Call ID: ${call.call_id}`,
+              created_at: new Date().toISOString()
+            });
+
+          if (transactionError) {
+            console.error('❌ Error registrando transacción:', transactionError);
+            await supabase
+              .from('user_credits')
+              .update({ current_balance: currentBalance })
+              .eq('user_id', userId);
+            errors++;
+            continue;
+          }
+
+          processedCount++;
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+        } catch (error) {
+          console.error(`❌ Error procesando llamada ${call.call_id}:`, error);
+          errors++;
+        }
+      }
+
+      // Emitir evento para actualizar balance
+      if (typeof window !== 'undefined' && processedCount > 0) {
+        window.dispatchEvent(new CustomEvent('balanceUpdated', {
+          detail: {
+            userId,
+            processed: processedCount,
+            source: 'creditbalance-refresh'
+          }
+        }));
+      }
+
+      return {
+        success: true,
+        message: `Procesadas ${processedCount} llamadas exitosamente${errors > 0 ? ` (${errors} errores)` : ''}`,
+        processed: processedCount,
+        errors
+      };
+
+    } catch (error) {
+      console.error('💥 Error en processUnprocessedCalls:', error);
+      return {
+        success: false,
+        message: `Error: ${error.message}`,
+        processed: 0
+      };
+    }
+  };
+
+  // Función para el botón Refresh Balance integrado
+  const handleRefreshBalance = async () => {
+    setRefreshingBalance(true);
+    
+    try {
+      console.log('🔄 Iniciando Refresh Balance desde CreditBalance...');
+      
+      const result = await processUnprocessedCalls(user?.id);
+      
+      if (result.success) {
+        if (result.processed > 0) {
+          alert(`✅ ¡Balance actualizado!\n\n📞 Llamadas procesadas: ${result.processed}\n💰 Los descuentos se han aplicado automáticamente.`);
+        } else {
+          alert('✅ Tu balance está actualizado\n\nNo hay llamadas pendientes de procesar.');
+        }
+      } else {
+        alert(`❌ Error actualizando balance:\n\n${result.message}`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error en handleRefreshBalance:', error);
+      alert('❌ Error inesperado actualizando balance');
+    } finally {
+      setRefreshingBalance(false);
+    }
+  };
 
   // Effect para cargar agentes al inicializar el componente
   useEffect(() => {
@@ -429,29 +651,52 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
               </div>
             </div>
 
-            {/* Desktop: Action Buttons */}
+            {/* Desktop: Action Buttons - CON REFRESH BALANCE INTEGRADO */}
             {showActions && (
-              <div className="hidden sm:flex items-center space-x-4">
+              <div className="hidden sm:flex items-center space-x-3">
+                {/* Botón Refresh Balance */}
+                <Button
+                  onClick={handleRefreshBalance}
+                  disabled={refreshingBalance || loading}
+                  variant="outline"
+                  size="sm"
+                  className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                >
+                  {refreshingBalance ? (
+                    <>
+                      <LoadingSpinner size="sm" />
+                      <span className="ml-1">Processing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <DollarSign className="w-4 h-4 mr-1" />
+                      Refresh Balance
+                    </>
+                  )}
+                </Button>
+
+                {/* Botón Request Recharge */}
                 {onRequestRecharge && (
                   <Button 
                     onClick={onRequestRecharge}
                     variant={balanceStatus === 'empty' || balanceStatus === 'critical' ? 'default' : 'outline'}
-                    size="lg"
-                    className="px-6 py-3 rounded-lg font-semibold"
+                    size="sm"
+                    className="px-4 py-2 rounded-lg font-semibold"
                   >
-                    <Plus className="h-5 w-5 mr-2" />
+                    <Plus className="h-4 w-4 mr-1" />
                     {balanceStatus === 'empty' ? 'Add Funds' : 'Request Recharge'}
                   </Button>
                 )}
                 
+                {/* Botón Contact Support solo si es crítico */}
                 {(balanceStatus === 'warning' || balanceStatus === 'critical' || balanceStatus === 'empty') && (
                   <Button 
                     variant="outline" 
-                    size="lg"
+                    size="sm"
                     onClick={() => {
                       alert('Please contact support to recharge your account: support@drscaleai.com');
                     }}
-                    className="px-6 py-3 rounded-lg font-semibold"
+                    className="px-4 py-2 rounded-lg font-semibold"
                   >
                     Contact Support
                   </Button>
@@ -459,6 +704,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
               </div>
             )}
           </div>
+
           {/* ROW 2: Mobile Status Badge (centered) */}
           <div className="flex sm:hidden items-center justify-center space-x-3 mb-4">
             <IconComponent className={`h-6 w-6 ${config.iconColor}`} />
@@ -470,9 +716,31 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
             </Badge>
           </div>
 
-          {/* ROW 3: Mobile Action Buttons */}
+          {/* ROW 3: Mobile Action Buttons - CON REFRESH BALANCE INTEGRADO */}
           {showActions && (
             <div className="flex sm:hidden flex-col space-y-3 mb-4">
+              {/* Botón Refresh Balance - Mobile */}
+              <Button
+                onClick={handleRefreshBalance}
+                disabled={refreshingBalance || loading}
+                variant="outline"
+                size="lg"
+                className="w-full bg-green-50 hover:bg-green-100 text-green-700 border-green-200 py-3 rounded-lg font-semibold"
+              >
+                {refreshingBalance ? (
+                  <>
+                    <LoadingSpinner size="sm" />
+                    <span className="ml-2">Processing Balance...</span>
+                  </>
+                ) : (
+                  <>
+                    <DollarSign className="h-5 w-5 mr-2" />
+                    Refresh Balance
+                  </>
+                )}
+              </Button>
+
+              {/* Botón Request Recharge - Mobile */}
               {onRequestRecharge && (
                 <Button 
                   onClick={onRequestRecharge}
@@ -485,6 +753,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                 </Button>
               )}
               
+              {/* Botón Contact Support - Mobile */}
               {(balanceStatus === 'warning' || balanceStatus === 'critical' || balanceStatus === 'empty') && (
                 <Button 
                   variant="outline" 
@@ -556,39 +825,40 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                       </span>
                       <span className="text-orange-700">
                         Critical: {formatCurrency(balanceStats.critical_threshold)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Updated {new Date(balanceStats.updated_at).toLocaleDateString()}
-                      {/* Indicador de tiempo real */}
-                      {isPolling && (
-                        <span className="ml-2 text-green-600 font-medium">• Live</span>
-                      )}
-                      {showUpdateIndicator && (
-                        <span className="ml-2 text-blue-600 font-medium animate-pulse">• Updated</span>
-                      )}
-                    </p>
-                  </div>
-                )}
-                
-                <Button 
-                  onClick={handleRefresh} 
-                  variant="ghost" 
-                  size="sm"
-                  disabled={refreshing}
-                  className="h-10 w-10 p-0 rounded-lg"
-                >
-                  {refreshing ? (
-                    <LoadingSpinner size="sm" />
-                  ) : (
-                    <RefreshCw className={`h-5 w-5 ${isPolling ? 'text-green-600' : ''} ${showUpdateIndicator ? 'animate-spin' : ''}`} />
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+                     </span>
+                   </div>
+                   <p className="text-xs text-gray-500 mt-1">
+                     Updated {new Date(balanceStats.updated_at).toLocaleDateString()}
+                     {/* Indicador de tiempo real */}
+                     {isPolling && (
+                       <span className="ml-2 text-green-600 font-medium">• Live</span>
+                     )}
+                     {showUpdateIndicator && (
+                       <span className="ml-2 text-blue-600 font-medium animate-pulse">• Updated</span>
+                     )}
+                   </p>
+                 </div>
+               )}
+               
+               <Button 
+                 onClick={handleRefresh} 
+                 variant="ghost" 
+                 size="sm"
+                 disabled={refreshing}
+                 className="h-10 w-10 p-0 rounded-lg"
+               >
+                 {refreshing ? (
+                   <LoadingSpinner size="sm" />
+                 ) : (
+                   <RefreshCw className={`h-5 w-5 ${isPolling ? 'text-green-600' : ''} ${showUpdateIndicator ? 'animate-spin' : ''}`} />
+                 )}
+               </Button>
+             </div>
+           </div>
+         </div>
+       </div>
+     </CardContent>
+   </Card>
+ );
 }
+                        
