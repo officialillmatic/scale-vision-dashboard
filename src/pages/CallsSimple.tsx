@@ -1346,6 +1346,7 @@ const userAgents = agentDetails?.map(agent => ({
 
 
 // 🔧 AGREGAR ESTA LÍNEA AQUÍ
+      setUserAssignedAgents(agentDetails || []);
 setCalls([]); // Para que uniqueAgents se actualice
 
   // 🔍 Y ESTA LÍNEA JUSTO DESPUÉS DE LA CONSULTA
