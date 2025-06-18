@@ -1298,6 +1298,15 @@ const getCallDuration = (call: any) => {
         .eq('user_id', user.id)
         .eq('is_primary', true);
 
+      // En CallsSimple.tsx, agregar debugging específico para este usuario
+useEffect(() => {
+  if (user?.email === 'ecostencilcolombia@gmail.com') {
+    console.log('🚨 DEBUG ESPECÍFICO - ecostencilcolombia detectado');
+    console.log('👤 User object:', user);
+    console.log('🆔 User ID:', user.id);
+  }
+}, [user]);
+
       if (agentsError) {
         console.error("❌ Error fetching user agents:", agentsError);
         setError(`Error: ${agentsError.message}`);
