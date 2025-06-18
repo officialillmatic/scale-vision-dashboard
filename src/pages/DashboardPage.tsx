@@ -1290,6 +1290,7 @@ export default function DashboardPage() {
           </Card>
           </div>
         </div>
+        </div>
       </DashboardLayout>
     );
 }
