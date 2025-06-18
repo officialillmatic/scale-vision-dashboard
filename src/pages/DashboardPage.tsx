@@ -1058,26 +1058,6 @@ export default function DashboardPage() {
     {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh Data
   </Button>
   
-  {/* Nuevo Botón Refresh Balance */}
-  <Button
-    onClick={() => handleRefreshBalance(user?.id, setRefreshingBalance)}
-    disabled={loading || refreshingBalance || !user?.id}
-    variant="default"
-    size="sm"
-    className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-medium"
-  >
-    {refreshingBalance ? (
-      <>
-        <LoadingSpinner size="sm" />
-        <span className="ml-1">Processing...</span>
-      </>
-    ) : (
-      <>
-        <DollarSign className="w-4 h-4 mr-1" />
-        Refresh Balance
-      </>
-    )}
-  </Button>
 </div>
 
         {/* Error Alert */}
