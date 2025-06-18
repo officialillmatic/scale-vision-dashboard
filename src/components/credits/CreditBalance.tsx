@@ -1,11 +1,12 @@
 // src/components/credits/CreditBalance.tsx - PARTE 1
 // Imports y configuración inicial
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { useAgents } from '@/hooks/useAgents';
 import { useAutoPollingBalance } from '@/hooks/useAutoPollingBalance'; // 🔄 NUEVO HOOK
 import { 
@@ -71,34 +72,123 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
     }
   }, [lastBalanceChange]);
   // FUNCIONES AUXILIARES
+  // Effect para cargar agentes al inicializar el componente
+useEffect(() => {
+  if (user?.id && !isLoadingAgents) {
+    fetchUserAgentsWithRates();
+  }
+}, [user?.id, isLoadingAgents, fetchUserAgentsWithRates]);
   
-  // Calcular tarifa promedio de agentes
-  const calculateAverageRate = (): number => {
-    if (!agents || agents.length === 0) {
-      return 0.02; // Fallback a tarifa genérica
-    }
+  // Calcular tarifa promedio real del usuario
+const calculateAverageRate = (): number => {
+  if (!user?.id) {
+    console.log('⚠️ No user ID available for rate calculation');
+    return 0.02; // Fallback genérico
+  }
 
-    const agentsWithRates = agents.filter(agent => agent.rate_per_minute && agent.rate_per_minute > 0);
-    
-    if (agentsWithRates.length === 0) {
-      return 0.02; // Fallback si no hay tarifas configuradas
-    }
+  // Obtener agentes del usuario desde useAgents hook
+  if (!agents || agents.length === 0) {
+    console.log('⚠️ No agents available, usando tarifa fallback');
+    return 0.02; // Fallback si no hay agentes cargados
+  }
 
-    const totalRate = agentsWithRates.reduce((sum, agent) => sum + agent.rate_per_minute!, 0);
-    const averageRate = totalRate / agentsWithRates.length;
-    
-    return averageRate;
-  };
+  // Filtrar agentes que tienen tarifa configurada
+  const agentsWithRates = agents.filter(agent => 
+    agent.rate_per_minute && 
+    agent.rate_per_minute > 0
+  );
+  
+  console.log('🎯 Agentes con tarifas encontrados:', agentsWithRates.length);
+  console.log('📊 Tarifas de agentes:', agentsWithRates.map(a => ({
+    name: a.name,
+    rate: a.rate_per_minute
+  })));
+
+  if (agentsWithRates.length === 0) {
+    console.log('⚠️ No agents with valid rates, usando tarifa fallback');
+    return 0.02; // Fallback si no hay tarifas válidas
+  }
+
+  // Calcular promedio ponderado (todos los agentes tienen el mismo peso)
+  const totalRate = agentsWithRates.reduce((sum, agent) => 
+    sum + agent.rate_per_minute!, 0
+  );
+  const averageRate = totalRate / agentsWithRates.length;
+  
+  console.log(`💰 Tarifa promedio calculada: $${averageRate.toFixed(4)}/min`);
+  console.log(`📋 Basado en ${agentsWithRates.length} agentes con tarifas válidas`);
+  
+  return averageRate;
+};
 
   // Calcular minutos estimados con tarifas reales
-  const calculateEstimatedMinutes = (): number => {
-    if (!currentBalance || currentBalance <= 0) return 0;
+const calculateEstimatedMinutes = (): number => {
+  if (!currentBalance || currentBalance <= 0) {
+    console.log('💰 Balance insuficiente para calcular minutos');
+    return 0;
+  }
 
-    const averageRate = calculateAverageRate();
-    const estimatedMinutes = Math.floor(currentBalance / averageRate);
+  const averageRate = calculateAverageRate();
+  
+  if (averageRate <= 0) {
+    console.log('⚠️ Tarifa promedio inválida, no se pueden calcular minutos');
+    return 0;
+  }
+
+  const estimatedMinutes = Math.floor(currentBalance / averageRate);
+  
+  console.log(`🧮 CÁLCULO DE MINUTOS ESTIMADOS:`);
+  console.log(`   💳 Balance actual: $${currentBalance.toFixed(2)}`);
+  console.log(`   💰 Tarifa promedio: $${averageRate.toFixed(4)}/min`);
+  console.log(`   ⏱️ Minutos estimados: ${estimatedMinutes}`);
+  console.log(`   🔢 Cálculo: $${currentBalance.toFixed(2)} ÷ $${averageRate.toFixed(4)} = ${estimatedMinutes} min`);
+  
+  return estimatedMinutes;
+};
+
+  // Función para obtener agentes en tiempo real
+const fetchUserAgentsWithRates = useCallback(async () => {
+  if (!user?.id) return;
+
+  try {
+    console.log('🔍 Obteniendo agentes del usuario con tarifas...');
     
-    return estimatedMinutes;
-  };
+    const { data: userAgents, error } = await supabase
+      .from('user_agent_assignments')
+      .select(`
+        agent_id,
+        agents!inner (
+          id,
+          name,
+          rate_per_minute,
+          retell_agent_id
+        )
+      `)
+      .eq('user_id', user.id)
+      .eq('is_primary', true);
+
+    if (error) {
+      console.error('❌ Error obteniendo agentes:', error);
+      return;
+    }
+
+    if (userAgents && userAgents.length > 0) {
+      const agentsData = userAgents.map(assignment => assignment.agents);
+      console.log('✅ Agentes obtenidos para cálculo de minutos:', agentsData);
+      
+      // Forzar recálculo de minutos estimados
+      const totalRate = agentsData
+        .filter(agent => agent.rate_per_minute > 0)
+        .reduce((sum, agent) => sum + agent.rate_per_minute, 0);
+      
+      const avgRate = agentsData.length > 0 ? totalRate / agentsData.length : 0.02;
+      console.log(`📊 Tarifa promedio actualizada: $${avgRate.toFixed(4)}/min`);
+    }
+
+  } catch (error) {
+    console.error('❌ Error en fetchUserAgentsWithRates:', error);
+  }
+}, [user?.id]);
 
   // Obtener configuración de estado del balance
   const getStatusConfig = (status: string) => {
@@ -416,19 +506,24 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
                   {config.message}
                 </p>
                 {currentBalance > 0 && (
-                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                    {isLoadingAgents ? (
-                      <span className="flex items-center justify-center gap-1">
-                        <LoadingSpinner size="sm" />
-                        Calculating minutes...
-                      </span>
-                    ) : (
-                      <>
-                        Estimated {estimatedMinutes.toLocaleString()} minutes remaining
-                      </>
-                    )}
-                  </p>
-                )}
+  <p className="text-xs sm:text-sm text-gray-500 mt-1">
+    {isLoadingAgents ? (
+      <span className="flex items-center justify-center gap-1">
+        <LoadingSpinner size="sm" />
+        Calculating minutes...
+      </span>
+    ) : (
+      <>
+        Estimated {estimatedMinutes.toLocaleString()} minutes remaining
+        {estimatedMinutes > 0 && (
+          <span className="text-xs text-blue-600 ml-2">
+            (avg ${calculateAverageRate().toFixed(3)}/min)
+          </span>
+        )}
+      </>
+    )}
+  </p>
+)}
               </div>
 
               {/* Right: Thresholds + Controls */}
