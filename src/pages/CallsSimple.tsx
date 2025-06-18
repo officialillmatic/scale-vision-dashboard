@@ -1309,6 +1309,17 @@ const getCallDuration = (call: any) => {
         .eq('user_id', user.id)
         .eq('is_primary', true);
 
+      // 🔍 DEBUGGING CRÍTICO DETALLADO
+console.log('🔍 RAW userAgents response:', userAgents);
+console.log('🔍 RAW agentsError response:', agentsError);
+console.log('🔍 userAgents type:', typeof userAgents);
+console.log('🔍 userAgents is array:', Array.isArray(userAgents));
+console.log('🔍 userAgents length:', userAgents?.length);
+
+if (agentsError) {
+  console.error('❌ DETAILED agentsError:', JSON.stringify(agentsError, null, 2));
+}
+
       // En CallsSimple.tsx, agregar debugging específico para este usuario
 useEffect(() => {
   if (user?.email === 'ecostencilcolombia@gmail.com') {
