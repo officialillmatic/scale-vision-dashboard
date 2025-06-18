@@ -1,4 +1,4 @@
-// src/components/credits/CreditBalance.tsx - PARTE 1
+// src/components/credits/CreditBalance.tsx - PARTE 1 CORREGIDA
 // Imports y configuración inicial
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -52,10 +52,14 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
     recentTransactionsCount
   } = useAutoPollingBalance();
 
-  // ESTADOS LOCALES
+  // ESTADOS LOCALES - CON NUEVOS ESTADOS AGREGADOS
   const [showUpdateIndicator, setShowUpdateIndicator] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshingBalance, setRefreshingBalance] = useState(false);
+  
+  // ✅ NUEVOS ESTADOS PARA TARIFA REAL
+  const [realAgentRate, setRealAgentRate] = useState<number | null>(null);
+  const [rateLoaded, setRateLoaded] = useState(false);
 
   // Hook de agentes para calcular minutos estimados
   const { agents, isLoadingAgents } = useAgents();
@@ -74,85 +78,15 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
     }
   }, [lastBalanceChange]);
   // ============================================================================
-  // FUNCIONES AUXILIARES - USANDO TARIFA REAL DEL AGENTE PERSONALIZADO
+  // FUNCIONES AUXILIARES - TIEMPO REAL SIN LOADING INFINITO
   // ============================================================================
   
-  // Calcular tarifa promedio REAL del agente personalizado del usuario
-  const calculateAverageRate = (): number => {
-    if (!user?.id) {
-      console.log('⚠️ No user ID available for rate calculation');
-      return 0; // Sin tarifa inventada
-    }
-
-    // Obtener agentes del usuario desde useAgents hook
-    if (!agents || agents.length === 0) {
-      console.log('⚠️ No agents loaded yet, waiting for real agent data...');
-      return 0; // No usar tarifa inventada, esperar datos reales
-    }
-
-    // Filtrar agentes que tienen tarifa configurada
-    const agentsWithRates = agents.filter(agent => 
-      agent.rate_per_minute && 
-      agent.rate_per_minute > 0
-    );
-    
-    console.log('🎯 Agentes REALES con tarifas encontrados:', agentsWithRates.length);
-    console.log('📊 Tarifas REALES de agentes:', agentsWithRates.map(a => ({
-      id: a.id,
-      name: a.name,
-      rate_per_minute: a.rate_per_minute
-    })));
-
-    if (agentsWithRates.length === 0) {
-      console.log('⚠️ No agents with valid rates found - cannot calculate estimated minutes');
-      return 0; // Sin agentes con tarifa, no calcular minutos
-    }
-
-    // Calcular promedio ponderado de tarifas REALES
-    const totalRate = agentsWithRates.reduce((sum, agent) => 
-      sum + agent.rate_per_minute!, 0
-    );
-    const averageRate = totalRate / agentsWithRates.length;
-    
-    console.log(`💰 TARIFA PROMEDIO REAL DEL AGENTE PERSONALIZADO: $${averageRate.toFixed(4)}/min`);
-    console.log(`📋 Basado en ${agentsWithRates.length} agentes con tarifas configuradas`);
-    console.log(`🔢 Cálculo: (${agentsWithRates.map(a => `$${a.rate_per_minute!.toFixed(4)}`).join(' + ')}) ÷ ${agentsWithRates.length} = $${averageRate.toFixed(4)}/min`);
-    
-    return averageRate;
-  };
-
-  // Calcular minutos estimados EXACTOS con tarifa real del agente
-  const calculateEstimatedMinutes = (): number => {
-    if (!currentBalance || currentBalance <= 0) {
-      console.log('💰 Balance insuficiente para calcular minutos');
-      return 0;
-    }
-
-    const realAverageRate = calculateAverageRate();
-    
-    if (realAverageRate <= 0) {
-      console.log('⚠️ No hay tarifa real disponible - no se pueden calcular minutos estimados');
-      return 0; // Sin tarifa real, no mostrar minutos estimados
-    }
-
-    const estimatedMinutes = Math.floor(currentBalance / realAverageRate);
-    
-    console.log(`🧮 CÁLCULO DE MINUTOS ESTIMADOS CON TARIFA REAL:`);
-    console.log(`   💳 Balance actual: $${currentBalance.toFixed(2)}`);
-    console.log(`   🤖 Tarifa REAL del agente personalizado: $${realAverageRate.toFixed(4)}/min`);
-    console.log(`   ⏱️ Minutos estimados EXACTOS: ${estimatedMinutes}`);
-    console.log(`   🔢 Cálculo exacto: $${currentBalance.toFixed(2)} ÷ $${realAverageRate.toFixed(4)} = ${estimatedMinutes} min`);
-    console.log(`   ✅ Este cálculo usa SOLO la tarifa real del agente personalizado del usuario`);
-    
-    return estimatedMinutes;
-  };
-
-  // Función para obtener tarifa real del agente asignado al usuario
-  const fetchRealAgentRate = useCallback(async () => {
-    if (!user?.id) return null;
+  // Obtener tarifa real del agente en tiempo real
+  const fetchAgentRateRealTime = useCallback(async () => {
+    if (!user?.id) return;
 
     try {
-      console.log('🔍 Obteniendo tarifa REAL del agente personalizado del usuario...');
+      console.log('🔍 Obteniendo tarifa real del agente en tiempo real...');
       
       const { data: userAgents, error } = await supabase
         .from('user_agent_assignments')
@@ -170,12 +104,16 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
 
       if (error) {
         console.error('❌ Error obteniendo agentes:', error);
-        return null;
+        setRealAgentRate(null);
+        setRateLoaded(true);
+        return;
       }
 
       if (!userAgents || userAgents.length === 0) {
-        console.warn('⚠️ No se encontraron agentes asignados al usuario');
-        return null;
+        console.warn('⚠️ No se encontraron agentes asignados');
+        setRealAgentRate(null);
+        setRateLoaded(true);
+        return;
       }
 
       const agentsData = userAgents.map(assignment => assignment.agents);
@@ -184,70 +122,73 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       );
       
       if (validAgents.length === 0) {
-        console.warn('⚠️ Agentes asignados no tienen tarifa configurada');
-        return null;
+        console.warn('⚠️ Agentes sin tarifa configurada');
+        setRealAgentRate(null);
+        setRateLoaded(true);
+        return;
       }
 
       // Calcular tarifa promedio real
       const totalRate = validAgents.reduce((sum, agent) => sum + agent.rate_per_minute, 0);
       const avgRate = totalRate / validAgents.length;
       
-      console.log(`✅ Tarifa REAL obtenida del agente personalizado:`);
-      console.log(`   🤖 Agentes: ${validAgents.map(a => a.name).join(', ')}`);
-      console.log(`   💰 Tarifa promedio: $${avgRate.toFixed(4)}/min`);
-      console.log(`   📊 Tarifas individuales: ${validAgents.map(a => `$${a.rate_per_minute.toFixed(4)}`).join(', ')}`);
+      console.log(`✅ Tarifa REAL obtenida: $${avgRate.toFixed(4)}/min`);
+      console.log(`🤖 Agentes: ${validAgents.map(a => a.name).join(', ')}`);
       
-      return avgRate;
+      setRealAgentRate(avgRate);
+      setRateLoaded(true);
 
     } catch (error) {
-      console.error('❌ Error en fetchRealAgentRate:', error);
-      return null;
+      console.error('❌ Error en fetchAgentRateRealTime:', error);
+      setRealAgentRate(null);
+      setRateLoaded(true);
     }
   }, [user?.id]);
 
-  // Función para validar que NO se usen tarifas inventadas
-  const validateNoFakeRates = useCallback(() => {
-    const rate = calculateAverageRate();
-    const minutes = calculateEstimatedMinutes();
-    
-    if (rate === 0.095 || rate === 0.02) {
-      console.error('🚨 ALERTA: Se está usando una tarifa inventada!');
-      console.error(`   Tarifa detectada: $${rate}/min`);
-      console.error(`   Esto es incorrecto - debe usar la tarifa real del agente personalizado`);
-      return false;
+  // Calcular minutos estimados en tiempo real
+  const calculateEstimatedMinutesRealTime = (): { minutes: number, rate: number | null, hasRate: boolean } => {
+    if (!currentBalance || currentBalance <= 0) {
+      return { minutes: 0, rate: null, hasRate: false };
     }
-    
-    if (rate > 0 && minutes > 0) {
-      console.log(`✅ VALIDACIÓN CORRECTA: Usando tarifa REAL del agente personalizado`);
-      console.log(`   Balance: $${currentBalance.toFixed(2)}`);
-      console.log(`   Tarifa REAL: $${rate.toFixed(4)}/min`);
-      console.log(`   Minutos EXACTOS: ${minutes}`);
-      return true;
+
+    if (!rateLoaded) {
+      return { minutes: 0, rate: null, hasRate: false };
     }
+
+    if (!realAgentRate || realAgentRate <= 0) {
+      return { minutes: 0, rate: null, hasRate: false };
+    }
+
+    const estimatedMinutes = Math.floor(currentBalance / realAgentRate);
     
-    console.log(`ℹ️ Esperando datos reales del agente personalizado...`);
-    return false;
+    console.log(`🧮 CÁLCULO TIEMPO REAL:`);
+    console.log(`   💳 Balance: $${currentBalance.toFixed(2)}`);
+    console.log(`   🤖 Tarifa real: $${realAgentRate.toFixed(4)}/min`);
+    console.log(`   ⏱️ Minutos: ${estimatedMinutes}`);
     
-  }, [currentBalance]);
+    return { 
+      minutes: estimatedMinutes, 
+      rate: realAgentRate, 
+      hasRate: true 
+    };
+  };
 
   // Effect para cargar tarifa real al inicializar
   useEffect(() => {
-    if (user?.id && !isLoadingAgents) {
-      fetchRealAgentRate().then(realRate => {
-        if (realRate && currentBalance > 0) {
-          const exactMinutes = Math.floor(currentBalance / realRate);
-          console.log(`🎯 RESULTADO FINAL: ${exactMinutes} minutos estimados con tarifa real $${realRate.toFixed(4)}/min`);
-        }
-      });
+    if (user?.id) {
+      fetchAgentRateRealTime();
     }
-  }, [user?.id, isLoadingAgents, currentBalance, fetchRealAgentRate]);
+  }, [user?.id, fetchAgentRateRealTime]);
 
-  // Effect para validar que no se usen tarifas inventadas
+  // Effect para recargar tarifa cuando cambie el balance
   useEffect(() => {
-    if (!isLoadingAgents && currentBalance > 0) {
-      validateNoFakeRates();
+    if (user?.id && currentBalance !== undefined) {
+      // Solo recargar si no tenemos tarifa aún
+      if (!rateLoaded) {
+        fetchAgentRateRealTime();
+      }
     }
-  }, [currentBalance, isLoadingAgents, validateNoFakeRates]);
+  }, [user?.id, currentBalance, rateLoaded, fetchAgentRateRealTime]);
   // ============================================================================
   // FUNCIONES PARA PROCESAR LLAMADAS PENDIENTES
   // ============================================================================
@@ -537,7 +478,6 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   
   const config = getStatusConfig(balanceStatus);
   const IconComponent = config.icon;
-  const estimatedMinutes = calculateEstimatedMinutes();
   const lastDeduction = lastBalanceChange && lastBalanceChange.isDeduction 
     ? lastBalanceChange.difference 
     : null;
@@ -757,171 +697,3 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
               </div>
             )}
           </div>
-          {/* ROW 2: Mobile Status Badge (centered) */}
-          <div className="flex sm:hidden items-center justify-center space-x-3 mb-4">
-            <IconComponent className={`h-6 w-6 ${config.iconColor}`} />
-            <Badge 
-              variant={config.badge.variant} 
-              className="text-sm font-semibold px-3 py-1 rounded-lg"
-            >
-              {config.badge.text}
-            </Badge>
-          </div>
-
-          {/* ROW 3: Mobile Action Buttons - CON REFRESH BALANCE INTEGRADO */}
-          {showActions && (
-            <div className="flex sm:hidden flex-col space-y-3 mb-4">
-              {/* Botón Refresh Balance - Mobile */}
-              <Button
-                onClick={handleRefreshBalance}
-                disabled={refreshingBalance || loading}
-                variant="outline"
-                size="lg"
-                className="w-full bg-green-50 hover:bg-green-100 text-green-700 border-green-200 py-3 rounded-lg font-semibold"
-              >
-                {refreshingBalance ? (
-                  <>
-                    <LoadingSpinner size="sm" />
-                    <span className="ml-2">Processing Balance...</span>
-                  </>
-                ) : (
-                  <>
-                    <DollarSign className="h-5 w-5 mr-2" />
-                    Refresh Balance
-                  </>
-                )}
-              </Button>
-
-              {/* Botón Request Recharge - Mobile */}
-              {onRequestRecharge && (
-                <Button 
-                  onClick={onRequestRecharge}
-                  variant={balanceStatus === 'empty' || balanceStatus === 'critical' ? 'default' : 'outline'}
-                  size="lg"
-                  className="w-full py-3 rounded-lg font-semibold"
-                >
-                  <Plus className="h-5 w-5 mr-2" />
-                  {balanceStatus === 'empty' ? 'Add Funds' : 'Request Recharge'}
-                </Button>
-              )}
-              
-              {/* Botón Contact Support - Mobile */}
-              {(balanceStatus === 'warning' || balanceStatus === 'critical' || balanceStatus === 'empty') && (
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  onClick={() => {
-                    alert('Please contact support to recharge your account: support@drscaleai.com');
-                  }}
-                  className="w-full py-3 rounded-lg font-semibold"
-                >
-                  Contact Support
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* BOTTOM ROW - Secondary Information */}
-          <div className="border-t border-gray-100 pt-4 sm:pt-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-              
-              {/* Left: Availability Status */}
-              <div className="flex items-center justify-center sm:justify-start space-x-2">
-                <div className={`h-3 w-3 rounded-full ${
-                  currentBalance > 0 ? 'bg-green-500' : 'bg-red-500'
-                } ${showUpdateIndicator ? 'animate-pulse' : ''}`}></div>
-                <p className="text-sm sm:text-base font-medium text-gray-700">
-                  {currentBalance > 0 ? 'Available for calls' : 'Service unavailable'}
-                </p>
-                {/* Mostrar conteo de transacciones recientes */}
-                {recentTransactionsCount > 0 && (
-                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                    {recentTransactionsCount} recent
-                  </span>
-                )}
-              </div>
-
-              {/* Center: Status Message + Estimado CON TARIFA REAL */}
-              <div className="text-center">
-                <p className="text-sm sm:text-base font-medium text-gray-600">
-                  {config.message}
-                </p>
-                {currentBalance > 0 && (
-                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                    {isLoadingAgents ? (
-                      <span className="flex items-center justify-center gap-1">
-                        <LoadingSpinner size="sm" />
-                        Loading agent rates...
-                      </span>
-                    ) : (() => {
-                      const realRate = calculateAverageRate();
-                      const estimatedMinutes = calculateEstimatedMinutes();
-                      
-                      // Solo mostrar minutos si tenemos tarifa real del agente
-                      if (realRate > 0 && estimatedMinutes > 0) {
-                        return (
-                          <>
-                            Estimated {estimatedMinutes.toLocaleString()} minutes remaining
-                            <span className="text-xs text-blue-600 ml-2">
-                              (avg ${realRate.toFixed(3)}/min)
-                            </span>
-                          </>
-                        );
-                      } else {
-                        return (
-                          <span className="text-yellow-600">
-                            Calculating with agent rate...
-                          </span>
-                        );
-                      }
-                    })()}
-                  </p>
-                )}
-              </div>
-
-              {/* Right: Thresholds + Controls */}
-              <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-6">
-                {balanceStats && (
-                  <div className="text-center sm:text-right">
-                    <div className="flex flex-col sm:flex-row items-center space-y-1 sm:space-y-0 sm:space-x-4 text-xs sm:text-sm font-medium">
-                      <span className="text-yellow-700">
-                        Warning: {formatCurrency(balanceStats.warning_threshold)}
-                      </span>
-                      <span className="text-orange-700">
-                        Critical: {formatCurrency(balanceStats.critical_threshold)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Updated {new Date(balanceStats.updated_at).toLocaleDateString()}
-                      {/* Indicador de tiempo real */}
-                      {isPolling && (
-                        <span className="ml-2 text-green-600 font-medium">• Live</span>
-                      )}
-                      {showUpdateIndicator && (
-                        <span className="ml-2 text-blue-600 font-medium animate-pulse">• Updated</span>
-                      )}
-                    </p>
-                  </div>
-                )}
-                
-                <Button 
-                  onClick={handleRefresh} 
-                  variant="ghost" 
-                  size="sm"
-                  disabled={refreshing}
-                  className="h-10 w-10 p-0 rounded-lg"
-                >
-                  {refreshing ? (
-                    <LoadingSpinner size="sm" />
-                  ) : (
-                    <RefreshCw className={`h-5 w-5 ${isPolling ? 'text-green-600' : ''} ${showUpdateIndicator ? 'animate-spin' : ''}`} />
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
