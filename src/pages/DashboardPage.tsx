@@ -428,6 +428,27 @@ useEffect(() => {
 }, [user?.id]);
 
   // ✅ useEffect para recalcular estadísticas automáticamente
+  // 🚨 EMERGENCY: Listener directo en Dashboard para CreditBalance
+useEffect(() => {
+  if (!user?.id) return;
+
+  console.log('🚨 EMERGENCY: Dashboard listener directo para balance...');
+  
+  const handleBalanceUpdate = (event: CustomEvent) => {
+    console.log('💳 EMERGENCY: Evento recibido en Dashboard:', event.detail);
+    
+    // Forzar recarga completa del balance
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+  };
+
+  window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+  
+  return () => {
+    window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+  };
+}, [user?.id]);
   useEffect(() => {
     console.log('📊 Dashboard - useEffect para estadísticas automáticas ejecutado:', {
       callsLength: calls.length,
