@@ -474,10 +474,34 @@ useEffect(() => {
       style.remove();
     }, 5000);
     
-    // Refrescar datos del balance
+    // Refrescar datos del balance - VERSIÓN MEJORADA
     if (user?.id) {
+      console.log('🔄 Forzando actualización completa del balance...');
+      
+      // 1. Refrescar balance
       refreshCreditBalance(user.id);
+      
+      // 2. Forzar re-render del componente CreditBalance
+      setTimeout(() => {
+        const creditBalanceElement = document.querySelector('[class*="credit"], [class*="balance"], [class*="Account"]');
+        if (creditBalanceElement) {
+          console.log('🎯 Elemento balance encontrado, forzando actualización...');
+          // Disparar evento de actualización adicional
+          window.dispatchEvent(new CustomEvent('forceBalanceRefresh', { 
+            detail: { userId: user.id, timestamp: Date.now() }
+          }));
+        }
+      }, 500);
+      
+      // 3. Actualizar datos de llamadas
       fetchCallsData();
+      
+      // 4. Como último recurso, recarga ligera después de 3 segundos
+      setTimeout(() => {
+        console.log('🔄 Recarga ligera del balance...');
+        window.location.hash = '#balance-updated';
+        window.location.hash = '';
+      }, 3000);
     }
   };
 
