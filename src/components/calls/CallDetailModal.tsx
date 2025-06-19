@@ -22,7 +22,6 @@ import {
   Pause,
   Download
 } from "lucide-react";
-import { useAgents } from "@/hooks/useAgents";
 
 interface Call {
   id: string;
@@ -53,14 +52,27 @@ interface Call {
   };
 }
 
+// ✅ NUEVA interfaz para agente
+interface Agent {
+  id: string;
+  name: string;
+  rate_per_minute: number;
+  retell_agent_id?: string;
+  status?: string;
+  description?: string;
+}
+
 interface CallDetailModalProps {
   call: Call | null;
   isOpen: boolean;
   onClose: () => void;
   audioDuration?: number;
+  // ✅ NUEVOS props para pasar información de agentes
+  userAssignedAgents?: Agent[];
+  getAgentNameFunction?: (agentId: string) => string;
 }
 
-// ✅ FUNCIÓN PARA CALCULAR COSTO CORRECTO (CORREGIDA para usar audioDuration y 2 decimales)
+// ✅ FUNCIÓN PARA CALCULAR COSTO CORRECTO
 const calculateCallCost = (call: Call, audioDurationParam?: number) => {
   const getCallDuration = (call: any) => {
     // PRIORIDAD 1: Usar audioDurationParam si se pasa
@@ -84,11 +96,9 @@ const calculateCallCost = (call: Call, audioDurationParam?: number) => {
   
   if (agentRate === 0) {
     console.warn(`Modal: No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
-    // ✅ ASEGURAR 2 decimales también aquí
     return Math.round((call.cost_usd || 0) * 100) / 100;
   }
   
-  // ✅ REDONDEAR el resultado calculado a 2 decimales
   return Math.round((durationMinutes * agentRate) * 100) / 100;
 };
 
@@ -97,6 +107,8 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   isOpen,
   onClose,
   audioDuration,
+  userAssignedAgents = [], // ✅ NUEVO
+  getAgentNameFunction, // ✅ NUEVO
 }) => {
   const [copied, setCopied] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -104,8 +116,64 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   const [duration, setDuration] = useState(0);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
-  // NUEVO: Usar el hook de agentes para obtener nombres
-  const { getAgentName, getAgent } = useAgents();
+  // ✅ FUNCIÓN LOCAL para obtener nombre de agente (REEMPLAZA el hook useAgents)
+  const getAgentName = (agentId: string): string => {
+    console.log(`🔍 Modal - getAgentName buscando: ${agentId}`);
+    console.log(`🔍 Modal - userAssignedAgents disponibles:`, userAssignedAgents);
+    
+    // 1. Usar la función pasada desde CallsSimple si está disponible
+    if (getAgentNameFunction) {
+      console.log(`✅ Modal - Usando función del componente padre`);
+      return getAgentNameFunction(agentId);
+    }
+    
+    // 2. Buscar en agentes asignados por ID directo
+    let agent = userAssignedAgents.find(a => a.id === agentId);
+    
+    if (agent) {
+      console.log(`✅ Modal - Encontrado por ID directo: ${agent.name}`);
+      return agent.name;
+    }
+    
+    // 3. Buscar por retell_agent_id
+    agent = userAssignedAgents.find(a => a.retell_agent_id === agentId);
+    
+    if (agent) {
+      console.log(`✅ Modal - Encontrado por retell_agent_id: ${agent.name}`);
+      return agent.name;
+    }
+    
+    // 4. Usar call_agent si está disponible
+    if (call?.call_agent?.name) {
+      console.log(`✅ Modal - Usando call_agent.name: ${call.call_agent.name}`);
+      return call.call_agent.name;
+    }
+    
+    console.log(`❌ Modal - No se encontró agente, usando nombre genérico`);
+    return `Agent ${agentId.substring(0, 8)}...`;
+  };
+
+  // ✅ FUNCIÓN LOCAL para obtener información completa del agente
+  const getAgent = (agentId: string): Agent | null => {
+    // Buscar en agentes asignados
+    let agent = userAssignedAgents.find(a => a.id === agentId || a.retell_agent_id === agentId);
+    
+    if (agent) {
+      return agent;
+    }
+    
+    // Si no se encuentra, crear uno básico con la información de call_agent
+    if (call?.call_agent) {
+      return {
+        id: call.call_agent.id,
+        name: call.call_agent.name,
+        rate_per_minute: call.call_agent.rate_per_minute,
+        status: 'active'
+      };
+    }
+    
+    return null;
+  };
 
   // Audio setup
   useEffect(() => {
@@ -205,7 +273,7 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2, // ✅ AGREGADO: Limitar a máximo 2 decimales
+      maximumFractionDigits: 2,
     }).format(roundedAmount);
   };
 
@@ -282,24 +350,18 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
 
   if (!call) return null;
 
-  // NUEVO: Obtener información del agente
+  // ✅ OBTENER información del agente usando las funciones locales
   const agent = getAgent(call.agent_id);
   const agentName = getAgentName(call.agent_id);
 
   // Console log for debugging
   console.log("🎵 Call data in modal:", call);
-  console.log("📝 Call summary field:", call.call_summary);
-  console.log("📝 Call summary type:", typeof call.call_summary);
-  console.log("📝 Call summary length:", call.call_summary?.length);
-  console.log("📝 Call summary is null?:", call.call_summary === null);
-  console.log("📝 Call summary is undefined?:", call.call_summary === undefined);
-  console.log("🎵 Recording URL:", call.recording_url);
-  console.log("🎵 Duration sec:", call.duration_sec, typeof call.duration_sec);
-  console.log("🎵 Raw call object keys:", Object.keys(call));
-  console.log("💰 Modal cost calculation:", {
-    original_cost: call.cost_usd,
-    calculated_cost: calculateCallCost(call),
-    agent_rate: call.call_agent?.rate_per_minute || call.agents?.rate_per_minute
+  console.log("🤖 Agent data in modal:", {
+    agentId: call.agent_id,
+    agentName: agentName,
+    agent: agent,
+    userAssignedAgents: userAssignedAgents,
+    hasGetAgentNameFunction: !!getAgentNameFunction
   });
 
   return (
@@ -401,7 +463,7 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                 </CardContent>
               </Card>
 
-              {/* Call Summary - SIEMPRE MOSTRAR */}
+              {/* Call Summary */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -635,22 +697,12 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
                           preload="metadata"
                         />
                       </div>
-
-                      {/* Debug info */}
-                      <div className="text-xs text-gray-500 mt-2 p-2 bg-yellow-50 rounded">
-                        <strong>Debug:</strong> Recording URL: {call.recording_url}
-                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
                       <Volume2 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                       <p className="text-lg font-medium mb-2">No audio recording available</p>
                       <p className="text-sm">This call does not have a recording URL</p>
-                      
-                      {/* Debug info when no recording */}
-                      <div className="text-xs text-gray-400 mt-4 p-2 bg-gray-50 rounded">
-                        <strong>Debug:</strong> recording_url field is {call.recording_url ? 'present but empty' : 'not present'}
-                      </div>
                     </div>
                   )}
                 </CardContent>
