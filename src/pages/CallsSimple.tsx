@@ -2106,11 +2106,14 @@ for (const call of data) {
           </Card>
           
           {/* Call Detail Modal */}
+          {/* Call Detail Modal - ✅ VERSIÓN ACTUALIZADA */}
           <CallDetailModal 
             call={selectedCall}
             isOpen={isModalOpen}
             onClose={handleModalClose}
             audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
+            userAssignedAgents={userAssignedAgents} // ✅ NUEVO: Pasar agentes asignados
+            getAgentNameFunction={getAgentNameLocal} // ✅ NUEVO: Pasar función para obtener nombres
           />
         </div>
       </div>
