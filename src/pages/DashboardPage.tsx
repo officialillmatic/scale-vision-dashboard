@@ -853,12 +853,15 @@ export default function DashboardPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
+  const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
+  
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(roundedAmount);
+};
   // ============================================================================
   // VERIFICACIONES Y ESTADOS DE CARGA
   // ============================================================================
