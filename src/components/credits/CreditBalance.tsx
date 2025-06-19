@@ -79,44 +79,64 @@ const [lastTransactionCheck, setLastTransactionCheck] = useState<string | null>(
     }
   }, [lastBalanceChange]);
 
-  // ✅ ESCUCHAR EVENTO balanceUpdated MEJORADO
+  // ✅ LISTENER DEFINITIVO - BYPASS DEL HOOK
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('🔔 Configurando listener para balanceUpdated...');
+    console.log('🔔 CreditBalance: Configurando listener DEFINITIVO...');
     
-    const handleBalanceUpdate = (event: CustomEvent) => {
-      console.log('💳 Evento balanceUpdated recibido:', event.detail);
+    const handleBalanceUpdate = async (event: CustomEvent) => {
+      console.log('💳 CreditBalance: Evento recibido:', event.detail);
       
       const { userId, deduction, source } = event.detail;
       
       // Solo procesar si es para este usuario
       if (userId === user.id || userId === 'current-user' || userId === 'test-user') {
-        console.log('✅ CreditBalance: Actualizando balance por evento automático...');
+        console.log('✅ CreditBalance: Procesando actualización directa...');
         
-        // Mostrar indicador visual inmediatamente
-        setShowUpdateIndicator(true);
-        
-        // Actualizar balance
-        refreshBalance();
-        
-        // Auto-ocultar después de 5 segundos
-        setTimeout(() => {
-          setShowUpdateIndicator(false);
-        }, 5000);
+        try {
+          // 🔥 ACTUALIZACIÓN DIRECTA SIN HOOK
+          console.log('🔄 CreditBalance: Obteniendo balance actualizado de BD...');
+          
+          const { data: creditData, error } = await supabase
+            .from('user_credits')
+            .select('current_balance')
+            .eq('user_id', user.id)
+            .single();
+
+          if (error) {
+            console.error('❌ CreditBalance: Error obteniendo balance:', error);
+            return;
+          }
+
+          const newBalance = creditData?.current_balance || 0;
+          console.log(`💰 CreditBalance: Balance actualizado: $${newBalance}`);
+          
+          // Mostrar indicador visual
+          setShowUpdateIndicator(true);
+          
+          // Forzar re-render completo del componente
+          setTimeout(() => {
+            console.log('🔄 CreditBalance: Forzando refresh completo...');
+            window.location.reload();
+          }, 1000);
+          
+        } catch (error) {
+          console.error('💥 CreditBalance: Error en actualización:', error);
+        }
       }
     };
 
     // Escuchar el evento
     window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
     
-    console.log('✅ CreditBalance: Listener balanceUpdated configurado');
+    console.log('✅ CreditBalance: Listener DEFINITIVO configurado');
     
     return () => {
       window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-      console.log('🧹 CreditBalance: Listener balanceUpdated removido');
+      console.log('🧹 CreditBalance: Listener DEFINITIVO removido');
     };
-  }, [user?.id, refreshBalance]);
+  }, [user?.id]);
 
   // ✅ MONITOREO DIRECTO DE TRANSACCIONES
   const setupDirectTransactionMonitoring = useCallback(() => {
