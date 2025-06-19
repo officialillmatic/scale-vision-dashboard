@@ -364,17 +364,15 @@ const processPendingCallCosts = async (
   console.log('🎉 Finished processing pending call costs');
 };
 // COMPONENTE FILTRO DE AGENTES
-const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
-  agents: any[];
-  selectedAgent: string | null;
-  onAgentChange: (agentId: string | null) => void;
-  isLoading: boolean;
-}) => {
+const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
   const [isOpen, setIsOpen] = useState(false);
   
   const selectedAgentName = selectedAgent 
     ? agents.find(agent => agent.id === selectedAgent)?.name || 'Unknown Agent'
     : 'All Agents';
+
+  console.log("🔍 AgentFilter - agents recibidos:", agents);
+  console.log("🔍 AgentFilter - selectedAgent:", selectedAgent);
 
   if (isLoading) {
     return (
@@ -382,6 +380,17 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }: {
         <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm font-medium text-gray-500 min-w-[160px]">
           <User className="w-4 h-4" />
           <span>Loading agents...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!agents || agents.length === 0) {
+    return (
+      <div className="relative">
+        <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-sm font-medium text-gray-500 min-w-[160px]">
+          <User className="w-4 h-4" />
+          <span>No agents assigned</span>
         </div>
       </div>
     );
@@ -484,9 +493,10 @@ export default function CallsSimple() {
 const [isProcessing, setIsProcessing] = useState(false);
 const subscriptionRef = useRef(null);
 
-  // Variables derivadas
-  // Obtener agentes desde las asignaciones instead de las llamadas
-const uniqueAgents = userAssignedAgents;
+  
+// ✅ AGENTES ÚNICOS: Todos los agentes asignados al usuario
+const uniqueAgents = userAssignedAgents || [];
+console.log("🔍 uniqueAgents para filtro:", uniqueAgents);
   // 🔍 DEBUGGING DEL FILTRO
 console.log("🔍 FILTRO DEBUG - calls.length:", calls.length);
 console.log("🔍 FILTRO DEBUG - uniqueAgents:", uniqueAgents);
@@ -1308,11 +1318,20 @@ const getCallDuration = (call: any) => {
   console.log("📍 CHECKPOINT 1: About to query user_agent_assignments");
   console.log("📍 CHECKPOINT 1: user.id =", user.id);
 
-  const { data: assignments } = await supabase
+  console.log("📍 OBTENIENDO TODAS LAS ASIGNACIONES DEL USUARIO");
+
+const { data: assignments, error: assignmentsError } = await supabase
   .from('user_agent_assignments')
   .select('agent_id')
   .eq('user_id', user.id);
-  // .eq('is_primary', true);  // ← Comentado o eliminado
+
+if (assignmentsError) {
+  console.error("❌ Error obteniendo asignaciones:", assignmentsError);
+  setError(`Error obteniendo asignaciones: ${assignmentsError.message}`);
+  return;
+}
+
+console.log("🎯 Asignaciones encontradas:", assignments);
 
 if (!assignments || assignments.length === 0) {
   console.log("⚠️ No assignments found");
@@ -1327,13 +1346,35 @@ if (!assignments || assignments.length === 0) {
   return;
 }
 
+if (!assignments || assignments.length === 0) {
+  console.log("⚠️ USUARIO SIN ASIGNACIONES DE AGENTES");
+  setCalls([]);
+  setUserAssignedAgents([]);
+  setStats({
+    total: 0,
+    totalCost: 0,
+    totalDuration: 0,
+    avgDuration: 0,
+    completedCalls: 0
+  });
+  return;
+}
+
 const agentIds = assignments.map(a => a.agent_id);
-console.log("🎯 Agent IDs from assignments:", agentIds);
+console.log("🎯 IDs de agentes asignados:", agentIds);
 
 const { data: agentDetails, error: agentsError } = await supabase
   .from('agents')
   .select('id, name, rate_per_minute, retell_agent_id')
   .in('id', agentIds);
+
+if (agentsError) {
+  console.error("❌ Error obteniendo detalles de agentes:", agentsError);
+  setError(`Error obteniendo agentes: ${agentsError.message}`);
+  return;
+}
+
+console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
 
 console.log("🤖 Agent details found:", agentDetails);
       
@@ -1395,18 +1436,26 @@ if (agentsError) {
         return;
       }
 
-      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-      console.log(`🎯 User has ${userAgentIds.length} assigned agents:`, userAgentIds);
+      // Obtener IDs de agentes para buscar llamadas
+const agentIdsForCalls = agentDetails.map(agent => agent.id);
+const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
+const allAgentIds = [...agentIdsForCalls, ...retellAgentIds];
 
-      const { data: callsData, error: callsError } = await supabase
-        .from('calls')
-        .select(`
-          *,
-          call_summary,
-          disconnection_reason
-        `)
-        .in('agent_id', userAgentIds)
-        .order('timestamp', { ascending: false});
+console.log(`🎯 Buscando llamadas para agentes:`, {
+  agentIds: agentIdsForCalls,
+  retellIds: retellAgentIds,
+  totalIds: allAgentIds
+});
+
+const { data: callsData, error: callsError } = await supabase
+  .from('calls')
+  .select(`
+    *,
+    call_summary,
+    disconnection_reason
+  `)
+  .in('agent_id', allAgentIds)
+  .order('timestamp', { ascending: false});
 
       if (callsError) {
         console.error("❌ Error fetching calls:", callsError);
