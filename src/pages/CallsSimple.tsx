@@ -596,31 +596,77 @@ export default function CallsSimple() {
       setCalls(mappedCalls || []);
 
       // Calcular estadísticas (sin hacer descuentos)
-      if (mappedCalls && mappedCalls.length > 0) {
-        let totalCost = 0;
-        for (const call of mappedCalls) {
-          const durationMinutes = getCallDuration(call) / 60;
-          const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || 0;
-          
-          if (agentRate > 0) {
-            totalCost += durationMinutes * agentRate;
-          } else {
-            totalCost += call.cost_usd || 0;
-          }
-        }
-        
-        const totalDuration = mappedCalls.reduce((sum, call) => sum + getCallDuration(call), 0);
-        const avgDuration = mappedCalls.length > 0 ? Math.round(totalDuration / mappedCalls.length) : 0;
-        const completedCalls = mappedCalls.filter(call => call.call_status === 'completed').length;
+if (mappedCalls && mappedCalls.length > 0) {
+  console.log('📊 Calculando estadísticas para', mappedCalls.length, 'llamadas');
+  
+  let totalCost = 0;
+  let totalDuration = 0;
+  let completedCalls = 0;
 
-        setStats({
-          total: mappedCalls.length,
-          totalCost,
-          totalDuration,
-          avgDuration,
-          completedCalls
-        });
+  mappedCalls.forEach((call, index) => {
+    // 1. Obtener duración real
+    let duration = 0;
+    if (call.duration_sec && call.duration_sec > 0) {
+      duration = call.duration_sec;
+    } else if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+      duration = audioDurations[call.id];
+    }
+    totalDuration += duration;
+
+    // 2. Calcular costo real
+    let callCost = 0;
+    if (call.cost_usd && call.cost_usd > 0) {
+      // Si ya tiene costo en BD, usarlo
+      callCost = call.cost_usd;
+    } else if (duration > 0) {
+      // Calcular basado en duración y tarifa
+      const durationMinutes = duration / 60;
+      const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || 0;
+      if (agentRate > 0) {
+        callCost = durationMinutes * agentRate;
       }
+    }
+    totalCost += callCost;
+
+    // 3. Contar llamadas completadas
+    if (['completed', 'ended'].includes(call.call_status?.toLowerCase())) {
+      completedCalls++;
+    }
+
+    if (index < 3) { // Log solo las primeras 3 para debug
+      console.log(`📞 Call ${call.call_id?.substring(0, 8)}: duration=${duration}s, cost=$${callCost.toFixed(4)}, status=${call.call_status}`);
+    }
+  });
+
+  const avgDuration = mappedCalls.length > 0 ? Math.round(totalDuration / mappedCalls.length) : 0;
+
+  const finalStats = {
+    total: mappedCalls.length,
+    totalCost: Number(totalCost.toFixed(4)),
+    totalDuration,
+    avgDuration,
+    completedCalls
+  };
+
+  console.log('✅ Estadísticas CallsSimple calculadas:', {
+    total: finalStats.total,
+    totalCost: `$${finalStats.totalCost}`,
+    totalDuration: `${finalStats.totalDuration}s`,
+    avgDuration: `${finalStats.avgDuration}s`,
+    completedCalls: finalStats.completedCalls
+  });
+
+  setStats(finalStats);
+} else {
+  console.log('⚠️ No hay llamadas para calcular estadísticas');
+  setStats({
+    total: 0,
+    totalCost: 0,
+    totalDuration: 0,
+    avgDuration: 0,
+    completedCalls: 0
+  });
+}
 
       console.log("✅ FETCH CALLS COMPLETADO - Solo carga, SIN descuentos automáticos");
 
