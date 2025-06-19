@@ -373,19 +373,81 @@ export default function DashboardPage() {
   const [chartData, setChartData] = useState<any[]>([]);
   const [userDistribution, setUserDistribution] = useState<any[]>([]);
 
+  // ✅ useEffect PRINCIPAL - CORREGIDO PARA CARGA AUTOMÁTICA
   useEffect(() => {
     if (user?.id) {
       if (isSuperAdmin) {
         fetchAdminStats();
       } else {
+        // ✅ CARGAR DATOS AUTOMÁTICAMENTE PARA USUARIOS NORMALES
+        console.log('🚀 [Dashboard] Usuario normal detectado, cargando datos automáticamente...');
         fetchCallsData();
-        // 🎯 NUEVA LÍNEA para refrescar balance automáticamente
+        // Refrescar balance automáticamente
         refreshCreditBalance(user.id);
       }
     }
   }, [user?.id, isSuperAdmin]);
 
-  // 🤖 FUNCIONES DEL SUPER ADMIN
+  // ✅ NUEVO useEffect para recalcular estadísticas cuando cambien las duraciones de audio
+  useEffect(() => {
+    if (!loading && calls.length > 0 && Object.keys(audioDurations).length > 0) {
+      console.log('🔄 [Dashboard] Recalculando estadísticas con nuevas duraciones de audio...');
+      
+      // Recalcular estadísticas con las nuevas duraciones
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      let totalCost = 0;
+      let totalDuration = 0;
+      let completedCalls = 0;
+      let callsToday = 0;
+      let costToday = 0;
+      let positiveCalls = 0;
+      let callsWithSentiment = 0;
+
+      calls.forEach(call => {
+        const duration = getCallDuration(call);
+        totalDuration += duration;
+        
+        // Para recálculo, usar costo existente si está disponible
+        const callCost = call.cost_usd || 0;
+        totalCost += callCost;
+        
+        if (['completed', 'ended'].includes(call.call_status?.toLowerCase())) {
+          completedCalls++;
+        }
+        
+        const callDate = new Date(call.timestamp);
+        if (callDate >= today) {
+          callsToday++;
+          costToday += callCost;
+        }
+        
+        if (call.sentiment) {
+          callsWithSentiment++;
+          if (call.sentiment === 'positive') {
+            positiveCalls++;
+          }
+        }
+      });
+
+      const totalCalls = calls.length;
+      const avgDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
+      const successRate = totalCalls > 0 ? (completedCalls / totalCalls) * 100 : 0;
+      const positiveRatio = callsWithSentiment > 0 ? (positiveCalls / callsWithSentiment) * 100 : 0;
+
+      setStats(prevStats => ({
+        ...prevStats,
+        totalDuration,
+        avgDuration,
+        successRate: Number(successRate.toFixed(1)),
+        positiveRatio: Number(positiveRatio.toFixed(1))
+      }));
+    }
+  }, [audioDurations, calls, loading]);
+  // ============================================================================
+  // 🤖 FUNCIONES DEL SUPER ADMIN (MANTENER IGUAL)
+  // ============================================================================
   const fetchAdminStats = async () => {
     try {
       setLoading(true);
@@ -481,7 +543,11 @@ export default function DashboardPage() {
       { name: 'Without Credits', value: usersWithoutCredits, color: COLORS[3] }
     ]);
   };
-        // 👤 FUNCIONES DE USUARIOS NORMALES (CÓDIGO ORIGINAL RESTAURADO)
+
+  // ============================================================================
+  // 👤 FUNCIONES DE USUARIOS NORMALES - CORREGIDAS
+  // ============================================================================
+  
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
     
@@ -503,13 +569,61 @@ export default function DashboardPage() {
     }
   };
 
+  // ✅ FUNCIÓN CORREGIDA: getCallDuration
   const getCallDuration = (call: Call) => {
-    if (audioDurations[call.id]) {
+    // Priorizar duration_sec de la BD (más confiable para estadísticas)
+    if (call.duration_sec && call.duration_sec > 0) {
+      return call.duration_sec;
+    }
+    
+    // Fallback a audioDurations si está disponible
+    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
       return audioDurations[call.id];
     }
-    return call.duration_sec || 0;
+    
+    return 0;
   };
 
+  // ✅ NUEVA FUNCIÓN: calculateCallCostForDashboard
+  const calculateCallCostForDashboard = (call: Call, userAgents: any[]) => {
+    console.log(`💰 [Dashboard] Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
+      existing_cost: call.cost_usd,
+      duration_sec: call.duration_sec,
+      agent_id: call.agent_id
+    });
+
+    // Si ya tiene un costo válido en BD, usarlo
+    if (call.cost_usd && call.cost_usd > 0) {
+      console.log(`✅ [Dashboard] Usando costo existente: $${call.cost_usd}`);
+      return call.cost_usd;
+    }
+    
+    // Obtener duración
+    const duration = getCallDuration(call);
+    if (duration === 0) {
+      console.log(`⚠️ [Dashboard] Sin duración, costo = $0`);
+      return 0;
+    }
+    
+    const durationMinutes = duration / 60;
+    
+    // Buscar el agente en las asignaciones del usuario para obtener rate_per_minute
+    const userAgentAssignment = userAgents.find(assignment => 
+      assignment.agents?.id === call.agent_id || 
+      assignment.agents?.retell_agent_id === call.agent_id
+    );
+    
+    if (userAgentAssignment?.agents?.rate_per_minute) {
+      const rate = userAgentAssignment.agents.rate_per_minute;
+      const calculatedCost = durationMinutes * rate;
+      console.log(`🧮 [Dashboard] Costo calculado: ${durationMinutes.toFixed(2)}min × $${rate}/min = $${calculatedCost.toFixed(4)}`);
+      return calculatedCost;
+    }
+    
+    console.log(`❌ [Dashboard] Sin tarifa disponible, costo = $0`);
+    return 0;
+  };
+  // ✅ FUNCIÓN CORREGIDA: fetchCallsData
   const fetchCallsData = async () => {
     if (!user?.id) {
       setError("User not authenticated");
@@ -521,7 +635,7 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
 
-      console.log('🔍 Fetching calls data for regular user...');
+      console.log('🔍 [Dashboard] Fetching calls data for regular user...');
 
       // 👤 USUARIO NORMAL: Ver solo llamadas de sus agentes asignados
       const { data: userAgents, error: agentsError } = await supabase
@@ -530,20 +644,21 @@ export default function DashboardPage() {
           agent_id,
           agents!inner (
             id,
-            retell_agent_id
+            name,
+            retell_agent_id,
+            rate_per_minute
           )
         `)
-        .eq('user_id', user.id)
-        .eq('is_primary', true);
+        .eq('user_id', user.id);
 
       if (agentsError) {
-        console.error('❌ Error fetching user agents:', agentsError);
+        console.error('❌ [Dashboard] Error fetching user agents:', agentsError);
         setError(`Error fetching agents: ${agentsError.message}`);
         return;
       }
 
       if (!userAgents || userAgents.length === 0) {
-        console.log('⚠️ No agents assigned to user');
+        console.log('⚠️ [Dashboard] No agents assigned to user');
         setCalls([]);
         setStats({
           totalCalls: 0,
@@ -560,23 +675,26 @@ export default function DashboardPage() {
       }
 
       const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-      console.log('👤 User agent IDs:', userAgentIds);
+      const userRetellAgentIds = userAgents.map(assignment => assignment.agents.retell_agent_id).filter(Boolean);
+      const allAgentIds = [...userAgentIds, ...userRetellAgentIds];
+      
+      console.log('👤 [Dashboard] User agent IDs:', allAgentIds);
 
       // Obtener llamadas de esos agentes
       const { data, error: fetchError } = await supabase
         .from('calls')
         .select('*')
-        .in('agent_id', userAgentIds)
+        .in('agent_id', allAgentIds)
         .order('timestamp', { ascending: false });
 
       if (fetchError) {
-        console.error('❌ Error fetching calls for user:', fetchError);
+        console.error('❌ [Dashboard] Error fetching calls for user:', fetchError);
         setError(`Error: ${fetchError.message}`);
         return;
       }
 
       const callsData = data || [];
-      console.log('✅ User calls loaded:', callsData.length);
+      console.log('✅ [Dashboard] User calls loaded:', callsData.length);
 
       setCalls(callsData);
 
@@ -586,108 +704,107 @@ export default function DashboardPage() {
         await Promise.all(recentCalls.map(call => loadAudioDuration(call)));
       }
 
-      // Calculate comprehensive stats
-if (callsData && callsData.length > 0) {
-  console.log('📊 Calculando estadísticas Dashboard para', callsData.length, 'llamadas');
-  
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      // ✅ CALCULAR ESTADÍSTICAS CORREGIDAS
+      if (callsData && callsData.length > 0) {
+        console.log('📊 [Dashboard] Calculando estadísticas para', callsData.length, 'llamadas');
+        
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  let totalCost = 0;
-  let totalDuration = 0;
-  let completedCalls = 0;
-  let callsToday = 0;
-  let costToday = 0;
-  let positiveCalls = 0;
-  let callsWithSentiment = 0;
+        let totalCost = 0;
+        let totalDuration = 0;
+        let completedCalls = 0;
+        let callsToday = 0;
+        let costToday = 0;
+        let positiveCalls = 0;
+        let callsWithSentiment = 0;
 
-  callsData.forEach((call, index) => {
-    // 1. Obtener duración real
-    let duration = 0;
-    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
-      duration = audioDurations[call.id];
-    } else if (call.duration_sec && call.duration_sec > 0) {
-      duration = call.duration_sec;
-    }
-    totalDuration += duration;
+        callsData.forEach((call, index) => {
+          // 1. Obtener duración real
+          const duration = getCallDuration(call);
+          totalDuration += duration;
+          
+          // 2. Calcular costo usando agentes asignados
+          const callCost = calculateCallCostForDashboard(call, userAgents);
+          totalCost += callCost;
+          
+          // 3. Contar llamadas completadas
+          if (['completed', 'ended'].includes(call.call_status?.toLowerCase())) {
+            completedCalls++;
+          }
+          
+          // 4. Verificar si es de hoy
+          const callDate = new Date(call.timestamp);
+          if (callDate >= today) {
+            callsToday++;
+            costToday += callCost;
+          }
+          
+          // 5. Análisis de sentimiento
+          if (call.sentiment) {
+            callsWithSentiment++;
+            if (call.sentiment === 'positive') {
+              positiveCalls++;
+            }
+          }
 
-    // 2. Usar costo existente (ya procesado por el sistema automático)
-    const callCost = call.cost_usd || 0;
-    totalCost += callCost;
+          if (index < 3) { // Log solo las primeras 3 para debug
+            console.log(`📞 [Dashboard] Call ${call.call_id?.substring(0, 8)}: duration=${duration}s, cost=$${callCost.toFixed(4)}, today=${callDate >= today}`);
+          }
+        });
 
-    // 3. Contar llamadas completadas
-    if (['completed', 'ended'].includes(call.call_status?.toLowerCase())) {
-      completedCalls++;
-    }
+        const totalCalls = callsData.length;
+        const avgDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
+        const successRate = totalCalls > 0 ? (completedCalls / totalCalls) * 100 : 0;
+        const positiveRatio = callsWithSentiment > 0 ? (positiveCalls / callsWithSentiment) * 100 : 0;
 
-    // 4. Verificar si es de hoy
-    const callDate = new Date(call.timestamp);
-    if (callDate >= today) {
-      callsToday++;
-      costToday += callCost;
-    }
+        const finalStats = {
+          totalCalls,
+          totalCost: Number(totalCost.toFixed(4)),
+          totalDuration,
+          avgDuration,
+          successRate: Number(successRate.toFixed(1)),
+          positiveRatio: Number(positiveRatio.toFixed(1)),
+          callsToday,
+          costToday: Number(costToday.toFixed(4))
+        };
 
-    // 5. Análisis de sentimiento
-    if (call.sentiment) {
-      callsWithSentiment++;
-      if (call.sentiment === 'positive') {
-        positiveCalls++;
+        console.log('✅ [Dashboard] Estadísticas calculadas:', {
+          totalCalls: finalStats.totalCalls,
+          totalCost: `$${finalStats.totalCost}`,
+          totalDuration: `${finalStats.totalDuration}s`,
+          successRate: `${finalStats.successRate}%`,
+          callsToday: finalStats.callsToday,
+          costToday: `$${finalStats.costToday}`
+        });
+
+        setStats(finalStats);
+      } else {
+        console.log('⚠️ [Dashboard] No hay llamadas para calcular estadísticas');
+        // No calls found
+        setStats({
+          totalCalls: 0,
+          totalCost: 0,
+          totalDuration: 0,
+          avgDuration: 0,
+          successRate: 0,
+          positiveRatio: 0,
+          callsToday: 0,
+          costToday: 0
+        });
       }
-    }
 
-    if (index < 3) { // Log solo las primeras 3 para debug
-      console.log(`📞 Dashboard Call ${call.call_id?.substring(0, 8)}: duration=${duration}s, cost=$${callCost.toFixed(4)}, today=${callDate >= today}`);
-    }
-  });
-
-  const totalCalls = callsData.length;
-  const avgDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
-  const successRate = totalCalls > 0 ? (completedCalls / totalCalls) * 100 : 0;
-  const positiveRatio = callsWithSentiment > 0 ? (positiveCalls / callsWithSentiment) * 100 : 0;
-
-  const finalStats = {
-    totalCalls,
-    totalCost: Number(totalCost.toFixed(4)),
-    totalDuration,
-    avgDuration,
-    successRate: Number(successRate.toFixed(1)),
-    positiveRatio: Number(positiveRatio.toFixed(1)),
-    callsToday,
-    costToday: Number(costToday.toFixed(4))
-  };
-
-  console.log('✅ Estadísticas Dashboard calculadas:', {
-    totalCalls: finalStats.totalCalls,
-    totalCost: `$${finalStats.totalCost}`,
-    totalDuration: `${finalStats.totalDuration}s`,
-    successRate: `${finalStats.successRate}%`,
-    callsToday: finalStats.callsToday,
-    costToday: `$${finalStats.costToday}`
-  });
-
-  setStats(finalStats);
-} else {
-  console.log('⚠️ No hay llamadas para calcular estadísticas Dashboard');
-  // No calls found
-  setStats({
-    totalCalls: 0,
-    totalCost: 0,
-    totalDuration: 0,
-    avgDuration: 0,
-    successRate: 0,
-    positiveRatio: 0,
-    callsToday: 0,
-    costToday: 0
-  });
-}
     } catch (err: any) {
-      console.error('💥 Exception fetching calls data:', err);
+      console.error('💥 [Dashboard] Exception fetching calls data:', err);
       setError(`Exception: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
-
+  // ============================================================================
+  // FUNCIONES AUXILIARES PARA GRÁFICOS (MANTENER IGUAL)
+  // ============================================================================
+  
   // Prepare chart data for regular users
   const getChartData = () => {
     if (!calls.length) return [];
@@ -742,7 +859,11 @@ if (callsData && callsData.length > 0) {
       minimumFractionDigits: 2,
     }).format(amount);
   };
-        if (!user) {
+  // ============================================================================
+  // VERIFICACIONES Y ESTADOS DE CARGA
+  // ============================================================================
+  
+  if (!user) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
@@ -764,7 +885,6 @@ if (callsData && callsData.length > 0) {
       </DashboardLayout>
     );
   }
-
   // 🤖 RENDER SUPER ADMIN DASHBOARD
   if (isSuperAdmin) {
     return (
@@ -887,7 +1007,8 @@ if (callsData && callsData.length > 0) {
               </CardContent>
             </Card>
           </div>
-                {/* Secondary Statistics */}
+
+          {/* Secondary Statistics */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-indigo-100/50">
               <CardContent className="p-4 sm:p-6">
@@ -1052,7 +1173,7 @@ if (callsData && callsData.length > 0) {
       </DashboardLayout>
     );
   }
-        // 👤 RENDER REGULAR USER DASHBOARD (LAYOUT CORREGIDO)
+  // 👤 RENDER REGULAR USER DASHBOARD (LAYOUT CORREGIDO)
   const regularChartData = getChartData();
   const sentimentData = getSentimentData();
 
@@ -1234,7 +1355,8 @@ if (callsData && callsData.length > 0) {
             </CardContent>
           </Card>
         </div>
-              {/* ✅ SECCIÓN 5: GRÁFICOS PRINCIPALES - LAYOUT MEJORADO */}
+
+        {/* ✅ SECCIÓN 5: GRÁFICOS PRINCIPALES - LAYOUT MEJORADO */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           {/* Gráfico 1: Call Activity - Rediseñado */}
@@ -1420,7 +1542,8 @@ if (callsData && callsData.length > 0) {
             </CardContent>
           </Card>
         </div>
-              {/* ✅ SECCIÓN 6: COST ANALYSIS - GRÁFICO COMPLETO MEJORADO */}
+
+        {/* ✅ SECCIÓN 6: COST ANALYSIS - GRÁFICO COMPLETO MEJORADO */}
         <Card className="border-0 shadow-lg bg-white hover:shadow-xl transition-all duration-300">
           <CardHeader className="pb-4 border-b border-gray-100">
             <div className="flex items-center justify-between">
