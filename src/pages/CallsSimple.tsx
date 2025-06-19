@@ -827,6 +827,23 @@ useEffect(() => {
   }
 }, [calls.length, user?.id]); // Solo disparar cuando cambie la cantidad de llamadas
 
+// 🎯 NUEVO useEffect PARA APLICAR FILTROS
+useEffect(() => {
+  console.log('🔄 FILTROS CAMBIARON - Aplicando filtros...');
+  console.log('📊 Estado actual:', {
+    calls: calls.length,
+    searchTerm,
+    statusFilter,
+    agentFilter,
+    dateFilter,
+    customDate
+  });
+  
+  if (calls.length > 0) {
+    applyFiltersAndSort();
+  }
+}, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]); // Se ejecuta cuando cualquier filtro cambia
+
   // 🧪 FUNCIÓN DE PRUEBA MANUAL
 const testManualDeduction = async () => {
   console.log('🧪 PROBANDO SISTEMA DE BALANCE...');
