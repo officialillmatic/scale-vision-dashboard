@@ -28,12 +28,10 @@ import {
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAgents } from "@/hooks/useAgents";
-// ============================================================================
-// FUNCIONES DE DESCUENTO AUTOMÁTICO - AGREGAR DESPUÉS DE LOS IMPORTS
-// ============================================================================
 
+// ============================================================================
 // FUNCIÓN: Descontar costo de llamada del balance del usuario
-// ✅ FUNCIÓN CORREGIDA FINAL: Descontar costo de llamada del balance del usuario
+// ============================================================================
 const deductCallCost = async (callId: string, callCost: number, userId: string) => {
   if (!callCost || callCost <= 0) {
     console.log(`⚠️ No se descuenta - costo inválido: $${callCost}`);
@@ -42,9 +40,8 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
 
   try {
     console.log(`💳 Descontando $${callCost.toFixed(4)} del balance del usuario ${userId}`);
-    console.log(`🔍 Call ID string recibido: ${callId}`);
-
-    // ✅ PASO 1: Buscar el UUID real de la llamada usando call_id
+    
+    // Buscar el UUID real de la llamada
     const { data: callData, error: callError } = await supabase
       .from('calls')
       .select('id, call_id')
@@ -56,15 +53,14 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    const callUUID = callData.id; // Este es el UUID real
-    console.log(`🆔 UUID real de la llamada: ${callUUID}`);
-
-    // ✅ PASO 2: Verificar transacción existente usando el UUID real
+    const callUUID = callData.id;
+    
+    // Verificar si ya existe una transacción para esta llamada
     const { data: existingTransaction, error: checkError } = await supabase
       .from('credit_transactions')
       .select('id')
       .eq('user_id', userId)
-      .eq('call_id', callUUID) // Usar UUID, no string
+      .eq('call_id', callUUID)
       .eq('transaction_type', 'debit')
       .single();
 
@@ -73,12 +69,12 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return true;
     }
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
+    if (checkError && checkError.code !== 'PGRST116') {
       console.error('❌ Error verificando transacción existente:', checkError);
       return false;
     }
 
-    // ✅ PASO 3: Obtener balance actual del usuario
+    // Obtener balance actual del usuario
     const { data: userCredit, error: creditError } = await supabase
       .from('user_credits')
       .select('current_balance')
@@ -93,15 +89,7 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
     const currentBalance = userCredit?.current_balance || 0;
     const newBalance = currentBalance - callCost;
 
-    console.log(`💰 Balance actual: $${currentBalance.toFixed(4)}`);
-    console.log(`💰 Nuevo balance: $${newBalance.toFixed(4)}`);
-
-    if (newBalance < 0) {
-      console.warn(`⚠️ Balance quedará negativo: $${currentBalance} - $${callCost} = $${newBalance}`);
-      // Continuar con el descuento aunque quede negativo (decisión de negocio)
-    }
-
-    // ✅ PASO 4: Actualizar balance del usuario
+    // Actualizar balance del usuario
     const { error: updateError } = await supabase
       .from('user_credits')
       .update({ 
@@ -115,14 +103,12 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    console.log('✅ Balance actualizado exitosamente');
-
-    // ✅ PASO 5: Registrar transacción con UUID real
+    // Registrar transacción
     const { error: transactionError } = await supabase
       .from('credit_transactions')
       .insert({
         user_id: userId,
-        call_id: callUUID, // ¡Ahora usamos el UUID real!
+        call_id: callUUID,
         amount: callCost,
         transaction_type: 'debit',
         description: `Call cost deduction - Call ID: ${callId}`,
@@ -131,7 +117,6 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
 
     if (transactionError) {
       console.error('❌ Error registrando transacción:', transactionError);
-      console.error('❌ Detalles del error:', JSON.stringify(transactionError, null, 2));
       
       // Revertir el balance si falla el registro
       await supabase
@@ -141,19 +126,17 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    console.log(`🎉 DESCUENTO EXITOSO COMPLETO:`);
-    console.log(`   • Balance: $${currentBalance.toFixed(4)} → $${newBalance.toFixed(4)}`);
-    console.log(`   • Transacción registrada con UUID: ${callUUID}`);
-    console.log(`   • Call ID original: ${callId}`);
-    // 🆕 NUEVA LÍNEA: Forzar actualización del balance en tiempo real
-window.dispatchEvent(new CustomEvent('balanceUpdated', { 
-  detail: { 
-    newBalance, 
-    userId,
-    deduction: callCost,
-    callId: callId
-  } 
-}));
+    console.log(`🎉 DESCUENTO EXITOSO: $${currentBalance.toFixed(4)} → $${newBalance.toFixed(4)}`);
+    
+    // Disparar evento para actualizar balance en tiempo real
+    window.dispatchEvent(new CustomEvent('balanceUpdated', { 
+      detail: { 
+        newBalance, 
+        userId,
+        deduction: callCost,
+        callId: callId
+      } 
+    }));
     
     return true;
 
@@ -162,111 +145,113 @@ window.dispatchEvent(new CustomEvent('balanceUpdated', {
     return false;
   }
 };
-// FUNCIÓN: Procesar llamadas pendientes CON descuento automático
-// 🔧 REEMPLAZAR LA FUNCIÓN processPendingCallCostsWithDeduction EN CallsSimple.tsx (línea ~119)
+// ============================================================================
+// FUNCIONES DE PROCESAMIENTO AUTOMÁTICO DE LLAMADAS NUEVAS
+// ============================================================================
 
-const processPendingCallCostsWithDeduction = async (
-  calls: Call[], 
-  setCalls: React.Dispatch<React.SetStateAction<Call[]>>,
-  calculateCallCost: (call: Call) => number,
-  getCallDuration: (call: Call) => number,
-  userId: string
+// ✅ FUNCIÓN: Verificar si una llamada es nueva y necesita procesamiento
+const isNewCallNeedingProcessing = (call: any) => {
+  const finishedStates = ['completed', 'ended', 'finished'];
+  const isFinished = finishedStates.includes(call.call_status?.toLowerCase());
+  const hasDuration = call.duration_sec > 0;
+  const notProcessed = !call.cost_usd || call.cost_usd === 0;
+  const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+
+  console.log('🔍 Verificando llamada:', {
+    id: call.call_id?.substring(0, 12),
+    estado: call.call_status,
+    terminada: isFinished,
+    duracion: call.duration_sec,
+    costo_actual: call.cost_usd,
+    no_procesada: notProcessed,
+    tiene_tarifa: !!hasAgentRate,
+    necesita_procesamiento: isFinished && hasDuration && notProcessed && hasAgentRate
+  });
+
+  return isFinished && hasDuration && notProcessed && hasAgentRate;
+};
+
+// ✅ FUNCIÓN: Procesar llamadas nuevas automáticamente (SIN afectar el botón refresh)
+const processNewCallsAutomatically = async (
+  calls: any[], 
+  calculateCallCost: (call: any) => number,
+  userId: string,
+  setCalls: React.Dispatch<React.SetStateAction<any[]>>
 ) => {
-  console.log('🔍 Procesando costos y descuentos automáticos...');
-  console.log('📞 Total calls recibidas:', calls.length);
-  console.log('👤 User ID:', userId);
-
-  // 🎯 DEBUG: Analizar todas las llamadas
-  calls.forEach((call, index) => {
-    const duration = getCallDuration(call);
-    const currentCost = call.cost_usd || 0;
-    const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || false;
-    
-    console.log(`📞 Call ${index + 1}:`, {
-      id: call.call_id.substring(0, 12),
-      status: call.call_status,
-      duration: duration,
-      currentCost: currentCost,
-      agentRate: hasAgentRate,
-      passes_filter: call.call_status === 'completed' && duration > 0 && currentCost === 0 && hasAgentRate
-    });
-  });
+  console.log('🤖 PROCESAMIENTO AUTOMÁTICO DE LLAMADAS NUEVAS');
+  console.log('===============================================');
   
-  // 🔧 FILTRO CORREGIDO Y MÁS PERMISIVO
-  const pendingCalls = calls.filter(call => {
-    const duration = getCallDuration(call);
-    const currentCost = call.cost_usd || 0;
-    const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-    
-    // ✅ INCLUIR TANTO 'completed' COMO 'ended'
-    const validStatus = call.call_status === 'completed' || call.call_status === 'ended';
-    
-    return (
-      validStatus &&
-      duration > 0 &&
-      currentCost === 0 &&
-      hasAgentRate > 0  // ✅ Verificar que la tarifa sea > 0
-    );
-  });
-
-  console.log(`🔍 Llamadas que pasan el filtro: ${pendingCalls.length}`);
+  // Filtrar SOLO llamadas nuevas que necesitan procesamiento
+  const newCallsToProcess = calls.filter(isNewCallNeedingProcessing);
   
-  if (pendingCalls.length === 0) {
-    console.log('✅ Todas las llamadas tienen costos y descuentos procesados');
+  console.log(`🎯 Llamadas nuevas detectadas para procesamiento: ${newCallsToProcess.length}`);
+  
+  if (newCallsToProcess.length === 0) {
+    console.log('✅ No hay llamadas nuevas para procesar automáticamente');
     return;
   }
 
-  console.log(`🎯 Procesando ${pendingCalls.length} llamadas con descuentos`);
-
-  for (const call of pendingCalls) {
-    const calculatedCost = await calculateCallCost(call);
-    
-    if (calculatedCost > 0) {
-      try {
-        console.log(`💾 Actualizando costo para llamada ${call.call_id}: $${calculatedCost.toFixed(4)}`);
+  // Procesar cada llamada nueva automáticamente
+  for (const call of newCallsToProcess) {
+    try {
+      console.log(`⚡ PROCESANDO AUTOMÁTICAMENTE: ${call.call_id}`);
+      
+      const calculatedCost = calculateCallCost(call);
+      
+      if (calculatedCost > 0) {
+        console.log(`💰 Costo calculado automáticamente: $${calculatedCost.toFixed(4)}`);
         
-        // Actualizar costo en la base de datos
+        // 1. Actualizar costo en la base de datos
         const { error: updateError } = await supabase
           .from('calls')
           .update({ 
             cost_usd: calculatedCost,
             updated_at: new Date().toISOString()
           })
-          .eq('id', call.id);
+          .eq('call_id', call.call_id);
 
-        if (!updateError) {
-          console.log(`✅ Costo actualizado para llamada ${call.call_id}`);
+        if (updateError) {
+          console.error(`❌ Error actualizando costo automáticamente:`, updateError);
+          continue;
+        }
+
+        console.log(`✅ Costo guardado automáticamente en BD: ${call.call_id}`);
+        
+        // 2. Descontar automáticamente del balance del usuario
+        const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, userId);
+        
+        if (deductionSuccess) {
+          console.log(`🎉 DESCUENTO AUTOMÁTICO EXITOSO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
           
-          // 🎯 DESCONTAR DEL BALANCE DEL USUARIO
-          const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, userId);
-          
-          if (deductionSuccess) {
-            console.log(`🎉 Descuento aplicado exitosamente para llamada ${call.call_id}`);
-          } else {
-            console.warn(`⚠️ Falló el descuento para llamada ${call.call_id}`);
-          }
-          
-          // Actualizar estado local
+          // 3. Actualizar estado local
           setCalls(prevCalls => 
             prevCalls.map(c => 
-              c.id === call.id 
+              c.call_id === call.call_id 
                 ? { ...c, cost_usd: calculatedCost }
                 : c
             )
           );
         } else {
-          console.error(`❌ Error actualizando costo para llamada ${call.call_id}:`, updateError);
+          console.error(`❌ Falló descuento automático: ${call.call_id}`);
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (err) {
-        console.error('❌ Excepción procesando llamada:', err);
+      } else {
+        console.warn(`⚠️ Costo calculado inválido automáticamente para ${call.call_id}: $${calculatedCost}`);
       }
+      
+      // Pequeña pausa entre procesamiento de llamadas
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+    } catch (error) {
+      console.error(`❌ Error en procesamiento automático ${call.call_id}:`, error);
     }
   }
 
-  console.log('🎉 Finalizó el procesamiento de costos y descuentos');
+  console.log('🎉 Finalizado procesamiento automático de llamadas nuevas');
 };
+
+// ============================================================================
+// INTERFACES Y TIPOS
+// ============================================================================
 interface Call {
   id: string;
   call_id: string;
@@ -299,80 +284,15 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
-// PROCESADOR AUTOMÁTICO DE COSTOS
-const processPendingCallCosts = async (
-  calls: Call[], 
-  setCalls: React.Dispatch<React.SetStateAction<Call[]>>,
-  calculateCallCost: (call: Call) => number,
-  getCallDuration: (call: Call) => number
-) => {
-  console.log('🔍 Checking for calls that need cost calculation...');
-  
-  const pendingCalls = calls.filter(call => {
-    const duration = getCallDuration(call);
-    const currentCost = call.cost_usd || 0;
-    const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-    
-    return (
-      call.call_status === 'completed' &&
-      duration > 0 &&
-      currentCost === 0 &&
-      hasAgentRate
-    );
-  });
-
-  if (pendingCalls.length === 0) {
-    console.log('✅ All calls have proper costs calculated');
-    return;
-  }
-
-  console.log(`🎯 Found ${pendingCalls.length} calls that need cost calculation`);
-
-  for (const call of pendingCalls) {
-    const calculatedCost = await calculateCallCost(call);
-    
-    if (calculatedCost > 0) {
-      try {
-        console.log(`💾 Updating cost for call ${call.call_id}: $${calculatedCost.toFixed(4)}`);
-        
-        const { error } = await supabase
-          .from('calls')
-          .update({ 
-            cost_usd: calculatedCost,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', call.id);
-
-        if (!error) {
-          console.log(`✅ Successfully updated cost for call ${call.call_id}`);
-          setCalls(prevCalls => 
-            prevCalls.map(c => 
-              c.id === call.id 
-                ? { ...c, cost_usd: calculatedCost }
-                : c
-            )
-          );
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (err) {
-        console.error('❌ Exception updating call cost:', err);
-      }
-    }
-  }
-
-  console.log('🎉 Finished processing pending call costs');
-};
+// ============================================================================
 // COMPONENTE FILTRO DE AGENTES
+// ============================================================================
 const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
   const [isOpen, setIsOpen] = useState(false);
   
   const selectedAgentName = selectedAgent 
     ? agents.find(agent => agent.id === selectedAgent)?.name || 'Unknown Agent'
     : 'All Agents';
-
-  console.log("🔍 AgentFilter - agents recibidos:", agents);
-  console.log("🔍 AgentFilter - selectedAgent:", selectedAgent);
 
   if (isLoading) {
     return (
@@ -461,9 +381,12 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
     </div>
   );
 };
+// ============================================================================
+// COMPONENTE PRINCIPAL - DECLARACIÓN Y ESTADOS
+// ============================================================================
 export default function CallsSimple() {
   const { user } = useAuth();
-  const { getAgentName, getUniqueAgentsFromCalls, isLoadingAgents } = useAgents();
+  const { getAgentName, isLoadingAgents } = useAgents();
   
   // Estados del componente
   const [calls, setCalls] = useState<Call[]>([]);
@@ -489,508 +412,287 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // ✅ NUEVAS VARIABLES PARA SISTEMA AUTOMÁTICO
-const [isProcessing, setIsProcessing] = useState(false);
-const subscriptionRef = useRef(null);
+  // ✅ NUEVOS ESTADOS para control del sistema automático (SIN afectar refresh)
+  const [isProcessingAutomatic, setIsProcessingAutomatic] = useState(false);
+  const lastCallCountRef = useRef(0);
 
-  
-// ✅ AGENTES ÚNICOS: Todos los agentes asignados al usuario
-const uniqueAgents = userAssignedAgents || [];
+  // Variables auxiliares
+  const uniqueAgents = userAssignedAgents || [];
 
-// ✅ FUNCIÓN LOCAL PARA OBTENER NOMBRES DE AGENTES
-const getAgentNameLocal = (agentId) => {
-  console.log(`🔍 getAgentNameLocal buscando: ${agentId}`);
-  console.log(`🔍 userAssignedAgents disponibles:`, userAssignedAgents);
-  
-  // Buscar en agentes asignados por ID directo
-  let agent = userAssignedAgents.find(a => a.id === agentId);
-  
-  if (agent) {
-    console.log(`✅ Encontrado por ID directo: ${agent.name}`);
-    return agent.name;
-  }
-  
-  // Si no encuentra, buscar por retell_agent_id
-  agent = userAssignedAgents.find(a => a.retell_agent_id === agentId);
-  
-  if (agent) {
-    console.log(`✅ Encontrado por retell_agent_id: ${agent.name}`);
-    return agent.name;
-  }
-  
-  // Si no encuentra, usar la función del hook
-  if (getAgentName) {
-    console.log(`🔄 Usando función del hook`);
-    return getAgentName(agentId);
-  }
-  
-  console.log(`❌ No se encontró agente, usando nombre genérico`);
-  return `Agent ${agentId.substring(0, 8)}...`;
-};
-
-  
-console.log("🔍 uniqueAgents para filtro:", uniqueAgents);
-  // 🔍 DEBUGGING DEL FILTRO
-console.log("🔍 FILTRO DEBUG - calls.length:", calls.length);
-console.log("🔍 FILTRO DEBUG - uniqueAgents:", uniqueAgents);
-console.log("🔍 FILTRO DEBUG - uniqueAgents.length:", uniqueAgents.length);
-  
-  const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
-  console.log("🔍 AgentFilter props - agents:", uniqueAgents);
-console.log("🔍 AgentFilter props - isLoading:", isLoadingAgents);
-
-  // useEffect hooks
-  // 🚨 DEBUGGING CRÍTICO - useEffect modificado
-useEffect(() => {
-  console.log('🚨 USER CHANGE DETECTED:', {
-    userId: user?.id,
-    userEmail: user?.email,
-    userExists: !!user,
-    willFetchCalls: !!user?.id
-  });
-  
-  if (user?.id) {
-    console.log('✅ EXECUTING fetchCalls for user:', user.email);
-    fetchCalls();
-  } else {
-    console.log('❌ NOT executing fetchCalls - no user.id');
-  }
-}, [user?.id]);
-
-
-  
-  // 🔧 REEMPLAZAR EL useEffect QUE ESTÁ EN LA LÍNEA ~300 APROXIMADAMENTE
-// Buscar este useEffect y reemplazarlo completamente:
-
-
-  // 🎯 AGREGAR ESTE useEffect SEPARADO - NO REEMPLAZAR EL ACTUAL
-// 🔥 SISTEMA DEFINITIVO - REEMPLAZAR TODO EL useEffect PROBLEMÁTICO
-// Buscar AMBOS useEffect que modificaste y reemplazarlos con ESTE ÚNICO:
-
-
-
-  // ✅ FUNCIÓN: Maneja las notificaciones de cambios
-  const handleCallChange = async (payload) => {
-    const { eventType, new: newRecord } = payload;
+  // Función local para obtener nombres de agentes
+  const getAgentNameLocal = (agentId) => {
+    const agent = userAssignedAgents.find(a => 
+      a.id === agentId || a.retell_agent_id === agentId
+    );
     
-    console.log(`🔔 Tipo de cambio: ${eventType}`);
-    console.log('📞 Datos de la llamada:', newRecord);
-
-    // Si es una llamada nueva o actualizada
-    if (eventType === 'INSERT' || eventType === 'UPDATE') {
-      console.log('⏱️ Esperando 3 segundos antes de procesar...');
-      
-      // Esperar un poco para que todos los datos estén listos
-      setTimeout(async () => {
-        await processNewCall(newRecord);
-        // Recargar llamadas para mostrar cambios
-        fetchCalls();
-      }, 3000); // 3 segundos de espera
+    if (agent) {
+      return agent.name;
     }
+    
+    if (getAgentName) {
+      return getAgentName(agentId);
+    }
+    
+    return `Agent ${agentId.substring(0, 8)}...`;
   };
 
-  // ✅ FUNCIÓN: Procesa cada llamada nueva
-  const processNewCall = async (callRecord) => {
-    // Evitar procesar múltiples llamadas al mismo tiempo
-    if (isProcessing) {
-      console.log('⏳ Ya estoy procesando otra llamada, esperando...');
+  // ============================================================================
+  // FUNCIONES AUXILIARES DE CÁLCULO
+  // ============================================================================
+  
+  const getCallDuration = (call: any) => {
+    if (call.duration_sec && call.duration_sec > 0) {
+      return call.duration_sec;
+    }
+    
+    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+      return audioDurations[call.id];
+    }
+    
+    return 0;
+  };
+
+  const calculateCallCost = (call: Call) => {
+    const durationMinutes = getCallDuration(call) / 60;
+    let agentRate = 0;
+    
+    if (call.call_agent?.rate_per_minute) {
+      agentRate = call.call_agent.rate_per_minute;
+    } else if (call.agents?.rate_per_minute) {
+      agentRate = call.agents.rate_per_minute;
+    }
+    
+    if (agentRate === 0) {
+      return call.cost_usd || 0;
+    }
+    
+    return durationMinutes * agentRate;
+  };
+
+  const calculateCallCostSync = (call: Call) => {
+    return calculateCallCost(call);
+  };
+  // ============================================================================
+  // ✅ FUNCIÓN FETCH CALLS CORREGIDA - SOLO CARGA DATOS (NO DESCUENTOS)
+  // ============================================================================
+  
+  const fetchCalls = async () => {
+    console.log("🔄 FETCH CALLS INICIADO - SOLO CARGA DE DATOS (sin descuentos)");
+    
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
       return;
     }
 
-    setIsProcessing(true);
-    console.log('🔄 Procesando llamada:', callRecord.call_id);
-
     try {
-      // Verificar si esta llamada necesita descuento
-      if (callNeedsProcessing(callRecord)) {
-        console.log('✅ Esta llamada necesita descuento automático');
-        await calculateAndDeduct(callRecord);
-      } else {
-        console.log('❌ Esta llamada no necesita procesamiento:', {
-          estado: callRecord.call_status,
-          duracion: callRecord.duration_sec,
-          costo_actual: callRecord.cost_usd
+      setLoading(true);
+      setError(null);
+
+      console.log("🔍 Obteniendo asignaciones de agentes para usuario:", user.id);
+      
+      // Obtener asignaciones de agentes del usuario
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('user_agent_assignments')
+        .select('agent_id')
+        .eq('user_id', user.id);
+
+      if (assignmentsError) {
+        console.error("❌ Error obteniendo asignaciones:", assignmentsError);
+        setError(`Error obteniendo asignaciones: ${assignmentsError.message}`);
+        return;
+      }
+
+      if (!assignments || assignments.length === 0) {
+        console.log("⚠️ Usuario sin asignaciones de agentes");
+        setCalls([]);
+        setUserAssignedAgents([]);
+        setStats({
+          total: 0,
+          totalCost: 0,
+          totalDuration: 0,
+          avgDuration: 0,
+          completedCalls: 0
+        });
+        return;
+      }
+
+      const agentIds = assignments.map(a => a.agent_id);
+      console.log("🎯 IDs de agentes asignados:", agentIds);
+
+      // Obtener detalles completos de los agentes
+      const { data: agentDetails, error: agentsError } = await supabase
+        .from('agents')
+        .select('id, name, rate_per_minute, retell_agent_id')
+        .in('id', agentIds);
+
+      if (agentsError) {
+        console.error("❌ Error obteniendo detalles de agentes:", agentsError);
+        setError(`Error obteniendo agentes: ${agentsError.message}`);
+        return;
+      }
+
+      console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
+
+      // Guardar agentes asignados para uso en filtros
+      setUserAssignedAgents(agentDetails || []);
+
+      // Preparar IDs para buscar llamadas
+      const agentIdsForCalls = agentDetails.map(agent => agent.id);
+      const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
+      const allAgentIds = [...agentIdsForCalls, ...retellAgentIds];
+
+      console.log(`🎯 Buscando llamadas para agentes:`, allAgentIds);
+
+      // Obtener llamadas de los agentes asignados
+      const { data: callsData, error: callsError } = await supabase
+        .from('calls')
+        .select(`
+          *,
+          call_summary,
+          disconnection_reason
+        `)
+        .in('agent_id', allAgentIds)
+        .order('timestamp', { ascending: false });
+
+      if (callsError) {
+        console.error("❌ Error obteniendo llamadas:", callsError);
+        setError(`Error: ${callsError.message}`);
+        return;
+      }
+
+      console.log("✅ Llamadas obtenidas exitosamente:", callsData?.length || 0);
+
+      // Mapear llamadas con información de agentes
+      const userAgents = agentDetails?.map(agent => ({
+        agent_id: agent.id,
+        agents: agent
+      })) || [];
+
+      const mappedCalls = callsData?.map(call => {
+        let matchedAgent = null;
+
+        const userAgentAssignment = userAgents.find(assignment => 
+          assignment.agents.id === call.agent_id ||
+          assignment.agents.retell_agent_id === call.agent_id
+        );
+
+        if (userAgentAssignment) {
+          matchedAgent = {
+            id: userAgentAssignment.agents.id,
+            name: userAgentAssignment.agents.name,
+            rate_per_minute: userAgentAssignment.agents.rate_per_minute
+          };
+        }
+
+        return {
+          ...call,
+          end_reason: call.disconnection_reason || null,
+          call_agent: matchedAgent
+        };
+      });
+
+      // Establecer llamadas en el estado
+      setCalls(mappedCalls || []);
+
+      // Calcular estadísticas (sin hacer descuentos)
+      if (mappedCalls && mappedCalls.length > 0) {
+        let totalCost = 0;
+        for (const call of mappedCalls) {
+          const durationMinutes = getCallDuration(call) / 60;
+          const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || 0;
+          
+          if (agentRate > 0) {
+            totalCost += durationMinutes * agentRate;
+          } else {
+            totalCost += call.cost_usd || 0;
+          }
+        }
+        
+        const totalDuration = mappedCalls.reduce((sum, call) => sum + getCallDuration(call), 0);
+        const avgDuration = mappedCalls.length > 0 ? Math.round(totalDuration / mappedCalls.length) : 0;
+        const completedCalls = mappedCalls.filter(call => call.call_status === 'completed').length;
+
+        setStats({
+          total: mappedCalls.length,
+          totalCost,
+          totalDuration,
+          avgDuration,
+          completedCalls
         });
       }
-    } catch (error) {
-      console.error('❌ Error procesando llamada:', error);
+
+      console.log("✅ FETCH CALLS COMPLETADO - Solo carga, SIN descuentos automáticos");
+
+    } catch (err: any) {
+      console.error("❌ Excepción en fetch calls:", err);
+      setError(`Exception: ${err.message}`);
     } finally {
-      setIsProcessing(false);
+      setLoading(false);
     }
   };
+  // ============================================================================
+  // ✅ EFECTOS CORREGIDOS - SEPARANDO CARGA DE DATOS Y DESCUENTOS AUTOMÁTICOS
+  // ============================================================================
 
-  // ✅ FUNCIÓN: Verificar si la llamada necesita procesamiento
-  const callNeedsProcessing = (call) => {
-    // Estados que indican que la llamada terminó
-    const finishedStates = ['completed', 'ended', 'finished'];
-    const isFinished = finishedStates.includes(call.call_status?.toLowerCase());
-    
-    // Tiene duración (no fue una llamada fallida)
-    const hasDuration = call.duration_sec > 0;
-    
-    // No ha sido procesada (no tiene costo asignado)
-    const notProcessed = !call.cost_usd || call.cost_usd === 0;
-
-    console.log('🔍 Verificando si necesita procesamiento:', {
-      id: call.call_id,
-      estado: call.call_status,
-      terminada: isFinished,
-      duracion: call.duration_sec,
-      tiene_duracion: hasDuration,
-      costo_actual: call.cost_usd,
-      no_procesada: notProcessed
-    });
-
-    return isFinished && hasDuration && notProcessed;
-  };
-
-  // ✅ FUNCIÓN: Calcular y descontar automáticamente
-  const calculateAndDeduct = async (call) => {
-    try {
-      console.log('💰 Calculando costo para llamada:', call.call_id);
-      
-      // Buscar el agente en nuestros datos locales
-      const agentData = uniqueAgents.find(agent => 
-        agent.id === call.agent_id || agent.retell_agent_id === call.agent_id
-      );
-
-      if (!agentData?.rate_per_minute) {
-        console.error('❌ No se pudo obtener tarifa del agente para:', call.agent_id);
-        return;
-      }
-
-      const duration = call.duration_sec;
-      const cost = (duration / 60) * agentData.rate_per_minute;
-
-      console.log('📊 Cálculo automático:', {
-        agente: agentData.name,
-        duracion: `${duration} segundos`,
-        tarifa: `$${agentData.rate_per_minute}/minuto`,
-        costo_total: `$${cost.toFixed(4)}`
-      });
-
-      if (cost > 0) {
-        console.log('💳 Ejecutando descuento automático...');
-        
-        // Usar tu función existente deductCallCost
-        const deductionSuccess = await deductCallCost(call.call_id, cost, user.id);
-        
-        if (deductionSuccess) {
-          console.log('✅ ¡Descuento automático exitoso!');
-          
-          // Actualizar costo en la base de datos
-          const { error } = await supabase
-            .from('calls')
-            .update({ cost_usd: cost })
-            .eq('call_id', call.call_id);
-            
-          if (!error) {
-            console.log('💾 Costo actualizado en base de datos');
-          }
-        } else {
-          console.error('❌ Error en descuento automático');
-        }
-      }
-
-    } catch (error) {
-      console.error('❌ Error en calculateAndDeduct:', error);
+  // ✅ EFECTO 1: Cargar datos iniciales cuando el usuario cambia
+  useEffect(() => {
+    if (user?.id) {
+      console.log('🚀 Usuario detectado, cargando datos:', user.email);
+      fetchCalls(); // Solo carga datos, NO hace descuentos
     }
-  };
-  
-  // 🎯 PASO 2: REEMPLAZAR EL useEffect PROBLEMÁTICO (línea ~578)
-// Elimina el useEffect existente y reemplázalo con este:
+  }, [user?.id]);
 
-// 🎯 SISTEMA ÚNICO Y SIMPLE - Reemplazar todos los useEffect anteriores
-useEffect(() => {
-  if (!calls.length || !user?.id || loading) return;
-  
-  console.log('🚀 SISTEMA ÚNICO: Procesando llamadas...');
-  
-  // Aplicar filtros
-  applyFiltersAndSort();
-  
-  // Buscar llamadas que necesitan costo
-  const needsProcessing = calls.filter(call => {
-    const duration = getCallDuration(call);
-    const currentCost = parseFloat(call.cost_usd || 0);
-    const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-    const isComplete = call.call_status === 'completed' || call.call_status === 'ended';
-    
-    return isComplete && duration > 0 && currentCost === 0 && hasRate > 0;
-  });
-  
-  console.log(`🎯 Llamadas a procesar: ${needsProcessing.length}`);
-  
-  // Procesar cada llamada
-  needsProcessing.forEach(async (call) => {
-    try {
-      const duration = getCallDuration(call);
-      const rate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-      const cost = (duration / 60) * rate;
-      
-      console.log(`💰 Procesando: ${call.call_id} - $${cost.toFixed(4)}`);
-      
-      // 1. Actualizar costo en BD
-      const { error } = await supabase
-        .from('calls')
-        .update({ cost_usd: cost })
-        .eq('call_id', call.call_id);
-        
-      if (error) {
-        console.error(`❌ Error actualizando ${call.call_id}:`, error);
-        return;
-      }
-      
-      console.log(`✅ Costo guardado: ${call.call_id}`);
-      
-      // 2. Descontar del balance
-      const success = await deductCallCost(call.call_id, cost, user.id);
-      
-      if (success) {
-        console.log(`🎉 DESCUENTO EXITOSO: ${call.call_id} - $${cost.toFixed(4)}`);
-        
-        // 3. Actualizar estado local
-        setCalls(prev => prev.map(c => 
-          c.call_id === call.call_id ? { ...c, cost_usd: cost } : c
-        ));
-      } else {
-        console.error(`❌ Falló descuento: ${call.call_id}`);
-      }
-      
-    } catch (error) {
-      console.error(`❌ Error procesando ${call.call_id}:`, error);
+  // ✅ EFECTO 2: Detectar llamadas nuevas y procesar automáticamente (INDEPENDIENTE del refresh)
+  useEffect(() => {
+    if (!calls.length || !user?.id || loading || isProcessingAutomatic) {
+      return;
     }
-  });
-  
-}, [calls.length, user?.id, loading]); // Solo cuando cambie el número de llamadas
 
-// 🔔 PASO 4: REEMPLAZAR EL SEGUNDO useEffect (línea ~610)
-// Elimina el useEffect de "respaldo" y reemplázalo con este detector de llamadas nuevas:
+    // Detectar si hay más llamadas que antes (indicador de llamadas nuevas)
+    const currentCallCount = calls.length;
+    const previousCallCount = lastCallCountRef.current;
 
-useEffect(() => {
-  console.log('🔔 Detector de llamadas nuevas activado');
-  
-  if (calls.length > 0 && user?.id && !loading) {
-    // Encontrar llamadas muy recientes (últimos 5 minutos) sin procesar
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    
-    const recentUnprocessedCalls = calls.filter(call => {
-      const callTime = new Date(call.timestamp);
-      const isRecent = callTime > fiveMinutesAgo;
-      const needsProcessing = (call.cost_usd || 0) === 0 && 
-                             getCallDuration(call) > 0 && 
-                             (call.call_status === 'completed' || call.call_status === 'ended');
+    console.log(`📊 Control de llamadas nuevas: ${previousCallCount} → ${currentCallCount}`);
+
+    // Si hay más llamadas que antes (llamadas nuevas llegaron)
+    if (currentCallCount > previousCallCount && previousCallCount > 0) {
+      console.log(`🚨 NUEVAS LLAMADAS DETECTADAS: +${currentCallCount - previousCallCount}`);
       
-      return isRecent && needsProcessing;
-    });
-
-    if (recentUnprocessedCalls.length > 0) {
-      console.log(`🚨 LLAMADAS NUEVAS DETECTADAS: ${recentUnprocessedCalls.length}`);
+      setIsProcessingAutomatic(true);
       
-      recentUnprocessedCalls.forEach(async (call) => {
-        console.log(`⚡ PROCESAMIENTO INMEDIATO para llamada nueva: ${call.call_id}`);
-        
-        const cost = calculateCallCost(call);
-        
-        if (cost > 0) {
-          // Actualizar base de datos y descontar balance
-          try {
-            // Actualizar costo en la base de datos
-            await supabase
-              .from('calls')
-              .update({ cost_usd: cost })
-              .eq('id', call.id);
-            
-            // Ejecutar descuento del balance
-            const deductionSuccess = await deductCallCost(call.call_id, cost, user.id);
-            
-            if (deductionSuccess) {
-              console.log(`🎉 NUEVA LLAMADA PROCESADA AUTOMÁTICAMENTE: ${call.call_id} - $${cost.toFixed(4)}`);
-              
-              // Actualizar estado local inmediatamente
-              setCalls(prevCalls => 
-                prevCalls.map(c => 
-                  c.id === call.id 
-                    ? { ...c, cost_usd: cost }
-                    : c
-                )
-              );
-            }
-          } catch (error) {
-            console.error(`❌ Error procesando llamada nueva:`, error);
-          }
-        }
-      });
+      // Procesar SOLO las llamadas nuevas automáticamente
+      processNewCallsAutomatically(calls, calculateCallCost, user.id, setCalls)
+        .finally(() => {
+          setIsProcessingAutomatic(false);
+        });
+    } else if (previousCallCount === 0) {
+      // Primera carga - procesar llamadas que nunca han sido procesadas
+      console.log('🔄 Primera carga - verificando llamadas sin procesar');
+      
+      setIsProcessingAutomatic(true);
+      
+      processNewCallsAutomatically(calls, calculateCallCost, user.id, setCalls)
+        .finally(() => {
+          setIsProcessingAutomatic(false);
+        });
     } else {
-      console.log('✅ No hay llamadas nuevas sin procesar');
-    }
-  }
-}, [calls.length, user?.id]); // Solo disparar cuando cambie la cantidad de llamadas
-
-// 🎯 NUEVO useEffect PARA APLICAR FILTROS
-useEffect(() => {
-  console.log('🔄 FILTROS CAMBIARON - Aplicando filtros...');
-  console.log('📊 Estado actual:', {
-    calls: calls.length,
-    searchTerm,
-    statusFilter,
-    agentFilter,
-    dateFilter,
-    customDate
-  });
-  
-  if (calls.length > 0) {
-    applyFiltersAndSort();
-  }
-}, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]); // Se ejecuta cuando cualquier filtro cambia
-
-  // 🧪 FUNCIÓN DE PRUEBA MANUAL
-const testManualDeduction = async () => {
-  console.log('🧪 PROBANDO SISTEMA DE BALANCE...');
-  
-  if (!user?.id) {
-    alert('Usuario no identificado');
-    return;
-  }
-
-  try {
-    // Company ID fijo - ajustar si es diferente
-    const companyId = '1e3d4267-f288-4921-8360-3855100ff4a';
-    
-    console.log('🔍 Buscando llamadas sin procesar...');
-    
-    // Buscar llamadas completadas sin costo asignado
-    const { data: unprocessedCalls, error } = await supabase
-      .from('calls')
-      .select(`
-        id,
-        call_id,
-        duration_sec,
-        cost_usd,
-        call_status,
-        agent_id
-      `)
-      .eq('call_status', 'completed')
-      .gt('duration_sec', 0)
-      .eq('cost_usd', 0)
-      .limit(5);
-
-    if (error) {
-      console.error('❌ Error obteniendo llamadas:', error);
-      alert('❌ Error obteniendo llamadas');
-      return;
+      console.log('✅ No hay llamadas nuevas para procesar');
     }
 
-    console.log(`📞 Encontradas ${unprocessedCalls?.length || 0} llamadas sin procesar`);
-
-    if (!unprocessedCalls || unprocessedCalls.length === 0) {
-      alert('📞 No hay llamadas sin procesar');
-      return;
-    }
-
-    // Procesar cada llamada
-    for (const call of unprocessedCalls) {
-      console.log(`⚙️ Procesando llamada: ${call.call_id}`);
-      
-      // Usar tu función calculateCallCost para obtener el costo correcto
-const costAmount = await calculateCallCost(call);
-
-console.log(`💰 Costo calculado con calculateCallCost: $${costAmount.toFixed(4)}`);
-      
-      // Actualizar costo en calls - VERSIÓN CORREGIDA
-const { error: updateError } = await supabase
-  .from('calls')
-  .update({ 
-    cost_usd: costAmount
-  })
-  .eq('call_id', call.call_id); // Usar call_id en lugar de id
-
-      if (updateError) {
-        console.error('❌ Error actualizando llamada:', updateError);
-      } else {
-        console.log(`✅ Llamada ${call.call_id} procesada exitosamente`);
-      }
-    }
-
-    alert(`✅ Procesadas ${unprocessedCalls.length} llamadas! Revisa la consola.`);
+    // Actualizar contador de llamadas para la próxima verificación
+    lastCallCountRef.current = currentCallCount;
     
-    // Recargar llamadas
-    await fetchCalls();
+  }, [calls.length, user?.id, loading]); // Solo cuando cambie el número de llamadas
 
-  } catch (error) {
-    console.error('❌ Error:', error);
-    alert('❌ Error en el procesamiento');
-  }
-};
+  // ✅ EFECTO 3: Aplicar filtros cuando cambien los criterios
+  useEffect(() => {
+    if (calls.length > 0) {
+      applyFiltersAndSort();
+    }
+  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
-  // 🔍 FUNCIÓN DE VERIFICACIÓN DEL SISTEMA - AGREGAR DESPUÉS DE testManualDeduction
-const verifyAutoDeductionSystem = () => {
-  console.log('🔍 VERIFICANDO SISTEMA DE DESCUENTOS AUTOMÁTICOS');
-  console.log('=====================================');
-  
-  // Analizar estado actual
-  const pendingCalls = calls.filter(call => {
-    const duration = getCallDuration(call);
-    const currentCost = call.cost_usd || 0;
-    const hasAgentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-    const validStatus = call.call_status === 'completed' || call.call_status === 'ended';
-    
-    return validStatus && duration > 0 && currentCost === 0 && hasAgentRate > 0;
-  });
-  
-  // Analizar llamadas recientes
-  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-  const recentCalls = calls.filter(call => {
-    const callTime = new Date(call.timestamp);
-    return callTime > fiveMinutesAgo;
-  });
-  
-  console.log('📊 ESTADO DEL SISTEMA:', {
-    totalCalls: calls.length,
-    userId: user?.id,
-    loading: loading,
-    pendingCallsCount: pendingCalls.length,
-    recentCallsCount: recentCalls.length,
-    systemActive: calls.length > 0 && user?.id && !loading
-  });
-  
-  console.log('🎯 LLAMADAS PENDIENTES DE PROCESAMIENTO:');
-  pendingCalls.forEach((call, index) => {
-    const cost = calculateCallCost(call);
-    console.log(`${index + 1}. ${call.call_id}:`, {
-      status: call.call_status,
-      duration: getCallDuration(call),
-      currentCost: call.cost_usd,
-      calculatedCost: cost,
-      agentRate: call.call_agent?.rate_per_minute
-    });
-  });
-  
-  console.log('⏰ LLAMADAS RECIENTES (últimos 5 minutos):');
-  recentCalls.forEach((call, index) => {
-    console.log(`${index + 1}. ${call.call_id}:`, {
-      timestamp: call.timestamp,
-      status: call.call_status,
-      cost: call.cost_usd
-    });
-  });
-  
-  // Mostrar resultado en pantalla
-  const message = `✅ VERIFICACIÓN COMPLETADA
-  
-📊 Llamadas totales: ${calls.length}
-🎯 Llamadas pendientes: ${pendingCalls.length}
-⏰ Llamadas recientes: ${recentCalls.length}
-🔧 Sistema activo: ${calls.length > 0 && user?.id && !loading ? 'SÍ' : 'NO'}
-
-${pendingCalls.length > 0 ? 
-  '⚠️ HAY LLAMADAS PENDIENTES - El sistema debería procesarlas automáticamente' : 
-  '✅ NO HAY LLAMADAS PENDIENTES'}
-
-Revisa la consola para detalles completos.`;
-  
-  alert(message);
-};
+  // ✅ EFECTO 4: Cargar duraciones de audio
   useEffect(() => {
     const loadAllAudioDurations = async () => {
       const callsWithAudio = calls.filter(call => call.recording_url);
@@ -1008,128 +710,10 @@ Revisa la consola para detalles completos.`;
       loadAllAudioDurations();
     }
   }, [calls]);
-  
-// 🆕 NUEVA FUNCIÓN - Agregar esto ANTES de calculateCallCost
-const updateCallCostInDatabase = async (callId: string, calculatedCost: number) => {
-  try {
-    console.log(`🔄 Actualizando costo en BD para ${callId}: $${calculatedCost.toFixed(2)}`);
-    
-    const { error } = await supabase
-      .from('calls')
-      .update({ 
-        cost_usd: calculatedCost 
-      })
-      .eq('call_id', callId);
 
-    if (error) {
-      console.error('❌ Error actualizando costo:', error);
-      return false;
-    }
-
-    console.log(`✅ Costo actualizado en BD: ${callId} → $${calculatedCost.toFixed(2)}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Error en updateCallCostInDatabase:', error);
-    return false;
-  }
-};
-  
-  /// 🔧 FUNCIÓN MODIFICADA - Reemplazar tu calculateCallCost existente con esta
-const calculateCallCost = async (call: Call, forceUpdate = false) => {
-  const durationMinutes = getCallDuration(call) / 60;
-  let agentRate = 0;
-  
-  if (call.call_agent?.rate_per_minute) {
-    agentRate = call.call_agent.rate_per_minute;
-    console.log(`💰 Using call_agent rate: $${agentRate}/min`);
-  } else if (call.agents?.rate_per_minute) {
-    agentRate = call.agents.rate_per_minute;
-    console.log(`💰 Using agents rate: $${agentRate}/min`);
-  }
-  
-  if (agentRate === 0) {
-    console.log(`⚠️ No agent rate found, using DB cost: $${call.cost_usd || 0}`);
-    return call.cost_usd || 0;
-  }
-  
-  const calculatedCost = durationMinutes * agentRate;
-  const currentCost = parseFloat(call.cost_usd || 0);
-  
-  console.log(`🧮 COST CALCULATION:
-    📏 Duration: ${getCallDuration(call)}s = ${durationMinutes.toFixed(2)} min
-    💵 Rate: $${agentRate}/min
-    🎯 Calculated: $${calculatedCost.toFixed(4)}
-    🗄️ DB Cost: $${currentCost} (IGNORED)`);
-  
-  // 🚀 OPTIMIZACIÓN: Solo actualizar si es necesario
-  const needsUpdate = forceUpdate || 
-    (calculatedCost > 0 && 
-     Math.abs(calculatedCost - currentCost) > 0.01 && // Diferencia mayor a 1 centavo
-     currentCost === 0); // Solo si el costo actual es 0 (llamadas nuevas)
-  
-  if (needsUpdate) {
-    console.log(`💾 Actualizando costo necesario: $${currentCost} → $${calculatedCost.toFixed(4)}`);
-    await updateCallCostInDatabase(call.call_id, calculatedCost);
-  } else {
-    console.log(`⏭️ Costo ya actualizado, saltando: ${call.call_id}`);
-  }
-  
-  return calculatedCost;
-};
-
-  // 🔧 FUNCIÓN AUXILIAR: Calcular costo solo para mostrar (sin actualizar BD)
-const calculateCallCostSync = (call: Call) => {
-  const durationMinutes = getCallDuration(call) / 60;
-  let agentRate = 0;
-  
-  if (call.call_agent?.rate_per_minute) {
-    agentRate = call.call_agent.rate_per_minute;
-  } else if (call.agents?.rate_per_minute) {
-    agentRate = call.agents.rate_per_minute;
-  }
-  
-  if (agentRate === 0) {
-    return call.cost_usd || 0;
-  }
-  
-  const calculatedCost = durationMinutes * agentRate;
-  return calculatedCost;
-};
-
-  // 🔧 REEMPLAZAR LA FUNCIÓN getCallDuration EN CallsSimple.tsx (línea ~348)
-
-const getCallDuration = (call: any) => {
-  console.log(`🔍 getCallDuration para call ${call.call_id}:`, {
-    duration_sec: call.duration_sec,
-    audioDuration: audioDurations[call.id],
-    id: call.id
-  });
-
-  // ✅ PRIORIDAD 1: Usar duration_sec de la base de datos
-  if (call.duration_sec && call.duration_sec > 0) {
-    console.log(`✅ Usando duration_sec: ${call.duration_sec}s`);
-    return call.duration_sec;
-  }
-  
-  // ✅ PRIORIDAD 2: Usar audio duration si está disponible
-  if (audioDurations[call.id] && audioDurations[call.id] > 0) {
-    console.log(`✅ Usando audioDuration: ${audioDurations[call.id]}s`);
-    return audioDurations[call.id];
-  }
-  
-  // ✅ PRIORIDAD 3: Buscar en otros campos posibles
-  const possibleFields = ['billing_duration_sec', 'duration', 'call_duration', 'length', 'time_duration', 'total_duration'];
-  
-  for (const field of possibleFields) {
-    if (call[field] && call[field] > 0) {
-      console.log(`✅ Usando campo ${field}: ${call[field]}s`);
-      return call[field];
-    }
-  }
-  
-  console.log(`❌ No se encontró duración válida para call ${call.call_id}`);
-  return 0;
-};
+  // ============================================================================
+  // FUNCIONES DE UTILIDAD
+  // ============================================================================
 
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
@@ -1154,6 +738,7 @@ const getCallDuration = (call: any) => {
       console.log(`❌ Error loading audio duration:`, error);
     }
   };
+
   const isDateInRange = (callTimestamp: string): boolean => {
     const callDate = new Date(callTimestamp);
     const today = new Date();
@@ -1208,93 +793,66 @@ const getCallDuration = (call: any) => {
   };
 
   const applyFiltersAndSort = () => {
-  console.log('🔍 === APLICANDO FILTROS ===');
-  console.log('📞 Total calls:', calls.length);
-  console.log('🎯 agentFilter:', agentFilter);
-  console.log('🤖 userAssignedAgents:', userAssignedAgents);
-
-  let filtered = [...calls];
-
-  // Filtro de búsqueda
-  if (searchTerm) {
-    filtered = filtered.filter(call => 
-      call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      call.from_number.includes(searchTerm) ||
-      call.to_number.includes(searchTerm) ||
-      call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }
-
-  // Filtro de estado
-  if (statusFilter !== "all") {
-    filtered = filtered.filter(call => call.call_status === statusFilter);
-  }
-
-  // 🎯 FILTRO DE AGENTE CON DEBUG COMPLETO
-  if (agentFilter !== null) {
-    console.log('🎯 Aplicando filtro de agente:', agentFilter);
+    console.log('🔍 Aplicando filtros y ordenamiento');
     
-    // Encontrar el agente seleccionado
-    const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
-    console.log('🤖 Agente encontrado:', selectedAgent);
-    
-    if (selectedAgent) {
-      console.log('✅ Filtrando llamadas para agente:', selectedAgent.name);
-      
-      // ANTES del filtro - mostrar todas las llamadas
-      console.log('📞 Llamadas ANTES del filtro:', filtered.map(call => ({
-        call_id: call.call_id.substring(0, 8),
-        agent_id: call.agent_id.substring(0, 8),
-        matches_id: call.agent_id === selectedAgent.id,
-        matches_retell: call.agent_id === selectedAgent.retell_agent_id
-      })));
-      
-      // Filtrar llamadas que coincidan con este agente
-      filtered = filtered.filter(call => {
-        const matchesId = call.agent_id === selectedAgent.id;
-        const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
-        const shouldInclude = matchesId || matchesRetell;
-        
-        if (shouldInclude) {
-          console.log(`✅ INCLUIR llamada ${call.call_id.substring(0, 8)} - Coincide con agente`);
-        }
-        
-        return shouldInclude;
-      });
-      
-      console.log(`🎯 Llamadas DESPUÉS del filtro: ${filtered.length}`);
-    } else {
-      console.log('❌ Agente no encontrado, mostrando 0 llamadas');
-      filtered = [];
-    }
-  } else {
-    console.log('👥 Mostrando TODAS las llamadas (All Agents)');
-  }
+    let filtered = [...calls];
 
-  // Filtro de fecha
-  filtered = filtered.filter(call => isDateInRange(call.timestamp));
-
-  // Ordenamiento
-  filtered.sort((a, b) => {
-    let aValue: any = a[sortField];
-    let bValue: any = b[sortField];
-
-    if (sortField === 'timestamp') {
-      aValue = new Date(aValue).getTime();
-      bValue = new Date(bValue).getTime();
+    // Filtro de búsqueda
+    if (searchTerm) {
+      filtered = filtered.filter(call => 
+        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        call.from_number.includes(searchTerm) ||
+        call.to_number.includes(searchTerm) ||
+        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
 
-    if (sortOrder === 'asc') {
-      return aValue > bValue ? 1 : -1;
-    } else {
-      return aValue < bValue ? 1 : -1;
+    // Filtro de estado
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(call => call.call_status === statusFilter);
     }
-  });
 
-  console.log('📊 RESULTADO FINAL:', filtered.length, 'llamadas');
-  setFilteredCalls(filtered);
-};
+    // Filtro de agente
+    if (agentFilter !== null) {
+      const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
+      if (selectedAgent) {
+        filtered = filtered.filter(call => {
+          const matchesId = call.agent_id === selectedAgent.id;
+          const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
+          return matchesId || matchesRetell;
+        });
+      } else {
+        filtered = [];
+      }
+    }
+
+    // Filtro de fecha
+    filtered = filtered.filter(call => isDateInRange(call.timestamp));
+
+    // Ordenamiento
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
+
+      if (sortField === 'timestamp') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    setFilteredCalls(filtered);
+  };
+  // ============================================================================
+  // FUNCIONES DE FORMATO Y UTILIDADES DE DISPLAY
+  // ============================================================================
+
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
@@ -1355,16 +913,14 @@ const getCallDuration = (call: any) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // ✅ FUNCIÓN formatCurrency CORREGIDA - CAMBIO PRINCIPAL
   const formatCurrency = (amount: number) => {
-    // Redondear a 2 decimales para evitar problemas de precisión flotante
     const roundedAmount = Math.round((amount || 0) * 100) / 100;
     
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 2,  // ✅ CAMBIADO de 4 a 2 decimales
-      maximumFractionDigits: 2,  // ✅ CAMBIADO de 4 a 2 decimales
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(roundedAmount);
   };
 
@@ -1396,235 +952,11 @@ const getCallDuration = (call: any) => {
     if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
     return sortOrder === 'asc' ? '↑' : '↓';
   };
-  const fetchCalls = async () => {
-    console.log("🚀 FETCHCALLS STARTED - DEBUG TEST");
-    console.log("🚀 USER ID:", user?.id);
-    if (!user?.id) {
-      setError("User not authenticated");
-      setLoading(false);
-      return;
-    }
 
-    try {
-  setLoading(true);
-  setError(null);
+  // ============================================================================
+  // HANDLERS DE EVENTOS
+  // ============================================================================
 
-  console.log("🔍 Fetching calls for user:", user.id);
-  
-  // 🔍 AGREGAR ESTAS LÍNEAS AQUÍ
-  console.log("📍 CHECKPOINT 1: About to query user_agent_assignments");
-  console.log("📍 CHECKPOINT 1: user.id =", user.id);
-
-  console.log("📍 OBTENIENDO TODAS LAS ASIGNACIONES DEL USUARIO");
-
-const { data: assignments, error: assignmentsError } = await supabase
-  .from('user_agent_assignments')
-  .select('agent_id')
-  .eq('user_id', user.id);
-
-if (assignmentsError) {
-  console.error("❌ Error obteniendo asignaciones:", assignmentsError);
-  setError(`Error obteniendo asignaciones: ${assignmentsError.message}`);
-  return;
-}
-
-console.log("🎯 Asignaciones encontradas:", assignments);
-
-if (!assignments || assignments.length === 0) {
-  console.log("⚠️ No assignments found");
-  setCalls([]);
-  setStats({
-    total: 0,
-    totalCost: 0,
-    totalDuration: 0,
-    avgDuration: 0,
-    completedCalls: 0
-  });
-  return;
-}
-
-if (!assignments || assignments.length === 0) {
-  console.log("⚠️ USUARIO SIN ASIGNACIONES DE AGENTES");
-  setCalls([]);
-  setUserAssignedAgents([]);
-  setStats({
-    total: 0,
-    totalCost: 0,
-    totalDuration: 0,
-    avgDuration: 0,
-    completedCalls: 0
-  });
-  return;
-}
-
-const agentIds = assignments.map(a => a.agent_id);
-console.log("🎯 IDs de agentes asignados:", agentIds);
-
-const { data: agentDetails, error: agentsError } = await supabase
-  .from('agents')
-  .select('id, name, rate_per_minute, retell_agent_id')
-  .in('id', agentIds);
-
-if (agentsError) {
-  console.error("❌ Error obteniendo detalles de agentes:", agentsError);
-  setError(`Error obteniendo agentes: ${agentsError.message}`);
-  return;
-}
-
-console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
-
-console.log("🤖 Agent details found:", agentDetails);
-      
-
-// Simular userAgents para el resto del código
-const userAgents = agentDetails?.map(agent => ({
-  agent_id: agent.id,
-  agents: agent
-})) || [];
-
-
-// ✅ GUARDAR agentes para el filtro:
-setUserAssignedAgents(agentDetails || []);
-
-// ✅ NUEVA LÍNEA para nombres: Actualizar el mapeo de agentes
-const agentNameMapping = {};
-agentDetails?.forEach(agent => {
-  agentNameMapping[agent.id] = agent.name;
-  agentNameMapping[agent.retell_agent_id] = agent.name; // Para ambos IDs
-});
-
-setCalls([]); // Para que uniqueAgents se actualice
-
-  // 🔍 Y ESTA LÍNEA JUSTO DESPUÉS DE LA CONSULTA
-  console.log("📍 CHECKPOINT 2: userAgents query completed");
-  console.log("📍 CHECKPOINT 2: userAgents =", userAgents);
-  console.log("📍 CHECKPOINT 2: agentsError =", agentsError);
-
-      // 🔍 DEBUGGING CRÍTICO DETALLADO
-console.log('🔍 RAW userAgents response:', userAgents);
-console.log('🔍 RAW agentsError response:', agentsError);
-console.log('🔍 userAgents type:', typeof userAgents);
-console.log('🔍 userAgents is array:', Array.isArray(userAgents));
-console.log('🔍 userAgents length:', userAgents?.length);
-
-if (agentsError) {
-  console.error('❌ DETAILED agentsError:', JSON.stringify(agentsError, null, 2));
-}
-
-      // En CallsSimple.tsx, agregar debugging específico para este usuario
-
-
-      if (agentsError) {
-        console.error("❌ Error fetching user agents:", agentsError);
-        setError(`Error: ${agentsError.message}`);
-        return;
-      }
-
-      if (!userAgents || userAgents.length === 0) {
-        console.log("⚠️ No agents assigned to this user");
-        setCalls([]);
-        setStats({
-          total: 0,
-          totalCost: 0,
-          totalDuration: 0,
-          avgDuration: 0,
-          completedCalls: 0
-        });
-        return;
-      }
-
-      // Obtener IDs de agentes para buscar llamadas
-const agentIdsForCalls = agentDetails.map(agent => agent.id);
-const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
-const allAgentIds = [...agentIdsForCalls, ...retellAgentIds];
-
-console.log(`🎯 Buscando llamadas para agentes:`, {
-  agentIds: agentIdsForCalls,
-  retellIds: retellAgentIds,
-  totalIds: allAgentIds
-});
-
-const { data: callsData, error: callsError } = await supabase
-  .from('calls')
-  .select(`
-    *,
-    call_summary,
-    disconnection_reason
-  `)
-  .in('agent_id', allAgentIds)
-  .order('timestamp', { ascending: false});
-
-      if (callsError) {
-        console.error("❌ Error fetching calls:", callsError);
-        setError(`Error: ${callsError.message}`);
-        return;
-      }
-
-      console.log("✅ Calls fetched successfully:", callsData?.length || 0);
-
-      const data = callsData?.map(call => {
-        let matchedAgent = null;
-
-        const userAgentAssignment = userAgents.find(assignment => 
-          assignment.agents.id === call.agent_id ||
-          assignment.agents.retell_agent_id === call.agent_id
-        );
-
-        if (userAgentAssignment) {
-          matchedAgent = {
-            id: userAgentAssignment.agents.id,
-            name: userAgentAssignment.agents.name,
-            rate_per_minute: userAgentAssignment.agents.rate_per_minute
-          };
-          console.log(`✅ Found agent with rate: ${matchedAgent.name} - $${matchedAgent.rate_per_minute}/min`);
-        }
-
-        if (!matchedAgent) {
-          console.log(`❌ No agent found for call ${call.call_id} with agent_id: ${call.agent_id}`);
-        }
-
-        return {
-          ...call,
-          end_reason: call.disconnection_reason || null,
-          call_agent: matchedAgent
-        };
-      });
-
-      setCalls(data || []);
-
-      if (data && data.length > 0) {
-        // 🚀 OPTIMIZACIÓN: Calcular costo total sin actualizar BD
-let totalCost = 0;
-for (const call of data) {
-  const durationMinutes = getCallDuration(call) / 60;
-  const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || 0;
-  
-  if (agentRate > 0) {
-    totalCost += durationMinutes * agentRate;
-  } else {
-    totalCost += call.cost_usd || 0;
-  }
-}
-        const totalDuration = data.reduce((sum, call) => sum + getCallDuration(call), 0);
-        const avgDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-        const completedCalls = data.filter(call => call.call_status === 'completed').length;
-
-        setStats({
-          total: data.length,
-          totalCost,
-          totalDuration,
-          avgDuration,
-          completedCalls
-        });
-      }
-
-    } catch (err: any) {
-      console.error("❌ Exception fetching calls:", err);
-      setError(`Exception: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -1635,11 +967,8 @@ for (const call of data) {
   };
 
   const handleCallClick = (call: Call) => {
-    console.log("🎯 CLICKED CALL:", call);
-    console.log("🎯 CLICKED CALL SUMMARY:", call.call_summary);
+    console.log("🎯 Call clickeada:", call.call_id);
     const originalCall = calls.find(c => c.id === call.id) || call;
-    console.log("🎯 ORIGINAL CALL FOUND:", originalCall);
-    console.log("🎯 ORIGINAL CALL SUMMARY:", originalCall.call_summary);
     setSelectedCall(originalCall);
     setIsModalOpen(true);
   };
@@ -1649,10 +978,14 @@ for (const call of data) {
     setSelectedCall(null);
   };
 
-  // Variables auxiliares
+  // Variables auxiliares para la UI
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
+  const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
 
-  // Verificación de usuario
+  // ============================================================================
+  // VERIFICACIÓN DE USUARIO
+  // ============================================================================
+
   if (!user) {
     return (
       <DashboardLayout>
@@ -1664,6 +997,10 @@ for (const call of data) {
       </DashboardLayout>
     );
   }
+  // ============================================================================
+  // RENDER DEL COMPONENTE
+  // ============================================================================
+
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
@@ -1686,32 +1023,34 @@ for (const call of data) {
                 <User className="w-3 h-3 mr-1" />
                 Active User
               </Badge>
+              {/* ✅ BOTÓN REFRESH CORREGIDO - SOLO REFRESCA, NO DESCUENTA */}
               <Button
-                onClick={fetchCalls}
+                onClick={() => {
+                  console.log("🔄 REFRESH BUTTON CLICKED - Solo refrescando datos");
+                  fetchCalls(); // Solo carga datos, NO hace descuentos
+                }}
                 disabled={loading}
                 variant="outline"
                 size="sm"
               >
                 {loading ? <LoadingSpinner size="sm" /> : "🔄"} Refresh
               </Button>
-              
-              {/* Botones de prueba eliminados */}
             </div>
           </div>
 
-          {/* ✅ NUEVO: Indicador de procesamiento automático */}
-{isProcessing && (
-  <Card className="border-blue-200 bg-blue-50">
-    <CardContent className="p-4">
-      <div className="flex items-center">
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
-        <span className="text-blue-700 font-medium">
-          🤖 Procesando descuento automático...
-        </span>
-      </div>
-    </CardContent>
-  </Card>
-)}
+          {/* ✅ Indicador de procesamiento automático */}
+          {isProcessingAutomatic && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="p-4">
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
+                  <span className="text-blue-700 font-medium">
+                    🤖 Procesando llamadas nuevas automáticamente...
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
           {/* Error Alert */}
           {error && (
@@ -1721,6 +1060,7 @@ for (const call of data) {
               </CardContent>
             </Card>
           )}
+
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -1813,7 +1153,6 @@ for (const call of data) {
                   </select>
                 </div>
 
-                
                 <AgentFilter
                   agents={uniqueAgents}
                   selectedAgent={agentFilter}
@@ -1856,6 +1195,7 @@ for (const call of data) {
               </div>
             </CardContent>
           </Card>
+
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -1980,8 +1320,8 @@ for (const call of data) {
                               <User className="w-4 h-4 text-gray-400" />
                               <div>
                                 <div className="text-sm font-medium text-gray-900">
-  {call.call_agent?.name || getAgentNameLocal(call.agent_id)}
-</div>
+                                  {call.call_agent?.name || getAgentNameLocal(call.agent_id)}
+                                </div>
                                 <div className="text-xs text-gray-500">
                                   {call.agent_id.substring(0, 8)}...
                                 </div>
@@ -2000,6 +1340,7 @@ for (const call of data) {
                               }
                             </div>
                           </td>
+
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {formatCurrency(calculateCallCostSync(call))}
@@ -2106,17 +1447,17 @@ for (const call of data) {
           </Card>
           
           {/* Call Detail Modal */}
-          {/* Call Detail Modal - ✅ VERSIÓN ACTUALIZADA */}
           <CallDetailModal 
             call={selectedCall}
             isOpen={isModalOpen}
             onClose={handleModalClose}
             audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
-            userAssignedAgents={userAssignedAgents} // ✅ NUEVO: Pasar agentes asignados
-            getAgentNameFunction={getAgentNameLocal} // ✅ NUEVO: Pasar función para obtener nombres
+            userAssignedAgents={userAssignedAgents}
+            getAgentNameFunction={getAgentNameLocal}
           />
         </div>
       </div>
     </DashboardLayout>
   );
 }
+      
