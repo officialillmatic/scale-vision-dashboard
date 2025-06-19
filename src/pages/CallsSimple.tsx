@@ -960,15 +960,16 @@ if (mappedCalls && mappedCalls.length > 0) {
   };
 
   const formatCurrency = (amount: number) => {
-    const roundedAmount = Math.round((amount || 0) * 100) / 100;
+  // Redondear a 4 decimales en lugar de 2
+  const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
 
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(roundedAmount);
-  };
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 4,  // Cambiar de 2 a 4
+    maximumFractionDigits: 4,  // Cambiar de 2 a 4
+  }).format(roundedAmount);
+};
   const formatDate = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-US', {
       month: 'short',
