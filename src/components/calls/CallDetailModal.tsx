@@ -96,10 +96,10 @@ const calculateCallCost = (call: Call, audioDurationParam?: number) => {
   
   if (agentRate === 0) {
     console.warn(`Modal: No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
-    return Math.round((call.cost_usd || 0) * 100) / 100;
+    return Math.round((call.cost_usd || 0) * 10000) / 10000;
   }
   
-  return Math.round((durationMinutes * agentRate) * 100) / 100;
+  return Math.round((durationMinutes * agentRate) * 10000) / 10000;
 };
 
 export const CallDetailModal: React.FC<CallDetailModalProps> = ({
@@ -264,18 +264,18 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // ✅ FUNCIÓN formatCurrency CORREGIDA con 2 decimales máximo
-  const formatCurrency = (amount: number) => {
-    // Redondear a 2 decimales para evitar problemas de precisión flotante
-    const roundedAmount = Math.round((amount || 0) * 100) / 100;
-    
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(roundedAmount);
-  };
+  // ✅ FUNCIÓN formatCurrency CORREGIDA con 4 decimales máximo
+const formatCurrency = (amount: number) => {
+  // Redondear a 4 decimales para evitar problemas de precisión flotante
+  const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
+  
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(roundedAmount);
+};
 
   const formatDate = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-US', {
