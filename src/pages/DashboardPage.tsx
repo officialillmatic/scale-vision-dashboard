@@ -587,57 +587,99 @@ export default function DashboardPage() {
       }
 
       // Calculate comprehensive stats
-      if (callsData && callsData.length > 0) {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+if (callsData && callsData.length > 0) {
+  console.log('📊 Calculando estadísticas Dashboard para', callsData.length, 'llamadas');
+  
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        const totalCalls = callsData.length;
-        const totalCost = callsData.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-        const totalDuration = callsData.reduce((sum, call) => sum + getCallDuration(call), 0);
-        const avgDuration = totalDuration / totalCalls;
-        
-        const completedCalls = callsData.filter(call => call.call_status === 'completed' || call.call_status === 'ended').length;
-        const successRate = (completedCalls / totalCalls) * 100;
-        
-        const callsWithSentiment = callsData.filter(call => call.sentiment);
-        const positiveCalls = callsData.filter(call => call.sentiment === 'positive').length;
-        const positiveRatio = callsWithSentiment.length > 0 ? (positiveCalls / callsWithSentiment.length) * 100 : 0;
-        
-        const todayCalls = callsData.filter(call => new Date(call.timestamp) >= today);
-        const callsToday = todayCalls.length;
-        const costToday = todayCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+  let totalCost = 0;
+  let totalDuration = 0;
+  let completedCalls = 0;
+  let callsToday = 0;
+  let costToday = 0;
+  let positiveCalls = 0;
+  let callsWithSentiment = 0;
 
-        setStats({
-          totalCalls,
-          totalCost,
-          totalDuration,
-          avgDuration,
-          successRate,
-          positiveRatio,
-          callsToday,
-          costToday
-        });
+  callsData.forEach((call, index) => {
+    // 1. Obtener duración real
+    let duration = 0;
+    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+      duration = audioDurations[call.id];
+    } else if (call.duration_sec && call.duration_sec > 0) {
+      duration = call.duration_sec;
+    }
+    totalDuration += duration;
 
-        console.log('✅ User stats calculated:', {
-          totalCalls,
-          totalCost,
-          completedCalls,
-          successRate: successRate.toFixed(1) + '%'
-        });
-      } else {
-        // No calls found
-        setStats({
-          totalCalls: 0,
-          totalCost: 0,
-          totalDuration: 0,
-          avgDuration: 0,
-          successRate: 0,
-          positiveRatio: 0,
-          callsToday: 0,
-          costToday: 0
-        });
+    // 2. Usar costo existente (ya procesado por el sistema automático)
+    const callCost = call.cost_usd || 0;
+    totalCost += callCost;
+
+    // 3. Contar llamadas completadas
+    if (['completed', 'ended'].includes(call.call_status?.toLowerCase())) {
+      completedCalls++;
+    }
+
+    // 4. Verificar si es de hoy
+    const callDate = new Date(call.timestamp);
+    if (callDate >= today) {
+      callsToday++;
+      costToday += callCost;
+    }
+
+    // 5. Análisis de sentimiento
+    if (call.sentiment) {
+      callsWithSentiment++;
+      if (call.sentiment === 'positive') {
+        positiveCalls++;
       }
+    }
 
+    if (index < 3) { // Log solo las primeras 3 para debug
+      console.log(`📞 Dashboard Call ${call.call_id?.substring(0, 8)}: duration=${duration}s, cost=$${callCost.toFixed(4)}, today=${callDate >= today}`);
+    }
+  });
+
+  const totalCalls = callsData.length;
+  const avgDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
+  const successRate = totalCalls > 0 ? (completedCalls / totalCalls) * 100 : 0;
+  const positiveRatio = callsWithSentiment > 0 ? (positiveCalls / callsWithSentiment) * 100 : 0;
+
+  const finalStats = {
+    totalCalls,
+    totalCost: Number(totalCost.toFixed(4)),
+    totalDuration,
+    avgDuration,
+    successRate: Number(successRate.toFixed(1)),
+    positiveRatio: Number(positiveRatio.toFixed(1)),
+    callsToday,
+    costToday: Number(costToday.toFixed(4))
+  };
+
+  console.log('✅ Estadísticas Dashboard calculadas:', {
+    totalCalls: finalStats.totalCalls,
+    totalCost: `$${finalStats.totalCost}`,
+    totalDuration: `${finalStats.totalDuration}s`,
+    successRate: `${finalStats.successRate}%`,
+    callsToday: finalStats.callsToday,
+    costToday: `$${finalStats.costToday}`
+  });
+
+  setStats(finalStats);
+} else {
+  console.log('⚠️ No hay llamadas para calcular estadísticas Dashboard');
+  // No calls found
+  setStats({
+    totalCalls: 0,
+    totalCost: 0,
+    totalDuration: 0,
+    avgDuration: 0,
+    successRate: 0,
+    positiveRatio: 0,
+    callsToday: 0,
+    costToday: 0
+  });
+}
     } catch (err: any) {
       console.error('💥 Exception fetching calls data:', err);
       setError(`Exception: ${err.message}`);
