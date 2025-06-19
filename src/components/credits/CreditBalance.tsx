@@ -61,9 +61,18 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   const [rateLoaded, setRateLoaded] = useState(false);
   const [realtimeChannel, setRealtimeChannel] = useState<any>(null);
 const [lastTransactionCheck, setLastTransactionCheck] = useState<string | null>(null);
+  const [localBalance, setLocalBalance] = useState<number | null>(null);
+const [balanceLoaded, setBalanceLoaded] = useState(false);
 
   // Hook de agentes para calcular minutos estimados
   const { agents, isLoadingAgents } = useAgents();
+
+  // Effect para cargar balance directo al inicializar
+useEffect(() => {
+  if (user?.id) {
+    fetchBalanceDirect();
+  }
+}, [user?.id, fetchBalanceDirect]);
 
   // ✅ EFECTO PARA MOSTRAR INDICADOR DE ACTUALIZACIÓN
   useEffect(() => {
@@ -80,63 +89,42 @@ const [lastTransactionCheck, setLastTransactionCheck] = useState<string | null>(
   }, [lastBalanceChange]);
 
   // ✅ LISTENER DEFINITIVO - BYPASS DEL HOOK
-  useEffect(() => {
-    if (!user?.id) return;
+  // ✅ LISTENER DEFINITIVO CON BALANCE LOCAL
+useEffect(() => {
+  if (!user?.id) return;
 
-    console.log('🔔 CreditBalance: Configurando listener DEFINITIVO...');
+  console.log('🔔 CreditBalance: Configurando listener con balance local...');
+  
+  const handleBalanceUpdate = async (event: CustomEvent) => {
+    console.log('💳 CreditBalance: Evento recibido:', event.detail);
     
-    const handleBalanceUpdate = async (event: CustomEvent) => {
-      console.log('💳 CreditBalance: Evento recibido:', event.detail);
+    const { userId, deduction } = event.detail;
+    
+    if (userId === user.id || userId === 'current-user' || userId === 'test-user') {
+      console.log('✅ CreditBalance: Actualizando balance local...');
       
-      const { userId, deduction, source } = event.detail;
-      
-      // Solo procesar si es para este usuario
-      if (userId === user.id || userId === 'current-user' || userId === 'test-user') {
-        console.log('✅ CreditBalance: Procesando actualización directa...');
-        
-        try {
-          // 🔥 ACTUALIZACIÓN DIRECTA SIN HOOK
-          console.log('🔄 CreditBalance: Obteniendo balance actualizado de BD...');
-          
-          const { data: creditData, error } = await supabase
-            .from('user_credits')
-            .select('current_balance')
-            .eq('user_id', user.id)
-            .single();
-
-          if (error) {
-            console.error('❌ CreditBalance: Error obteniendo balance:', error);
-            return;
-          }
-
-          const newBalance = creditData?.current_balance || 0;
-          console.log(`💰 CreditBalance: Balance actualizado: $${newBalance}`);
-          
-          // Mostrar indicador visual
-          setShowUpdateIndicator(true);
-          
-          // Forzar re-render completo del componente
-          setTimeout(() => {
-            console.log('🔄 CreditBalance: Forzando refresh completo...');
-            window.location.reload();
-          }, 1000);
-          
-        } catch (error) {
-          console.error('💥 CreditBalance: Error en actualización:', error);
-        }
+      // Actualizar balance local inmediatamente
+      if (localBalance !== null) {
+        const newBalance = localBalance - deduction;
+        console.log(`💰 Balance local: $${localBalance} → $${newBalance}`);
+        setLocalBalance(newBalance);
       }
-    };
+      
+      // También obtener de BD para confirmar
+      await fetchBalanceDirect();
+      
+      // Mostrar indicador
+      setShowUpdateIndicator(true);
+      setTimeout(() => setShowUpdateIndicator(false), 5000);
+    }
+  };
 
-    // Escuchar el evento
-    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-    
-    console.log('✅ CreditBalance: Listener DEFINITIVO configurado');
-    
-    return () => {
-      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-      console.log('🧹 CreditBalance: Listener DEFINITIVO removido');
-    };
-  }, [user?.id]);
+  window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+  
+  return () => {
+    window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+  };
+}, [user?.id, localBalance, fetchBalanceDirect]);
 
   // ✅ MONITOREO DIRECTO DE TRANSACCIONES
   const setupDirectTransactionMonitoring = useCallback(() => {
@@ -254,6 +242,39 @@ const [lastTransactionCheck, setLastTransactionCheck] = useState<string | null>(
   // ============================================================================
   // FUNCIONES AUXILIARES - TIEMPO REAL SIN LOADING INFINITO
   // ============================================================================
+// ============================================================================
+// FUNCIÓN PARA OBTENER BALANCE DIRECTO (SIN HOOK)
+// ============================================================================
+const fetchBalanceDirect = useCallback(async () => {
+  if (!user?.id) return;
+
+  try {
+    console.log('💰 Obteniendo balance directo de BD...');
+    
+    const { data: creditData, error } = await supabase
+      .from('user_credits')
+      .select('current_balance')
+      .eq('user_id', user.id)
+      .single();
+
+    if (error) {
+      console.error('❌ Error obteniendo balance directo:', error);
+      return;
+    }
+
+    const balance = creditData?.current_balance || 0;
+    console.log(`✅ Balance directo obtenido: $${balance}`);
+    
+    setLocalBalance(balance);
+    setBalanceLoaded(true);
+    
+    return balance;
+    
+  } catch (error) {
+    console.error('💥 Error en fetchBalanceDirect:', error);
+    return null;
+  }
+}, [user?.id]);
   
   // Obtener tarifa real del agente en tiempo real
   const fetchAgentRateRealTime = useCallback(async () => {
