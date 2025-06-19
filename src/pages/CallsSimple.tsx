@@ -414,6 +414,10 @@ export default function CallsSimple() {
 
   // ✅ NUEVOS ESTADOS para control del sistema automático (SIN afectar refresh)
   const [isProcessingAutomatic, setIsProcessingAutomatic] = useState(false);
+const [realtimeSubscription, setRealtimeSubscription] = useState(null);
+const [lastProcessedTimestamp, setLastProcessedTimestamp] = useState(new Date());
+const pollingIntervalRef = useRef(null);
+const subscriptionChannelRef = useRef(null);
   const lastCallCountRef = useRef(0);
 
   // Variables auxiliares
@@ -667,117 +671,150 @@ const fetchCalls = async () => {
   // ✅ EFECTOS CORREGIDOS - SEPARANDO CARGA DE DATOS Y DESCUENTOS AUTOMÁTICOS
   // ============================================================================
 
-  // ✅ EFECTO 1: Cargar datos iniciales cuando el usuario cambia
+  // ============================================================================
+  // ✅ SISTEMA DE TIEMPO REAL COMPLETO - useEffects corregidos
+  // ============================================================================
+
+  // ✅ EFECTO 1: Sistema principal - Carga inicial + configurar tiempo real
   useEffect(() => {
-    if (user?.id) {
-      console.log('🚀 Usuario detectado, cargando datos:', user.email);
-      fetchCalls(); // Solo carga datos, NO hace descuentos
+    if (!user?.id) {
+      console.log('❌ No hay usuario, saltando configuración automática');
+      return;
     }
+
+    console.log('🚀 INICIANDO SISTEMA AUTOMÁTICO CON TIEMPO REAL para:', user.email);
+    
+    // Cargar datos iniciales
+    fetchCalls();
+
+    // Cleanup al desmontar o cambiar usuario
+    return () => {
+      console.log('🧹 Limpiando sistema automático...');
+      cleanupSubscriptions();
+    };
   }, [user?.id]);
 
-  // ✅ EFECTO 2: Detectar llamadas nuevas y procesar automáticamente (INDEPENDIENTE del refresh)
+  // ✅ EFECTO 2: Configurar tiempo real cuando tengamos agentes
+  useEffect(() => {
+    if (userAssignedAgents.length > 0 && user?.id && !subscriptionChannelRef.current) {
+      console.log('🎯 Agentes disponibles, configurando tiempo real...');
+      console.log('👥 Agentes para monitorear:', userAssignedAgents.map(a => a.name));
+      setupRealtimeSubscription();
+      setupPolling();
+    }
+  }, [userAssignedAgents.length, user?.id]);
+
+  // ✅ EFECTO 3: Procesamiento automático de llamadas nuevas
   useEffect(() => {
     if (!calls.length || !user?.id || loading || isProcessingAutomatic) {
       return;
     }
 
-    // Detectar si hay más llamadas que antes (indicador de llamadas nuevas)
+    // Detectar llamadas nuevas por conteo Y por timestamp
     const currentCallCount = calls.length;
     const previousCallCount = lastCallCountRef.current;
-
-    console.log(`📊 Control de llamadas nuevas: ${previousCallCount} → ${currentCallCount}`);
-
-    // Si hay más llamadas que antes (llamadas nuevas llegaron)
-    if (currentCallCount > previousCallCount && previousCallCount > 0) {
-      console.log(`🚨 NUEVAS LLAMADAS DETECTADAS: +${currentCallCount - previousCallCount}`);
-      
-      setIsProcessingAutomatic(true);
-      
-      // Procesar SOLO las llamadas nuevas automáticamente
-      processNewCallsAutomatically(calls, calculateCallCost, user.id, setCalls)
-        .finally(() => {
-          setIsProcessingAutomatic(false);
-        });
-    } else if (previousCallCount === 0) {
-      // Primera carga - procesar llamadas que nunca han sido procesadas
-      console.log('🔄 Primera carga - verificando llamadas sin procesar');
-      
-      setIsProcessingAutomatic(true);
-      
-      processNewCallsAutomatically(calls, calculateCallCost, user.id, setCalls)
-        .finally(() => {
-          setIsProcessingAutomatic(false);
-        });
-    } else {
-      console.log('✅ No hay llamadas nuevas para procesar');
-    }
-
-    // Actualizar contador de llamadas para la próxima verificación
-    lastCallCountRef.current = currentCallCount;
     
-  }, [calls.length, user?.id, loading]); // Solo cuando cambie el número de llamadas
-  // ✅ NUEVO useEffect para recalcular estadísticas automáticamente
-  useEffect(() => {
-    console.log('📊 CallsSimple - useEffect para estadísticas automáticas ejecutado:', {
-      callsLength: calls.length,
-      loading: loading,
-      audioDurationsCount: Object.keys(audioDurations).length
+    // Buscar llamadas más recientes que el último procesamiento
+    const recentCalls = calls.filter(call => {
+      const callTime = new Date(call.timestamp);
+      return callTime > lastProcessedTimestamp;
     });
 
-    // Solo calcular estadísticas si NO está cargando y hay llamadas
+    console.log(`📊 Control automático:`, {
+      totalCalls: currentCallCount,
+      previousCount: previousCallCount,
+      recentCalls: recentCalls.length,
+      lastProcessed: lastProcessedTimestamp.toISOString()
+    });
+
+    // Procesar si hay más llamadas O hay llamadas recientes sin procesar
+    if ((currentCallCount > previousCallCount && previousCallCount > 0) || recentCalls.length > 0) {
+      console.log(`🚨 ACTIVANDO PROCESAMIENTO AUTOMÁTICO`);
+      
+      setIsProcessingAutomatic(true);
+      
+      processNewCallsAutomatically(calls, calculateCallCost, user.id, setCalls)
+        .then(() => {
+          // Actualizar timestamp de último procesamiento
+          setLastProcessedTimestamp(new Date());
+          console.log('✅ Procesamiento automático completado');
+          
+          // Disparar evento de actualización de balance
+          window.dispatchEvent(new CustomEvent('balanceUpdated', {
+            detail: { 
+              userId: user.id,
+              source: 'automatic_processing',
+              timestamp: new Date().toISOString()
+            }
+          }));
+        })
+        .finally(() => {
+          setIsProcessingAutomatic(false);
+        });
+    }
+
+    // Actualizar contador
+    lastCallCountRef.current = currentCallCount;
+    
+  }, [calls.length, user?.id, loading]);
+
+  // ✅ EFECTO 4: Aplicar filtros automáticamente
+  useEffect(() => {
+    if (calls.length > 0) {
+      applyFiltersAndSort();
+    }
+  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
+
+  // ✅ EFECTO 5: Cargar duraciones de audio automáticamente
+  useEffect(() => {
+    const loadAllAudioDurations = async () => {
+      const callsWithAudio = calls.filter(call => call.recording_url);
+      
+      for (let i = 0; i < callsWithAudio.length; i += 3) {
+        const batch = callsWithAudio.slice(i, i + 3);
+        await Promise.all(batch.map(call => loadAudioDuration(call)));
+        if (i + 3 < callsWithAudio.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    };
+
+    if (calls.length > 0) {
+      loadAllAudioDurations();
+    }
+  }, [calls]);
+
+  // ✅ EFECTO 6: Recalcular estadísticas automáticamente
+  useEffect(() => {
     if (!loading && calls.length > 0) {
-      console.log('🧮 CallsSimple - Recalculando estadísticas automáticamente...');
+      console.log('🧮 Recalculando estadísticas automáticamente...');
       
       let totalCost = 0;
       let totalDuration = 0;
       let completedCalls = 0;
 
-      calls.forEach((call, index) => {
-        // 1. Obtener duración real
-        let duration = 0;
-        if (call.duration_sec && call.duration_sec > 0) {
-          duration = call.duration_sec;
-        } else if (audioDurations[call.id] && audioDurations[call.id] > 0) {
-          duration = audioDurations[call.id];
-        }
+      calls.forEach((call) => {
+        const duration = getCallDuration(call);
         totalDuration += duration;
 
-        // 2. Calcular costo real usando la función existente
         const callCost = calculateCallCostSync(call);
         totalCost += callCost;
 
-        // 3. Contar llamadas completadas
         if (['completed', 'ended'].includes(call.call_status?.toLowerCase())) {
           completedCalls++;
-        }
-
-        if (index < 3) { // Log solo las primeras 3 para debug
-          console.log(`📞 CallsSimple AUTO - Call ${call.call_id?.substring(0, 8)}: duration=${duration}s, cost=$${callCost.toFixed(4)}, status=${call.call_status}`);
         }
       });
 
       const avgDuration = calls.length > 0 ? Math.round(totalDuration / calls.length) : 0;
 
-      const finalStats = {
+      setStats({
         total: calls.length,
         totalCost: Number(totalCost.toFixed(4)),
         totalDuration,
         avgDuration,
         completedCalls
-      };
-
-      console.log('✅ CallsSimple - Estadísticas AUTO actualizadas:', {
-        total: finalStats.total,
-        totalCost: `$${finalStats.totalCost}`,
-        totalDuration: `${finalStats.totalDuration}s`,
-        avgDuration: `${finalStats.avgDuration}s`,
-        completedCalls: finalStats.completedCalls
       });
-
-      setStats(finalStats);
     } else if (!loading && calls.length === 0) {
-      // Resetear estadísticas si no hay llamadas
-      console.log('🔄 CallsSimple - Reseteando estadísticas (no hay llamadas)');
       setStats({
         total: 0,
         totalCost: 0,
@@ -786,7 +823,7 @@ const fetchCalls = async () => {
         completedCalls: 0
       });
     }
-  }, [calls, loading, audioDurations]); // ✅ DEPENDENCIAS CLAVE
+  }, [calls, loading, audioDurations]);
 
   // ✅ EFECTO 3: Aplicar filtros cuando cambien los criterios
   useEffect(() => {
@@ -813,6 +850,139 @@ const fetchCalls = async () => {
       loadAllAudioDurations();
     }
   }, [calls]);
+
+  // ============================================================================
+  // 🔔 FUNCIONES DEL SISTEMA DE TIEMPO REAL
+  // ============================================================================
+
+  // ✅ FUNCIÓN: Configurar suscripción en tiempo real
+  const setupRealtimeSubscription = () => {
+    if (subscriptionChannelRef.current || !userAssignedAgents.length) {
+      console.log('⚠️ Suscripción ya existe o no hay agentes');
+      return;
+    }
+
+    console.log('📡 Configurando suscripción en tiempo real...');
+    
+    // Obtener todos los IDs de agentes del usuario
+    const allAgentIds = userAssignedAgents.flatMap(agent => [
+      agent.id,
+      agent.retell_agent_id
+    ]).filter(Boolean);
+
+    console.log('👥 Monitoreando agentes en tiempo real:', allAgentIds);
+
+    const channel = supabase
+      .channel('calls_realtime_channel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'calls'
+        },
+        (payload) => {
+          console.log('🔔 CAMBIO EN TIEMPO REAL:', payload);
+          handleRealtimeChange(payload, allAgentIds);
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Estado suscripción:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Suscripción en tiempo real activa');
+          setRealtimeSubscription('connected');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Error en suscripción tiempo real');
+          setRealtimeSubscription('error');
+        }
+      });
+
+    subscriptionChannelRef.current = channel;
+  };
+
+  // ✅ FUNCIÓN: Manejar cambios en tiempo real
+  const handleRealtimeChange = async (payload, userAgentIds) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    
+    // Verificar si la llamada pertenece a los agentes del usuario
+    const isUserCall = newRecord?.agent_id && userAgentIds.includes(newRecord.agent_id);
+    
+    if (!isUserCall) {
+      console.log('🔍 Llamada no pertenece a este usuario, ignorando');
+      return;
+    }
+
+    console.log(`🔔 Cambio relevante detectado:`, {
+      tipo: eventType,
+      call_id: newRecord?.call_id || oldRecord?.call_id,
+      estado: newRecord?.call_status,
+      agente: newRecord?.agent_id
+    });
+
+    switch (eventType) {
+      case 'INSERT':
+        console.log('➕ Nueva llamada detectada en tiempo real');
+        setTimeout(() => {
+          console.log('🔄 Recargando por nueva llamada...');
+          fetchCalls();
+        }, 2000);
+        break;
+        
+      case 'UPDATE':
+        const wasCompleted = oldRecord?.call_status !== 'completed' && newRecord?.call_status === 'completed';
+        const wasEnded = oldRecord?.call_status !== 'ended' && newRecord?.call_status === 'ended';
+        
+        if (wasCompleted || wasEnded) {
+          console.log('✅ Llamada terminada, procesando automáticamente...');
+          setTimeout(async () => {
+            await fetchCalls();
+            // El procesamiento automático se activará por el useEffect
+          }, 3000);
+        } else {
+          console.log('🔄 Actualización de llamada, recargando...');
+          setTimeout(() => fetchCalls(), 1000);
+        }
+        break;
+        
+      case 'DELETE':
+        console.log('🗑️ Llamada eliminada');
+        setTimeout(() => fetchCalls(), 1000);
+        break;
+    }
+  };
+
+  // ✅ FUNCIÓN: Configurar polling de respaldo
+  const setupPolling = () => {
+    if (pollingIntervalRef.current) {
+      console.log('⚠️ Polling ya configurado');
+      return;
+    }
+
+    console.log('⏰ Configurando polling de respaldo cada 60 segundos...');
+    
+    pollingIntervalRef.current = setInterval(() => {
+      if (!isProcessingAutomatic && !loading) {
+        console.log('🔄 Polling de respaldo - Verificando llamadas...');
+        fetchCalls();
+      }
+    }, 60000); // 60 segundos
+  };
+
+  // ✅ FUNCIÓN: Limpiar suscripciones
+  const cleanupSubscriptions = () => {
+    if (subscriptionChannelRef.current) {
+      console.log('🧹 Desconectando suscripción tiempo real...');
+      subscriptionChannelRef.current.unsubscribe();
+      subscriptionChannelRef.current = null;
+      setRealtimeSubscription(null);
+    }
+    
+    if (pollingIntervalRef.current) {
+      console.log('🧹 Deteniendo polling...');
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
 
   // ============================================================================
   // FUNCIONES DE UTILIDAD
@@ -1107,19 +1277,95 @@ const fetchCalls = async () => {
     <DashboardLayout>
       <div className="container mx-auto py-4">
         <div className="space-y-6">
-          {/* Header */}
+          {/* ✅ Header con Sistema Automático */}
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
-              <p className="text-gray-600">
-                Comprehensive call data for your account
-                {selectedAgentName && (
-                  <span className="ml-2 text-blue-600 font-medium">
-                    • Filtered by {selectedAgentName}
+              <div className="flex items-center gap-4 mt-2">
+                <p className="text-gray-600">
+                  Comprehensive call data for your account
+                  {selectedAgentName && (
+                    <span className="ml-2 text-blue-600 font-medium">
+                      • Filtered by {selectedAgentName}
+                    </span>
+                  )}
+                </p>
+                
+                {/* ✅ INDICADORES DEL SISTEMA AUTOMÁTICO */}
+                <div className="flex items-center gap-3">
+                  {/* Indicador de tiempo real */}
+                  <div className="flex items-center gap-1">
+                    <div className={`w-2 h-2 rounded-full ${
+                      realtimeSubscription === 'connected' ? 'bg-green-500 animate-pulse' :
+                      realtimeSubscription === 'error' ? 'bg-red-500' :
+                      'bg-yellow-500 animate-bounce'
+                    }`}></div>
+                    <span className={`text-xs font-medium ${
+                      realtimeSubscription === 'connected' ? 'text-green-600' :
+                      realtimeSubscription === 'error' ? 'text-red-600' :
+                      'text-yellow-600'
+                    }`}>
+                      {realtimeSubscription === 'connected' ? 'Live Updates' :
+                       realtimeSubscription === 'error' ? 'Connection Error' :
+                       'Connecting...'}
+                    </span>
+                  </div>
+                  
+                  {/* Indicador de procesamiento */}
+                  {isProcessingAutomatic && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                      <span className="text-xs font-medium text-blue-600">Auto Processing</span>
+                    </div>
+                  )}
+                  
+                  {/* Última actualización */}
+                  <span className="text-xs text-gray-400">
+                    Last update: {new Date().toLocaleTimeString()}
                   </span>
-                )}
-              </p>
+                </div>
+              </div>
             </div>
+            
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                <User className="w-3 h-3 mr-1" />
+                Active User
+              </Badge>
+              
+              {/* ✅ BOTÓN REFRESH MANUAL (solo para emergencias) */}
+              <Button
+                onClick={() => {
+                  console.log("🔄 REFRESH MANUAL - Solo refrescando datos");
+                  fetchCalls();
+                }}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+                className="text-gray-500 border-gray-300"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-1">
+                    <LoadingSpinner size="sm" />
+                    <span className="text-xs">Updating...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 border border-gray-400 rounded-full"></div>
+                    <span className="text-xs">Manual Sync</span>
+                  </div>
+                )}
+              </Button>
+              
+              {/* Estado del sistema */}
+              <div className="text-right">
+                <div className="text-xs font-medium text-green-600">🤖 Auto System</div>
+                <div className="text-xs text-gray-500">
+                  {realtimeSubscription === 'connected' ? 'Active' : 'Starting...'}
+                </div>
+              </div>
+            </div>
+          </div>
             <div className="flex items-center gap-3">
               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                 <User className="w-3 h-3 mr-1" />
