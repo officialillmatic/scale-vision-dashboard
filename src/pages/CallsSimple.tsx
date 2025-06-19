@@ -1191,6 +1191,11 @@ const getCallDuration = (call: any) => {
   };
 
   const applyFiltersAndSort = () => {
+  console.log('🔍 === APLICANDO FILTROS ===');
+  console.log('📞 Total calls:', calls.length);
+  console.log('🎯 agentFilter:', agentFilter);
+  console.log('🤖 userAssignedAgents:', userAssignedAgents);
+
   let filtered = [...calls];
 
   // Filtro de búsqueda
@@ -1209,22 +1214,45 @@ const getCallDuration = (call: any) => {
     filtered = filtered.filter(call => call.call_status === statusFilter);
   }
 
-  // 🎯 FILTRO DE AGENTE - VERSIÓN CORREGIDA
+  // 🎯 FILTRO DE AGENTE CON DEBUG COMPLETO
   if (agentFilter !== null) {
+    console.log('🎯 Aplicando filtro de agente:', agentFilter);
+    
     // Encontrar el agente seleccionado
     const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
+    console.log('🤖 Agente encontrado:', selectedAgent);
     
     if (selectedAgent) {
+      console.log('✅ Filtrando llamadas para agente:', selectedAgent.name);
+      
+      // ANTES del filtro - mostrar todas las llamadas
+      console.log('📞 Llamadas ANTES del filtro:', filtered.map(call => ({
+        call_id: call.call_id.substring(0, 8),
+        agent_id: call.agent_id.substring(0, 8),
+        matches_id: call.agent_id === selectedAgent.id,
+        matches_retell: call.agent_id === selectedAgent.retell_agent_id
+      })));
+      
       // Filtrar llamadas que coincidan con este agente
       filtered = filtered.filter(call => {
-        // Comparar con ID directo o retell_agent_id
-        return call.agent_id === selectedAgent.id || 
-               call.agent_id === selectedAgent.retell_agent_id;
+        const matchesId = call.agent_id === selectedAgent.id;
+        const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
+        const shouldInclude = matchesId || matchesRetell;
+        
+        if (shouldInclude) {
+          console.log(`✅ INCLUIR llamada ${call.call_id.substring(0, 8)} - Coincide con agente`);
+        }
+        
+        return shouldInclude;
       });
+      
+      console.log(`🎯 Llamadas DESPUÉS del filtro: ${filtered.length}`);
     } else {
-      // Si no encuentra el agente, no mostrar llamadas
+      console.log('❌ Agente no encontrado, mostrando 0 llamadas');
       filtered = [];
     }
+  } else {
+    console.log('👥 Mostrando TODAS las llamadas (All Agents)');
   }
 
   // Filtro de fecha
@@ -1247,6 +1275,7 @@ const getCallDuration = (call: any) => {
     }
   });
 
+  console.log('📊 RESULTADO FINAL:', filtered.length, 'llamadas');
   setFilteredCalls(filtered);
 };
   const getStatusColor = (status: string) => {
