@@ -1956,7 +1956,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                     <Settings className="h-4 w-4 text-green-600 mt-0.5" />
                     <div className="text-sm text-green-800">
                       <strong>Asignaciones:</strong> Gestiona qué usuarios tienen acceso a qué Custom AI Agents. 
-                      Las asignaciones primarias indican el agente principal del usuario.
+Todos los agentes asignados son equivalentes.
                     </div>
                   </div>
                 </div>
@@ -2008,35 +2008,18 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                               <p className="font-medium text-sm text-purple-700">{assignment.agent_name}</p>
                             </div>
                             
-                            {assignment.is_primary && (
-                              <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">
-                                <Crown className="h-3 w-3 mr-1" />
-                                Primario
-                              </Badge>
-                            )}
+                            
                           </div>
                           
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-600">
-                            <span>Tipo: <strong>{assignment.is_primary ? 'Asignación Primaria' : 'Asignación Secundaria'}</strong></span>
+                            <span>Tipo: <strong>Asignación de Agente</strong></span>
                             <span>Creada: <strong>{formatDate(assignment.created_at)}</strong></span>
                             <span>Estado: <strong className="text-green-600">Activa</strong></span>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 ml-4">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleUpdatePrimary(
-                              assignment.id, 
-                              !assignment.is_primary, 
-                              assignment.user_id
-                            )}
-                            className="text-blue-600 hover:text-blue-700"
-                            disabled={!isSuperAdmin}
-                          >
-                            {assignment.is_primary ? 'Quitar Primario' : 'Hacer Primario'}
-                          </Button>
+                          
                           
                           <Button 
                             size="sm" 
@@ -2354,10 +2337,9 @@ const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
   agents 
 }) => {
   const [formData, setFormData] = useState({
-    user_id: '',
-    agent_id: '',
-    is_primary: false
-  });
+  user_id: '',
+  agent_id: ''
+});
 
   const [selectedUser, setSelectedUser] = useState<TeamMember | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -2371,10 +2353,10 @@ const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
     }
 
     onSave({
-      user_id: formData.user_id,
-      agent_id: formData.agent_id,
-      is_primary: formData.is_primary
-    });
+  user_id: formData.user_id,
+  agent_id: formData.agent_id,
+  is_primary: false  // Siempre false, ya no usamos primarios
+});
   };
 
   const handleUserChange = (userId: string) => {
@@ -2459,29 +2441,6 @@ const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
                   <div><strong>Estado:</strong> {selectedAgent.status}</div>
                   <div><strong>Empresa:</strong> {selectedAgent.company_name || 'N/A'}</div>
                   <div><strong>Retell ID:</strong> {selectedAgent.retell_agent_id}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Checkbox para asignación primaria */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is_primary"
-                checked={formData.is_primary}
-                onCheckedChange={(checked) => 
-                  setFormData(prev => ({ ...prev, is_primary: checked as boolean }))
-                }
-              />
-              <label htmlFor="is_primary" className="text-sm font-medium">
-                Asignación Primaria
-              </label>
-            </div>
-            
-            {formData.is_primary && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <div className="text-xs text-yellow-800">
-                  <strong>Nota:</strong> Una asignación primaria indica que este será el agente principal del usuario.
-                  Solo puede haber una asignación primaria por usuario.
                 </div>
               </div>
             )}
