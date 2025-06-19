@@ -1834,8 +1834,8 @@ for (const call of data) {
                               <User className="w-4 h-4 text-gray-400" />
                               <div>
                                 <div className="text-sm font-medium text-gray-900">
-                                  {getAgentName(call.agent_id)}
-                                </div>
+  {call.call_agent?.name || getAgentName(call.agent_id)}
+</div>
                                 <div className="text-xs text-gray-500">
                                   {call.agent_id.substring(0, 8)}...
                                 </div>
