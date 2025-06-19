@@ -1345,8 +1345,16 @@ const userAgents = agentDetails?.map(agent => ({
 })) || [];
 
 
-// 🔧 AGREGAR ESTA LÍNEA AQUÍ
-      setUserAssignedAgents(agentDetails || []);
+// ✅ GUARDAR agentes para el filtro:
+setUserAssignedAgents(agentDetails || []);
+
+// ✅ NUEVA LÍNEA para nombres: Actualizar el mapeo de agentes
+const agentNameMapping = {};
+agentDetails?.forEach(agent => {
+  agentNameMapping[agent.id] = agent.name;
+  agentNameMapping[agent.retell_agent_id] = agent.name; // Para ambos IDs
+});
+
 setCalls([]); // Para que uniqueAgents se actualice
 
   // 🔍 Y ESTA LÍNEA JUSTO DESPUÉS DE LA CONSULTA
