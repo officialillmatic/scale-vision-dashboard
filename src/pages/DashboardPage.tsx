@@ -426,29 +426,70 @@ useEffect(() => {
     console.log('🧹 Dashboard: Listener balanceUpdated removido');
   };
 }, [user?.id]);
-
-  // ✅ useEffect para recalcular estadísticas automáticamente
-  // 🚨 EMERGENCY: Listener directo en Dashboard para CreditBalance
+  
+  // ✅ SOLUCIÓN FINAL: Balance update sin reload
 useEffect(() => {
   if (!user?.id) return;
 
-  console.log('🚨 EMERGENCY: Dashboard listener directo para balance...');
+  console.log('✅ SOLUCIÓN FINAL: Configurando balance update directo...');
   
   const handleBalanceUpdate = (event: CustomEvent) => {
-    console.log('💳 EMERGENCY: Evento recibido en Dashboard:', event.detail);
+    console.log('💳 BALANCE UPDATE: Evento recibido:', event.detail);
     
-    // Forzar recarga completa del balance
+    const { deduction } = event.detail;
+    
+    // Mostrar notificación visual
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+      padding: 16px 20px;
+      border-radius: 12px;
+      font-weight: bold;
+      font-size: 14px;
+      z-index: 9999;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      animation: slideIn 0.3s ease-out;
+    `;
+    notification.innerHTML = `💳 Call cost: -$${deduction.toFixed(2)}`;
+    
+    // Agregar animación CSS
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    document.body.appendChild(notification);
+    
+    // Remover después de 5 segundos
     setTimeout(() => {
-      window.location.reload();
-    }, 1000);
+      notification.remove();
+      style.remove();
+    }, 5000);
+    
+    // Refrescar datos del balance
+    if (user?.id) {
+      refreshCreditBalance(user.id);
+      fetchCallsData();
+    }
   };
 
   window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+  
+  console.log('✅ Balance update directo configurado');
   
   return () => {
     window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
   };
 }, [user?.id]);
+  
   useEffect(() => {
     console.log('📊 Dashboard - useEffect para estadísticas automáticas ejecutado:', {
       callsLength: calls.length,
