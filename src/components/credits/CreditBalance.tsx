@@ -1,5 +1,5 @@
-// src/components/credits/CreditBalance.tsx - PARTE 1 CORREGIDA
-// Imports y configuración inicial
+// src/components/credits/CreditBalance.tsx - VERSIÓN CORREGIDA
+// Eliminando errores críticos y simplificando
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,8 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useAgents } from '@/hooks/useAgents';
-import { useAutoPollingBalance } from '@/hooks/useAutoPollingBalance';
 import { 
   Wallet, 
   AlertTriangle, 
@@ -20,10 +18,7 @@ import {
   Info,
   Zap,
   TrendingDown,
-  TrendingUp,
-  Activity,
-  Clock,
-  DollarSign
+  Activity
 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { formatCurrency } from '@/lib/formatters';
@@ -36,368 +31,123 @@ interface CreditBalanceProps {
 export function CreditBalance({ onRequestRecharge, showActions = true }: CreditBalanceProps) {
   const { user } = useAuth();
   
-  // 🔄 USAR EL NUEVO HOOK CON AUTO-POLLING
-  const { 
-    balanceStats,
-    loading, 
-    error, 
-    lastBalanceChange,
-    isPolling,
-    refreshBalance,
-    canMakeCall,
-    simulateCall,
-    currentBalance,
-    balanceStatus,
-    totalSpentToday,
-    recentTransactionsCount
-  } = useAutoPollingBalance();
-
-  // ESTADOS LOCALES - CON NUEVOS ESTADOS AGREGADOS
+  // ✅ ESTADOS UNIFICADOS - UNA SOLA FUENTE DE VERDAD
+  const [balance, setBalance] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [balanceLoaded, setBalanceLoaded] = useState(false);
+  const [lastDeduction, setLastDeduction] = useState<number | null>(null);
   const [showUpdateIndicator, setShowUpdateIndicator] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   
-  // ✅ NUEVOS ESTADOS PARA TARIFA REAL
-  const [realAgentRate, setRealAgentRate] = useState<number | null>(null);
-  const [rateLoaded, setRateLoaded] = useState(false);
-  const [realtimeChannel, setRealtimeChannel] = useState<any>(null);
-const [lastTransactionCheck, setLastTransactionCheck] = useState<string | null>(null);
-  const [localBalance, setLocalBalance] = useState<number | null>(null);
-const [balanceLoaded, setBalanceLoaded] = useState(false);
-
-  // Hook de agentes para calcular minutos estimados
-  const { agents, isLoadingAgents } = useAgents();
-
-  // Effect para cargar balance directo al inicializar
-useEffect(() => {
-  if (user?.id) {
-    fetchBalanceDirect();
-  }
-}, [user?.id, fetchBalanceDirect]);
-
-  // ✅ EFECTO PARA MOSTRAR INDICADOR DE ACTUALIZACIÓN
-  useEffect(() => {
-    if (lastBalanceChange) {
-      setShowUpdateIndicator(true);
-      
-      // Mostrar indicador por 5 segundos
-      const timer = setTimeout(() => {
-        setShowUpdateIndicator(false);
-      }, 5000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [lastBalanceChange]);
-
-  // ✅ LISTENER DEFINITIVO - BYPASS DEL HOOK
-  // ✅ LISTENER DEFINITIVO CON BALANCE LOCAL
-useEffect(() => {
-  if (!user?.id) return;
-
-  console.log('🔔 CreditBalance: Configurando listener con balance local...');
-  
-  const handleBalanceUpdate = async (event: CustomEvent) => {
-    console.log('💳 CreditBalance: Evento recibido:', event.detail);
-    
-    const { userId, deduction } = event.detail;
-    
-    if (userId === user.id || userId === 'current-user' || userId === 'test-user') {
-      console.log('✅ CreditBalance: Actualizando balance local...');
-      
-      // Actualizar balance local inmediatamente
-      if (localBalance !== null) {
-        const newBalance = localBalance - deduction;
-        console.log(`💰 Balance local: $${localBalance} → $${newBalance}`);
-        setLocalBalance(newBalance);
-      }
-      
-      // También obtener de BD para confirmar
-      await fetchBalanceDirect();
-      
-      // Mostrar indicador
-      setShowUpdateIndicator(true);
-      setTimeout(() => setShowUpdateIndicator(false), 5000);
-    }
-  };
-
-  window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-  
-  return () => {
-    window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-  };
-}, [user?.id, localBalance, fetchBalanceDirect]);
-
-  // ✅ MONITOREO DIRECTO DE TRANSACCIONES
-  const setupDirectTransactionMonitoring = useCallback(() => {
-    if (!user?.id) return;
-
-    console.log('🔔 Configurando monitoreo DIRECTO de transacciones...');
-
-    // Suscripción directa a tabla credit_transactions
-    const channel = supabase
-      .channel(`credit_transactions_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'credit_transactions',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('💳 NUEVA TRANSACCIÓN DETECTADA:', payload);
-          
-          const newTransaction = payload.new;
-          
-          // Verificar si es un descuento (amount negativo)
-          if (newTransaction.amount < 0) {
-            console.log(`🔥 DESCUENTO AUTOMÁTICO: ${newTransaction.amount}`);
-            
-            // Mostrar indicador visual inmediatamente
-            setShowUpdateIndicator(true);
-            setLastTransactionCheck(newTransaction.id);
-            
-            // Actualizar balance
-            refreshBalance();
-            
-            // Ocultar indicador después de 5 segundos
-            setTimeout(() => {
-              setShowUpdateIndicator(false);
-            }, 5000);
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Estado suscripción transacciones:', status);
-      });
-
-    setRealtimeChannel(channel);
-
-    return () => {
-      console.log('🔌 Desconectando monitoreo de transacciones...');
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id, refreshBalance]);
-
-  // Effect para configurar monitoreo directo
-  useEffect(() => {
-    if (user?.id) {
-      const cleanup = setupDirectTransactionMonitoring();
-      return cleanup;
-    }
-  }, [user?.id, setupDirectTransactionMonitoring]);
-
-  // ✅ VERIFICACIÓN PERIÓDICA (RESPALDO)
-  const checkRecentTransactions = useCallback(async () => {
-    if (!user?.id) return;
+  // ✅ FUNCIÓN PARA OBTENER BALANCE - SIN DEPENDENCIAS CIRCULARES
+  const fetchBalance = useCallback(async () => {
+    if (!user?.id) return null;
 
     try {
-      const now = new Date();
-      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-
-      const { data: recentTransactions, error } = await supabase
-        .from('credit_transactions')
-        .select('*')
+      console.log('💰 Obteniendo balance...');
+      
+      const { data: creditData, error } = await supabase
+        .from('user_credits')
+        .select('current_balance')
         .eq('user_id', user.id)
-        .lt('amount', 0) // Solo descuentos
-        .gte('created_at', fiveMinutesAgo.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .single();
 
       if (error) {
-        console.error('❌ Error verificando transacciones:', error);
-        return;
+        console.error('❌ Error obteniendo balance:', error);
+        setError('Error loading balance');
+        return null;
       }
 
-      if (recentTransactions && recentTransactions.length > 0) {
-        const lastTransaction = recentTransactions[0];
-        
-        // Verificar si es una transacción nueva que no hemos procesado
-        if (lastTransaction.id !== lastTransactionCheck) {
-          console.log('🆕 Nueva transacción encontrada en verificación:', lastTransaction);
-          
-          setShowUpdateIndicator(true);
-          setLastTransactionCheck(lastTransaction.id);
-          refreshBalance();
-          
-          setTimeout(() => {
-            setShowUpdateIndicator(false);
-          }, 5000);
-        }
-      }
+      const currentBalance = creditData?.current_balance || 0;
+      console.log(`✅ Balance obtenido: $${currentBalance}`);
+      
+      setBalance(currentBalance);
+      setBalanceLoaded(true);
+      setError(null);
+      
+      return currentBalance;
+      
     } catch (error) {
-      console.error('❌ Error en checkRecentTransactions:', error);
-    }
-  }, [user?.id, lastTransactionCheck, refreshBalance]);
-
-  // Effect para verificación periódica (cada 30 segundos)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const interval = setInterval(() => {
-      checkRecentTransactions();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [user?.id, checkRecentTransactions]);
-  // ============================================================================
-  // FUNCIONES AUXILIARES - TIEMPO REAL SIN LOADING INFINITO
-  // ============================================================================
-// ============================================================================
-// FUNCIÓN PARA OBTENER BALANCE DIRECTO (SIN HOOK)
-// ============================================================================
-const fetchBalanceDirect = useCallback(async () => {
-  if (!user?.id) return;
-
-  try {
-    console.log('💰 Obteniendo balance directo de BD...');
-    
-    const { data: creditData, error } = await supabase
-      .from('user_credits')
-      .select('current_balance')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error) {
-      console.error('❌ Error obteniendo balance directo:', error);
-      return;
-    }
-
-    const balance = creditData?.current_balance || 0;
-    console.log(`✅ Balance directo obtenido: $${balance}`);
-    
-    setLocalBalance(balance);
-    setBalanceLoaded(true);
-    
-    return balance;
-    
-  } catch (error) {
-    console.error('💥 Error en fetchBalanceDirect:', error);
-    return null;
-  }
-}, [user?.id]);
-  
-  // Obtener tarifa real del agente en tiempo real
-  const fetchAgentRateRealTime = useCallback(async () => {
-    if (!user?.id) return;
-
-    try {
-      console.log('🔍 Obteniendo tarifa real del agente en tiempo real...');
-      
-      const { data: userAgents, error } = await supabase
-        .from('user_agent_assignments')
-        .select(`
-          agent_id,
-          agents!inner (
-            id,
-            name,
-            rate_per_minute,
-            retell_agent_id
-          )
-        `)
-        .eq('user_id', user.id)
-        .eq('is_primary', true);
-
-      if (error) {
-        console.error('❌ Error obteniendo agentes:', error);
-        setRealAgentRate(null);
-        setRateLoaded(true);
-        return;
-      }
-
-      if (!userAgents || userAgents.length === 0) {
-        console.warn('⚠️ No se encontraron agentes asignados');
-        setRealAgentRate(null);
-        setRateLoaded(true);
-        return;
-      }
-
-      const agentsData = userAgents.map(assignment => assignment.agents);
-      const validAgents = agentsData.filter(agent => 
-        agent && agent.rate_per_minute && agent.rate_per_minute > 0
-      );
-      
-      if (validAgents.length === 0) {
-        console.warn('⚠️ Agentes sin tarifa configurada');
-        setRealAgentRate(null);
-        setRateLoaded(true);
-        return;
-      }
-
-      // Calcular tarifa promedio real
-      const totalRate = validAgents.reduce((sum, agent) => sum + agent.rate_per_minute, 0);
-      const avgRate = totalRate / validAgents.length;
-      
-      console.log(`✅ Tarifa REAL obtenida: $${avgRate.toFixed(4)}/min`);
-      console.log(`🤖 Agentes: ${validAgents.map(a => a.name).join(', ')}`);
-      
-      setRealAgentRate(avgRate);
-      setRateLoaded(true);
-
-    } catch (error) {
-      console.error('❌ Error en fetchAgentRateRealTime:', error);
-      setRealAgentRate(null);
-      setRateLoaded(true);
+      console.error('💥 Error en fetchBalance:', error);
+      setError('Failed to load balance');
+      return null;
     }
   }, [user?.id]);
 
-  // Calcular minutos estimados en tiempo real
-  const calculateEstimatedMinutesRealTime = (): { minutes: number, rate: number | null, hasRate: boolean } => {
-    if (!currentBalance || currentBalance <= 0) {
-      return { minutes: 0, rate: null, hasRate: false };
-    }
-
-    if (!rateLoaded) {
-      return { minutes: 0, rate: null, hasRate: false };
-    }
-
-    if (!realAgentRate || realAgentRate <= 0) {
-      return { minutes: 0, rate: null, hasRate: false };
-    }
-
-    const estimatedMinutes = Math.floor(currentBalance / realAgentRate);
-    
-    console.log(`🧮 CÁLCULO TIEMPO REAL:`);
-    console.log(`   💳 Balance: $${currentBalance.toFixed(2)}`);
-    console.log(`   🤖 Tarifa real: $${realAgentRate.toFixed(4)}/min`);
-    console.log(`   ⏱️ Minutos: ${estimatedMinutes}`);
-    
-    return { 
-      minutes: estimatedMinutes, 
-      rate: realAgentRate, 
-      hasRate: true 
-    };
-  };
-
-  // Effect para cargar tarifa real al inicializar
+  // ✅ CARGAR BALANCE INICIAL
   useEffect(() => {
     if (user?.id) {
-      fetchAgentRateRealTime();
+      setLoading(true);
+      fetchBalance().finally(() => setLoading(false));
     }
-  }, [user?.id, fetchAgentRateRealTime]);
+  }, [user?.id, fetchBalance]);
 
-  // Effect para recargar tarifa cuando cambie el balance
+  // ✅ LISTENER ÚNICO Y CONSOLIDADO
   useEffect(() => {
-    if (user?.id && currentBalance !== undefined) {
-      // Solo recargar si no tenemos tarifa aún
-      if (!rateLoaded) {
-        fetchAgentRateRealTime();
+    if (!user?.id) return;
+
+    console.log('🔔 Configurando listener para balanceUpdated...');
+    
+    const handleBalanceUpdate = async (event: CustomEvent) => {
+      console.log('💳 Evento balanceUpdated recibido:', event.detail);
+      
+      const { userId, deduction } = event.detail;
+      
+      // Verificar que sea para este usuario
+      if (userId === user.id || userId === 'current-user' || userId === 'test-user') {
+        console.log('✅ Actualizando balance...');
+        
+        // Actualizar balance local inmediatamente para UX
+        if (balanceLoaded) {
+          const newBalance = Math.max(0, balance - deduction);
+          console.log(`💰 Balance: $${balance} → $${newBalance}`);
+          setBalance(newBalance);
+        }
+        
+        // Mostrar indicador visual
+        setLastDeduction(deduction);
+        setShowUpdateIndicator(true);
+        
+        // Ocultar indicador después de 5 segundos
+        setTimeout(() => {
+          setShowUpdateIndicator(false);
+          setLastDeduction(null);
+        }, 5000);
+        
+        // Confirmar con BD después de un momento
+        setTimeout(async () => {
+          await fetchBalance();
+        }, 1000);
       }
-    }
-  }, [user?.id, currentBalance, rateLoaded, fetchAgentRateRealTime]);
+    };
 
-  
-  // ============================================================================
-  // FUNCIONES PARA PROCESAR LLAMADAS PENDIENTES
-  // ============================================================================
-  
-  
+    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+      console.log('🧹 Listener removido');
+    };
+  }, [user?.id, balance, balanceLoaded, fetchBalance]);
 
+  // ✅ FUNCIÓN DE REFRESH MANUAL
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchBalance();
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
 
-  // ============================================================================
-  // FUNCIONES DE CONFIGURACIÓN
-  // ============================================================================
+  // ✅ CALCULAR STATUS DEL BALANCE
+  const getBalanceStatus = (currentBalance: number) => {
+    if (currentBalance <= 0) return 'empty';
+    if (currentBalance <= 1) return 'critical';
+    if (currentBalance <= 5) return 'warning';
+    return 'healthy';
+  };
 
-  // Obtener configuración de estado del balance
+  // ✅ CONFIGURACIÓN DE STATUS
   const getStatusConfig = (status: string) => {
     switch (status) {
       case 'empty':
@@ -443,26 +193,11 @@ const fetchBalanceDirect = useCallback(async () => {
     }
   };
 
-  // Función de refresh manual
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    refreshBalance();
-    
-    // Simular delay mínimo para UX
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
-  };
-
-  // ============================================================================
-  // VARIABLES COMPUTADAS
-  // ============================================================================
-  
+  // ✅ VARIABLES COMPUTADAS
+  const balanceStatus = getBalanceStatus(balance);
   const config = getStatusConfig(balanceStatus);
   const IconComponent = config.icon;
-  const lastDeduction = lastBalanceChange && lastBalanceChange.isDeduction 
-    ? lastBalanceChange.difference 
-    : null;
+
   // ============================================================================
   // RENDERS CONDICIONALES
   // ============================================================================
@@ -548,24 +283,13 @@ const fetchBalanceDirect = useCallback(async () => {
       </Card>
     );
   }
+
   // ============================================================================
-  // RENDER PRINCIPAL DEL COMPONENTE
+  // RENDER PRINCIPAL
   // ============================================================================
   
   return (
     <Card className="border border-black bg-white rounded-xl shadow-sm relative">
-      {/* 🔄 INDICADOR DE AUTO-POLLING EN TIEMPO REAL */}
-      <div className="absolute top-2 left-2 z-10">
-        <div className={`flex items-center space-x-1 text-xs px-2 py-1 rounded-full transition-all duration-300 ${
-          isPolling 
-            ? 'bg-green-100 text-green-800 border border-green-200' 
-            : 'bg-gray-100 text-gray-600 border border-gray-200'
-        }`}>
-          <Activity className={`h-3 w-3 ${isPolling ? 'animate-pulse' : ''}`} />
-          <span>{isPolling ? 'Live' : 'Offline'}</span>
-        </div>
-      </div>
-
       {/* ✅ INDICADOR DE ACTUALIZACIÓN EN TIEMPO REAL */}
       {showUpdateIndicator && lastDeduction && (
         <div className="absolute top-2 right-2 z-10">
@@ -596,18 +320,12 @@ const fetchBalanceDirect = useCallback(async () => {
               <div className="text-center sm:text-left">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">Account Balance</h3>
                 <p className={`text-2xl sm:text-4xl font-bold ${config.balanceColor} mt-1 transition-all duration-300`}>
-                  {formatCurrency(currentBalance)}
+                  {formatCurrency(balance)}
                 </p>
                 {/* Mostrar último descuento */}
                 {lastDeduction && showUpdateIndicator && (
                   <p className="text-sm text-red-600 font-medium mt-1 animate-fade-in">
                     Last call: -{formatCurrency(lastDeduction)}
-                  </p>
-                )}
-                {/* Mostrar gastos del día */}
-                {totalSpentToday > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Today: -{formatCurrency(totalSpentToday)}
                   </p>
                 )}
               </div>
@@ -626,11 +344,9 @@ const fetchBalanceDirect = useCallback(async () => {
               </div>
             </div>
 
-            {/* Desktop: Action Buttons - CON REFRESH BALANCE INTEGRADO */}
+            {/* Desktop: Action Buttons */}
             {showActions && (
               <div className="hidden sm:flex items-center space-x-3">
-                
-
                 {/* Botón Request Recharge */}
                 {onRequestRecharge && (
                   <Button 
@@ -660,7 +376,8 @@ const fetchBalanceDirect = useCallback(async () => {
               </div>
             )}
           </div>
-{/* ROW 2: Mobile Status Badge (centered) */}
+
+          {/* ROW 2: Mobile Status Badge (centered) */}
           <div className="flex sm:hidden items-center justify-center space-x-3 mb-4">
             <IconComponent className={`h-6 w-6 ${config.iconColor}`} />
             <Badge 
@@ -671,11 +388,9 @@ const fetchBalanceDirect = useCallback(async () => {
             </Badge>
           </div>
 
-          {/* ROW 3: Mobile Action Buttons - CON REFRESH BALANCE INTEGRADO */}
+          {/* ROW 3: Mobile Action Buttons */}
           {showActions && (
             <div className="flex sm:hidden flex-col space-y-3 mb-4">
-              
-
               {/* Botón Request Recharge - Mobile */}
               {onRequestRecharge && (
                 <Button 
@@ -712,84 +427,27 @@ const fetchBalanceDirect = useCallback(async () => {
               {/* Left: Availability Status */}
               <div className="flex items-center justify-center sm:justify-start space-x-2">
                 <div className={`h-3 w-3 rounded-full ${
-                  currentBalance > 0 ? 'bg-green-500' : 'bg-red-500'
+                  balance > 0 ? 'bg-green-500' : 'bg-red-500'
                 } ${showUpdateIndicator ? 'animate-pulse' : ''}`}></div>
                 <p className="text-sm sm:text-base font-medium text-gray-700">
-                  {currentBalance > 0 ? 'Available for calls' : 'Service unavailable'}
+                  {balance > 0 ? 'Available for calls' : 'Service unavailable'}
                 </p>
-                {/* Mostrar conteo de transacciones recientes */}
-                {recentTransactionsCount > 0 && (
-                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                    {recentTransactionsCount} recent
-                  </span>
-                )}
               </div>
 
-              {/* ✅ Center: Status Message + Estimado EN TIEMPO REAL - CORREGIDO */}
+              {/* Center: Status Message */}
               <div className="text-center">
                 <p className="text-sm sm:text-base font-medium text-gray-600">
                   {config.message}
                 </p>
-                {currentBalance > 0 && (
+                {balance > 0 && (
                   <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                    {(() => {
-                      if (!rateLoaded) {
-                        return (
-                          <span className="flex items-center justify-center gap-1">
-                            <LoadingSpinner size="sm" />
-                            Getting agent rate...
-                          </span>
-                        );
-                      }
-
-                      const calculation = calculateEstimatedMinutesRealTime();
-                      
-                      if (calculation.hasRate && calculation.minutes > 0) {
-                        return (
-                          <>
-                            Estimated {calculation.minutes.toLocaleString()} minutes remaining
-                            <span className="text-xs text-blue-600 ml-2">
-                              (avg ${calculation.rate!.toFixed(3)}/min)
-                            </span>
-                          </>
-                        );
-                      } else {
-                        return (
-                          <span className="text-orange-600">
-                            Configure agent rate to see estimated minutes
-                          </span>
-                        );
-                      }
-                    })()}
+                    Balance will update automatically during calls
                   </p>
                 )}
               </div>
 
-              {/* Right: Thresholds + Controls */}
-              <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-6">
-                {balanceStats && (
-                  <div className="text-center sm:text-right">
-                    <div className="flex flex-col sm:flex-row items-center space-y-1 sm:space-y-0 sm:space-x-4 text-xs sm:text-sm font-medium">
-                      <span className="text-yellow-700">
-                        Warning: {formatCurrency(balanceStats.warning_threshold)}
-                      </span>
-                      <span className="text-orange-700">
-                        Critical: {formatCurrency(balanceStats.critical_threshold)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Updated {new Date(balanceStats.updated_at).toLocaleDateString()}
-                      {/* Indicador de tiempo real */}
-                      {isPolling && (
-                        <span className="ml-2 text-green-600 font-medium">• Live</span>
-                      )}
-                      {showUpdateIndicator && (
-                        <span className="ml-2 text-blue-600 font-medium animate-pulse">• Updated</span>
-                      )}
-                    </p>
-                  </div>
-                )}
-                
+              {/* Right: Controls */}
+              <div className="flex items-center justify-center">
                 <Button 
                   onClick={handleRefresh} 
                   variant="ghost" 
@@ -800,7 +458,7 @@ const fetchBalanceDirect = useCallback(async () => {
                   {refreshing ? (
                     <LoadingSpinner size="sm" />
                   ) : (
-                    <RefreshCw className={`h-5 w-5 ${isPolling ? 'text-green-600' : ''} ${showUpdateIndicator ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-5 w-5 ${showUpdateIndicator ? 'animate-spin' : ''}`} />
                   )}
                 </Button>
               </div>
