@@ -59,6 +59,8 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   // ✅ NUEVOS ESTADOS PARA TARIFA REAL
   const [realAgentRate, setRealAgentRate] = useState<number | null>(null);
   const [rateLoaded, setRateLoaded] = useState(false);
+  const [realtimeChannel, setRealtimeChannel] = useState<any>(null);
+const [lastTransactionCheck, setLastTransactionCheck] = useState<string | null>(null);
 
   // Hook de agentes para calcular minutos estimados
   const { agents, isLoadingAgents } = useAgents();
@@ -76,6 +78,159 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       return () => clearTimeout(timer);
     }
   }, [lastBalanceChange]);
+
+  // ✅ ESCUCHAR EVENTO balanceUpdated MEJORADO
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('🔔 Configurando listener para balanceUpdated...');
+    
+    const handleBalanceUpdate = (event: CustomEvent) => {
+      console.log('💳 Evento balanceUpdated recibido:', event.detail);
+      
+      const { userId, deduction, source } = event.detail;
+      
+      // Solo procesar si es para este usuario
+      if (userId === user.id) {
+        console.log('✅ Actualizando balance por evento automático...');
+        
+        // Mostrar indicador visual inmediatamente
+        setShowUpdateIndicator(true);
+        
+        // Actualizar balance
+        refreshBalance();
+        
+        // Auto-ocultar después de 5 segundos
+        setTimeout(() => {
+          setShowUpdateIndicator(false);
+        }, 5000);
+      }
+    };
+
+    // Escuchar el evento
+    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    
+    console.log('✅ Listener balanceUpdated configurado');
+    
+    return () => {
+      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+      console.log('🧹 Listener balanceUpdated removido');
+    };
+  }, [user?.id, refreshBalance]);
+
+  // ✅ MONITOREO DIRECTO DE TRANSACCIONES
+  const setupDirectTransactionMonitoring = useCallback(() => {
+    if (!user?.id) return;
+
+    console.log('🔔 Configurando monitoreo DIRECTO de transacciones...');
+
+    // Suscripción directa a tabla credit_transactions
+    const channel = supabase
+      .channel(`credit_transactions_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'credit_transactions',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('💳 NUEVA TRANSACCIÓN DETECTADA:', payload);
+          
+          const newTransaction = payload.new;
+          
+          // Verificar si es un descuento (amount negativo)
+          if (newTransaction.amount < 0) {
+            console.log(`🔥 DESCUENTO AUTOMÁTICO: ${newTransaction.amount}`);
+            
+            // Mostrar indicador visual inmediatamente
+            setShowUpdateIndicator(true);
+            setLastTransactionCheck(newTransaction.id);
+            
+            // Actualizar balance
+            refreshBalance();
+            
+            // Ocultar indicador después de 5 segundos
+            setTimeout(() => {
+              setShowUpdateIndicator(false);
+            }, 5000);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Estado suscripción transacciones:', status);
+      });
+
+    setRealtimeChannel(channel);
+
+    return () => {
+      console.log('🔌 Desconectando monitoreo de transacciones...');
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, refreshBalance]);
+
+  // Effect para configurar monitoreo directo
+  useEffect(() => {
+    if (user?.id) {
+      const cleanup = setupDirectTransactionMonitoring();
+      return cleanup;
+    }
+  }, [user?.id, setupDirectTransactionMonitoring]);
+
+  // ✅ VERIFICACIÓN PERIÓDICA (RESPALDO)
+  const checkRecentTransactions = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+      const { data: recentTransactions, error } = await supabase
+        .from('credit_transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .lt('amount', 0) // Solo descuentos
+        .gte('created_at', fiveMinutesAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('❌ Error verificando transacciones:', error);
+        return;
+      }
+
+      if (recentTransactions && recentTransactions.length > 0) {
+        const lastTransaction = recentTransactions[0];
+        
+        // Verificar si es una transacción nueva que no hemos procesado
+        if (lastTransaction.id !== lastTransactionCheck) {
+          console.log('🆕 Nueva transacción encontrada en verificación:', lastTransaction);
+          
+          setShowUpdateIndicator(true);
+          setLastTransactionCheck(lastTransaction.id);
+          refreshBalance();
+          
+          setTimeout(() => {
+            setShowUpdateIndicator(false);
+          }, 5000);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error en checkRecentTransactions:', error);
+    }
+  }, [user?.id, lastTransactionCheck, refreshBalance]);
+
+  // Effect para verificación periódica (cada 30 segundos)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const interval = setInterval(() => {
+      checkRecentTransactions();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [user?.id, checkRecentTransactions]);
   // ============================================================================
   // FUNCIONES AUXILIARES - TIEMPO REAL SIN LOADING INFINITO
   // ============================================================================
