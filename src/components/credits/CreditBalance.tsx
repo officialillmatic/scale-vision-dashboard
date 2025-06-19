@@ -91,8 +91,8 @@ const [lastTransactionCheck, setLastTransactionCheck] = useState<string | null>(
       const { userId, deduction, source } = event.detail;
       
       // Solo procesar si es para este usuario
-      if (userId === user.id) {
-        console.log('✅ Actualizando balance por evento automático...');
+      if (userId === user.id || userId === 'current-user' || userId === 'test-user') {
+        console.log('✅ CreditBalance: Actualizando balance por evento automático...');
         
         // Mostrar indicador visual inmediatamente
         setShowUpdateIndicator(true);
@@ -110,11 +110,11 @@ const [lastTransactionCheck, setLastTransactionCheck] = useState<string | null>(
     // Escuchar el evento
     window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
     
-    console.log('✅ Listener balanceUpdated configurado');
+    console.log('✅ CreditBalance: Listener balanceUpdated configurado');
     
     return () => {
       window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-      console.log('🧹 Listener balanceUpdated removido');
+      console.log('🧹 CreditBalance: Listener balanceUpdated removido');
     };
   }, [user?.id, refreshBalance]);
 
@@ -344,42 +344,7 @@ const [lastTransactionCheck, setLastTransactionCheck] = useState<string | null>(
     }
   }, [user?.id, currentBalance, rateLoaded, fetchAgentRateRealTime]);
 
-  // 🔔 ESCUCHAR DESCUENTOS AUTOMÁTICOS DE LLAMADAS
-  useEffect(() => {
-    console.log('🔔 Conectando balance con descuentos automáticos...');
-    
-    if (!user?.id) {
-      return;
-    }
-
-    // Función que se ejecuta cuando hay un descuento automático
-    const handleBalanceUpdate = (event: CustomEvent) => {
-      const { userId, deduction, callId } = event.detail;
-      
-      console.log('💳 Descuento automático detectado:', deduction);
-      
-      // Solo procesar si es para este usuario
-      if (userId === user.id) {
-        console.log('✅ Actualizando balance automáticamente...');
-        
-        // Actualizar balance inmediatamente
-        refreshBalance();
-        
-        // Mostrar indicador visual
-        setShowUpdateIndicator(true);
-      }
-    };
-
-    // Escuchar el evento de descuento
-    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-    
-    console.log('✅ Balance conectado con sistema de descuentos');
-    
-    // Limpiar cuando se cierre el componente
-    return () => {
-      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-    };
-  }, [user?.id, refreshBalance]);
+  
   // ============================================================================
   // FUNCIONES PARA PROCESAR LLAMADAS PENDIENTES
   // ============================================================================
