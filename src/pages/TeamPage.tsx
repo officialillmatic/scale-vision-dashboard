@@ -776,6 +776,7 @@ await Promise.all([
           description: customAgent.description || (retellData ? `Voz: ${retellData.voice_id}` : 'Sin descripción'),
           voice_id: retellData?.voice_id || 'No disponible',
           language: retellData?.language || 'No disponible',
+          retell_agent_name: retellData?.agent_name || `Agent ${customAgent.retell_agent_id?.slice(0, 8)}` || 'Sin nombre', // ✅ NUEVA LÍNEA
           llm_id: retellData?.response_engine?.llm_id || 'No disponible',
           last_modification_time: retellData?.last_modification_time,
           avatar_url: customAgent.avatar_url,
@@ -1755,7 +1756,8 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                             )}
                             
                             <div className="text-xs text-gray-500 mt-1">
-                              <span>Retell ID: <code className="bg-gray-100 px-1 rounded">{agent.retell_agent_id}</code></span>
+                              <span>Agente Retell: <strong className="text-purple-700">{agent.retell_agent_name || agent.retell_agent_id}</strong></span>
+
                             </div>
                             
                             {agent.description && (
