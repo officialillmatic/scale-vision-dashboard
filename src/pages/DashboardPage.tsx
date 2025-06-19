@@ -372,6 +372,7 @@ export default function DashboardPage() {
   });
   const [chartData, setChartData] = useState<any[]>([]);
   const [userDistribution, setUserDistribution] = useState<any[]>([]);
+  const [userAgents, setUserAgents] = useState<any[]>([]);
 
   // ✅ useEffect PRINCIPAL - CORREGIDO PARA CARGA AUTOMÁTICA
   useEffect(() => {
@@ -418,7 +419,9 @@ export default function DashboardPage() {
         totalDuration += duration;
         
         // 2. Calcular costo usando la función existente
-        const callCost = calculateCallCostForDashboard(call, userAgents || []);
+        const callCost = calculateCallCostForDashboard ? 
+          calculateCallCostForDashboard(call, userAgents || []) : 
+          (call.cost_usd || 0);
         totalCost += callCost;
         
         // 3. Contar llamadas completadas
@@ -487,7 +490,7 @@ export default function DashboardPage() {
         costToday: 0
       });
     }
-  }, [calls, loading, audioDurations, isSuperAdmin]); // ✅ DEPENDENCIAS CLAVE
+  }, [calls, loading, audioDurations, isSuperAdmin, userAgents]); // ✅ DEPENDENCIAS CLAVE
   // ============================================================================
   // 🤖 FUNCIONES DEL SUPER ADMIN (MANTENER IGUAL)
   // ============================================================================
@@ -703,6 +706,7 @@ export default function DashboardPage() {
       if (!userAgents || userAgents.length === 0) {
         console.log('⚠️ [Dashboard] No agents assigned to user');
         setCalls([]);
+        setUserAgents([]);
         setStats({
           totalCalls: 0,
           totalCost: 0,
@@ -722,6 +726,7 @@ export default function DashboardPage() {
       const allAgentIds = [...userAgentIds, ...userRetellAgentIds];
       
       console.log('👤 [Dashboard] User agent IDs:', allAgentIds);
+      setUserAgents(userAgents || []);
 
       // Obtener llamadas de esos agentes
       const { data, error: fetchError } = await supabase
@@ -740,6 +745,7 @@ export default function DashboardPage() {
       console.log('✅ [Dashboard] User calls loaded:', callsData.length);
 
       setCalls(callsData);
+      setUserAgents(userAgents || []);
 
       // Load audio durations for recent calls
       if (callsData && callsData.length > 0) {
