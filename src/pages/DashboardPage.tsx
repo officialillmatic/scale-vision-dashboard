@@ -496,12 +496,11 @@ useEffect(() => {
       // 3. Actualizar datos de llamadas
       fetchCallsData();
       
-      // 4. Como último recurso, recarga ligera después de 3 segundos
+      // 4. SOLUCIÓN DEFINITIVA: Recarga completa después de 2 segundos
       setTimeout(() => {
-        console.log('🔄 Recarga ligera del balance...');
-        window.location.hash = '#balance-updated';
-        window.location.hash = '';
-      }, 3000);
+        console.log('✅ SOLUCIÓN DEFINITIVA: Recargando página para actualizar balance...');
+        window.location.reload();
+      }, 2000);
     }
   };
 
