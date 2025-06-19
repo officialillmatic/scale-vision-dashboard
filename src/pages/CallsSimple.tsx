@@ -496,13 +496,46 @@ const subscriptionRef = useRef(null);
   
 // ✅ AGENTES ÚNICOS: Todos los agentes asignados al usuario
 const uniqueAgents = userAssignedAgents || [];
+
+// ✅ FUNCIÓN LOCAL PARA OBTENER NOMBRES DE AGENTES
+const getAgentNameLocal = (agentId) => {
+  console.log(`🔍 getAgentNameLocal buscando: ${agentId}`);
+  console.log(`🔍 userAssignedAgents disponibles:`, userAssignedAgents);
+  
+  // Buscar en agentes asignados por ID directo
+  let agent = userAssignedAgents.find(a => a.id === agentId);
+  
+  if (agent) {
+    console.log(`✅ Encontrado por ID directo: ${agent.name}`);
+    return agent.name;
+  }
+  
+  // Si no encuentra, buscar por retell_agent_id
+  agent = userAssignedAgents.find(a => a.retell_agent_id === agentId);
+  
+  if (agent) {
+    console.log(`✅ Encontrado por retell_agent_id: ${agent.name}`);
+    return agent.name;
+  }
+  
+  // Si no encuentra, usar la función del hook
+  if (getAgentName) {
+    console.log(`🔄 Usando función del hook`);
+    return getAgentName(agentId);
+  }
+  
+  console.log(`❌ No se encontró agente, usando nombre genérico`);
+  return `Agent ${agentId.substring(0, 8)}...`;
+};
+
+  
 console.log("🔍 uniqueAgents para filtro:", uniqueAgents);
   // 🔍 DEBUGGING DEL FILTRO
 console.log("🔍 FILTRO DEBUG - calls.length:", calls.length);
 console.log("🔍 FILTRO DEBUG - uniqueAgents:", uniqueAgents);
 console.log("🔍 FILTRO DEBUG - uniqueAgents.length:", uniqueAgents.length);
   
-  const selectedAgentName = agentFilter ? getAgentName(agentFilter) : null;
+  const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
   console.log("🔍 AgentFilter props - agents:", uniqueAgents);
 console.log("🔍 AgentFilter props - isLoading:", isLoadingAgents);
 
@@ -1158,46 +1191,92 @@ const getCallDuration = (call: any) => {
   };
 
   const applyFiltersAndSort = () => {
-    let filtered = [...calls];
+  console.log('🔍 APLICANDO FILTROS:');
+  console.log('  - Total calls:', calls.length);
+  console.log('  - agentFilter:', agentFilter);
+  console.log('  - userAssignedAgents:', userAssignedAgents);
 
-    if (searchTerm) {
-      filtered = filtered.filter(call => 
-        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.from_number.includes(searchTerm) ||
-        call.to_number.includes(searchTerm) ||
-        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        getAgentName(call.agent_id).toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  let filtered = [...calls];
+
+  // Filtro de búsqueda
+  if (searchTerm) {
+    filtered = filtered.filter(call => 
+      call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      call.from_number.includes(searchTerm) ||
+      call.to_number.includes(searchTerm) ||
+      call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getAgentNameLocal(call.agent_id).toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }
+
+  // Filtro de estado
+  if (statusFilter !== "all") {
+    filtered = filtered.filter(call => call.call_status === statusFilter);
+  }
+
+  // 🎯 FILTRO DE AGENTE CORREGIDO
+  if (agentFilter !== null) {
+    console.log('🎯 Aplicando filtro de agente:', agentFilter);
+    
+    // Encontrar el agente seleccionado
+    const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
+    
+    if (selectedAgent) {
+      console.log('🤖 Agente seleccionado:', selectedAgent);
+      
+      // Filtrar llamadas que coincidan con CUALQUIERA de los IDs del agente
+      filtered = filtered.filter(call => {
+        const matchesAgentId = call.agent_id === selectedAgent.id;
+        const matchesRetellId = call.agent_id === selectedAgent.retell_agent_id;
+        
+        const matches = matchesAgentId || matchesRetellId;
+        
+        if (matches) {
+          console.log(`✅ Llamada ${call.call_id} coincide con agente ${selectedAgent.name}`);
+        }
+        
+        return matches;
+      });
+      
+      console.log(`🎯 Llamadas filtradas para ${selectedAgent.name}: ${filtered.length}`);
+    } else {
+      console.log('❌ Agente no encontrado para filtrar');
+      filtered = []; // Si no encuentra el agente, no mostrar llamadas
+    }
+  } else {
+    console.log('👥 Mostrando todas las llamadas (All Agents)');
+  }
+
+  // Filtro de fecha
+  filtered = filtered.filter(call => isDateInRange(call.timestamp));
+
+  console.log('📊 RESULTADO DEL FILTRO:');
+  console.log('  - Llamadas después del filtro:', filtered.length);
+  console.log('  - Llamadas filtradas por agente:', filtered.map(c => ({
+    id: c.call_id.substring(0, 8),
+    agent_id: c.agent_id.substring(0, 8),
+    agent_name: getAgentName(c.agent_id)
+  })));
+
+  // Ordenamiento
+  filtered.sort((a, b) => {
+    let aValue: any = a[sortField];
+    let bValue: any = b[sortField];
+
+    if (sortField === 'timestamp') {
+      aValue = new Date(aValue).getTime();
+      bValue = new Date(bValue).getTime();
     }
 
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(call => call.call_status === statusFilter);
+    if (sortOrder === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
     }
+  });
 
-    if (agentFilter !== null) {
-      filtered = filtered.filter(call => call.agent_id === agentFilter);
-    }
-
-    filtered = filtered.filter(call => isDateInRange(call.timestamp));
-
-    filtered.sort((a, b) => {
-      let aValue: any = a[sortField];
-      let bValue: any = b[sortField];
-
-      if (sortField === 'timestamp') {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
-    setFilteredCalls(filtered);
-  };
+  setFilteredCalls(filtered);
+};
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
@@ -1883,7 +1962,7 @@ for (const call of data) {
                               <User className="w-4 h-4 text-gray-400" />
                               <div>
                                 <div className="text-sm font-medium text-gray-900">
-  {call.call_agent?.name || getAgentName(call.agent_id)}
+  {call.call_agent?.name || getAgentNameLocal(call.agent_id)}
 </div>
                                 <div className="text-xs text-gray-500">
                                   {call.agent_id.substring(0, 8)}...
