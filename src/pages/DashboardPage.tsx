@@ -389,6 +389,44 @@ export default function DashboardPage() {
     }
   }, [user?.id, isSuperAdmin]);
 
+  // ✅ LISTENER PARA BALANCE UPDATE EN DASHBOARD
+useEffect(() => {
+  if (!user?.id) return;
+
+  console.log('🔔 Dashboard: Configurando listener para balanceUpdated...');
+  
+  const handleBalanceUpdate = (event: CustomEvent) => {
+    console.log('💳 Dashboard: Evento balanceUpdated recibido:', event.detail);
+    
+    const { userId, deduction, source } = event.detail;
+    
+    // Solo procesar si es para este usuario
+    if (userId === user.id || userId === 'current-user' || userId === 'test-user') {
+      console.log('✅ Dashboard: Refrescando balance automáticamente...');
+      
+      // Refrescar balance automáticamente
+      if (user?.id) {
+        refreshCreditBalance(user.id);
+      }
+      
+      // También forzar actualización de datos de calls si es necesario
+      if (source === 'automatic_processing' || source === 'dashboard-refresh') {
+        fetchCallsData();
+      }
+    }
+  };
+
+  // Escuchar el evento
+  window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+  
+  console.log('✅ Dashboard: Listener balanceUpdated configurado');
+  
+  return () => {
+    window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    console.log('🧹 Dashboard: Listener balanceUpdated removido');
+  };
+}, [user?.id]);
+
   // ✅ useEffect para recalcular estadísticas automáticamente
   useEffect(() => {
     console.log('📊 Dashboard - useEffect para estadísticas automáticas ejecutado:', {
