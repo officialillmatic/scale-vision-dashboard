@@ -1,6 +1,7 @@
 // 🤖 SISTEMA SEGURO: SIN REFERENCIAS A SERVICIOS EXTERNOS
 // Ubicación: src/hooks/useNewBalanceSystem.ts
 // 🔐 SEGURIDAD: Términos genéricos, sin exponer proveedores
+// ✅ CORREGIDO: Esquema de base de datos y detección mejorada
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +17,7 @@ interface CallData {
   cost_usd: number;
   call_status: string;
   recording_url?: string;
-  end_reason?: string;
+  disconnection_reason?: string; // ✅ CORREGIDO: era end_reason
 }
 
 interface CustomAgentData {
@@ -170,6 +171,13 @@ export const useNewBalanceSystem = () => {
       }
 
       console.log(`✅ ${customAgents?.length || 0} custom agents loaded successfully`);
+      console.log('🔍 Custom agents:', customAgents?.map(a => ({
+        id: a.id,
+        name: a.name,
+        rate: a.rate_per_minute,
+        external_id: a.retell_agent_id
+      })));
+      
       return customAgents || [];
 
     } catch (error) {
@@ -260,13 +268,7 @@ export const useNewBalanceSystem = () => {
     console.log(`🧮 Calculating cost for call ${call.call_id}:`);
     console.log(`   - External agent ID: ${call.agent_id}`);
 
-    // 1. Si ya tiene costo, no recalcular (aunque debería ser 0)
-    if (call.cost_usd && call.cost_usd > 0) {
-      console.log(`✅ Using existing cost: $${call.cost_usd}`);
-      return call.cost_usd;
-    }
-
-    // 2. Buscar agente personalizado por ID externo
+    // 1. Buscar agente personalizado por ID externo
     const customAgent = customAgents.find(agent => 
       agent.retell_agent_id === call.agent_id
     );
@@ -288,7 +290,7 @@ export const useNewBalanceSystem = () => {
       return 0;
     }
 
-    // 3. Obtener duración real del audio
+    // 2. Obtener duración real del audio
     let duration = call.duration_sec || 0;
     if (call.recording_url && duration === 0) {
       console.log('🎵 Loading duration from audio...');
@@ -300,7 +302,7 @@ export const useNewBalanceSystem = () => {
       return 0;
     }
 
-    // 4. Calcular costo
+    // 3. Calcular costo
     const durationMinutes = duration / 60;
     const cost = durationMinutes * customAgent.rate_per_minute;
     
@@ -323,10 +325,7 @@ export const useNewBalanceSystem = () => {
         };
       }
 
-      // 2. El costo no se guarda en BD (cálculo dinámico)
-      console.log(`💡 Using dynamic cost calculation (not stored in database)`);
-
-      // 3. Usar función RPC para descontar del balance
+      // 2. Usar función RPC para descontar del balance
       console.log(`💳 Deducting $${cost.toFixed(4)} via admin credit adjustment`);
       
       const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_adjust_user_credits', {
@@ -348,11 +347,11 @@ export const useNewBalanceSystem = () => {
 
       console.log('✅ Admin credit adjustment executed successfully');
 
-      // 4. Obtener el nuevo balance después del descuento
+      // 3. Obtener el nuevo balance después del descuento
       const newBalanceData = await loadCurrentBalance();
       const newBalance = newBalanceData?.current_balance || 0;
 
-      // 5. Actualizar estado local
+      // 4. Actualizar estado local
       updateBalanceState({
         balance: newBalance,
         warningThreshold: newBalanceData?.warning_threshold || 40,
@@ -408,12 +407,14 @@ export const useNewBalanceSystem = () => {
         return;
       }
 
+      // ✅ MEJORADO: Buscar más estados y llamadas más recientes
       const { data: calls, error } = await supabase
         .from('calls')
         .select('*')
         .in('agent_id', externalAgentIds) // Buscar por IDs externos
-        .in('call_status', ['completed', 'ended'])
-        .gte('timestamp', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .in('call_status', ['completed', 'ended', 'finished', 'terminated']) // ✅ MÁS ESTADOS
+        .eq('user_id', user.id) // ✅ FILTRO ADICIONAL por usuario
+        .gte('timestamp', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // ✅ ÚLTIMAS 2 HORAS
         .order('timestamp', { ascending: false });
 
       if (error) {
@@ -421,18 +422,29 @@ export const useNewBalanceSystem = () => {
         return;
       }
 
-      console.log(`📞 Calls found: ${calls?.length || 0}`);
+      console.log(`📞 Total calls found: ${calls?.length || 0}`);
+      
+      // ✅ DEBUG: Mostrar información de todas las llamadas encontradas
+      if (calls && calls.length > 0) {
+        console.log('📋 All calls found:');
+        calls.forEach((call, index) => {
+          console.log(`   ${index + 1}. ${call.call_id} - Status: ${call.call_status} - Agent: ${call.agent_id} - Duration: ${call.duration_sec}s - Cost: $${call.cost_usd || 0}`);
+        });
+      }
 
-      // 2. Filtrar llamadas que necesitan procesamiento
+      // 2. ✅ MEJORADO: Filtrar llamadas que necesitan procesamiento
       const callsToProcess = (calls || []).filter(call => {
-        const needsProcessing = (
-          (!call.cost_usd || call.cost_usd === 0) && // cost_usd debe ser 0
-          !processedCallsRef.current.has(call.call_id)
-        );
+        const alreadyProcessed = processedCallsRef.current.has(call.call_id);
+        const hasValidDuration = call.duration_sec && call.duration_sec > 0;
+        const needsProcessing = !alreadyProcessed && hasValidDuration;
 
-        if (needsProcessing) {
-          console.log(`🎯 Call ready for processing: ${call.call_id} (external_agent: ${call.agent_id})`);
-        }
+        console.log(`🔍 Call ${call.call_id}:`, {
+          status: call.call_status,
+          duration: call.duration_sec,
+          cost_stored: call.cost_usd,
+          already_processed: alreadyProcessed,
+          needs_processing: needsProcessing
+        });
 
         return needsProcessing;
       });
