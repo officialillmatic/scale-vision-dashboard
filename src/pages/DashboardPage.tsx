@@ -29,6 +29,48 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { CreditBalance } from "@/components/credits/CreditBalance";
 
 // ============================================================================
+// FUNCIÓN UNIVERSAL DE DESCUENTO DE BALANCE
+// ============================================================================
+const universalBalanceDeduction = async (
+  userId: string,
+  amount: number,
+  callId?: string,
+  description?: string
+): Promise<{ success: boolean; oldBalance?: number; newBalance?: number; error?: string; }> => {
+  try {
+    console.log(`💳 [UNIVERSAL] Descuento: Usuario ${userId}, Monto $${amount}`);
+    
+    const { data, error } = await supabase.rpc('universal_balance_deduction', {
+      p_user_id: userId,
+      p_amount: amount,
+      p_call_id: callId || null,
+      p_description: description || `Balance deduction ${callId ? `for call ${callId}` : ''}`
+    });
+
+    if (error) {
+      console.error('❌ [UNIVERSAL] Error en RPC:', error);
+      return { success: false, error: error.message };
+    }
+
+    if (!data.success) {
+      console.error('❌ [UNIVERSAL] Error en función:', data.error);
+      return { success: false, error: data.error };
+    }
+
+    console.log(`✅ [UNIVERSAL] Descuento exitoso: $${data.old_balance} → $${data.new_balance}`);
+    return {
+      success: true,
+      oldBalance: data.old_balance,
+      newBalance: data.new_balance
+    };
+
+  } catch (error: any) {
+    console.error('💥 [UNIVERSAL] Excepción:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ============================================================================
 // FUNCIÓN PARA REFRESCAR BALANCE DE CRÉDITOS
 // ============================================================================
 const refreshCreditBalance = async (userId: string) => {
@@ -395,26 +437,47 @@ useEffect(() => {
 
   console.log('🔔 Dashboard: Configurando listener para balanceUpdated...');
   
-  const handleBalanceUpdate = (event: CustomEvent) => {
-    console.log('💳 Dashboard: Evento balanceUpdated recibido:', event.detail);
+  const handleBalanceUpdate = async (event: CustomEvent) => {
+  console.log('💳 Dashboard: Evento balanceUpdated recibido:', event.detail);
+  
+  const { userId, deduction, callId, source } = event.detail;
+  
+  // ✅ AGREGAR DESCUENTO REAL EN BASE DE DATOS
+  if (deduction && deduction > 0 && userId) {
+    const actualUserId = userId === 'current-user' ? user?.id : userId;
     
-    const { userId, deduction, source } = event.detail;
-    
-    // Solo procesar si es para este usuario
-    if (userId === user.id || userId === 'current-user' || userId === 'test-user') {
-      console.log('✅ Dashboard: Refrescando balance automáticamente...');
+    if (actualUserId) {
+      console.log('🔄 Ejecutando descuento real en BD...');
+      const result = await universalBalanceDeduction(
+        actualUserId, 
+        deduction, 
+        callId,
+        `Call cost deduction - ${callId || 'Manual test'}`
+      );
       
-      // Refrescar balance automáticamente
-      if (user?.id) {
-        refreshCreditBalance(user.id);
-      }
-      
-      // También forzar actualización de datos de calls si es necesario
-      if (source === 'automatic_processing' || source === 'dashboard-refresh') {
-        fetchCallsData();
+      if (result.success) {
+        console.log(`✅ DESCUENTO EXITOSO: $${result.oldBalance} → $${result.newBalance}`);
+      } else {
+        console.error('❌ Error en descuento:', result.error);
       }
     }
-  };
+  }
+  
+  // Solo procesar si es para este usuario
+  if (userId === user?.id || userId === 'current-user' || userId === 'test-user') {
+    console.log('✅ Dashboard: Refrescando balance automáticamente...');
+    
+    // Refrescar balance automáticamente
+    if (user?.id) {
+      refreshCreditBalance(user.id);
+    }
+    
+    // También forzar actualización de datos de calls si es necesario
+    if (source === 'automatic_processing' || source === 'dashboard-refresh') {
+      fetchCallsData();
+    }
+  }
+};
 
   // Escuchar el evento
   window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
