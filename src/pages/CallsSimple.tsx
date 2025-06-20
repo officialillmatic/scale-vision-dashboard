@@ -249,23 +249,31 @@ export default function CallsSimple() {
   // ============================================================================
   
   const getCallDuration = (call: any) => {
-  // ✅ PRIORIZAR duración del audio (más precisa)
-  if (audioDurations[call.id] && audioDurations[call.id] > 0) {
-    console.log(`🎵 Usando duración de audio: ${audioDurations[call.id]}s para ${call.call_id?.substring(0, 8)}`);
-    return audioDurations[call.id];
-  }
-  
-  // Fallback a duration_sec de la BD
-  if (call.duration_sec && call.duration_sec > 0) {
-    console.log(`📊 Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
-    return call.duration_sec;
-  }
-  
-  console.log(`⚠️ Sin duración disponible para ${call.call_id?.substring(0, 8)}`);
-  return 0;
-};
+    // ✅ PRIORIZAR duración del audio (más precisa)
+    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+      console.log(`🎵 Usando duración de audio: ${audioDurations[call.id]}s para ${call.call_id?.substring(0, 8)}`);
+      return audioDurations[call.id];
+    }
+    
+    // Fallback a duration_sec de la BD
+    if (call.duration_sec && call.duration_sec > 0) {
+      console.log(`📊 Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
+      return call.duration_sec;
+    }
+    
+    console.log(`⚠️ Sin duración disponible para ${call.call_id?.substring(0, 8)}`);
+    return 0;
+  };
 
-  
+  // ✅ FUNCIÓN CORREGIDA: calculateCallCost
+  const calculateCallCost = (call: Call) => {
+    console.log(`💰 Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
+      existing_cost: call.cost_usd,
+      duration_sec: call.duration_sec,
+      agent_id: call.agent_id,
+      call_agent_rate: call.call_agent?.rate_per_minute,
+      agents_rate: call.agents?.rate_per_minute
+    });
 
     // 1. Si ya tiene un costo válido en BD, usarlo
     if (call.cost_usd && call.cost_usd > 0) {
@@ -319,17 +327,39 @@ export default function CallsSimple() {
     return calculateCallCost(call);
   };
 
-// ? FUNCIÓN CORREGIDA: calculateCallCost
-  const calculateCallCost = (call: Call) => {
-    console.log(`?? Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
-      existing_cost: call.cost_usd,
-      duration_sec: call.duration_sec,
-      agent_id: call.agent_id,
-      call_agent_rate: call.call_agent?.rate_per_minute,
-      agents_rate: call.agents?.rate_per_minute
-    });
-
+  // ✅ NUEVA FUNCIÓN: loadAudioDuration (UBICACIÓN CORRECTA)
+  const loadAudioDuration = async (call: Call) => {
+    if (!call.recording_url || audioDurations[call.id]) return;
     
+    try {
+      console.log(`🎵 Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
+      const audio = new Audio(call.recording_url);
+      return new Promise<void>((resolve) => {
+        audio.addEventListener('loadedmetadata', () => {
+          const duration = Math.round(audio.duration);
+          console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
+          setAudioDurations(prev => ({
+            ...prev,
+            [call.id]: duration
+          }));
+          resolve();
+        });
+        
+        audio.addEventListener('error', () => {
+          console.log(`❌ Error cargando audio para ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        });
+
+        // Timeout de seguridad
+        setTimeout(() => {
+          console.log(`⏰ Timeout cargando audio para ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        }, 5000);
+      });
+    } catch (error) {
+      console.log(`❌ Error loading audio duration:`, error);
+    }
+  };
   // ============================================================================
   // FUNCIÓN FETCH CALLS CORREGIDA PARA COSTOS
   // ============================================================================
@@ -474,20 +504,20 @@ export default function CallsSimple() {
       });
 
       // ✅ CARGAR DURACIONES DE AUDIO INMEDIATAMENTE
-console.log('🎵 Cargando duraciones de audio...');
-const callsWithAudio = mappedCalls.filter(call => call.recording_url);
-console.log(`📻 ${callsWithAudio.length} llamadas con audio encontradas`);
+      console.log('🎵 Cargando duraciones de audio...');
+      const callsWithAudio = mappedCalls.filter(call => call.recording_url);
+      console.log(`📻 ${callsWithAudio.length} llamadas con audio encontradas`);
 
-// Cargar audio en lotes pequeños
-for (let i = 0; i < callsWithAudio.length; i += 3) {
-  const batch = callsWithAudio.slice(i, i + 3);
-  await Promise.all(batch.map(call => loadAudioDuration(call)));
-  if (i + 3 < callsWithAudio.length) {
-    await new Promise(resolve => setTimeout(resolve, 200));
-  }
-}
+      // Cargar audio en lotes pequeños
+      for (let i = 0; i < callsWithAudio.length; i += 3) {
+        const batch = callsWithAudio.slice(i, i + 3);
+        await Promise.all(batch.map(call => loadAudioDuration(call)));
+        if (i + 3 < callsWithAudio.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
 
-setCalls(mappedCalls || []);
+      setCalls(mappedCalls || []);
 
     } catch (err: any) {
       console.error("❌ Excepción en fetch calls:", err);
@@ -602,7 +632,7 @@ setCalls(mappedCalls || []);
     setIsProcessing(false);
   };
   // ============================================================================
-  // useEffects
+  // useEffects CORREGIDOS
   // ============================================================================
 
   // Efecto principal: Cargar datos cuando el usuario está disponible
@@ -613,13 +643,17 @@ setCalls(mappedCalls || []);
     }
   }, [user?.id]);
 
-  // Procesar llamadas automáticamente cuando cambien
+  // ✅ EFECTO CORREGIDO: Procesar llamadas automáticamente cuando cambien
   useEffect(() => {
-    if (calls.length > 0 && user?.id) {
+    if (calls.length > 0 && user?.id && !loading) {
       console.log('🔍 Verificando llamadas para procesamiento automático...');
-      processNewCalls();
+      const timeoutId = setTimeout(() => {
+        processNewCalls();
+      }, 1000); // Pequeño delay para evitar múltiples ejecuciones
+
+      return () => clearTimeout(timeoutId);
     }
-  }, [calls, user?.id, loading]);
+  }, [calls.length, user?.id]); // ✅ REMOVIDO loading de dependencias
 
   // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
@@ -713,6 +747,7 @@ setCalls(mappedCalls || []);
       completedCalls
     });
   };
+
   // ============================================================================
   // FUNCIONES DE UTILIDAD
   // ============================================================================
@@ -1144,7 +1179,6 @@ setCalls(mappedCalls || []);
               </div>
             </CardContent>
           </Card>
-
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -1388,13 +1422,12 @@ setCalls(mappedCalls || []);
                           </td>
                         </tr>
                       ))}
-                      </tbody>
+                    </tbody>
                   </table>
                 </div>
               )}
             </CardContent>
           </Card>
-
           {/* Call Detail Modal */}
           <CallDetailModal 
             call={selectedCall}
