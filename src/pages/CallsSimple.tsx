@@ -64,7 +64,6 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
-
 // ============================================================================
 // FUNCIÓN SIMPLIFICADA DE DESCUENTO (SOLO EVENTOS)
 // ============================================================================
@@ -96,622 +95,8 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
   }
 };
 // ============================================================================
-// COMPONENTE PRINCIPAL SIMPLIFICADO
+// COMPONENTE FILTRO DE AGENTES
 // ============================================================================
-export default function CallsSimple() {
-  const { user } = useAuth();
-  const { getAgentName, isLoadingAgents } = useAgents();
-  
-  // Estados básicos del componente
-  const [calls, setCalls] = useState<Call[]>([]);
-  const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userAssignedAgents, setUserAssignedAgents] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [agentFilter, setAgentFilter] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<SortField>('timestamp');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [selectedCall, setSelectedCall] = useState<Call | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
-  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
-  const [customDate, setCustomDate] = useState<string>('');
-  const [stats, setStats] = useState({
-    total: 0,
-    totalCost: 0,
-    totalDuration: 0,
-    avgDuration: 0,
-    completedCalls: 0
-  });
-
-  // Estados simplificados para procesamiento automático
-  const [isProcessing, setIsProcessing] = useState(false);
-  const lastProcessedRef = useRef<Set<string>>(new Set());
-
-  // Variables auxiliares
-  const uniqueAgents = userAssignedAgents || [];
-
-  const getAgentNameLocal = (agentId) => {
-    const agent = userAssignedAgents.find(a => 
-      a.id === agentId || a.retell_agent_id === agentId
-    );
-    
-    if (agent) {
-      return agent.name;
-    }
-    
-    if (getAgentName) {
-      return getAgentName(agentId);
-    }
-    
-    return `Agent ${agentId.substring(0, 8)}...`;
-  };
-
-  // ============================================================================
-  // FUNCIONES AUXILIARES BÁSICAS
-  // ============================================================================
-  
-  const getCallDuration = (call: any) => {
-    if (call.duration_sec && call.duration_sec > 0) {
-      return call.duration_sec;
-    }
-    
-    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
-      return audioDurations[call.id];
-    }
-    
-    return 0;
-  };
-
-  const calculateCallCost = (call: Call) => {
-    const durationMinutes = getCallDuration(call) / 60;
-    let agentRate = 0;
-    
-    if (call.call_agent?.rate_per_minute) {
-      agentRate = call.call_agent.rate_per_minute;
-    } else if (call.agents?.rate_per_minute) {
-      agentRate = call.agents.rate_per_minute;
-    }
-    
-    if (agentRate === 0) {
-      return call.cost_usd || 0;
-    }
-    
-    return durationMinutes * agentRate;
-  };
-  // ============================================================================
-// FUNCIÓN FETCH CALLS SIMPLIFICADA
-// ============================================================================
-  
-const fetchCalls = async () => {
-  console.log("🔄 FETCH CALLS SIMPLIFICADO");
-  
-  if (!user?.id) {
-    setError("User not authenticated");
-    setLoading(false);
-    return;
-  }
-
-  try {
-    setLoading(true);
-    setError(null);
-
-    // Obtener asignaciones de agentes del usuario
-    const { data: assignments, error: assignmentsError } = await supabase
-      .from('user_agent_assignments')
-      .select('agent_id')
-      .eq('user_id', user.id);
-
-    if (assignmentsError) {
-      console.error("❌ Error obteniendo asignaciones:", assignmentsError);
-      setError(`Error obteniendo asignaciones: ${assignmentsError.message}`);
-      return;
-    }
-
-    if (!assignments || assignments.length === 0) {
-      console.log("⚠️ Usuario sin asignaciones de agentes");
-      setCalls([]);
-      setUserAssignedAgents([]);
-      setStats({
-        total: 0,
-        totalCost: 0,
-        totalDuration: 0,
-        avgDuration: 0,
-        completedCalls: 0
-      });
-      return;
-    }
-
-    const agentIds = assignments.map(a => a.agent_id);
-    console.log("🎯 IDs de agentes asignados:", agentIds);
-
-    // Obtener detalles de los agentes
-    const { data: agentDetails, error: agentsError } = await supabase
-      .from('agents')
-      .select('id, name, rate_per_minute, retell_agent_id')
-      .in('id', agentIds);
-
-    if (agentsError) {
-      console.error("❌ Error obteniendo detalles de agentes:", agentsError);
-      setError(`Error obteniendo agentes: ${agentsError.message}`);
-      return;
-    }
-
-    console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
-    setUserAssignedAgents(agentDetails || []);
-
-    // Buscar llamadas por UUID de agentes
-    const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
-    const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
-    
-    console.log("📋 Buscando llamadas por:");
-    console.log("   • Agent UUIDs:", agentUUIDs);
-    console.log("   • Retell Agent IDs:", retellAgentIds);
-
-    const { data: callsByUUID, error: uuidError } = await supabase
-      .from('calls')
-      .select('*')
-      .in('agent_id', agentUUIDs)
-      .order('timestamp', { ascending: false });
-
-    const { data: callsByRetell, error: retellError } = await supabase
-      .from('calls')
-      .select('*')
-      .in('agent_id', retellAgentIds)
-      .order('timestamp', { ascending: false });
-
-    // Combinar y eliminar duplicados
-    const allCalls = [
-      ...(callsByUUID || []),
-      ...(callsByRetell || [])
-    ];
-
-    const uniqueCalls = allCalls.filter((call, index, self) => 
-      index === self.findIndex(c => c.call_id === call.call_id)
-    );
-
-    console.log(`🎯 RESULTADO: ${uniqueCalls.length} llamadas únicas encontradas`);
-
-    // Mapear llamadas con información del agente
-    const mappedCalls = uniqueCalls.map(call => {
-      const userAgentAssignment = agentDetails.find(agent => 
-        agent.id === call.agent_id ||
-        agent.retell_agent_id === call.agent_id
-      );
-
-      return {
-        ...call,
-        end_reason: call.disconnection_reason || null,
-        call_agent: userAgentAssignment ? {
-          id: userAgentAssignment.id,
-          name: userAgentAssignment.name,
-          rate_per_minute: userAgentAssignment.rate_per_minute
-        } : {
-          id: call.agent_id,
-          name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
-          rate_per_minute: 0.02
-        }
-      };
-    });
-
-    setCalls(mappedCalls || []);
-
-  } catch (err: any) {
-    console.error("❌ Excepción en fetch calls:", err);
-    setError(`Exception: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
-
-// ============================================================================
-// PROCESAMIENTO AUTOMÁTICO SIMPLIFICADO
-// ============================================================================
-
-const processNewCalls = async () => {
-  if (!calls.length || !user?.id || loading || isProcessing) {
-    return;
-  }
-
-  console.log('🤖 VERIFICANDO LLAMADAS PARA PROCESAMIENTO...');
-
-  // Filtrar llamadas que necesitan procesamiento
-  const callsNeedingProcessing = calls.filter(call => {
-    const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
-    const hasDuration = call.duration_sec > 0;
-    const notProcessed = (!call.cost_usd || call.cost_usd === 0);
-    const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
-    const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-    
-    const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
-    
-    if (needsProcessing) {
-      console.log(`🎯 Llamada necesita procesamiento: ${call.call_id}`, {
-        status: call.call_status,
-        duration: call.duration_sec,
-        currentCost: call.cost_usd,
-        hasRate: !!hasRate
-      });
-    }
-    
-    return needsProcessing;
-  });
-
-  if (callsNeedingProcessing.length === 0) {
-    console.log('✅ No hay llamadas nuevas para procesar');
-    return;
-  }
-
-  console.log(`🚨 PROCESANDO ${callsNeedingProcessing.length} llamadas automáticamente`);
-  setIsProcessing(true);
-
-  let processedCount = 0;
-  let errors = 0;
-
-  for (const call of callsNeedingProcessing) {
-    try {
-      console.log(`⚡ PROCESANDO: ${call.call_id}`);
-      
-      const calculatedCost = calculateCallCost(call);
-      
-      if (calculatedCost > 0) {
-        // 1. Actualizar costo en la base de datos
-        const { error: updateError } = await supabase
-          .from('calls')
-          .update({ 
-            cost_usd: calculatedCost,
-            updated_at: new Date().toISOString()
-          })
-          .eq('call_id', call.call_id);
-
-        if (updateError) {
-          console.error(`❌ Error actualizando costo:`, updateError);
-          errors++;
-          continue;
-        }
-
-        // 2. Descontar del balance (vía evento)
-        const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, user.id);
-        
-        if (deductionSuccess) {
-          // 3. Marcar como procesada
-          lastProcessedRef.current.add(call.call_id);
-          
-          // 4. Actualizar estado local
-          setCalls(prevCalls => 
-            prevCalls.map(c => 
-              c.call_id === call.call_id 
-                ? { ...c, cost_usd: calculatedCost }
-                : c
-            )
-          );
-          
-          console.log(`🎉 PROCESADO EXITOSO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
-          processedCount++;
-        } else {
-          console.error(`❌ Error en descuento para ${call.call_id}`);
-          errors++;
-        }
-      } else {
-        console.warn(`⚠️ Costo calculado inválido para ${call.call_id}: $${calculatedCost}`);
-        errors++;
-      }
-      
-      // Pequeña pausa entre procesamiento
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-    } catch (error) {
-      console.error(`❌ Error procesando ${call.call_id}:`, error);
-      errors++;
-    }
-  }
-
-  console.log(`✅ PROCESAMIENTO COMPLETADO: ${processedCount} éxitos, ${errors} errores`);
-  setIsProcessing(false);
-};
-  // ============================================================================
-// useEffects SIMPLIFICADOS
-// ============================================================================
-
-// Efecto principal: Cargar datos cuando el usuario está disponible
-useEffect(() => {
-  if (user?.id) {
-    console.log('🚀 INICIANDO SISTEMA SIMPLIFICADO para:', user.email);
-    fetchCalls();
-  }
-}, [user?.id]);
-
-// ✅ NUEVO: Procesar llamadas automáticamente cuando cambien
-useEffect(() => {
-  if (calls.length > 0 && user?.id) {
-    console.log('🔍 Verificando llamadas para procesamiento automático...');
-    processNewCalls();
-  }
-}, [calls, user?.id, loading]);
-
-// Efecto para aplicar filtros y ordenamiento
-useEffect(() => {
-  if (calls.length > 0) {
-    applyFiltersAndSort();
-    calculateStats();
-  }
-}, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
-
-// ============================================================================
-// FUNCIONES DE FILTROS Y ESTADÍSTICAS
-// ============================================================================
-
-const applyFiltersAndSort = () => {
-  let filtered = [...calls];
-
-  // Filtro por búsqueda
-  if (searchTerm) {
-    filtered = filtered.filter(call => 
-      call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      call.from_number.includes(searchTerm) ||
-      call.to_number.includes(searchTerm) ||
-      call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }
-
-  // Filtro por estado
-  if (statusFilter !== "all") {
-    filtered = filtered.filter(call => call.call_status === statusFilter);
-  }
-
-  // Filtro por agente
-  if (agentFilter !== null) {
-    const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
-    if (selectedAgent) {
-      filtered = filtered.filter(call => {
-        const matchesId = call.agent_id === selectedAgent.id;
-        const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
-        return matchesId || matchesRetell;
-      });
-    } else {
-      filtered = [];
-    }
-  }
-
-  // Filtro por fecha
-  filtered = filtered.filter(call => isDateInRange(call.timestamp));
-
-  // Ordenamiento
-  filtered.sort((a, b) => {
-    let aValue: any = a[sortField];
-    let bValue: any = b[sortField];
-
-    if (sortField === 'timestamp') {
-      aValue = new Date(aValue).getTime();
-      bValue = new Date(bValue).getTime();
-    }
-
-    if (sortOrder === 'asc') {
-      return aValue > bValue ? 1 : -1;
-    } else {
-      return aValue < bValue ? 1 : -1;
-    }
-  });
-
-  setFilteredCalls(filtered);
-};
-
-const calculateStats = () => {
-  let totalCost = 0;
-  let totalDuration = 0;
-  let completedCalls = 0;
-
-  calls.forEach((call) => {
-    const duration = getCallDuration(call);
-    totalDuration += duration;
-    const callCost = calculateCallCost(call);
-    totalCost += callCost;
-    if (['completed', 'ended'].includes(call.call_status?.toLowerCase())) {
-      completedCalls++;
-    }
-  });
-
-  const avgDuration = calls.length > 0 ? Math.round(totalDuration / calls.length) : 0;
-
-  setStats({
-    total: calls.length,
-    totalCost: Number(totalCost.toFixed(4)),
-    totalDuration,
-    avgDuration,
-    completedCalls
-  });
-};
-
-// ============================================================================
-// FUNCIONES DE UTILIDAD
-// ============================================================================
-
-const isDateInRange = (callTimestamp: string): boolean => {
-  const callDate = new Date(callTimestamp);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const last7Days = new Date(today);
-  last7Days.setDate(last7Days.getDate() - 7);
-
-  const callDateOnly = new Date(callDate.getFullYear(), callDate.getMonth(), callDate.getDate());
-  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-
-  switch (dateFilter) {
-    case 'all':
-      return true;
-    case 'today':
-      return callDateOnly.getTime() === todayOnly.getTime();
-    case 'yesterday':
-      return callDateOnly.getTime() === yesterdayOnly.getTime();
-    case 'last7days':
-      return callDate >= last7Days;
-    case 'custom':
-      if (!customDate) return true;
-      const selectedDate = new Date(customDate);
-      const selectedDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-      return callDateOnly.getTime() === selectedDateOnly.getTime();
-    default:
-      return true;
-  }
-};
-
-const handleDateFilterChange = (newFilter: DateFilter) => {
-  setDateFilter(newFilter);
-  if (newFilter !== 'custom') {
-    setCustomDate('');
-  }
-};
-
-const getDateFilterText = () => {
-  switch (dateFilter) {
-    case 'today':
-      return 'Today';
-    case 'yesterday':
-      return 'Yesterday';
-    case 'last7days':
-      return 'Last 7 days';
-    case 'custom':
-      return customDate ? new Date(customDate).toLocaleDateString() : 'Custom date';
-    default:
-      return 'All dates';
-  }
-};
-  // ============================================================================
-// FUNCIONES DE FORMATO
-// ============================================================================
-
-const getStatusColor = (status: string) => {
-  switch (status?.toLowerCase()) {
-    case 'completed': return 'bg-green-100 text-green-800 border-green-200';
-    case 'error': return 'bg-red-100 text-red-800 border-red-200';
-    case 'ended': return 'bg-blue-100 text-blue-800 border-blue-200';
-    case 'in_progress': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    default: return 'bg-gray-100 text-gray-800 border-gray-200';
-  }
-};
-
-const getSentimentColor = (sentiment: string) => {
-  switch (sentiment?.toLowerCase()) {
-    case 'positive': return 'bg-green-100 text-green-700 border-green-200';
-    case 'negative': return 'bg-red-100 text-red-700 border-red-200';
-    case 'neutral': return 'bg-gray-100 text-gray-700 border-gray-200';
-    default: return 'bg-gray-50 text-gray-600 border-gray-200';
-  }
-};
-
-const getEndReasonColor = (endReason: string) => {
-  if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
-  
-  switch (endReason.toLowerCase()) {
-    case 'user hangup':
-    case 'user_hangup':
-      return 'bg-blue-100 text-blue-800 border-blue-200';
-    case 'agent hangup':
-    case 'agent_hangup':
-      return 'bg-purple-100 text-purple-800 border-purple-200';
-    case 'dial no answer':
-    case 'dial_no_answer':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case 'error llm websocket open':
-    case 'error_llm_websocket_open':
-    case 'technical_error':
-      return 'bg-red-100 text-red-800 border-red-200';
-    case 'call completed':
-    case 'call_completed':
-    case 'completed':
-      return 'bg-green-100 text-green-800 border-green-200';
-    default:
-      return 'bg-gray-100 text-gray-600 border-gray-200';
-  }
-};
-
-const formatDuration = (seconds: number) => {
-  if (seconds === null || seconds === undefined || isNaN(seconds)) {
-    return "0:00";
-  }
-  
-  const numSeconds = Number(seconds);
-  if (numSeconds === 0) {
-    return "0:00";
-  }
-  
-  const mins = Math.floor(numSeconds / 60);
-  const secs = Math.floor(numSeconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-};
-
-const formatCurrency = (amount: number) => {
-  const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
-  }).format(roundedAmount);
-};
-
-const formatDate = (timestamp: string) => {
-  return new Date(timestamp).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
-};
-
-const formatTime = (timestamp: string) => {
-  return new Date(timestamp).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
-};
-
-const formatPhoneNumber = (phone: string) => {
-  if (!phone || phone === 'unknown') return 'Unknown';
-  return phone;
-};
-
-const getSortIcon = (field: SortField) => {
-  if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
-  return sortOrder === 'asc' ? '↑' : '↓';
-};
-
-// ============================================================================
-// HANDLERS DE EVENTOS
-// ============================================================================
-
-const handleSort = (field: SortField) => {
-  if (sortField === field) {
-    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-  } else {
-    setSortField(field);
-    setSortOrder('desc');
-  }
-};
-
-const handleCallClick = (call: Call) => {
-  const originalCall = calls.find(c => c.id === call.id) || call;
-  setSelectedCall(originalCall);
-  setIsModalOpen(true);
-};
-
-const handleModalClose = () => {
-  setIsModalOpen(false);
-  setSelectedCall(null);
-};
-
-// ============================================================================
-// COMPONENTE FILTRO DE AGENTES SIMPLIFICADO
-// ============================================================================
-
 const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
   const [isOpen, setIsOpen] = useState(false);
   
@@ -806,528 +191,1125 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
     </div>
   );
 };
-
-// Variables auxiliares para la UI
-const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
-const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
-  // ============================================================================
-// VERIFICACIÓN DE USUARIO Y RENDER DEL COMPONENTE
 // ============================================================================
+// COMPONENTE PRINCIPAL
+// ============================================================================
+export default function CallsSimple() {
+  const { user } = useAuth();
+  const { getAgentName, isLoadingAgents } = useAgents();
+  
+  // Estados básicos del componente
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userAssignedAgents, setUserAssignedAgents] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [agentFilter, setAgentFilter] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>('timestamp');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [selectedCall, setSelectedCall] = useState<Call | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [customDate, setCustomDate] = useState<string>('');
+  const [stats, setStats] = useState({
+    total: 0,
+    totalCost: 0,
+    totalDuration: 0,
+    avgDuration: 0,
+    completedCalls: 0
+  });
 
-if (!user) {
+  // Estados para procesamiento automático
+  const [isProcessing, setIsProcessing] = useState(false);
+  const lastProcessedRef = useRef<Set<string>>(new Set());
+
+  // Variables auxiliares
+  const uniqueAgents = userAssignedAgents || [];
+
+  const getAgentNameLocal = (agentId) => {
+    const agent = userAssignedAgents.find(a => 
+      a.id === agentId || a.retell_agent_id === agentId
+    );
+    
+    if (agent) {
+      return agent.name;
+    }
+    
+    if (getAgentName) {
+      return getAgentName(agentId);
+    }
+    
+    return `Agent ${agentId.substring(0, 8)}...`;
+  };
+  // ============================================================================
+  // FUNCIONES AUXILIARES
+  // ============================================================================
+  
+  const getCallDuration = (call: any) => {
+    if (call.duration_sec && call.duration_sec > 0) {
+      return call.duration_sec;
+    }
+    
+    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+      return audioDurations[call.id];
+    }
+    
+    return 0;
+  };
+
+  const calculateCallCost = (call: Call) => {
+    const durationMinutes = getCallDuration(call) / 60;
+    let agentRate = 0;
+    
+    if (call.call_agent?.rate_per_minute) {
+      agentRate = call.call_agent.rate_per_minute;
+    } else if (call.agents?.rate_per_minute) {
+      agentRate = call.agents.rate_per_minute;
+    }
+    
+    if (agentRate === 0) {
+      return call.cost_usd || 0;
+    }
+    
+    return durationMinutes * agentRate;
+  };
+  // ============================================================================
+  // FUNCIÓN FETCH CALLS
+  // ============================================================================
+  
+  const fetchCalls = async () => {
+    console.log("🔄 FETCH CALLS SIMPLIFICADO");
+    
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Obtener asignaciones de agentes del usuario
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('user_agent_assignments')
+        .select('agent_id')
+        .eq('user_id', user.id);
+
+      if (assignmentsError) {
+        console.error("❌ Error obteniendo asignaciones:", assignmentsError);
+        setError(`Error obteniendo asignaciones: ${assignmentsError.message}`);
+        return;
+      }
+
+      if (!assignments || assignments.length === 0) {
+        console.log("⚠️ Usuario sin asignaciones de agentes");
+        setCalls([]);
+        setUserAssignedAgents([]);
+        setStats({
+          total: 0,
+          totalCost: 0,
+          totalDuration: 0,
+          avgDuration: 0,
+          completedCalls: 0
+        });
+        return;
+      }
+
+      const agentIds = assignments.map(a => a.agent_id);
+      console.log("🎯 IDs de agentes asignados:", agentIds);
+
+      // Obtener detalles de los agentes
+      const { data: agentDetails, error: agentsError } = await supabase
+        .from('agents')
+        .select('id, name, rate_per_minute, retell_agent_id')
+        .in('id', agentIds);
+
+      if (agentsError) {
+        console.error("❌ Error obteniendo detalles de agentes:", agentsError);
+        setError(`Error obteniendo agentes: ${agentsError.message}`);
+        return;
+      }
+
+      console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
+      setUserAssignedAgents(agentDetails || []);
+
+      // Buscar llamadas por UUID de agentes
+      const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
+      const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
+      
+      console.log("📋 Buscando llamadas por:");
+      console.log("   • Agent UUIDs:", agentUUIDs);
+      console.log("   • Retell Agent IDs:", retellAgentIds);
+
+      const { data: callsByUUID, error: uuidError } = await supabase
+        .from('calls')
+        .select('*')
+        .in('agent_id', agentUUIDs)
+        .order('timestamp', { ascending: false });
+
+      const { data: callsByRetell, error: retellError } = await supabase
+        .from('calls')
+        .select('*')
+        .in('agent_id', retellAgentIds)
+        .order('timestamp', { ascending: false });
+
+      // Combinar y eliminar duplicados
+      const allCalls = [
+        ...(callsByUUID || []),
+        ...(callsByRetell || [])
+      ];
+
+      const uniqueCalls = allCalls.filter((call, index, self) => 
+        index === self.findIndex(c => c.call_id === call.call_id)
+      );
+
+      console.log(`🎯 RESULTADO: ${uniqueCalls.length} llamadas únicas encontradas`);
+
+      // Mapear llamadas con información del agente
+      const mappedCalls = uniqueCalls.map(call => {
+        const userAgentAssignment = agentDetails.find(agent => 
+          agent.id === call.agent_id ||
+          agent.retell_agent_id === call.agent_id
+        );
+
+        return {
+          ...call,
+          end_reason: call.disconnection_reason || null,
+          call_agent: userAgentAssignment ? {
+            id: userAgentAssignment.id,
+            name: userAgentAssignment.name,
+            rate_per_minute: userAgentAssignment.rate_per_minute
+          } : {
+            id: call.agent_id,
+            name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
+            rate_per_minute: 0.02
+          }
+        };
+      });
+
+      setCalls(mappedCalls || []);
+
+    } catch (err: any) {
+      console.error("❌ Excepción en fetch calls:", err);
+      setError(`Exception: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  // ============================================================================
+  // PROCESAMIENTO AUTOMÁTICO
+  // ============================================================================
+
+  const processNewCalls = async () => {
+    if (!calls.length || !user?.id || loading || isProcessing) {
+      return;
+    }
+
+    console.log('🤖 VERIFICANDO LLAMADAS PARA PROCESAMIENTO...');
+
+    // Filtrar llamadas que necesitan procesamiento
+    const callsNeedingProcessing = calls.filter(call => {
+      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+      const hasDuration = call.duration_sec > 0;
+      const notProcessed = (!call.cost_usd || call.cost_usd === 0);
+      const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
+      const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+      
+      const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
+      
+      if (needsProcessing) {
+        console.log(`🎯 Llamada necesita procesamiento: ${call.call_id}`, {
+          status: call.call_status,
+          duration: call.duration_sec,
+          currentCost: call.cost_usd,
+          hasRate: !!hasRate
+        });
+      }
+      
+      return needsProcessing;
+    });
+
+    if (callsNeedingProcessing.length === 0) {
+      console.log('✅ No hay llamadas nuevas para procesar');
+      return;
+    }
+
+    console.log(`🚨 PROCESANDO ${callsNeedingProcessing.length} llamadas automáticamente`);
+    setIsProcessing(true);
+
+    let processedCount = 0;
+    let errors = 0;
+
+    for (const call of callsNeedingProcessing) {
+      try {
+        console.log(`⚡ PROCESANDO: ${call.call_id}`);
+        
+        const calculatedCost = calculateCallCost(call);
+        
+        if (calculatedCost > 0) {
+          // 1. Actualizar costo en la base de datos
+          const { error: updateError } = await supabase
+            .from('calls')
+            .update({ 
+              cost_usd: calculatedCost,
+              updated_at: new Date().toISOString()
+            })
+            .eq('call_id', call.call_id);
+
+          if (updateError) {
+            console.error(`❌ Error actualizando costo:`, updateError);
+            errors++;
+            continue;
+          }
+
+          // 2. Descontar del balance (vía evento)
+          const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, user.id);
+          
+          if (deductionSuccess) {
+            // 3. Marcar como procesada
+            lastProcessedRef.current.add(call.call_id);
+            
+            // 4. Actualizar estado local
+            setCalls(prevCalls => 
+              prevCalls.map(c => 
+                c.call_id === call.call_id 
+                  ? { ...c, cost_usd: calculatedCost }
+                  : c
+              )
+            );
+            
+            console.log(`🎉 PROCESADO EXITOSO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
+            processedCount++;
+          } else {
+            console.error(`❌ Error en descuento para ${call.call_id}`);
+            errors++;
+          }
+        } else {
+          console.warn(`⚠️ Costo calculado inválido para ${call.call_id}: $${calculatedCost}`);
+          errors++;
+        }
+        
+        // Pequeña pausa entre procesamiento
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`❌ Error procesando ${call.call_id}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`✅ PROCESAMIENTO COMPLETADO: ${processedCount} éxitos, ${errors} errores`);
+    setIsProcessing(false);
+  };
+  // ============================================================================
+  // useEffects
+  // ============================================================================
+
+  // Efecto principal: Cargar datos cuando el usuario está disponible
+  useEffect(() => {
+    if (user?.id) {
+      console.log('🚀 INICIANDO SISTEMA SIMPLIFICADO para:', user.email);
+      fetchCalls();
+    }
+  }, [user?.id]);
+
+  // Procesar llamadas automáticamente cuando cambien
+  useEffect(() => {
+    if (calls.length > 0 && user?.id) {
+      console.log('🔍 Verificando llamadas para procesamiento automático...');
+      processNewCalls();
+    }
+  }, [calls, user?.id, loading]);
+
+  // Efecto para aplicar filtros y ordenamiento
+  useEffect(() => {
+    if (calls.length > 0) {
+      applyFiltersAndSort();
+      calculateStats();
+    }
+  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
+  // ============================================================================
+  // FUNCIONES DE FILTROS Y ESTADÍSTICAS
+  // ============================================================================
+
+  const applyFiltersAndSort = () => {
+    let filtered = [...calls];
+
+    // Filtro por búsqueda
+    if (searchTerm) {
+      filtered = filtered.filter(call => 
+        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        call.from_number.includes(searchTerm) ||
+        call.to_number.includes(searchTerm) ||
+        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filtro por estado
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(call => call.call_status === statusFilter);
+    }
+
+    // Filtro por agente
+    if (agentFilter !== null) {
+      const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
+      if (selectedAgent) {
+        filtered = filtered.filter(call => {
+          const matchesId = call.agent_id === selectedAgent.id;
+          const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
+          return matchesId || matchesRetell;
+        });
+      } else {
+        filtered = [];
+      }
+    }
+
+    // Filtro por fecha
+    filtered = filtered.filter(call => isDateInRange(call.timestamp));
+
+    // Ordenamiento
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
+
+      if (sortField === 'timestamp') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    setFilteredCalls(filtered);
+  };
+
+  const calculateStats = () => {
+    let totalCost = 0;
+    let totalDuration = 0;
+    let completedCalls = 0;
+
+    calls.forEach((call) => {
+      const duration = getCallDuration(call);
+      totalDuration += duration;
+      const callCost = calculateCallCost(call);
+      totalCost += callCost;
+      if (['completed', 'ended'].includes(call.call_status?.toLowerCase())) {
+        completedCalls++;
+      }
+    });
+
+    const avgDuration = calls.length > 0 ? Math.round(totalDuration / calls.length) : 0;
+
+    setStats({
+      total: calls.length,
+      totalCost: Number(totalCost.toFixed(4)),
+      totalDuration,
+      avgDuration,
+      completedCalls
+    });
+  };
+  // ============================================================================
+  // FUNCIONES DE UTILIDAD
+  // ============================================================================
+
+  const isDateInRange = (callTimestamp: string): boolean => {
+    const callDate = new Date(callTimestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const last7Days = new Date(today);
+    last7Days.setDate(last7Days.getDate() - 7);
+
+    const callDateOnly = new Date(callDate.getFullYear(), callDate.getMonth(), callDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+    switch (dateFilter) {
+      case 'all':
+        return true;
+      case 'today':
+        return callDateOnly.getTime() === todayOnly.getTime();
+      case 'yesterday':
+        return callDateOnly.getTime() === yesterdayOnly.getTime();
+      case 'last7days':
+        return callDate >= last7Days;
+      case 'custom':
+        if (!customDate) return true;
+        const selectedDate = new Date(customDate);
+        const selectedDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+        return callDateOnly.getTime() === selectedDateOnly.getTime();
+      default:
+        return true;
+    }
+  };
+
+  const handleDateFilterChange = (newFilter: DateFilter) => {
+    setDateFilter(newFilter);
+    if (newFilter !== 'custom') {
+      setCustomDate('');
+    }
+  };
+
+  const getDateFilterText = () => {
+    switch (dateFilter) {
+      case 'today':
+        return 'Today';
+      case 'yesterday':
+        return 'Yesterday';
+      case 'last7days':
+        return 'Last 7 days';
+      case 'custom':
+        return customDate ? new Date(customDate).toLocaleDateString() : 'Custom date';
+      default:
+        return 'All dates';
+    }
+  };
+  // ============================================================================
+  // FUNCIONES DE FORMATO
+  // ============================================================================
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'error': return 'bg-red-100 text-red-800 border-red-200';
+      case 'ended': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'in_progress': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getSentimentColor = (sentiment: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case 'positive': return 'bg-green-100 text-green-700 border-green-200';
+      case 'negative': return 'bg-red-100 text-red-700 border-red-200';
+      case 'neutral': return 'bg-gray-100 text-gray-700 border-gray-200';
+      default: return 'bg-gray-50 text-gray-600 border-gray-200';
+    }
+  };
+
+  const getEndReasonColor = (endReason: string) => {
+    if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
+    
+    switch (endReason.toLowerCase()) {
+      case 'user hangup':
+      case 'user_hangup':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'agent hangup':
+      case 'agent_hangup':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'dial no answer':
+      case 'dial_no_answer':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'error llm websocket open':
+      case 'error_llm_websocket_open':
+      case 'technical_error':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'call completed':
+      case 'call_completed':
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (seconds === null || seconds === undefined || isNaN(seconds)) {
+      return "0:00";
+    }
+    
+    const numSeconds = Number(seconds);
+    if (numSeconds === 0) {
+      return "0:00";
+    }
+    
+    const mins = Math.floor(numSeconds / 60);
+    const secs = Math.floor(numSeconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatCurrency = (amount: number) => {
+    const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    }).format(roundedAmount);
+  };
+
+  const formatDate = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatTime = (timestamp: string) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone || phone === 'unknown') return 'Unknown';
+    return phone;
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+    return sortOrder === 'asc' ? '↑' : '↓';
+  };
+  // ============================================================================
+  // HANDLERS DE EVENTOS
+  // ============================================================================
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const handleCallClick = (call: Call) => {
+    const originalCall = calls.find(c => c.id === call.id) || call;
+    setSelectedCall(originalCall);
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedCall(null);
+  };
+
+  // Variables auxiliares para la UI
+  const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
+  const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
+
+  // ============================================================================
+  // VERIFICACIÓN DE USUARIO
+  // ============================================================================
+
+  if (!user) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <p className="text-red-600 font-medium">Please log in to view your calls</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+  // ============================================================================
+  // RENDER DEL COMPONENTE PRINCIPAL
+  // ============================================================================
+
   return (
     <DashboardLayout>
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-red-600 font-medium">Please log in to view your calls</p>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
-}
-
-// ============================================================================
-// RENDER DEL COMPONENTE PRINCIPAL
-// ============================================================================
-
-return (
-  <DashboardLayout>
-    <div className="container mx-auto py-4">
-      <div className="space-y-6">
-        {/* Header Simplificado */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
-            <div className="flex items-center gap-4 mt-2">
-              <p className="text-gray-600">
-                Comprehensive call data for your account
-                {selectedAgentName && (
-                  <span className="ml-2 text-blue-600 font-medium">
-                    • Filtered by {selectedAgentName}
+      <div className="container mx-auto py-4">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
+              <div className="flex items-center gap-4 mt-2">
+                <p className="text-gray-600">
+                  Comprehensive call data for your account
+                  {selectedAgentName && (
+                    <span className="ml-2 text-blue-600 font-medium">
+                      • Filtered by {selectedAgentName}
+                    </span>
+                  )}
+                </p>
+                
+                <div className="flex items-center gap-3">
+                  {isProcessing && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                      <span className="text-xs font-medium text-blue-600">Auto Processing</span>
+                    </div>
+                  )}
+                  
+                  <span className="text-xs text-gray-400">
+                    Last update: {new Date().toLocaleTimeString()}
                   </span>
-                )}
-              </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                <User className="w-3 h-3 mr-1" />
+                Active User
+              </Badge>
               
-              {/* Indicadores Simplificados */}
-              <div className="flex items-center gap-3">
-                {isProcessing && (
+              <Button
+                onClick={() => {
+                  console.log("🔄 REFRESH MANUAL");
+                  fetchCalls();
+                }}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+                className="text-gray-500 border-gray-300"
+              >
+                {loading ? (
                   <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                    <span className="text-xs font-medium text-blue-600">Auto Processing</span>
+                    <LoadingSpinner size="sm" />
+                    <span className="text-xs">Updating...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 border border-gray-400 rounded-full"></div>
+                    <span className="text-xs">Refresh</span>
                   </div>
                 )}
-                
-                <span className="text-xs text-gray-400">
-                  Last update: {new Date().toLocaleTimeString()}
-                </span>
+              </Button>
+              
+              <div className="text-right">
+                <div className="text-xs font-medium text-green-600">🤖 Auto System</div>
+                <div className="text-xs text-gray-500">Simplified</div>
               </div>
             </div>
           </div>
+
+          {/* Indicador de Procesamiento */}
+          {isProcessing && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="p-4">
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
+                  <span className="text-blue-700 font-medium">
+                    🤖 Procesando llamadas nuevas automáticamente...
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-              <User className="w-3 h-3 mr-1" />
-              Active User
-            </Badge>
-            
-            <Button
-              onClick={() => {
-                console.log("🔄 REFRESH MANUAL SIMPLIFICADO");
-                fetchCalls();
-              }}
-              disabled={loading}
-              variant="outline"
-              size="sm"
-              className="text-gray-500 border-gray-300"
-            >
+          {/* Error Alert */}
+          {error && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="p-4">
+                <p className="text-red-800 font-medium">❌ {error}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Calls</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                  </div>
+                  <Phone className="h-8 w-8 text-blue-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Completed</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Cost</p>
+                    <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-purple-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Duration</p>
+                    <p className="text-xl font-bold text-gray-900">{formatDuration(stats.totalDuration)}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-orange-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-pink-50 to-pink-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Avg Duration</p>
+                    <p className="text-xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-pink-600" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          {/* Filters */}
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row gap-4 items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search calls by ID, phone, agent, or summary..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Status</option>
+                    {uniqueStatuses.map(status => (
+                      <option key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <AgentFilter
+                  agents={uniqueAgents}
+                  selectedAgent={agentFilter}
+                  onAgentChange={setAgentFilter}
+                  isLoading={isLoadingAgents}
+                />
+
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={dateFilter}
+                    onChange={(e) => handleDateFilterChange(e.target.value as DateFilter)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Dates</option>
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="last7days">Last 7 Days</option>
+                    <option value="custom">Custom Date</option>
+                  </select>
+                </div>
+
+                {dateFilter === 'custom' && (
+                  <Input
+                    type="date"
+                    value={customDate}
+                    onChange={(e) => setCustomDate(e.target.value)}
+                    className="w-auto"
+                  />
+                )}
+
+                <div className="text-sm text-gray-500 whitespace-nowrap">
+                  {dateFilter !== 'all' && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 mr-2">
+                      📅 {getDateFilterText()}
+                    </Badge>
+                  )}
+                  Showing {filteredCalls.length} of {calls.length} calls
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Calls Table */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="border-b border-gray-100 pb-4">
+              <CardTitle className="text-xl font-semibold text-gray-900">
+                📋 Call History ({filteredCalls.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
               {loading ? (
-                <div className="flex items-center gap-1">
-                  <LoadingSpinner size="sm" />
-                  <span className="text-xs">Updating...</span>
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size="lg" />
+                  <span className="ml-3 text-gray-600">Loading calls...</span>
+                </div>
+              ) : filteredCalls.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Phone className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-lg font-medium mb-2">No calls found</p>
+                  <p className="text-sm">
+                    {dateFilter !== 'all' 
+                      ? `No calls found for ${getDateFilterText().toLowerCase()}`
+                      : 'No calls match your current filters'
+                    }
+                  </p>
+                  {dateFilter !== 'all' && (
+                    <div className="mt-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setDateFilter('all');
+                          setCustomDate('');
+                        }}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        📅 Show All Dates
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 border border-gray-400 rounded-full"></div>
-                  <span className="text-xs">Refresh</span>
-                </div>
-              )}
-            </Button>
-            
-            <div className="text-right">
-              <div className="text-xs font-medium text-green-600">🤖 Auto System</div>
-              <div className="text-xs text-gray-500">Simplified</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Indicador de Procesamiento */}
-        {isProcessing && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="p-4">
-              <div className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
-                <span className="text-blue-700 font-medium">
-                  🤖 Procesando llamadas nuevas automáticamente...
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Error Alert */}
-        {error && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-4">
-              <p className="text-red-800 font-medium">❌ {error}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {/* Total Calls */}
-          
-          {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {/* Total Calls */}
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Total Calls</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                </div>
-                <Phone className="h-8 w-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Completed */}
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Completed</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Total Cost */}
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Total Cost</p>
-                  <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
-                </div>
-                <DollarSign className="h-8 w-8 text-purple-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Total Duration */}
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Total Duration</p>
-                  <p className="text-xl font-bold text-gray-900">{formatDuration(stats.totalDuration)}</p>
-                </div>
-                <Clock className="h-8 w-8 text-orange-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Average Duration */}
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-pink-50 to-pink-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 font-medium">Avg Duration</p>
-                  <p className="text-xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
-                </div>
-                <Clock className="h-8 w-8 text-pink-600" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex flex-col lg:flex-row gap-4 items-center">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search calls by ID, phone, agent, or summary..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-gray-500" />
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Status</option>
-                  {uniqueStatuses.map(status => (
-                    <option key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <AgentFilter
-                agents={uniqueAgents}
-                selectedAgent={agentFilter}
-                onAgentChange={setAgentFilter}
-                isLoading={isLoadingAgents}
-              />
-
-              <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-gray-500" />
-                <select
-                  value={dateFilter}
-                  onChange={(e) => handleDateFilterChange(e.target.value as DateFilter)}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Dates</option>
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="last7days">Last 7 Days</option>
-                  <option value="custom">Custom Date</option>
-                </select>
-              </div>
-
-              {dateFilter === 'custom' && (
-                <Input
-                  type="date"
-                  value={customDate}
-                  onChange={(e) => setCustomDate(e.target.value)}
-                  className="w-auto"
-                />
-              )}
-
-              <div className="text-sm text-gray-500 whitespace-nowrap">
-                {dateFilter !== 'all' && (
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 mr-2">
-                    📅 {getDateFilterText()}
-                  </Badge>
-                )}
-                Showing {filteredCalls.length} of {calls.length} calls
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Calls Table */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b border-gray-100 pb-4">
-            <CardTitle className="text-xl font-semibold text-gray-900">
-              📋 Call History ({filteredCalls.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <LoadingSpinner size="lg" />
-                <span className="ml-3 text-gray-600">Loading calls...</span>
-              </div>
-            ) : filteredCalls.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Phone className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-lg font-medium mb-2">No calls found</p>
-                <p className="text-sm">
-                  {dateFilter !== 'all' 
-                    ? `No calls found for ${getDateFilterText().toLowerCase()}`
-                    : 'No calls match your current filters'
-                  }
-                </p>
-                {dateFilter !== 'all' && (
-                  <div className="mt-4">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        setDateFilter('all');
-                        setCustomDate('');
-                      }}
-                      className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                    >
-                      📅 Show All Dates
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort('timestamp')}
-                          className="flex items-center gap-1 hover:text-gray-700"
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('timestamp')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Date & Time {getSortIcon('timestamp')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Call Details
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Agent
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('duration_sec')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Duration {getSortIcon('duration_sec')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('cost_usd')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Cost {getSortIcon('cost_usd')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('call_status')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Status {getSortIcon('call_status')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          End Reason
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Content
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredCalls.map((call, index) => (
+                        <tr 
+                          key={call.id} 
+                          className="hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => handleCallClick(call)}
                         >
-                          Date & Time {getSortIcon('timestamp')}
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Call Details
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Agent
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort('duration_sec')}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Duration {getSortIcon('duration_sec')}
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort('cost_usd')}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Cost {getSortIcon('cost_usd')}
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort('call_status')}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Status {getSortIcon('call_status')}
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        End Reason
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Content
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredCalls.map((call, index) => (
-                      <tr 
-                        key={call.id} 
-                        className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => handleCallClick(call)}
-                      >
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 font-medium">
-                            {formatDate(call.timestamp).split(',')[0]}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {formatTime(call.timestamp)}
-                          </div>
-                        </td>
-                        
-                        <td className="px-4 py-4">
-                          <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
-                            <Phone className="h-3 w-3 text-gray-400" />
-                            {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
-                          </div>
-                          <div className="text-xs text-gray-500 font-mono">
-                            ID: {call.call_id.substring(0, 16)}...
-                          </div>
-                        </td>
-                        
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {call.call_agent?.name || getAgentNameLocal(call.agent_id)}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {call.agent_id.substring(0, 8)}...
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900 font-medium">
+                              {formatDate(call.timestamp).split(',')[0]}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {formatTime(call.timestamp)}
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
+                              <Phone className="h-3 w-3 text-gray-400" />
+                              {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono">
+                              ID: {call.call_id.substring(0, 16)}...
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {call.call_agent?.name || getAgentNameLocal(call.agent_id)}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {call.agent_id.substring(0, 8)}...
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {formatDuration(getCallDuration(call))}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {audioDurations[call.id] ? 
-                              `${getCallDuration(call)}s (from audio)` : 
-                              `${getCallDuration(call)}s`
-                            }
-                          </div>
-                        </td>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatDuration(getCallDuration(call))}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {audioDurations[call.id] ? 
+                                `${getCallDuration(call)}s (from audio)` : 
+                                `${getCallDuration(call)}s`
+                              }
+                            </div>
+                          </td>
 
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {formatCurrency(calculateCallCost(call))}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {(() => {
-                              const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-                              return agentRate ? 
-                                `${(getCallDuration(call)/60).toFixed(1)}min × ${agentRate}/min` :
-                                `DB: ${formatCurrency(call.cost_usd)}`;
-                            })()}
-                          </div>
-                        </td>
-                        
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex flex-col gap-1">
-                            <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
-                              {call.call_status}
-                            </Badge>
-                            {call.sentiment && (
-                              <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
-                                {call.sentiment}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatCurrency(calculateCallCost(call))}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {(() => {
+                                const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+                                return agentRate ? 
+                                  `${(getCallDuration(call)/60).toFixed(1)}min × ${agentRate}/min` :
+                                  `DB: ${formatCurrency(call.cost_usd)}`;
+                              })()}
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
+                                {call.call_status}
                               </Badge>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          {call.end_reason ? (
-                            <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
-                              {call.end_reason.replace(/_/g, ' ')}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-gray-400">No reason</span>
-                          )}
-                        </td>
-                        
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            {call.transcript && (
-                              <div className="flex items-center gap-1 text-xs text-green-600">
-                                <FileText className="h-3 w-3" />
-                                Transcript
-                              </div>
-                            )}
-                            {call.call_summary && (
-                              <div className="flex items-center gap-1 text-xs text-blue-600">
-                                <PlayCircle className="h-3 w-3" />
-                                Summary
-                              </div>
-                            )}
-                            {call.recording_url && (
-                              <div className="flex items-center gap-1 text-xs text-red-600">
-                                <Volume2 className="h-3 w-3" />
-                                Audio
-                              </div>
-                            )}
-                          </div>
-                          {call.call_summary && (
-                            <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
-                              {call.call_summary}
+                              {call.sentiment && (
+                                <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
+                                  {call.sentiment}
+                                </Badge>
+                              )}
                             </div>
-                          )}
-                        </td>
-                        
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-6 w-6 p-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCallClick(call);
-                              }}
-                            >
-                              <Eye className="h-3 w-3" />
-                            </Button>
-                            {call.recording_url && (
+                          </td>
+
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            {call.end_reason ? (
+                              <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
+                                {call.end_reason.replace(/_/g, ' ')}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-gray-400">No reason</span>
+                            )}
+                          </td>
+                          
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              {call.transcript && (
+                                <div className="flex items-center gap-1 text-xs text-green-600">
+                                  <FileText className="h-3 w-3" />
+                                  Transcript
+                                </div>
+                              )}
+                              {call.call_summary && (
+                                <div className="flex items-center gap-1 text-xs text-blue-600">
+                                  <PlayCircle className="h-3 w-3" />
+                                  Summary
+                                </div>
+                              )}
+                              {call.recording_url && (
+                                <div className="flex items-center gap-1 text-xs text-red-600">
+                                  <Volume2 className="h-3 w-3" />
+                                  Audio
+                                </div>
+                              )}
+                            </div>
+                            {call.call_summary && (
+                              <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
+                                {call.call_summary}
+                              </div>
+                            )}
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1">
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
                                 className="h-6 w-6 p-0"
-                                asChild
-                                onClick={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCallClick(call);
+                                }}
                               >
-                                <a
-                                  href={call.recording_url}
-                                  download={`call-${call.call_id}.mp3`}
-                                >
-                                  <Download className="h-3 w-3" />
-                                </a>
+                                <Eye className="h-3 w-3" />
                               </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        {/* Call Detail Modal */}
-        <CallDetailModal 
-          call={selectedCall}
-          isOpen={isModalOpen}
-          onClose={handleModalClose}
-          audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
-          userAssignedAgents={userAssignedAgents}
-          getAgentNameFunction={getAgentNameLocal}
-        />
+                              {call.recording_url && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-6 w-6 p-0"
+                                  asChild
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <a
+                                    href={call.recording_url}
+                                    download={`call-${call.call_id}.mp3`}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Call Detail Modal */}
+          <CallDetailModal 
+            call={selectedCall}
+            isOpen={isModalOpen}
+            onClose={handleModalClose}
+            audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
+            userAssignedAgents={userAssignedAgents}
+            getAgentNameFunction={getAgentNameLocal}
+          />
+        </div>
       </div>
-    </div>
-  </DashboardLayout>
-);
+    </DashboardLayout>
+  );
 }
