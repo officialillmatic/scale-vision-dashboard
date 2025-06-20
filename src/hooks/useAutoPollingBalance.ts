@@ -286,22 +286,69 @@ export function useAutoPollingBalance() {
     };
   }, [user?.id, updateData, startPolling, stopPolling]);
 
-  // 🆕 LISTENER PARA ACTUALIZACIONES INMEDIATAS DESDE CALLS
-useEffect(() => {
-  const handleBalanceUpdate = (event: any) => {
-    console.log('🔔 Balance update event received:', event.detail);
-    // Actualizar inmediatamente cuando se reciba el evento
-    updateData(true);
-  };
+  // ✅ LISTENER CORREGIDO PARA ACTUALIZACIONES INMEDIATAS DESDE CALLS
+  useEffect(() => {
+    const handleBalanceUpdate = async (event: any) => {
+      console.log('🔔 Balance update event received:', event.detail);
+      
+      // ✅ CAMBIO PRINCIPAL: Forzar actualización VISIBLE de la UI
+      setLoading(true);  // Mostrar que se está actualizando
+      
+      // Actualizar datos inmediatamente - SIN modo silencioso
+      await updateData(false);  // 🔧 false = NO silencioso = actualiza UI
+      
+      // ✅ NUEVO: Obtener balance directo de la BD para asegurar sincronización
+      if (user?.id) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('credit_balance')
+            .eq('id', user.id)
+            .single();
+          
+          if (!error && data) {
+            const directBalance = data.credit_balance;
+            console.log(`💰 Balance DIRECTO verificado: $${directBalance}`);
+            
+            // Forzar actualización del estado si es diferente
+            if (lastKnownBalance.current !== directBalance) {
+              lastKnownBalance.current = directBalance;
+              
+              // Crear evento de cambio manual para sincronizar
+              const balanceChange: BalanceChange = {
+                oldBalance: lastKnownBalance.current || 0,
+                newBalance: directBalance,
+                difference: Math.abs((lastKnownBalance.current || 0) - directBalance),
+                timestamp: new Date().toISOString(),
+                isDeduction: (lastKnownBalance.current || 0) > directBalance
+              };
+              
+              setLastBalanceChange(balanceChange);
+              
+              // ✅ FORZAR actualización del estado del balance
+              setBalanceStats(prev => prev ? {
+                ...prev,
+                current_balance: directBalance,
+                updated_at: new Date().toISOString()
+              } : null);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error verificando balance directo:', error);
+        }
+      }
+      
+      console.log('✅ Balance UI actualizado inmediatamente');
+    };
 
-  // Escuchar el evento que enviamos desde CallsSimple.tsx
-  window.addEventListener('balanceUpdated', handleBalanceUpdate);
+    // Escuchar el evento que enviamos desde CallsSimple.tsx
+    window.addEventListener('balanceUpdated', handleBalanceUpdate);
 
-  // Cleanup
-  return () => {
-    window.removeEventListener('balanceUpdated', handleBalanceUpdate);
-  };
-}, [updateData]);
+    // Cleanup
+    return () => {
+      window.removeEventListener('balanceUpdated', handleBalanceUpdate);
+    };
+  }, [updateData, user?.id]);  // ✅ Agregar user?.id como dependencia
 
   // Effect para limpiar el indicador de último cambio después de 10 segundos
   useEffect(() => {
