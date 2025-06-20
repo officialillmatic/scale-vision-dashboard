@@ -31,7 +31,7 @@ import {
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAgents } from "@/hooks/useAgents";
-import { useNewBalanceSystem } from "@/hooks/useNewBalanceSystem"; // ✅ NUEVO
+
 
 // ============================================================================
 // INTERFACES Y TIPOS
@@ -281,8 +281,6 @@ export default function CallsSimple() {
   const [isProcessing, setIsProcessing] = useState(false);
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
-  // ✅ NUEVO: Sistema de balance automático
-  const balanceSystem = useNewBalanceSystem();
   
   // ✅ NUEVO: Estado del balance del usuario
   const [userBalance, setUserBalance] = useState<number | null>(null);
@@ -458,12 +456,6 @@ export default function CallsSimple() {
     console.log(`🎉 Balance actualizado: $${newBalance} (descuento: $${deduction} para ${callId})`);
     setUserBalance(newBalance);
   };
-
-  const handleBalanceUpdate = (event: CustomEvent) => {
-  const { newBalance, deduction, callId } = event.detail;
-  console.log(`🎉 Balance actualizado: $${newBalance} (descuento: $${deduction} para ${callId})`);
-  setUserBalance(newBalance);
-};
 
 // ✅ NUEVA FUNCIÓN SIMPLE
 const processCallsManually = async () => {
@@ -1053,12 +1045,12 @@ const processCallsManually = async () => {
                     }`}>
                       {userBalance !== null ? `$${userBalance.toFixed(4)}` : '$0.0000'}
                     </p>
-                    {balanceSystem.isProcessing && (
-                      <div className="flex items-center gap-1">
-                        <Zap className="w-4 h-4 text-blue-500 animate-pulse" />
-                        <span className="text-xs text-blue-600 font-medium">Processing</span>
-                      </div>
-                    )}
+                    {isProcessing && (
+  <div className="flex items-center gap-1">
+    <Zap className="w-4 h-4 text-blue-500 animate-pulse" />
+    <span className="text-xs text-blue-600 font-medium">Processing</span>
+  </div>
+)}
                   </>
                 )}
               </div>
@@ -1078,7 +1070,7 @@ const processCallsManually = async () => {
               
               <div className="text-right">
                 <div className="text-xs text-gray-500">
-                  Auto Processing: {balanceSystem.userCustomAgents.length > 0 ? '✅ Active' : '❌ No Agents'}
+                  Manual Processing: ✅ Ready
                 </div>
                 <div className="text-xs text-gray-400">
                   Processed: {balanceSystem.processedCallsCount}
@@ -1158,13 +1150,7 @@ const processCallsManually = async () => {
                 Active User
               </Badge>
               
-              {/* ✅ NUEVO: Badges del sistema de balance */}
-              {balanceSystem.userCustomAgents.length > 0 && (
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                  <Zap className="w-3 h-3 mr-1" />
-                  Auto System Active
-                </Badge>
-              )}
+      
               
               {userBalance !== null && userBalance < 10 && (
                 <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
@@ -1174,29 +1160,15 @@ const processCallsManually = async () => {
               )}
               
               <Button
-                onClick={() => {
-                  console.log("🔄 REFRESH MANUAL CON BALANCE");
-                  fetchCalls();
-                  loadUserBalance(); // ✅ NUEVO
-                  balanceSystem.refreshData(); // ✅ NUEVO
-                }}
-                disabled={loading}
-                variant="outline"
-                size="sm"
-                className="text-gray-500 border-gray-300"
-              >
-                {loading ? (
-                  <div className="flex items-center gap-1">
-                    <LoadingSpinner size="sm" />
-                    <span className="text-xs">Updating...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <RefreshCw className="w-3 h-3" />
-                    <span className="text-xs">Refresh All</span>
-                  </div>
-                )}
-              </Button>
+  onClick={processCallsManually}
+  disabled={loading}
+  variant="outline"
+  size="sm"
+  className="text-green-600 border-green-300 hover:bg-green-50"
+>
+  <Zap className="w-3 h-3 mr-1" />
+  Process Calls
+</Button>
               
               <div className="text-right">
                 <div className="text-xs font-medium text-green-600">🤖 Auto System</div>
