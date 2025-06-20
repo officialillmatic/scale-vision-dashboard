@@ -361,7 +361,7 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
               </div>
             )}
           </div>
-        )}
+        )
       </CardContent>
     </Card>
   );
