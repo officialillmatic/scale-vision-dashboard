@@ -619,116 +619,8 @@ export default function CallsSimple() {
     setLoading(false);
   }
 };
-  // ============================================================================
-  // PROCESAMIENTO AUTOMÁTICO
-  // ============================================================================
 
-  const processNewCalls = async () => {
-    if (!calls.length || !user?.id || loading || isProcessing) {
-      return;
-    }
-
-    console.log('🤖 VERIFICANDO LLAMADAS PARA PROCESAMIENTO...');
-
-    // Filtrar llamadas que necesitan procesamiento
-    const callsNeedingProcessing = calls.filter(call => {
-      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
-      
-      // ✅ CAMBIO PRINCIPAL: Usar getCallDuration en lugar de call.duration_sec
-      const actualDuration = getCallDuration(call);
-      const hasDuration = actualDuration > 0;
-      
-      const notProcessed = (!call.cost_usd || call.cost_usd === 0);
-      const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
-      const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-      
-      const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
-      
-      if (needsProcessing) {
-        console.log(`🎯 Llamada necesita procesamiento: ${call.call_id}`, {
-          status: call.call_status,
-          duration_sec_bd: call.duration_sec,         // BD (siempre 0)
-          actual_duration: actualDuration,            // Audio real
-          currentCost: call.cost_usd,
-          hasRate: !!hasRate
-        });
-      }
-      
-      return needsProcessing;
-    });
-
-    if (callsNeedingProcessing.length === 0) {
-      console.log('✅ No hay llamadas nuevas para procesar');
-      return;
-    }
-
-    console.log(`🚨 PROCESANDO ${callsNeedingProcessing.length} llamadas automáticamente`);
-    setIsProcessing(true);
-
-    let processedCount = 0;
-    let errors = 0;
-
-    for (const call of callsNeedingProcessing) {
-      try {
-        console.log(`⚡ PROCESANDO: ${call.call_id}`);
-        
-        const calculatedCost = calculateCallCost(call);
-        
-        if (calculatedCost > 0) {
-          // 1. Actualizar costo en la base de datos
-          const { error: updateError } = await supabase
-            .from('calls')
-            .update({ 
-              cost_usd: calculatedCost,
-              updated_at: new Date().toISOString()
-            })
-            .eq('call_id', call.call_id);
-
-          if (updateError) {
-            console.error(`❌ Error actualizando costo:`, updateError);
-            errors++;
-            continue;
-          }
-
-          // 2. Descontar del balance (vía evento)
-          const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, user.id);
-          
-          if (deductionSuccess) {
-            // 3. Marcar como procesada
-            lastProcessedRef.current.add(call.call_id);
-            
-            // 4. Actualizar estado local
-            setCalls(prevCalls => 
-              prevCalls.map(c => 
-                c.call_id === call.call_id 
-                  ? { ...c, cost_usd: calculatedCost }
-                  : c
-              )
-            );
-            
-            console.log(`🎉 PROCESADO EXITOSO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
-            processedCount++;
-          } else {
-            console.error(`❌ Error en descuento para ${call.call_id}`);
-            errors++;
-          }
-        } else {
-          console.warn(`⚠️ Costo calculado inválido para ${call.call_id}: $${calculatedCost}`);
-          errors++;
-        }
-        
-        // Pequeña pausa entre procesamiento
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-      } catch (error) {
-        console.error(`❌ Error procesando ${call.call_id}:`, error);
-        errors++;
-      }
-    }
-
-    console.log(`✅ PROCESAMIENTO COMPLETADO: ${processedCount} éxitos, ${errors} errores`);
-    setIsProcessing(false);
-  };
+    
   // ============================================================================
   // useEffects CORREGIDOS
   // ============================================================================
@@ -758,17 +650,7 @@ export default function CallsSimple() {
     }
   }, [user?.id]);
 
-  // ✅ EFECTO CORREGIDO: Procesar llamadas automáticamente cuando cambien
-  useEffect(() => {
-    if (calls.length > 0 && user?.id && !loading) {
-      console.log('🔍 Verificando llamadas para procesamiento automático...');
-      const timeoutId = setTimeout(() => {
-        processNewCalls();
-      }, 1000); // Pequeño delay para evitar múltiples ejecuciones
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [calls.length, user?.id]); // ✅ REMOVIDO loading de dependencias
+  
 
   // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
