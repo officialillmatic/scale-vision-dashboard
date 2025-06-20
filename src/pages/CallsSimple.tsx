@@ -510,19 +510,6 @@ for (let i = 0; i < callsWithAudio.length; i += 3) {
     await new Promise(resolve => setTimeout(resolve, 200));
   }
 }
-      // ✅ CARGAR DURACIONES DE AUDIO INMEDIATAMENTE
-console.log('🎵 Cargando duraciones de audio...');
-const callsWithAudio = mappedCalls.filter(call => call.recording_url);
-console.log(`📻 ${callsWithAudio.length} llamadas con audio encontradas`);
-
-// Cargar audio en lotes pequeños
-for (let i = 0; i < callsWithAudio.length; i += 3) {
-  const batch = callsWithAudio.slice(i, i + 3);
-  await Promise.all(batch.map(call => loadAudioDuration(call)));
-  if (i + 3 < callsWithAudio.length) {
-    await new Promise(resolve => setTimeout(resolve, 200));
-  }
-}
 
 setCalls(mappedCalls || []);
 
