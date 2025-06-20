@@ -23,15 +23,11 @@ import {
   Download,
   CalendarDays,
   ChevronDown,
-  Users,
-  RefreshCw,     // ✅ NUEVO
-  Zap,           // ✅ NUEVO
-  CreditCard     // ✅ NUEVO
+  Users
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAgents } from "@/hooks/useAgents";
-
 
 // ============================================================================
 // INTERFACES Y TIPOS
@@ -82,8 +78,8 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
     
     // 1. OBTENER BALANCE ACTUAL
     const { data: currentUser, error: userError } = await supabase
-      .from('user_credits')
-      .select('current_balance')
+      .from('profiles')
+      .select('credit_balance')
       .eq('id', userId)
       .single();
 
@@ -92,16 +88,16 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    const currentBalance = currentUser?.current_balance || 0;
+    const currentBalance = currentUser?.credit_balance || 0;
     const newBalance = Math.max(0, currentBalance - callCost);
     
     console.log(`💰 Balance: $${currentBalance} → $${newBalance} (descuento: $${callCost})`);
 
     // 2. ACTUALIZAR BALANCE EN LA BASE DE DATOS
     const { error: updateError } = await supabase
-  .from('user_credits')
-  .update({ 
-    current_balance: newBalance,
+      .from('profiles')
+      .update({ 
+        credit_balance: newBalance,
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);
@@ -281,11 +277,6 @@ export default function CallsSimple() {
   const [isProcessing, setIsProcessing] = useState(false);
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
-  
-  // ✅ NUEVO: Estado del balance del usuario
-  const [userBalance, setUserBalance] = useState<number | null>(null);
-  const [balanceLoading, setBalanceLoading] = useState(false);
-
   // Variables auxiliares
   const uniqueAgents = userAssignedAgents || [];
 
@@ -420,112 +411,6 @@ export default function CallsSimple() {
       console.log(`❌ Error loading audio duration:`, error);
     }
   };
-
-  // ✅ NUEVA FUNCIÓN: Cargar balance del usuario
-  const loadUserBalance = async () => {
-    if (!user?.id) return;
-    
-    try {
-      setBalanceLoading(true);
-      
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('current_balance')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error('❌ Error loading user balance:', error);
-        return;
-      }
-
-      const balance = profile?.current_balance || 0;
-      setUserBalance(balance);
-      console.log(`💰 Balance cargado: $${balance.toFixed(4)}`);
-      
-    } catch (error) {
-      console.error('❌ Error in loadUserBalance:', error);
-    } finally {
-      setBalanceLoading(false);
-    }
-  };
-
-  // ✅ NUEVA FUNCIÓN: Escuchar actualizaciones de balance
-  const handleBalanceUpdate = (event: CustomEvent) => {
-    const { newBalance, deduction, callId } = event.detail;
-    console.log(`🎉 Balance actualizado: $${newBalance} (descuento: $${deduction} para ${callId})`);
-    setUserBalance(newBalance);
-  };
-
-// ✅ NUEVA FUNCIÓN SIMPLE
-const processCallsManually = async () => {
-  if (!user?.id || !calls.length) {
-    console.log('❌ No hay usuario o llamadas');
-    return;
-  }
-
-  console.log('🚀 PROCESAMIENTO MANUAL INICIADO');
-  
-  // 1. Buscar llamadas completadas sin costo
-  const callsToProcess = calls.filter(call => 
-    ['completed', 'ended'].includes(call.call_status?.toLowerCase()) &&
-    (!call.cost_usd || call.cost_usd === 0) &&
-    (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute)
-  );
-
-  console.log(`📞 Encontradas ${callsToProcess.length} llamadas para procesar`);
-
-  if (callsToProcess.length === 0) {
-    alert('No hay llamadas nuevas para procesar');
-    return;
-  }
-
-  // 2. Procesar cada llamada
-  for (const call of callsToProcess) {
-    try {
-      console.log(`⚡ Procesando: ${call.call_id?.substring(0, 8)}`);
-      
-      // Calcular costo
-      const cost = calculateCallCost(call);
-      
-      if (cost > 0) {
-        console.log(`💰 Costo calculado: $${cost.toFixed(4)}`);
-        
-        // Actualizar costo en BD
-        const { error: updateError } = await supabase
-          .from('calls')
-          .update({ cost_usd: cost })
-          .eq('call_id', call.call_id);
-
-        if (updateError) {
-          console.error('❌ Error actualizando call:', updateError);
-          continue;
-        }
-
-        // Descontar del balance
-        const deductSuccess = await deductCallCost(call.call_id, cost, user.id);
-        
-        if (deductSuccess) {
-          console.log(`✅ ÉXITO: ${call.call_id?.substring(0, 8)} - $${cost.toFixed(4)}`);
-        }
-      }
-      
-      // Pausa entre llamadas
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-    } catch (error) {
-      console.error(`❌ Error procesando ${call.call_id}:`, error);
-    }
-  }
-
-  console.log('🎉 PROCESAMIENTO MANUAL COMPLETADO');
-  
-  // Recargar datos
-  fetchCalls();
-  loadUserBalance();
-  
-  alert(`Procesadas ${callsToProcess.length} llamadas. Revisa la consola para detalles.`);
-};
   // ============================================================================
   // FUNCIÓN FETCH CALLS CORREGIDA PARA COSTOS
   // ============================================================================
@@ -586,7 +471,6 @@ const processCallsManually = async () => {
 
     console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
     setUserAssignedAgents(agentDetails || []);
-
     // PASO 3: ✅ NUEVA LÓGICA - Buscar TODAS las llamadas de los agentes asignados
     // SIN filtrar por user_id - mostrar llamadas de cualquier usuario para estos agentes
     
@@ -687,8 +571,116 @@ const processCallsManually = async () => {
     setLoading(false);
   }
 };
+  // ============================================================================
+  // PROCESAMIENTO AUTOMÁTICO
+  // ============================================================================
 
-    
+  const processNewCalls = async () => {
+    if (!calls.length || !user?.id || loading || isProcessing) {
+      return;
+    }
+
+    console.log('🤖 VERIFICANDO LLAMADAS PARA PROCESAMIENTO...');
+
+    // Filtrar llamadas que necesitan procesamiento
+    const callsNeedingProcessing = calls.filter(call => {
+      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+      
+      // ✅ CAMBIO PRINCIPAL: Usar getCallDuration en lugar de call.duration_sec
+      const actualDuration = getCallDuration(call);
+      const hasDuration = actualDuration > 0;
+      
+      const notProcessed = (!call.cost_usd || call.cost_usd === 0);
+      const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
+      const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+      
+      const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
+      
+      if (needsProcessing) {
+        console.log(`🎯 Llamada necesita procesamiento: ${call.call_id}`, {
+          status: call.call_status,
+          duration_sec_bd: call.duration_sec,         // BD (siempre 0)
+          actual_duration: actualDuration,            // Audio real
+          currentCost: call.cost_usd,
+          hasRate: !!hasRate
+        });
+      }
+      
+      return needsProcessing;
+    });
+
+    if (callsNeedingProcessing.length === 0) {
+      console.log('✅ No hay llamadas nuevas para procesar');
+      return;
+    }
+
+    console.log(`🚨 PROCESANDO ${callsNeedingProcessing.length} llamadas automáticamente`);
+    setIsProcessing(true);
+
+    let processedCount = 0;
+    let errors = 0;
+
+    for (const call of callsNeedingProcessing) {
+      try {
+        console.log(`⚡ PROCESANDO: ${call.call_id}`);
+        
+        const calculatedCost = calculateCallCost(call);
+        
+        if (calculatedCost > 0) {
+          // 1. Actualizar costo en la base de datos
+          const { error: updateError } = await supabase
+            .from('calls')
+            .update({ 
+              cost_usd: calculatedCost,
+              updated_at: new Date().toISOString()
+            })
+            .eq('call_id', call.call_id);
+
+          if (updateError) {
+            console.error(`❌ Error actualizando costo:`, updateError);
+            errors++;
+            continue;
+          }
+
+          // 2. Descontar del balance (vía evento)
+          const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, user.id);
+          
+          if (deductionSuccess) {
+            // 3. Marcar como procesada
+            lastProcessedRef.current.add(call.call_id);
+            
+            // 4. Actualizar estado local
+            setCalls(prevCalls => 
+              prevCalls.map(c => 
+                c.call_id === call.call_id 
+                  ? { ...c, cost_usd: calculatedCost }
+                  : c
+              )
+            );
+            
+            console.log(`🎉 PROCESADO EXITOSO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
+            processedCount++;
+          } else {
+            console.error(`❌ Error en descuento para ${call.call_id}`);
+            errors++;
+          }
+        } else {
+          console.warn(`⚠️ Costo calculado inválido para ${call.call_id}: $${calculatedCost}`);
+          errors++;
+        }
+        
+        // Pequeña pausa entre procesamiento
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`❌ Error procesando ${call.call_id}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`✅ PROCESAMIENTO COMPLETADO: ${processedCount} éxitos, ${errors} errores`);
+    setIsProcessing(false);
+  };
   // ============================================================================
   // useEffects CORREGIDOS
   // ============================================================================
@@ -701,24 +693,17 @@ const processCallsManually = async () => {
     }
   }, [user?.id]);
 
-  // ✅ NUEVO useEffect: Inicializar sistema de balance
+  // ✅ EFECTO CORREGIDO: Procesar llamadas automáticamente cuando cambien
   useEffect(() => {
-    if (user?.id) {
-      console.log('💰 Inicializando sistema de balance...');
-      
-      // Cargar balance inicial
-      loadUserBalance();
-      
-      // Escuchar eventos de actualización de balance
-      window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-      
-      return () => {
-        window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-      };
-    }
-  }, [user?.id]);
+    if (calls.length > 0 && user?.id && !loading) {
+      console.log('🔍 Verificando llamadas para procesamiento automático...');
+      const timeoutId = setTimeout(() => {
+        processNewCalls();
+      }, 1000); // Pequeño delay para evitar múltiples ejecuciones
 
-  
+      return () => clearTimeout(timeoutId);
+    }
+  }, [calls.length, user?.id]); // ✅ REMOVIDO loading de dependencias
 
   // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
@@ -828,7 +813,6 @@ const processCallsManually = async () => {
       completedCalls
     });
   };
-
   // ============================================================================
   // FUNCIONES DE UTILIDAD
   // ============================================================================
@@ -987,7 +971,6 @@ const processCallsManually = async () => {
     if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
     return sortOrder === 'asc' ? '↑' : '↓';
   };
-
   // ============================================================================
   // HANDLERS DE EVENTOS
   // ============================================================================
@@ -1015,73 +998,6 @@ const processCallsManually = async () => {
   // Variables auxiliares para la UI
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
   const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
-  // ✅ NUEVO: Componente de Balance Compacto
-  const BalanceDisplay = () => {
-    const isLowBalance = userBalance !== null && userBalance < 10;
-    const isVeryLowBalance = userBalance !== null && userBalance < 5;
-    
-    return (
-      <Card className={`border-0 shadow-sm ${
-        isVeryLowBalance ? 'bg-gradient-to-br from-red-50 to-red-100/50' :
-        isLowBalance ? 'bg-gradient-to-br from-yellow-50 to-yellow-100/50' :
-        'bg-gradient-to-br from-green-50 to-green-100/50'
-      }`}>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-600 font-medium">Current Balance</p>
-              <div className="flex items-center gap-2">
-                {balanceLoading ? (
-                  <div className="flex items-center gap-2">
-                    <LoadingSpinner size="sm" />
-                    <span className="text-lg font-bold text-gray-500">Loading...</span>
-                  </div>
-                ) : (
-                  <>
-                    <p className={`text-2xl font-bold ${
-                      isVeryLowBalance ? 'text-red-700' :
-                      isLowBalance ? 'text-yellow-700' :
-                      'text-green-700'
-                    }`}>
-                      {userBalance !== null ? `$${userBalance.toFixed(4)}` : '$0.0000'}
-                    </p>
-                    {isProcessing && (
-  <div className="flex items-center gap-1">
-    <Zap className="w-4 h-4 text-blue-500 animate-pulse" />
-    <span className="text-xs text-blue-600 font-medium">Processing</span>
-  </div>
-)}
-                  </>
-                )}
-              </div>
-              {isVeryLowBalance && (
-                <p className="text-xs text-red-600 font-medium mt-1">⚠️ Very Low Balance</p>
-              )}
-              {isLowBalance && !isVeryLowBalance && (
-                <p className="text-xs text-yellow-600 font-medium mt-1">⚠️ Low Balance</p>
-              )}
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <CreditCard className={`h-8 w-8 ${
-                isVeryLowBalance ? 'text-red-600' :
-                isLowBalance ? 'text-yellow-600' :
-                'text-green-600'
-              }`} />
-              
-              <div className="text-right">
-  <div className="text-xs text-gray-500">
-    Manual Processing: ✅ Ready
-  </div>
-  <div className="text-xs text-gray-400">
-    Ready for processing
-  </div>
-</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
 
   // ============================================================================
   // VERIFICACIÓN DE USUARIO
@@ -1141,25 +1057,28 @@ const processCallsManually = async () => {
                 Active User
               </Badge>
               
-      
-              
-              {userBalance !== null && userBalance < 10 && (
-                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                  <CreditCard className="w-3 h-3 mr-1" />
-                  Low Balance
-                </Badge>
-              )}
-              
               <Button
-  onClick={processCallsManually}
-  disabled={loading}
-  variant="outline"
-  size="sm"
-  className="text-green-600 border-green-300 hover:bg-green-50"
->
-  <Zap className="w-3 h-3 mr-1" />
-  Process Calls
-</Button>
+                onClick={() => {
+                  console.log("🔄 REFRESH MANUAL");
+                  fetchCalls();
+                }}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+                className="text-gray-500 border-gray-300"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-1">
+                    <LoadingSpinner size="sm" />
+                    <span className="text-xs">Updating...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 border border-gray-400 rounded-full"></div>
+                    <span className="text-xs">Refresh</span>
+                  </div>
+                )}
+              </Button>
               
               <div className="text-right">
                 <div className="text-xs font-medium text-green-600">🤖 Auto System</div>
@@ -1191,7 +1110,7 @@ const processCallsManually = async () => {
             </Card>
           )}
           {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4"> {/* ✅ CAMBIO: grid-cols-5 → grid-cols-6 */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -1251,9 +1170,6 @@ const processCallsManually = async () => {
                 </div>
               </CardContent>
             </Card>
-
-            {/* ✅ NUEVO: Card de Balance */}
-            <BalanceDisplay />
           </div>
           {/* Filters */}
           <Card className="border-0 shadow-sm">
@@ -1485,7 +1401,6 @@ const processCallsManually = async () => {
                               })()}
                             </div>
                           </td>
-
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex flex-col gap-1">
                               <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
@@ -1552,21 +1467,23 @@ const processCallsManually = async () => {
                               </Button>
                               
                               {call.recording_url && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="h-6 w-6 p-0"
-                                  asChild
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <a
-                                    href={call.recording_url}
-                                    download={`call-${call.call_id}.mp3`}
-                                  >
-                                    <Download className="h-3 w-3" />
-                                  </a>
-                                </Button>
-                              )}
+  <Button 
+    variant="ghost" 
+    size="sm" 
+    className="h-6 w-6 p-0"
+    asChild
+    onClick={(e) => e.stopPropagation()}
+  >
+    <a
+      href={call.recording_url}
+      download={`call-${call.call_id}.mp3`}
+    >
+      <Download className="h-3 w-3" />
+    </a>
+  </Button>
+)}
+                              
+                              
                             </div>
                           </td>
                         </tr>
