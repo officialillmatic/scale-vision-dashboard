@@ -416,167 +416,173 @@ export default function CallsSimple() {
   // ============================================================================
   
   const fetchCalls = async () => {
-    console.log("🔄 FETCH CALLS CON COSTOS CORREGIDOS");
-    
-    if (!user?.id) {
-      setError("User not authenticated");
-      setLoading(false);
+  console.log("🔄 FETCH CALLS - FILTRO DE AGENTES CORREGIDO");
+  
+  if (!user?.id) {
+    setError("User not authenticated");
+    setLoading(false);
+    return;
+  }
+
+  try {
+    setLoading(true);
+    setError(null);
+
+    // Obtener asignaciones de agentes del usuario
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('user_agent_assignments')
+      .select('agent_id')
+      .eq('user_id', user.id);
+
+    if (assignmentsError) {
+      console.error("❌ Error obteniendo asignaciones:", assignmentsError);
+      setError(`Error obteniendo asignaciones: ${assignmentsError.message}`);
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
+    if (!assignments || assignments.length === 0) {
+      console.log("⚠️ Usuario sin asignaciones de agentes");
+      setCalls([]);
+      setUserAssignedAgents([]);
+      setStats({
+        total: 0,
+        totalCost: 0,
+        totalDuration: 0,
+        avgDuration: 0,
+        completedCalls: 0
+      });
+      return;
+    }
 
-      // Obtener asignaciones de agentes del usuario
-      const { data: assignments, error: assignmentsError } = await supabase
-        .from('user_agent_assignments')
-        .select('agent_id')
-        .eq('user_id', user.id);
+    const agentIds = assignments.map(a => a.agent_id);
+    console.log("🎯 IDs de agentes asignados:", agentIds);
 
-      if (assignmentsError) {
-        console.error("❌ Error obteniendo asignaciones:", assignmentsError);
-        setError(`Error obteniendo asignaciones: ${assignmentsError.message}`);
-        return;
-      }
+    // Obtener detalles de los agentes
+    const { data: agentDetails, error: agentsError } = await supabase
+      .from('agents')
+      .select('id, name, rate_per_minute, retell_agent_id')
+      .in('id', agentIds);
 
-      if (!assignments || assignments.length === 0) {
-        console.log("⚠️ Usuario sin asignaciones de agentes");
-        setCalls([]);
-        setUserAssignedAgents([]);
-        setStats({
-          total: 0,
-          totalCost: 0,
-          totalDuration: 0,
-          avgDuration: 0,
-          completedCalls: 0
-        });
-        return;
-      }
+    if (agentsError) {
+      console.error("❌ Error obteniendo detalles de agentes:", agentsError);
+      setError(`Error obteniendo agentes: ${agentsError.message}`);
+      return;
+    }
 
-      const agentIds = assignments.map(a => a.agent_id);
-      console.log("🎯 IDs de agentes asignados:", agentIds);
+    console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
+    setUserAssignedAgents(agentDetails || []);
 
-      // Obtener detalles de los agentes
-      const { data: agentDetails, error: agentsError } = await supabase
-        .from('agents')
-        .select('id, name, rate_per_minute, retell_agent_id')
-        .in('id', agentIds);
+    // ✅ NUEVA LÓGICA: OBTENER TODAS LAS LLAMADAS DEL USUARIO
+    // Sin filtrar por agente específico en la consulta SQL
+    const { data: allUserCalls, error: callsError } = await supabase
+      .from('calls')
+      .select('*')
+      .eq('user_id', user.id)  // Solo filtrar por usuario
+      .order('timestamp', { ascending: false });
 
-      if (agentsError) {
-        console.error("❌ Error obteniendo detalles de agentes:", agentsError);
-        setError(`Error obteniendo agentes: ${agentsError.message}`);
-        return;
-      }
+    if (callsError) {
+      console.error("❌ Error obteniendo llamadas:", callsError);
+      setError(`Error obteniendo llamadas: ${callsError.message}`);
+      return;
+    }
 
-      console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
-      setUserAssignedAgents(agentDetails || []);
+    console.log(`📞 TODAS las llamadas del usuario: ${allUserCalls?.length || 0}`);
 
-      // Buscar llamadas por UUID de agentes y Retell IDs
-      const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
-      const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
+    // ✅ FILTRAR MANUALMENTE para incluir solo agentes asignados
+    const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
+    const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
+    
+    console.log("📋 Filtrando llamadas por:");
+    console.log("   • Agent UUIDs:", agentUUIDs);
+    console.log("   • Retell Agent IDs:", retellAgentIds);
+
+    const filteredCalls = (allUserCalls || []).filter(call => {
+      const matchesUUID = agentUUIDs.includes(call.agent_id);
+      const matchesRetell = retellAgentIds.includes(call.agent_id);
+      const isAssigned = matchesUUID || matchesRetell;
       
-      console.log("📋 Buscando llamadas por:");
-      console.log("   • Agent UUIDs:", agentUUIDs);
-      console.log("   • Retell Agent IDs:", retellAgentIds);
+      if (isAssigned) {
+        console.log(`✅ Llamada incluida: ${call.call_id} (agente: ${call.agent_id})`);
+      }
+      
+      return isAssigned;
+    });
 
-      const { data: callsByUUID } = await supabase
-        .from('calls')
-        .select('*')
-        .in('agent_id', agentUUIDs)
-        .order('timestamp', { ascending: false });
+    console.log(`🎯 RESULTADO: ${filteredCalls.length} llamadas de agentes asignados`);
 
-      const { data: callsByRetell } = await supabase
-        .from('calls')
-        .select('*')
-        .in('agent_id', retellAgentIds)
-        .order('timestamp', { ascending: false });
+    // ✅ MAPEAR LLAMADAS CON INFORMACIÓN COMPLETA DEL AGENTE
+    const userAgents = agentDetails?.map(agent => ({
+      agent_id: agent.id,
+      agents: agent
+    })) || [];
 
-      // Combinar y eliminar duplicados
-      const allCalls = [
-        ...(callsByUUID || []),
-        ...(callsByRetell || [])
-      ];
+    const mappedCalls = filteredCalls.map(call => {
+      let matchedAgent = null;
 
-      const uniqueCalls = allCalls.filter((call, index, self) => 
-        index === self.findIndex(c => c.call_id === call.call_id)
+      // Buscar agente por ID directo o retell_agent_id
+      const userAgentAssignment = userAgents.find(assignment => 
+        assignment.agents.id === call.agent_id ||
+        assignment.agents.retell_agent_id === call.agent_id ||
+        `agent_${assignment.agents.id}` === call.agent_id
       );
 
-      console.log(`🎯 RESULTADO: ${uniqueCalls.length} llamadas únicas encontradas`);
-
-      // ✅ MAPEAR LLAMADAS CON INFORMACIÓN COMPLETA DEL AGENTE
-      const userAgents = agentDetails?.map(agent => ({
-        agent_id: agent.id,
-        agents: agent
-      })) || [];
-
-      const mappedCalls = uniqueCalls.map(call => {
-        let matchedAgent = null;
-
-        // Buscar agente por ID directo o retell_agent_id
-        const userAgentAssignment = userAgents.find(assignment => 
-          assignment.agents.id === call.agent_id ||
-          assignment.agents.retell_agent_id === call.agent_id ||
-          `agent_${assignment.agents.id}` === call.agent_id
-        );
-
-        if (userAgentAssignment) {
-          matchedAgent = {
-            id: userAgentAssignment.agents.id,
-            name: userAgentAssignment.agents.name,
-            rate_per_minute: userAgentAssignment.agents.rate_per_minute
-          };
-          console.log(`✅ Agente encontrado para ${call.call_id}: ${matchedAgent.name} ($${matchedAgent.rate_per_minute}/min)`);
-        } else {
-          // Agente no encontrado - usar tarifa por defecto
-          matchedAgent = {
-            id: call.agent_id,
-            name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
-            rate_per_minute: 0.02
-          };
-          console.log(`⚠️ Agente no encontrado para ${call.call_id}, usando tarifa por defecto`);
-        }
-
-        return {
-          ...call,
-          end_reason: call.disconnection_reason || null,
-          call_agent: matchedAgent,
-          // ✅ TAMBIÉN AGREGAR EN agents para compatibilidad
-          agents: matchedAgent
+      if (userAgentAssignment) {
+        matchedAgent = {
+          id: userAgentAssignment.agents.id,
+          name: userAgentAssignment.agents.name,
+          rate_per_minute: userAgentAssignment.agents.rate_per_minute
         };
-      });
-
-      console.log(`💰 Ejemplo de llamada mapeada:`, {
-        call_id: mappedCalls[0]?.call_id,
-        agent_name: mappedCalls[0]?.call_agent?.name,
-        rate: mappedCalls[0]?.call_agent?.rate_per_minute,
-        duration: mappedCalls[0]?.duration_sec,
-        cost_in_db: mappedCalls[0]?.cost_usd
-      });
-
-      // ✅ CARGAR DURACIONES DE AUDIO INMEDIATAMENTE
-      console.log('🎵 Cargando duraciones de audio...');
-      const callsWithAudio = mappedCalls.filter(call => call.recording_url);
-      console.log(`📻 ${callsWithAudio.length} llamadas con audio encontradas`);
-
-      // Cargar audio en lotes pequeños
-      for (let i = 0; i < callsWithAudio.length; i += 3) {
-        const batch = callsWithAudio.slice(i, i + 3);
-        await Promise.all(batch.map(call => loadAudioDuration(call)));
-        if (i + 3 < callsWithAudio.length) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
+        console.log(`✅ Agente encontrado para ${call.call_id}: ${matchedAgent.name} ($${matchedAgent.rate_per_minute}/min)`);
+      } else {
+        // Agente no encontrado - usar tarifa por defecto
+        matchedAgent = {
+          id: call.agent_id,
+          name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
+          rate_per_minute: 0.02
+        };
+        console.log(`⚠️ Agente no encontrado para ${call.call_id}, usando tarifa por defecto`);
       }
 
-      setCalls(mappedCalls || []);
+      return {
+        ...call,
+        end_reason: call.disconnection_reason || null,
+        call_agent: matchedAgent,
+        // ✅ TAMBIÉN AGREGAR EN agents para compatibilidad
+        agents: matchedAgent
+      };
+    });
 
-    } catch (err: any) {
-      console.error("❌ Excepción en fetch calls:", err);
-      setError(`Exception: ${err.message}`);
-    } finally {
-      setLoading(false);
+    console.log(`💰 Ejemplo de llamada mapeada:`, {
+      call_id: mappedCalls[0]?.call_id,
+      agent_name: mappedCalls[0]?.call_agent?.name,
+      rate: mappedCalls[0]?.call_agent?.rate_per_minute,
+      duration: mappedCalls[0]?.duration_sec,
+      cost_in_db: mappedCalls[0]?.cost_usd
+    });
+
+    // ✅ CARGAR DURACIONES DE AUDIO INMEDIATAMENTE
+    console.log('🎵 Cargando duraciones de audio...');
+    const callsWithAudio = mappedCalls.filter(call => call.recording_url);
+    console.log(`📻 ${callsWithAudio.length} llamadas con audio encontradas`);
+
+    // Cargar audio en lotes pequeños
+    for (let i = 0; i < callsWithAudio.length; i += 3) {
+      const batch = callsWithAudio.slice(i, i + 3);
+      await Promise.all(batch.map(call => loadAudioDuration(call)));
+      if (i + 3 < callsWithAudio.length) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
     }
-  };
+
+    setCalls(mappedCalls || []);
+
+  } catch (err: any) {
+    console.error("❌ Excepción en fetch calls:", err);
+    setError(`Exception: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
   // ============================================================================
   // PROCESAMIENTO AUTOMÁTICO
   // ============================================================================
@@ -718,61 +724,76 @@ export default function CallsSimple() {
   // ============================================================================
 
   const applyFiltersAndSort = () => {
-    let filtered = [...calls];
+  let filtered = [...calls];
 
-    // Filtro por búsqueda
-    if (searchTerm) {
-      filtered = filtered.filter(call => 
-        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.from_number.includes(searchTerm) ||
-        call.to_number.includes(searchTerm) ||
-        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  // Filtro por búsqueda
+  if (searchTerm) {
+    filtered = filtered.filter(call => 
+      call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      call.from_number.includes(searchTerm) ||
+      call.to_number.includes(searchTerm) ||
+      call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }
+
+  // Filtro por estado
+  if (statusFilter !== "all") {
+    filtered = filtered.filter(call => call.call_status === statusFilter);
+  }
+
+  // ✅ FILTRO POR AGENTE CORREGIDO
+  if (agentFilter !== null) {
+    // agentFilter contiene el ID del agente seleccionado
+    const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
+    if (selectedAgent) {
+      console.log(`🔍 Filtrando por agente: ${selectedAgent.name} (${selectedAgent.id})`);
+      
+      filtered = filtered.filter(call => {
+        const matchesId = call.agent_id === selectedAgent.id;
+        const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
+        const matchesCallAgent = call.call_agent?.id === selectedAgent.id;
+        
+        const isMatch = matchesId || matchesRetell || matchesCallAgent;
+        
+        if (isMatch) {
+          console.log(`✅ Llamada incluida en filtro: ${call.call_id}`);
+        }
+        
+        return isMatch;
+      });
+      
+      console.log(`📊 Llamadas después del filtro de agente: ${filtered.length}`);
+    } else {
+      console.log(`❌ Agente seleccionado no encontrado: ${agentFilter}`);
+      filtered = [];
+    }
+  }
+  // ✅ Si agentFilter es null, mostrar TODAS las llamadas (comportamiento "All Agents")
+
+  // Filtro por fecha
+  filtered = filtered.filter(call => isDateInRange(call.timestamp));
+
+  // Ordenamiento
+  filtered.sort((a, b) => {
+    let aValue: any = a[sortField];
+    let bValue: any = b[sortField];
+
+    if (sortField === 'timestamp') {
+      aValue = new Date(aValue).getTime();
+      bValue = new Date(bValue).getTime();
     }
 
-    // Filtro por estado
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(call => call.call_status === statusFilter);
+    if (sortOrder === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
     }
+  });
 
-    // Filtro por agente
-    if (agentFilter !== null) {
-      const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
-      if (selectedAgent) {
-        filtered = filtered.filter(call => {
-          const matchesId = call.agent_id === selectedAgent.id;
-          const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
-          return matchesId || matchesRetell;
-        });
-      } else {
-        filtered = [];
-      }
-    }
-
-    // Filtro por fecha
-    filtered = filtered.filter(call => isDateInRange(call.timestamp));
-
-    // Ordenamiento
-    filtered.sort((a, b) => {
-      let aValue: any = a[sortField];
-      let bValue: any = b[sortField];
-
-      if (sortField === 'timestamp') {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
-    setFilteredCalls(filtered);
-  };
-
+  console.log(`🎯 Llamadas después de todos los filtros: ${filtered.length}`);
+  setFilteredCalls(filtered);
+};
   const calculateStats = () => {
     let totalCost = 0;
     let totalDuration = 0;
