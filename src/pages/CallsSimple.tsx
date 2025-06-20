@@ -471,7 +471,6 @@ export default function CallsSimple() {
 
     console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
     setUserAssignedAgents(agentDetails || []);
-
     // PASO 3: ✅ NUEVA LÓGICA - Buscar TODAS las llamadas de los agentes asignados
     // SIN filtrar por user_id - mostrar llamadas de cualquier usuario para estos agentes
     
@@ -571,7 +570,8 @@ export default function CallsSimple() {
   } finally {
     setLoading(false);
   }
-};  // ============================================================================
+};
+  // ============================================================================
   // PROCESAMIENTO AUTOMÁTICO
   // ============================================================================
 
@@ -584,26 +584,26 @@ export default function CallsSimple() {
 
     // Filtrar llamadas que necesitan procesamiento
     const callsNeedingProcessing = calls.filter(call => {
-  const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
-  
-  // ✅ CAMBIO PRINCIPAL: Usar getCallDuration en lugar de call.duration_sec
-  const actualDuration = getCallDuration(call);
-  const hasDuration = actualDuration > 0;
-  
-  const notProcessed = (!call.cost_usd || call.cost_usd === 0);
-  const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
-  const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+      
+      // ✅ CAMBIO PRINCIPAL: Usar getCallDuration en lugar de call.duration_sec
+      const actualDuration = getCallDuration(call);
+      const hasDuration = actualDuration > 0;
+      
+      const notProcessed = (!call.cost_usd || call.cost_usd === 0);
+      const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
+      const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
       
       const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
       
       if (needsProcessing) {
         console.log(`🎯 Llamada necesita procesamiento: ${call.call_id}`, {
-  status: call.call_status,
-  duration_sec_bd: call.duration_sec,         // BD (siempre 0)
-  actual_duration: actualDuration,            // Audio real
-  currentCost: call.cost_usd,
-  hasRate: !!hasRate
-});
+          status: call.call_status,
+          duration_sec_bd: call.duration_sec,         // BD (siempre 0)
+          actual_duration: actualDuration,            // Audio real
+          currentCost: call.cost_usd,
+          hasRate: !!hasRate
+        });
       }
       
       return needsProcessing;
@@ -621,23 +621,10 @@ export default function CallsSimple() {
     let errors = 0;
 
     for (const call of callsNeedingProcessing) {
-  try {
-    console.log(`⚡ PROCESANDO: ${call.call_id}`);
-    
-    // 🔍 DEBUGGING DETALLADO AGREGADO
-    console.log(`🧮 DEBUGGING CÁLCULO DETALLADO para ${call.call_id}:`);
-    console.log(`   📊 Duration BD: ${call.duration_sec}s`);
-    console.log(`   🎵 Audio Duration: ${audioDurations[call.id] || 'No loaded'}s`);
-    console.log(`   ⏱️ getCallDuration result: ${getCallDuration(call)}s`);
-    console.log(`   💰 Agent rate call_agent: $${call.call_agent?.rate_per_minute || 'No rate'}/min`);
-    console.log(`   💰 Agent rate agents: $${call.agents?.rate_per_minute || 'No rate'}/min`);
-    console.log(`   💳 Cost in BD: $${call.cost_usd}`);
-    
-    const calculatedCost = calculateCallCost(call);
-    console.log(`   🧮 Calculated cost: $${calculatedCost}`);
-    
-    if (calculatedCost > 0) {
-      console.log(`🚨 INTENTANDO DESCUENTO: $${calculatedCost} para usuario ${user.id}`);
+      try {
+        console.log(`⚡ PROCESANDO: ${call.call_id}`);
+        
+        const calculatedCost = calculateCallCost(call);
         
         if (calculatedCost > 0) {
           // 1. Actualizar costo en la base de datos
@@ -730,76 +717,77 @@ export default function CallsSimple() {
   // ============================================================================
 
   const applyFiltersAndSort = () => {
-  let filtered = [...calls];
+    let filtered = [...calls];
 
-  // Filtro por búsqueda
-  if (searchTerm) {
-    filtered = filtered.filter(call => 
-      call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      call.from_number.includes(searchTerm) ||
-      call.to_number.includes(searchTerm) ||
-      call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }
-
-  // Filtro por estado
-  if (statusFilter !== "all") {
-    filtered = filtered.filter(call => call.call_status === statusFilter);
-  }
-
-  // ✅ FILTRO POR AGENTE CORREGIDO
-  if (agentFilter !== null) {
-    // agentFilter contiene el ID del agente seleccionado
-    const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
-    if (selectedAgent) {
-      console.log(`🔍 Filtrando por agente: ${selectedAgent.name} (${selectedAgent.id})`);
-      
-      filtered = filtered.filter(call => {
-        const matchesId = call.agent_id === selectedAgent.id;
-        const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
-        const matchesCallAgent = call.call_agent?.id === selectedAgent.id;
-        
-        const isMatch = matchesId || matchesRetell || matchesCallAgent;
-        
-        if (isMatch) {
-          console.log(`✅ Llamada incluida en filtro: ${call.call_id}`);
-        }
-        
-        return isMatch;
-      });
-      
-      console.log(`📊 Llamadas después del filtro de agente: ${filtered.length}`);
-    } else {
-      console.log(`❌ Agente seleccionado no encontrado: ${agentFilter}`);
-      filtered = [];
-    }
-  }
-  // ✅ Si agentFilter es null, mostrar TODAS las llamadas (comportamiento "All Agents")
-
-  // Filtro por fecha
-  filtered = filtered.filter(call => isDateInRange(call.timestamp));
-
-  // Ordenamiento
-  filtered.sort((a, b) => {
-    let aValue: any = a[sortField];
-    let bValue: any = b[sortField];
-
-    if (sortField === 'timestamp') {
-      aValue = new Date(aValue).getTime();
-      bValue = new Date(bValue).getTime();
+    // Filtro por búsqueda
+    if (searchTerm) {
+      filtered = filtered.filter(call => 
+        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        call.from_number.includes(searchTerm) ||
+        call.to_number.includes(searchTerm) ||
+        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
 
-    if (sortOrder === 'asc') {
-      return aValue > bValue ? 1 : -1;
-    } else {
-      return aValue < bValue ? 1 : -1;
+    // Filtro por estado
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(call => call.call_status === statusFilter);
     }
-  });
 
-  console.log(`🎯 Llamadas después de todos los filtros: ${filtered.length}`);
-  setFilteredCalls(filtered);
-};
+    // ✅ FILTRO POR AGENTE CORREGIDO
+    if (agentFilter !== null) {
+      // agentFilter contiene el ID del agente seleccionado
+      const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
+      if (selectedAgent) {
+        console.log(`🔍 Filtrando por agente: ${selectedAgent.name} (${selectedAgent.id})`);
+        
+        filtered = filtered.filter(call => {
+          const matchesId = call.agent_id === selectedAgent.id;
+          const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
+          const matchesCallAgent = call.call_agent?.id === selectedAgent.id;
+          
+          const isMatch = matchesId || matchesRetell || matchesCallAgent;
+          
+          if (isMatch) {
+            console.log(`✅ Llamada incluida en filtro: ${call.call_id}`);
+          }
+          
+          return isMatch;
+        });
+        
+        console.log(`📊 Llamadas después del filtro de agente: ${filtered.length}`);
+      } else {
+        console.log(`❌ Agente seleccionado no encontrado: ${agentFilter}`);
+        filtered = [];
+      }
+    }
+    // ✅ Si agentFilter es null, mostrar TODAS las llamadas (comportamiento "All Agents")
+
+    // Filtro por fecha
+    filtered = filtered.filter(call => isDateInRange(call.timestamp));
+
+    // Ordenamiento
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
+
+      if (sortField === 'timestamp') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    console.log(`🎯 Llamadas después de todos los filtros: ${filtered.length}`);
+    setFilteredCalls(filtered);
+  };
+
   const calculateStats = () => {
     let totalCost = 0;
     let totalDuration = 0;
@@ -825,7 +813,6 @@ export default function CallsSimple() {
       completedCalls
     });
   };
-
   // ============================================================================
   // FUNCIONES DE UTILIDAD
   // ============================================================================
@@ -1122,7 +1109,6 @@ export default function CallsSimple() {
               </CardContent>
             </Card>
           )}
-
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
@@ -1415,7 +1401,6 @@ export default function CallsSimple() {
                               })()}
                             </div>
                           </td>
-                          
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex flex-col gap-1">
                               <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
@@ -1488,7 +1473,7 @@ export default function CallsSimple() {
                                   asChild
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <a
+                                  
                                     href={call.recording_url}
                                     download={`call-${call.call_id}.mp3`}
                                   >
