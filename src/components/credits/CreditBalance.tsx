@@ -99,7 +99,6 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
           )
         `)
         .eq('user_id', user.id)
-        .eq('is_primary', true);
 
       if (error) {
         console.error('❌ Error obteniendo agentes:', error);
