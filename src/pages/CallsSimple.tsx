@@ -206,6 +206,17 @@ const processNewCallsAutomatically = async (
                 : c
             )
           );
+// ✅ EMITIR EVENTO PARA DESCUENTO AUTOMÁTICO EN DASHBOARD
+window.dispatchEvent(new CustomEvent('balanceUpdated', {
+  detail: {
+    userId: userId,
+    deduction: calculatedCost,
+    callId: call.call_id,
+    source: 'automatic_call_processing'
+  }
+}));
+console.log(`📡 Evento balanceUpdated emitido: $${calculatedCost} para ${call.call_id}`);
+          
         }
       }
       
