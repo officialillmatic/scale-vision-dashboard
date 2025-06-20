@@ -23,11 +23,15 @@ import {
   Download,
   CalendarDays,
   ChevronDown,
-  Users
+  Users,
+  RefreshCw,     // ✅ NUEVO
+  Zap,           // ✅ NUEVO
+  CreditCard     // ✅ NUEVO
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAgents } from "@/hooks/useAgents";
+import { useNewBalanceSystem } from "@/hooks/useNewBalanceSystem"; // ✅ NUEVO
 
 // ============================================================================
 // INTERFACES Y TIPOS
@@ -277,6 +281,13 @@ export default function CallsSimple() {
   const [isProcessing, setIsProcessing] = useState(false);
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
+  // ✅ NUEVO: Sistema de balance automático
+  const balanceSystem = useNewBalanceSystem();
+  
+  // ✅ NUEVO: Estado del balance del usuario
+  const [userBalance, setUserBalance] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+
   // Variables auxiliares
   const uniqueAgents = userAssignedAgents || [];
 
@@ -411,6 +422,42 @@ export default function CallsSimple() {
       console.log(`❌ Error loading audio duration:`, error);
     }
   };
+
+  // ✅ NUEVA FUNCIÓN: Cargar balance del usuario
+  const loadUserBalance = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setBalanceLoading(true);
+      
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('credit_balance')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('❌ Error loading user balance:', error);
+        return;
+      }
+
+      const balance = profile?.credit_balance || 0;
+      setUserBalance(balance);
+      console.log(`💰 Balance cargado: $${balance.toFixed(4)}`);
+      
+    } catch (error) {
+      console.error('❌ Error in loadUserBalance:', error);
+    } finally {
+      setBalanceLoading(false);
+    }
+  };
+
+  // ✅ NUEVA FUNCIÓN: Escuchar actualizaciones de balance
+  const handleBalanceUpdate = (event: CustomEvent) => {
+    const { newBalance, deduction, callId } = event.detail;
+    console.log(`🎉 Balance actualizado: $${newBalance} (descuento: $${deduction} para ${callId})`);
+    setUserBalance(newBalance);
+  };
   // ============================================================================
   // FUNCIÓN FETCH CALLS CORREGIDA PARA COSTOS
   // ============================================================================
@@ -471,6 +518,7 @@ export default function CallsSimple() {
 
     console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
     setUserAssignedAgents(agentDetails || []);
+
     // PASO 3: ✅ NUEVA LÓGICA - Buscar TODAS las llamadas de los agentes asignados
     // SIN filtrar por user_id - mostrar llamadas de cualquier usuario para estos agentes
     
@@ -693,6 +741,23 @@ export default function CallsSimple() {
     }
   }, [user?.id]);
 
+  // ✅ NUEVO useEffect: Inicializar sistema de balance
+  useEffect(() => {
+    if (user?.id) {
+      console.log('💰 Inicializando sistema de balance...');
+      
+      // Cargar balance inicial
+      loadUserBalance();
+      
+      // Escuchar eventos de actualización de balance
+      window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+      
+      return () => {
+        window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+      };
+    }
+  }, [user?.id]);
+
   // ✅ EFECTO CORREGIDO: Procesar llamadas automáticamente cuando cambien
   useEffect(() => {
     if (calls.length > 0 && user?.id && !loading) {
@@ -813,6 +878,7 @@ export default function CallsSimple() {
       completedCalls
     });
   };
+
   // ============================================================================
   // FUNCIONES DE UTILIDAD
   // ============================================================================
@@ -971,6 +1037,7 @@ export default function CallsSimple() {
     if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
     return sortOrder === 'asc' ? '↑' : '↓';
   };
+
   // ============================================================================
   // HANDLERS DE EVENTOS
   // ============================================================================
@@ -998,6 +1065,82 @@ export default function CallsSimple() {
   // Variables auxiliares para la UI
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
   const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
+  // ✅ NUEVO: Componente de Balance Compacto
+  const BalanceDisplay = () => {
+    const isLowBalance = userBalance !== null && userBalance < 10;
+    const isVeryLowBalance = userBalance !== null && userBalance < 5;
+    
+    return (
+      <Card className={`border-0 shadow-sm ${
+        isVeryLowBalance ? 'bg-gradient-to-br from-red-50 to-red-100/50' :
+        isLowBalance ? 'bg-gradient-to-br from-yellow-50 to-yellow-100/50' :
+        'bg-gradient-to-br from-green-50 to-green-100/50'
+      }`}>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-600 font-medium">Current Balance</p>
+              <div className="flex items-center gap-2">
+                {balanceLoading ? (
+                  <div className="flex items-center gap-2">
+                    <LoadingSpinner size="sm" />
+                    <span className="text-lg font-bold text-gray-500">Loading...</span>
+                  </div>
+                ) : (
+                  <>
+                    <p className={`text-2xl font-bold ${
+                      isVeryLowBalance ? 'text-red-700' :
+                      isLowBalance ? 'text-yellow-700' :
+                      'text-green-700'
+                    }`}>
+                      {userBalance !== null ? `$${userBalance.toFixed(4)}` : '$0.0000'}
+                    </p>
+                    {balanceSystem.isProcessing && (
+                      <div className="flex items-center gap-1">
+                        <Zap className="w-4 h-4 text-blue-500 animate-pulse" />
+                        <span className="text-xs text-blue-600 font-medium">Processing</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              {isVeryLowBalance && (
+                <p className="text-xs text-red-600 font-medium mt-1">⚠️ Very Low Balance</p>
+              )}
+              {isLowBalance && !isVeryLowBalance && (
+                <p className="text-xs text-yellow-600 font-medium mt-1">⚠️ Low Balance</p>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <CreditCard className={`h-8 w-8 ${
+                isVeryLowBalance ? 'text-red-600' :
+                isLowBalance ? 'text-yellow-600' :
+                'text-green-600'
+              }`} />
+              
+              <div className="text-right">
+                <div className="text-xs text-gray-500">
+                  Auto Processing: {balanceSystem.userCustomAgents.length > 0 ? '✅ Active' : '❌ No Agents'}
+                </div>
+                <div className="text-xs text-gray-400">
+                  Processed: {balanceSystem.processedCallsCount}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Debug Info (opcional, puedes quitarlo en producción) */}
+          {balanceSystem.lastProcessedCall && (
+            <div className="mt-2 pt-2 border-t border-gray-200">
+              <p className="text-xs text-gray-500">
+                Last processed: {balanceSystem.lastProcessedCall.substring(0, 16)}...
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   // ============================================================================
   // VERIFICACIÓN DE USUARIO
@@ -1057,10 +1200,27 @@ export default function CallsSimple() {
                 Active User
               </Badge>
               
+              {/* ✅ NUEVO: Badges del sistema de balance */}
+              {balanceSystem.userCustomAgents.length > 0 && (
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  <Zap className="w-3 h-3 mr-1" />
+                  Auto System Active
+                </Badge>
+              )}
+              
+              {userBalance !== null && userBalance < 10 && (
+                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                  <CreditCard className="w-3 h-3 mr-1" />
+                  Low Balance
+                </Badge>
+              )}
+              
               <Button
                 onClick={() => {
-                  console.log("🔄 REFRESH MANUAL");
+                  console.log("🔄 REFRESH MANUAL CON BALANCE");
                   fetchCalls();
+                  loadUserBalance(); // ✅ NUEVO
+                  balanceSystem.refreshData(); // ✅ NUEVO
                 }}
                 disabled={loading}
                 variant="outline"
@@ -1074,8 +1234,8 @@ export default function CallsSimple() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 border border-gray-400 rounded-full"></div>
-                    <span className="text-xs">Refresh</span>
+                    <RefreshCw className="w-3 h-3" />
+                    <span className="text-xs">Refresh All</span>
                   </div>
                 )}
               </Button>
@@ -1110,7 +1270,7 @@ export default function CallsSimple() {
             </Card>
           )}
           {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4"> {/* ✅ CAMBIO: grid-cols-5 → grid-cols-6 */}
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -1170,6 +1330,9 @@ export default function CallsSimple() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* ✅ NUEVO: Card de Balance */}
+            <BalanceDisplay />
           </div>
           {/* Filters */}
           <Card className="border-0 shadow-sm">
@@ -1401,6 +1564,7 @@ export default function CallsSimple() {
                               })()}
                             </div>
                           </td>
+
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex flex-col gap-1">
                               <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
@@ -1467,23 +1631,21 @@ export default function CallsSimple() {
                               </Button>
                               
                               {call.recording_url && (
-  <Button 
-    variant="ghost" 
-    size="sm" 
-    className="h-6 w-6 p-0"
-    asChild
-    onClick={(e) => e.stopPropagation()}
-  >
-    <a
-      href={call.recording_url}
-      download={`call-${call.call_id}.mp3`}
-    >
-      <Download className="h-3 w-3" />
-    </a>
-  </Button>
-)}
-                              
-                              
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-6 w-6 p-0"
+                                  asChild
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <a
+                                    href={call.recording_url}
+                                    download={`call-${call.call_id}.mp3`}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </a>
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
