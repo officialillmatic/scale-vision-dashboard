@@ -633,8 +633,13 @@ export default function CallsSimple() {
       const callTime = new Date(call.timestamp);
       return callTime > lastProcessedTimestamp;
     });
-
-    if ((currentCallCount > previousCallCount && previousCallCount > 0) || recentCalls.length > 0) {
+console.log(`🔍 VERIFICANDO PROCESAMIENTO:`, {
+  currentCallCount,
+  previousCallCount,
+  recentCallsLength: recentCalls.length,
+  shouldProcess: currentCallCount > previousCallCount || recentCalls.length > 0
+});
+    if (currentCallCount > previousCallCount || recentCalls.length > 0) {
       console.log(`🚨 ACTIVANDO PROCESAMIENTO AUTOMÁTICO`);
       
       setIsProcessingAutomatic(true);
