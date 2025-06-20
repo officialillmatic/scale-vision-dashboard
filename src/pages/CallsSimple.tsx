@@ -458,6 +458,82 @@ export default function CallsSimple() {
     console.log(`🎉 Balance actualizado: $${newBalance} (descuento: $${deduction} para ${callId})`);
     setUserBalance(newBalance);
   };
+
+  const handleBalanceUpdate = (event: CustomEvent) => {
+  const { newBalance, deduction, callId } = event.detail;
+  console.log(`🎉 Balance actualizado: $${newBalance} (descuento: $${deduction} para ${callId})`);
+  setUserBalance(newBalance);
+};
+
+// ✅ NUEVA FUNCIÓN SIMPLE
+const processCallsManually = async () => {
+  if (!user?.id || !calls.length) {
+    console.log('❌ No hay usuario o llamadas');
+    return;
+  }
+
+  console.log('🚀 PROCESAMIENTO MANUAL INICIADO');
+  
+  // 1. Buscar llamadas completadas sin costo
+  const callsToProcess = calls.filter(call => 
+    ['completed', 'ended'].includes(call.call_status?.toLowerCase()) &&
+    (!call.cost_usd || call.cost_usd === 0) &&
+    (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute)
+  );
+
+  console.log(`📞 Encontradas ${callsToProcess.length} llamadas para procesar`);
+
+  if (callsToProcess.length === 0) {
+    alert('No hay llamadas nuevas para procesar');
+    return;
+  }
+
+  // 2. Procesar cada llamada
+  for (const call of callsToProcess) {
+    try {
+      console.log(`⚡ Procesando: ${call.call_id?.substring(0, 8)}`);
+      
+      // Calcular costo
+      const cost = calculateCallCost(call);
+      
+      if (cost > 0) {
+        console.log(`💰 Costo calculado: $${cost.toFixed(4)}`);
+        
+        // Actualizar costo en BD
+        const { error: updateError } = await supabase
+          .from('calls')
+          .update({ cost_usd: cost })
+          .eq('call_id', call.call_id);
+
+        if (updateError) {
+          console.error('❌ Error actualizando call:', updateError);
+          continue;
+        }
+
+        // Descontar del balance
+        const deductSuccess = await deductCallCost(call.call_id, cost, user.id);
+        
+        if (deductSuccess) {
+          console.log(`✅ ÉXITO: ${call.call_id?.substring(0, 8)} - $${cost.toFixed(4)}`);
+        }
+      }
+      
+      // Pausa entre llamadas
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+    } catch (error) {
+      console.error(`❌ Error procesando ${call.call_id}:`, error);
+    }
+  }
+
+  console.log('🎉 PROCESAMIENTO MANUAL COMPLETADO');
+  
+  // Recargar datos
+  fetchCalls();
+  loadUserBalance();
+  
+  alert(`Procesadas ${callsToProcess.length} llamadas. Revisa la consola para detalles.`);
+};
   // ============================================================================
   // FUNCIÓN FETCH CALLS CORREGIDA PARA COSTOS
   // ============================================================================
