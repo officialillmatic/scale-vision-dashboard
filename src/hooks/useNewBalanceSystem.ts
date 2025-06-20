@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuthStore } from '../stores/authStore';
-import { supabase } from '../utils/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 // Types
 interface CallData {
@@ -33,7 +33,7 @@ const POLLING_INTERVAL = 5000; // 5 segundos
 const CALL_LOOKBACK_HOURS = 2; // Buscar llamadas de las últimas 2 horas
 
 export const useNewBalanceSystem = () => {
-  const user = useAuthStore(state => state.user);
+  const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [userCustomAgents, setUserCustomAgents] = useState<CustomAgentData[]>([]);
   const [userCredits, setUserCredits] = useState<UserCredits | null>(null);
