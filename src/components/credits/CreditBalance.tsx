@@ -293,22 +293,21 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
           </Button>
         </div>
 
-        {/* REAL DEBUG SECTION - Critical for finding the issue */}
-        {(isSuperAdmin || process.env.NODE_ENV === 'development') && (
-          <div className="mt-2 border-t pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDebug(!showDebug)}
-              className="w-full text-xs h-6"
-            >
-              <Bug className="h-3 w-3 mr-1" />
-              {showDebug ? 'Hide' : 'Show'} Debug
-            </Button>
+        {/* REAL DEBUG SECTION - Always available for debugging */}
+        <div className="mt-2 border-t pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDebug(!showDebug)}
+            className="w-full text-xs h-6"
+          >
+            <Bug className="h-3 w-3 mr-1" />
+            {showDebug ? 'Hide' : 'Show'} System Debug
+          </Button>
             
             {showDebug && (
               <div className="mt-2 p-2 bg-gray-100 rounded text-xs space-y-1">
-                <div className="font-bold text-red-600">🚨 REAL DEBUG INFO:</div>
+                <div className="font-bold text-red-600">🚨 SYSTEM DEBUG (Regular User):</div>
                 
                 {/* Critical debugging info */}
                 <div>User ID: {debugInfo.usingUserCreditsTable ? '✅' : '❌'}</div>
