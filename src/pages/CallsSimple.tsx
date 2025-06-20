@@ -1465,6 +1465,7 @@ export default function CallsSimple() {
                               >
                                 <Eye className="h-3 w-3" />
                               </Button>
+                              
                               {call.recording_url && (
   <Button 
     variant="ghost" 
@@ -1481,6 +1482,7 @@ export default function CallsSimple() {
     </a>
   </Button>
 )}
+                              
                               )}
                             </div>
                           </td>
