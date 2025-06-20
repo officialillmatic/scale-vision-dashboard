@@ -1,532 +1,668 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+// 🤖 SISTEMA SEGURO: SIN REFERENCIAS A SERVICIOS EXTERNOS
+// Ubicación: src/hooks/useNewBalanceSystem.ts
+// 🔐 SEGURIDAD: Términos genéricos, sin exponer proveedores
 
-// Types
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+
 interface CallData {
   id: string;
   call_id: string;
   user_id: string;
-  agent_id: string;
+  agent_id: string; // Este es el external_agent_id
+  timestamp: string;
   duration_sec: number;
   cost_usd: number;
   call_status: string;
-  timestamp: string;
   recording_url?: string;
-  call_agent?: {
-    id: string;
-    name: string;
-    rate_per_minute: number;
-  };
-  agents?: {
-    id: string;
-    name: string;
-    rate_per_minute: number;
-  };
+  end_reason?: string;
 }
 
 interface CustomAgentData {
-  id: string;
+  id: string; // Custom Agent ID
   name: string;
-  retell_agent_id: string;
   rate_per_minute: number;
-  is_primary?: boolean;
-  assigned_at?: string;
+  retell_agent_id: string; // Guardamos el nombre original del campo pero no lo exponemos
 }
 
-interface UserCredits {
+interface UserCreditData {
   user_id: string;
-  credits: number;
-  low_balance_threshold: number;
+  current_balance: number;
+  warning_threshold: number;
+  critical_threshold: number;
+  is_blocked: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
-// Constantes
-const POLLING_INTERVAL = 10000; // 10 segundos (más lento para evitar conflictos)
-const CALL_LOOKBACK_HOURS = 6; // 6 horas para capturar más llamadas
+interface BalanceState {
+  balance: number;
+  warningThreshold: number;
+  criticalThreshold: number;
+  isBlocked: boolean;
+  isLoading: boolean;
+  error: string | null;
+  status: 'empty' | 'critical' | 'warning' | 'healthy' | 'blocked';
+  estimatedMinutes: number;
+  lastUpdate: Date;
+  processingCalls: string[];
+  recentDeductions: Array<{
+    callId: string;
+    amount: number;
+    timestamp: Date;
+  }>;
+}
+
+interface ProcessingResult {
+  success: boolean;
+  callId: string;
+  amount: number;
+  error?: string;
+  newBalance?: number;
+}
 
 export const useNewBalanceSystem = () => {
   const { user } = useAuth();
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [balanceState, setBalanceState] = useState<BalanceState>({
+    balance: 0,
+    warningThreshold: 40,
+    criticalThreshold: 20,
+    isBlocked: false,
+    isLoading: true,
+    error: null,
+    status: 'healthy',
+    estimatedMinutes: 0,
+    lastUpdate: new Date(),
+    processingCalls: [],
+    recentDeductions: []
+  });
+
   const [userCustomAgents, setUserCustomAgents] = useState<CustomAgentData[]>([]);
-  const [userCredits, setUserCredits] = useState<UserCredits | null>(null);
-  const [lastProcessedCall, setLastProcessedCall] = useState<string | null>(null);
-  const [processedCallsCount, setProcessedCallsCount] = useState(0);
-  
-  // Refs para evitar re-renders innecesarios
-  const isProcessingRef = useRef(false);
-  const processedCallsRef = useRef(new Set<string>());
+  const processedCallsRef = useRef<Set<string>>(new Set());
+  const isProcessingRef = useRef<boolean>(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ✅ FUNCIÓN CORREGIDA: Obtener duración real de llamada
-  const getCallDuration = useCallback(async (call: CallData): Promise<number> => {
-    // 1. Si tiene duración en BD, usarla
-    if (call.duration_sec && call.duration_sec > 0) {
-      console.log(`📊 Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
-      return call.duration_sec;
-    }
+  // ============================================================================
+  // FUNCIONES AUXILIARES
+  // ============================================================================
 
-    // 2. Si tiene URL de audio, cargar duración
-    if (call.recording_url) {
-      try {
-        console.log(`🎵 Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
-        const duration = await loadAudioDuration(call.recording_url);
-        if (duration > 0) {
-          console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
-          return duration;
-        }
-      } catch (error) {
-        console.warn(`⚠️ Error cargando audio:`, error);
-      }
-    }
+  const calculateStatus = (
+    balance: number, 
+    warningThreshold: number, 
+    criticalThreshold: number, 
+    isBlocked: boolean
+  ): 'empty' | 'critical' | 'warning' | 'healthy' | 'blocked' => {
+    if (isBlocked) return 'blocked';
+    if (balance <= 0) return 'empty';
+    if (balance <= criticalThreshold) return 'critical';
+    if (balance <= warningThreshold) return 'warning';
+    return 'healthy';
+  };
 
-    console.log(`❌ Sin duración disponible para ${call.call_id?.substring(0, 8)}`);
-    return 0;
-  }, []);
+  const calculateEstimatedMinutes = (balance: number, agents: CustomAgentData[]): number => {
+    if (balance <= 0 || agents.length === 0) return 0;
+    
+    // Usar tarifa promedio de los agentes personalizados del usuario
+    const avgRate = agents.reduce((sum, agent) => sum + agent.rate_per_minute, 0) / agents.length;
+    return Math.floor(balance / avgRate);
+  };
 
-  // Función auxiliar para cargar duración de audio
-  const loadAudioDuration = (audioUrl: string): Promise<number> => {
-    return new Promise((resolve, reject) => {
-      const audio = new Audio();
-      audio.addEventListener('loadedmetadata', () => {
-        resolve(Math.round(audio.duration));
-      });
-      audio.addEventListener('error', () => {
-        reject(new Error('Could not load audio'));
-      });
-      
-      // Timeout de seguridad
-      setTimeout(() => {
-        reject(new Error('Audio loading timeout'));
-      }, 8000);
-      
-      audio.src = audioUrl;
+  const updateBalanceState = (updates: Partial<BalanceState>) => {
+    setBalanceState(prev => {
+      const newBalance = updates.balance !== undefined ? updates.balance : prev.balance;
+      const newWarningThreshold = updates.warningThreshold !== undefined ? updates.warningThreshold : prev.warningThreshold;
+      const newCriticalThreshold = updates.criticalThreshold !== undefined ? updates.criticalThreshold : prev.criticalThreshold;
+      const newIsBlocked = updates.isBlocked !== undefined ? updates.isBlocked : prev.isBlocked;
+      const newStatus = calculateStatus(newBalance, newWarningThreshold, newCriticalThreshold, newIsBlocked);
+      const newEstimatedMinutes = updates.balance !== undefined ? 
+        calculateEstimatedMinutes(newBalance, userCustomAgents) : prev.estimatedMinutes;
+
+      return {
+        ...prev,
+        ...updates,
+        status: newStatus,
+        estimatedMinutes: newEstimatedMinutes,
+        lastUpdate: new Date()
+      };
     });
   };
 
-  // ✅ FUNCIÓN CORREGIDA: Calcular costo de llamada
-  const calculateCallCost = useCallback(async (call: CallData, availableAgents: CustomAgentData[]): Promise<number> => {
-    console.group(`💰 Calculando costo para ${call.call_id?.substring(0, 8)}`);
-    
+  // ============================================================================
+  // CARGA DE AGENTES PERSONALIZADOS
+  // ============================================================================
+
+  const loadUserCustomAgents = async (): Promise<CustomAgentData[]> => {
+    if (!user?.id) return [];
+
     try {
-      // 1. Si ya tiene costo en BD, no recalcular
-      if (call.cost_usd && call.cost_usd > 0) {
-        console.log(`✅ Ya tiene costo: $${call.cost_usd}`);
-        return call.cost_usd;
+      console.log('🤖 Loading assigned custom agents...');
+
+      // Obtener agentes personalizados asignados
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('user_agent_assignments')
+        .select('agent_id') // Este es el Custom Agent ID
+        .eq('user_id', user.id);
+
+      if (assignmentsError) {
+        console.error('❌ Error loading agent assignments:', assignmentsError);
+        return [];
       }
 
-      // 2. Obtener duración real
-      const duration = await getCallDuration(call);
-      if (duration === 0) {
-        console.log(`❌ Sin duración válida`);
-        return 0;
+      if (!assignments || assignments.length === 0) {
+        console.log('⚠️ No custom agents assigned to user');
+        return [];
       }
 
-      // 3. Buscar tarifa del agente
-      let agentRate = 0;
-      let agentName = 'Unknown';
+      const customAgentIds = assignments.map(a => a.agent_id);
+      console.log('🎯 Custom agent IDs assigned:', customAgentIds);
 
-      // Prioridad 1: call_agent
-      if (call.call_agent?.rate_per_minute) {
-        agentRate = call.call_agent.rate_per_minute;
-        agentName = call.call_agent.name;
-        console.log(`✅ Usando call_agent: ${agentName} - $${agentRate}/min`);
-      }
-      // Prioridad 2: agents
-      else if (call.agents?.rate_per_minute) {
-        agentRate = call.agents.rate_per_minute;
-        agentName = call.agents.name;
-        console.log(`✅ Usando agents: ${agentName} - $${agentRate}/min`);
-      }
-      // Prioridad 3: buscar en availableAgents
-      else {
-        const userAgent = availableAgents.find(agent => 
-          agent.id === call.agent_id || 
-          agent.retell_agent_id === call.agent_id
-        );
-        
-        if (userAgent?.rate_per_minute) {
-          agentRate = userAgent.rate_per_minute;
-          agentName = userAgent.name;
-          console.log(`✅ Usando availableAgents: ${agentName} - $${agentRate}/min`);
-        } else {
-          console.log(`❌ Sin tarifa disponible para agente ${call.agent_id?.substring(0, 8)}`);
-          return 0;
-        }
+      // Obtener detalles de agentes personalizados con ID externo
+      const { data: customAgents, error: agentsError } = await supabase
+        .from('agents')
+        .select('id, name, rate_per_minute, retell_agent_id')
+        .in('id', customAgentIds)
+        .eq('status', 'active'); // Solo agentes activos
+
+      if (agentsError) {
+        console.error('❌ Error loading custom agents:', agentsError);
+        return [];
       }
 
-      // 4. Calcular costo
-      const durationMinutes = duration / 60;
-      const cost = durationMinutes * agentRate;
-      
-      console.log(`🧮 Cálculo: ${duration}s (${durationMinutes.toFixed(2)}min) × $${agentRate}/min = $${cost.toFixed(4)}`);
-      
-      return cost;
-      
+      console.log(`✅ ${customAgents?.length || 0} custom agents loaded successfully`);
+      return customAgents || [];
+
     } catch (error) {
-      console.error('❌ Error en cálculo:', error);
-      return 0;
-    } finally {
-      console.groupEnd();
+      console.error('❌ Error in loadUserCustomAgents:', error);
+      return [];
     }
-  }, [getCallDuration]);
+  };
 
-  // ✅ FUNCIÓN CORREGIDA: Aplicar descuento unificado
-  const applyDeduction = useCallback(async (callId: string, cost: number): Promise<boolean> => {
-    if (!user?.id || cost <= 0) return false;
+  const loadCurrentBalance = async (): Promise<UserCreditData | null> => {
+    if (!user?.id) return null;
 
     try {
-      console.log(`💳 APLICANDO DESCUENTO: $${cost.toFixed(4)} para ${callId}`);
+      console.log('💰 Loading current balance...');
 
-      // 1. Intentar user_credits primero
-      const { data: userCreditsData, error: creditsError } = await supabase
+      const { data: userCredit, error } = await supabase
         .from('user_credits')
-        .select('credits')
+        .select('*')
         .eq('user_id', user.id)
         .single();
 
-      if (!creditsError && userCreditsData) {
-        // Usar user_credits
-        const currentBalance = userCreditsData.credits || 0;
-        const newBalance = Math.max(0, currentBalance - cost);
-        
-        console.log(`💰 user_credits: $${currentBalance} → $${newBalance}`);
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.log('📝 Creating new user credit record...');
+          
+          const { data: newUserCredit, error: createError } = await supabase
+            .from('user_credits')
+            .insert({
+              user_id: user.id,
+              current_balance: 0,
+              warning_threshold: 40,
+              critical_threshold: 20,
+              is_blocked: false
+            })
+            .select()
+            .single();
 
-        const { error: updateError } = await supabase
-          .from('user_credits')
-          .update({ 
-            credits: newBalance,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id);
+          if (createError) {
+            console.error('❌ Error creating user credits:', createError);
+            return null;
+          }
 
-        if (updateError) {
-          console.error('❌ Error actualizando user_credits:', updateError);
-          return false;
+          console.log('✅ User credit record created');
+          return newUserCredit;
         }
-
-        // Actualizar estado local
-        setUserCredits(prev => prev ? { ...prev, credits: newBalance } : null);
         
-      } else {
-        // Fallback a profiles
-        console.log('📋 Fallback a profiles...');
-        
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('credit_balance')
-          .eq('id', user.id)
-          .single();
-
-        if (profileError) {
-          console.error('❌ Error obteniendo profile:', profileError);
-          return false;
-        }
-
-        const currentBalance = profileData?.credit_balance || 0;
-        const newBalance = Math.max(0, currentBalance - cost);
-        
-        console.log(`💰 profiles: $${currentBalance} → $${newBalance}`);
-
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ 
-            credit_balance: newBalance,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', user.id);
-
-        if (updateError) {
-          console.error('❌ Error actualizando profiles:', updateError);
-          return false;
-        }
+        console.error('❌ Error loading balance:', error);
+        return null;
       }
 
-      // 2. Emitir evento para UI
-      window.dispatchEvent(new CustomEvent('balanceUpdated', {
-        detail: {
-          userId: user.id,
-          deduction: cost,
-          callId: callId,
-          source: 'automatic_processing'
-        }
-      }));
-
-      console.log(`✅ DESCUENTO APLICADO: ${callId} - $${cost.toFixed(4)}`);
-      return true;
+      console.log(`💰 Balance loaded: $${userCredit.current_balance} (Warning: $${userCredit.warning_threshold}, Critical: $${userCredit.critical_threshold})`);
+      return userCredit;
 
     } catch (error) {
-      console.error('💥 Error aplicando descuento:', error);
-      return false;
+      console.error('❌ Error in loadCurrentBalance:', error);
+      return null;
     }
-  }, [user?.id]);
+  };
 
-  // ✅ FUNCIÓN PRINCIPAL: Detectar y procesar llamadas
-  const detectAndProcessNewCalls = useCallback(async () => {
-    if (!user?.id || isProcessingRef.current) {
+  // ============================================================================
+  // DETECCIÓN Y PROCESAMIENTO DE LLAMADAS
+  // ============================================================================
+
+  const loadAudioDuration = async (recordingUrl: string): Promise<number> => {
+    return new Promise((resolve) => {
+      const audio = new Audio(recordingUrl);
+      
+      const timeout = setTimeout(() => {
+        console.log('⏰ Audio loading timeout');
+        resolve(0);
+      }, 5000);
+
+      audio.addEventListener('loadedmetadata', () => {
+        clearTimeout(timeout);
+        const duration = Math.round(audio.duration);
+        console.log(`🎵 Audio duration: ${duration}s`);
+        resolve(duration);
+      });
+
+      audio.addEventListener('error', () => {
+        clearTimeout(timeout);
+        console.log('❌ Error loading audio');
+        resolve(0);
+      });
+    });
+  };
+
+  const calculateCallCost = async (call: CallData, customAgents: CustomAgentData[]): Promise<number> => {
+    console.log(`🧮 Calculating cost for call ${call.call_id}:`);
+    console.log(`   - External agent ID: ${call.agent_id}`);
+
+    // 1. Si ya tiene costo, no recalcular (aunque debería ser 0)
+    if (call.cost_usd && call.cost_usd > 0) {
+      console.log(`✅ Using existing cost: $${call.cost_usd}`);
+      return call.cost_usd;
+    }
+
+    // 2. Buscar agente personalizado por ID externo
+    const customAgent = customAgents.find(agent => 
+      agent.retell_agent_id === call.agent_id
+    );
+
+    if (!customAgent) {
+      console.log(`❌ Custom agent not found for external ID: ${call.agent_id}`);
+      console.log('Available custom agents:', customAgents.map(a => ({
+        id: a.id,
+        name: a.name,
+        external_id: a.retell_agent_id
+      })));
+      return 0;
+    }
+
+    console.log(`✅ Custom agent found: ${customAgent.name} (rate: $${customAgent.rate_per_minute}/min)`);
+
+    if (!customAgent.rate_per_minute || customAgent.rate_per_minute <= 0) {
+      console.log(`⚠️ Custom agent has invalid rate: ${customAgent.rate_per_minute}`);
+      return 0;
+    }
+
+    // 3. Obtener duración real del audio
+    let duration = call.duration_sec || 0;
+    if (call.recording_url && duration === 0) {
+      console.log('🎵 Loading duration from audio...');
+      duration = await loadAudioDuration(call.recording_url);
+    }
+
+    if (duration === 0) {
+      console.log('⚠️ No duration available');
+      return 0;
+    }
+
+    // 4. Calcular costo
+    const durationMinutes = duration / 60;
+    const cost = durationMinutes * customAgent.rate_per_minute;
+    
+    console.log(`🧮 Cost calculated: ${durationMinutes.toFixed(2)}min × $${customAgent.rate_per_minute}/min = $${cost.toFixed(4)}`);
+    return cost;
+  };
+
+  const processCall = async (call: CallData, customAgents: CustomAgentData[]): Promise<ProcessingResult> => {
+    try {
+      console.log(`⚡ Processing call: ${call.call_id}`);
+
+      // 1. Calcular costo dinámico
+      const cost = await calculateCallCost(call, customAgents);
+      if (cost <= 0) {
+        return {
+          success: false,
+          callId: call.call_id,
+          amount: 0,
+          error: 'Invalid cost or custom agent not found'
+        };
+      }
+
+      // 2. El costo no se guarda en BD (cálculo dinámico)
+      console.log(`💡 Using dynamic cost calculation (not stored in database)`);
+
+      // 3. Usar función RPC para descontar del balance
+      console.log(`💳 Deducting $${cost.toFixed(4)} via admin credit adjustment`);
+      
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_adjust_user_credits', {
+        p_user_id: user!.id,
+        p_amount: -cost, // Negativo para descuento
+        p_description: `Auto call cost: ${call.call_id} via ${customAgents.find(a => a.retell_agent_id === call.agent_id)?.name}`,
+        p_admin_id: 'auto_system'
+      });
+
+      if (rpcError) {
+        console.error('❌ Error in admin credit adjustment:', rpcError);
+        return {
+          success: false,
+          callId: call.call_id,
+          amount: cost,
+          error: 'Error deducting balance via admin function'
+        };
+      }
+
+      console.log('✅ Admin credit adjustment executed successfully');
+
+      // 4. Obtener el nuevo balance después del descuento
+      const newBalanceData = await loadCurrentBalance();
+      const newBalance = newBalanceData?.current_balance || 0;
+
+      // 5. Actualizar estado local
+      updateBalanceState({
+        balance: newBalance,
+        warningThreshold: newBalanceData?.warning_threshold || 40,
+        criticalThreshold: newBalanceData?.critical_threshold || 20,
+        isBlocked: newBalanceData?.is_blocked || false,
+        recentDeductions: [
+          {
+            callId: call.call_id,
+            amount: cost,
+            timestamp: new Date()
+          },
+          ...balanceState.recentDeductions.slice(0, 4)
+        ]
+      });
+
+      console.log(`🎉 Call processed successfully: ${call.call_id} - $${cost.toFixed(4)} (New balance: $${newBalance})`);
+      return {
+        success: true,
+        callId: call.call_id,
+        amount: cost,
+        newBalance: newBalance
+      };
+
+    } catch (error) {
+      console.error(`❌ Error processing ${call.call_id}:`, error);
+      return {
+        success: false,
+        callId: call.call_id,
+        amount: 0,
+        error: 'Unexpected error'
+      };
+    }
+  };
+
+  const detectAndProcessNewCalls = async () => {
+    if (!user?.id || isProcessingRef.current || userCustomAgents.length === 0) {
       return;
     }
 
     try {
       isProcessingRef.current = true;
-      setIsProcessing(true);
-      
-      console.log('🔍 BUSCANDO LLAMADAS PARA PROCESAR...');
+      console.log('🔍 Detecting new calls for processing...');
 
-      // 1. Obtener agentes asignados si no los tenemos
-      if (userCustomAgents.length === 0) {
-        await loadUserCustomAgents();
-        return; // Salir y esperar a la siguiente iteración
+      // Buscar llamadas por IDs de agentes externos
+      const externalAgentIds = userCustomAgents
+        .map(agent => agent.retell_agent_id)
+        .filter(Boolean);
+
+      console.log('🎯 Searching calls with external agent IDs:', externalAgentIds);
+
+      if (externalAgentIds.length === 0) {
+        console.log('⚠️ No external agent IDs available for search');
+        return;
       }
 
-      // 2. Buscar llamadas completadas del usuario
-      const lookbackTime = new Date(Date.now() - CALL_LOOKBACK_HOURS * 60 * 60 * 1000).toISOString();
-      
       const { data: calls, error } = await supabase
         .from('calls')
         .select('*')
-        .eq('user_id', user.id)
-        .in('call_status', ['completed', 'ended', 'finished'])
-        .gte('timestamp', lookbackTime)
-        .order('timestamp', { ascending: false })
-        .limit(20); // Limitar para evitar sobrecarga
+        .in('agent_id', externalAgentIds) // Buscar por IDs externos
+        .in('call_status', ['completed', 'ended'])
+        .gte('timestamp', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order('timestamp', { ascending: false });
 
       if (error) {
-        console.error('❌ Error obteniendo llamadas:', error);
+        console.error('❌ Error fetching calls:', error);
         return;
       }
 
-      console.log(`📞 Encontradas ${calls?.length || 0} llamadas completadas`);
+      console.log(`📞 Calls found: ${calls?.length || 0}`);
 
-      if (!calls || calls.length === 0) {
-        console.log('✅ No hay llamadas para procesar');
-        return;
-      }
-
-      // 3. Filtrar llamadas que necesitan procesamiento
-      const callsToProcess = calls.filter(call => {
+      // 2. Filtrar llamadas que necesitan procesamiento
+      const callsToProcess = (calls || []).filter(call => {
         const needsProcessing = (
-          !processedCallsRef.current.has(call.call_id) &&
-          (!call.cost_usd || call.cost_usd === 0)
+          (!call.cost_usd || call.cost_usd === 0) && // cost_usd debe ser 0
+          !processedCallsRef.current.has(call.call_id)
         );
-        
+
         if (needsProcessing) {
-          console.log(`🎯 Llamada para procesar: ${call.call_id?.substring(0, 8)}`);
+          console.log(`🎯 Call ready for processing: ${call.call_id} (external_agent: ${call.agent_id})`);
         }
-        
+
         return needsProcessing;
       });
 
       if (callsToProcess.length === 0) {
-        console.log('✅ No hay llamadas nuevas para procesar');
+        console.log('✅ No new calls to process');
         return;
       }
 
-      console.log(`⚡ PROCESANDO ${callsToProcess.length} llamadas...`);
-
-      // 4. Procesar cada llamada
-      let successCount = 0;
+      console.log(`🚨 Auto-processing ${callsToProcess.length} calls`);
       
+      // 3. Marcar como en procesamiento
+      updateBalanceState({
+        processingCalls: callsToProcess.map(c => c.call_id)
+      });
+
+      // 4. Procesar llamadas
+      let successCount = 0;
       for (const call of callsToProcess) {
-        try {
-          console.log(`\n🚀 Procesando: ${call.call_id?.substring(0, 8)}`);
-          
-          // Calcular costo
-          const cost = await calculateCallCost(call, userCustomAgents);
-          
-          if (cost > 0) {
-            // Actualizar costo en BD
-            const { error: updateError } = await supabase
-              .from('calls')
-              .update({ 
-                cost_usd: cost,
-                updated_at: new Date().toISOString()
-              })
-              .eq('call_id', call.call_id);
-
-            if (updateError) {
-              console.error(`❌ Error actualizando call:`, updateError);
-              continue;
-            }
-
-            // Aplicar descuento
-            const deductionSuccess = await applyDeduction(call.call_id, cost);
-            
-            if (deductionSuccess) {
-              processedCallsRef.current.add(call.call_id);
-              setLastProcessedCall(call.call_id);
-              successCount++;
-              console.log(`✅ ÉXITO: ${call.call_id?.substring(0, 8)} - $${cost.toFixed(4)}`);
-            }
-          }
-          
-          // Pausa entre procesamiento
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-        } catch (error) {
-          console.error(`❌ Error procesando ${call.call_id}:`, error);
+        const result = await processCall(call, userCustomAgents);
+        
+        if (result.success) {
+          processedCallsRef.current.add(call.call_id);
+          successCount++;
         }
+
+        // Pausa entre procesamiento
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
 
-      setProcessedCallsCount(prev => prev + successCount);
-      console.log(`✅ PROCESAMIENTO COMPLETADO: ${successCount}/${callsToProcess.length} éxitos`);
+      console.log(`✅ Processing completed: ${successCount}/${callsToProcess.length} successful`);
+
+      // 5. Limpiar estado de procesamiento
+      updateBalanceState({
+        processingCalls: []
+      });
 
     } catch (error) {
-      console.error('❌ Error en detectAndProcessNewCalls:', error);
+      console.error('❌ Error in automatic detection:', error);
+      updateBalanceState({
+        error: 'Error in automatic processing',
+        processingCalls: []
+      });
     } finally {
       isProcessingRef.current = false;
-      setIsProcessing(false);
     }
-  }, [user?.id, userCustomAgents, calculateCallCost, applyDeduction]);
+  };
 
-  // Cargar agentes asignados al usuario
-  const loadUserCustomAgents = useCallback(async () => {
+  // ============================================================================
+  // INICIALIZACIÓN Y POLLING
+  // ============================================================================
+
+  const initializeSystem = async () => {
     if (!user?.id) return;
 
     try {
-      console.log('👥 Cargando agentes asignados...');
-      
-      const { data: assignments, error } = await supabase
-        .from('user_agent_assignments')
-        .select(`
-          *,
-          agents:agent_id (
-            id,
-            name,
-            retell_agent_id,
-            rate_per_minute
-          )
-        `)
-        .eq('user_id', user.id)
-        .eq('is_active', true);
+      updateBalanceState({ isLoading: true, error: null });
+      console.log('🚀 Initializing smart balance system...');
 
-      if (error) {
-        console.error('❌ Error loading user agents:', error);
-        return;
+      // 1. Cargar agentes personalizados del usuario
+      const customAgents = await loadUserCustomAgents();
+      setUserCustomAgents(customAgents);
+
+      // 2. Cargar balance desde user_credits
+      const balanceData = await loadCurrentBalance();
+
+      if (balanceData) {
+        updateBalanceState({
+          balance: balanceData.current_balance,
+          warningThreshold: balanceData.warning_threshold,
+          criticalThreshold: balanceData.critical_threshold,
+          isBlocked: balanceData.is_blocked,
+          isLoading: false,
+          estimatedMinutes: calculateEstimatedMinutes(balanceData.current_balance, customAgents)
+        });
+      } else {
+        updateBalanceState({
+          isLoading: false,
+          error: 'Could not load user balance'
+        });
       }
 
-      const agents = (assignments || [])
-        .map(assignment => ({
-          id: assignment.agents.id,
-          name: assignment.agents.name,
-          retell_agent_id: assignment.agents.retell_agent_id,
-          rate_per_minute: assignment.agents.rate_per_minute,
-          is_primary: assignment.is_primary,
-          assigned_at: assignment.assigned_at
-        }))
-        .filter(agent => agent.rate_per_minute > 0);
+      console.log('✅ Smart balance system initialized successfully');
 
-      console.log(`✅ Cargados ${agents.length} agentes activos`);
-      setUserCustomAgents(agents);
-      
     } catch (error) {
-      console.error('❌ Error en loadUserCustomAgents:', error);
+      console.error('❌ Error initializing system:', error);
+      updateBalanceState({
+        isLoading: false,
+        error: 'Error initializing smart system'
+      });
     }
+  };
+
+  const startPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    pollingIntervalRef.current = setInterval(() => {
+      detectAndProcessNewCalls();
+    }, 5000);
+
+    console.log('🔄 Smart monitoring started (every 5 seconds)');
+  };
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    console.log('⏹️ Smart monitoring stopped');
+  };
+
+  // ============================================================================
+  // FUNCIONES PÚBLICAS
+  // ============================================================================
+
+  const refreshBalance = useCallback(async () => {
+    const balanceData = await loadCurrentBalance();
+    if (balanceData) {
+      updateBalanceState({
+        balance: balanceData.current_balance,
+        warningThreshold: balanceData.warning_threshold,
+        criticalThreshold: balanceData.critical_threshold,
+        isBlocked: balanceData.is_blocked
+      });
+      return balanceData.current_balance;
+    }
+    return 0;
   }, [user?.id]);
 
-  // Cargar balance del usuario
-  const loadUserCredits = useCallback(async () => {
-    if (!user?.id) return;
-
-    try {
-      // Intentar user_credits primero
-      const { data: userCreditsData, error: creditsError } = await supabase
-        .from('user_credits')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!creditsError && userCreditsData) {
-        setUserCredits(userCreditsData);
-        console.log(`💰 Balance cargado desde user_credits: $${userCreditsData.credits}`);
-        return;
-      }
-
-      // Fallback a profiles
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('credit_balance')
-        .eq('id', user.id)
-        .single();
-
-      if (!profileError && profileData) {
-        // Crear entrada en user_credits si no existe
-        const { error: insertError } = await supabase
-          .from('user_credits')
-          .insert({
-            user_id: user.id,
-            credits: profileData.credit_balance || 0,
-            low_balance_threshold: 10,
-            created_at: new Date().toISOString()
-          });
-
-        if (!insertError) {
-          setUserCredits({
-            user_id: user.id,
-            credits: profileData.credit_balance || 0,
-            low_balance_threshold: 10
-          });
-          console.log(`💰 Balance migrado a user_credits: $${profileData.credit_balance || 0}`);
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ Error en loadUserCredits:', error);
-    }
-  }, [user?.id]);
-
-  // Inicializar sistema
-  useEffect(() => {
-    if (user?.id) {
-      console.log('🚀 Inicializando Sistema Unificado de Balance...');
-      loadUserCustomAgents();
-      loadUserCredits();
-    }
-  }, [user?.id, loadUserCustomAgents, loadUserCredits]);
-
-  // Configurar polling automático
-  useEffect(() => {
-    if (user?.id && userCustomAgents.length > 0) {
-      console.log('⏰ Iniciando polling automático cada 10 segundos...');
-      
-      // Ejecutar inmediatamente
-      const timeoutId = setTimeout(() => {
-        detectAndProcessNewCalls();
-      }, 2000); // Delay inicial de 2 segundos
-      
-      // Configurar intervalo
-      pollingIntervalRef.current = setInterval(() => {
-        detectAndProcessNewCalls();
-      }, POLLING_INTERVAL);
-
-      return () => {
-        clearTimeout(timeoutId);
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          console.log('⏹️ Polling detenido');
-        }
+  const manualProcessCall = async (callId: string): Promise<ProcessingResult> => {
+    if (userCustomAgents.length === 0) {
+      return {
+        success: false,
+        callId,
+        amount: 0,
+        error: 'No custom agents loaded'
       };
     }
-  }, [user?.id, userCustomAgents.length, detectAndProcessNewCalls]);
 
-  // Limpiar al desmontar
+    try {
+      const { data: call, error } = await supabase
+        .from('calls')
+        .select('*')
+        .eq('call_id', callId)
+        .single();
+
+      if (error || !call) {
+        return {
+          success: false,
+          callId,
+          amount: 0,
+          error: 'Call not found'
+        };
+      }
+
+      return await processCall(call, userCustomAgents);
+
+    } catch (error) {
+      return {
+        success: false,
+        callId,
+        amount: 0,
+        error: 'Unexpected error'
+      };
+    }
+  };
+
+  // ============================================================================
+  // EFFECTS
+  // ============================================================================
+
+  useEffect(() => {
+    if (user?.id) {
+      initializeSystem();
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id && userCustomAgents.length > 0 && !balanceState.isLoading) {
+      startPolling();
+      return () => stopPolling();
+    }
+  }, [user?.id, userCustomAgents.length, balanceState.isLoading]);
+
   useEffect(() => {
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
+      stopPolling();
     };
   }, []);
 
+  // ============================================================================
+  // RETURN
+  // ============================================================================
+
   return {
-    isProcessing,
-    userCustomAgents,
-    userCredits,
-    lastProcessedCall,
-    processedCallsCount,
-    detectAndProcessNewCalls: () => detectAndProcessNewCalls(),
-    refreshData: () => {
-      loadUserCustomAgents();
-      loadUserCredits();
+    // Estado del balance
+    balance: balanceState.balance,
+    warningThreshold: balanceState.warningThreshold,
+    criticalThreshold: balanceState.criticalThreshold,
+    isBlocked: balanceState.isBlocked,
+    isLoading: balanceState.isLoading,
+    error: balanceState.error,
+    status: balanceState.status,
+    estimatedMinutes: balanceState.estimatedMinutes,
+    lastUpdate: balanceState.lastUpdate,
+    
+    // Estado del procesamiento
+    processingCalls: balanceState.processingCalls,
+    recentDeductions: balanceState.recentDeductions,
+    isProcessing: isProcessingRef.current,
+    
+    // Información adicional
+    userAgents: userCustomAgents,
+    processedCallsCount: processedCallsRef.current.size,
+    
+    // Funciones
+    refreshBalance,
+    manualProcessCall,
+    
+    // Para debugging
+    debugInfo: {
+      processedCalls: Array.from(processedCallsRef.current),
+      isPollingActive: pollingIntervalRef.current !== null,
+      usingUserCreditsTable: true,
+      usingRPCFunction: 'admin_adjust_user_credits',
+      smartMappingEnabled: true,
+      customAgentsCount: userCustomAgents.length,
+      externalAgentIds: userCustomAgents.map(a => a.retell_agent_id)
     }
   };
 };
