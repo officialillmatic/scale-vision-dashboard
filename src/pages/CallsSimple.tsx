@@ -249,16 +249,21 @@ export default function CallsSimple() {
   // ============================================================================
   
   const getCallDuration = (call: any) => {
-    if (call.duration_sec && call.duration_sec > 0) {
-      return call.duration_sec;
-    }
-    
-    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
-      return audioDurations[call.id];
-    }
-    
-    return 0;
-  };
+  // ✅ PRIORIZAR duración del audio (más precisa)
+  if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+    console.log(`🎵 Usando duración de audio: ${audioDurations[call.id]}s para ${call.call_id?.substring(0, 8)}`);
+    return audioDurations[call.id];
+  }
+  
+  // Fallback a duration_sec de la BD
+  if (call.duration_sec && call.duration_sec > 0) {
+    console.log(`📊 Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
+    return call.duration_sec;
+  }
+  
+  console.log(`⚠️ Sin duración disponible para ${call.call_id?.substring(0, 8)}`);
+  return 0;
+};
 
   // ✅ FUNCIÓN CORREGIDA: calculateCallCost
   const calculateCallCost = (call: Call) => {
@@ -269,6 +274,34 @@ export default function CallsSimple() {
       call_agent_rate: call.call_agent?.rate_per_minute,
       agents_rate: call.agents?.rate_per_minute
     });
+
+    // ✅ NUEVA FUNCIÓN: loadAudioDuration  
+const loadAudioDuration = async (call: Call) => {
+  if (!call.recording_url || audioDurations[call.id]) return;
+  
+  try {
+    console.log(`🎵 Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
+    const audio = new Audio(call.recording_url);
+    return new Promise<void>((resolve) => {
+      audio.addEventListener('loadedmetadata', () => {
+        const duration = Math.round(audio.duration);
+        console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
+        setAudioDurations(prev => ({
+          ...prev,
+          [call.id]: duration
+        }));
+        resolve();
+      });
+      
+      audio.addEventListener('error', () => {
+        console.log(`❌ Error cargando audio para ${call.call_id?.substring(0, 8)}`);
+        resolve();
+      });
+    });
+  } catch (error) {
+    console.log(`❌ Error loading audio duration:`, error);
+  }
+};
 
     // 1. Si ya tiene un costo válido en BD, usarlo
     if (call.cost_usd && call.cost_usd > 0) {
@@ -464,7 +497,34 @@ export default function CallsSimple() {
         cost_in_db: mappedCalls[0]?.cost_usd
       });
 
-      setCalls(mappedCalls || []);
+      // ✅ CARGAR DURACIONES DE AUDIO INMEDIATAMENTE
+console.log('🎵 Cargando duraciones de audio...');
+const callsWithAudio = mappedCalls.filter(call => call.recording_url);
+console.log(`📻 ${callsWithAudio.length} llamadas con audio encontradas`);
+
+// Cargar audio en lotes pequeños
+for (let i = 0; i < callsWithAudio.length; i += 3) {
+  const batch = callsWithAudio.slice(i, i + 3);
+  await Promise.all(batch.map(call => loadAudioDuration(call)));
+  if (i + 3 < callsWithAudio.length) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+}
+      // ✅ CARGAR DURACIONES DE AUDIO INMEDIATAMENTE
+console.log('🎵 Cargando duraciones de audio...');
+const callsWithAudio = mappedCalls.filter(call => call.recording_url);
+console.log(`📻 ${callsWithAudio.length} llamadas con audio encontradas`);
+
+// Cargar audio en lotes pequeños
+for (let i = 0; i < callsWithAudio.length; i += 3) {
+  const batch = callsWithAudio.slice(i, i + 3);
+  await Promise.all(batch.map(call => loadAudioDuration(call)));
+  if (i + 3 < callsWithAudio.length) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+}
+
+setCalls(mappedCalls || []);
 
     } catch (err: any) {
       console.error("❌ Excepción en fetch calls:", err);
