@@ -83,7 +83,7 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
     // 1. OBTENER BALANCE ACTUAL
     const { data: currentUser, error: userError } = await supabase
       .from('user_credits')
-      .select('credit_balance')
+      .select('current_balance')
       .eq('id', userId)
       .single();
 
@@ -92,16 +92,16 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    const currentBalance = currentUser?.credits || 0;
+    const currentBalance = currentUser?.current_balance || 0;
     const newBalance = Math.max(0, currentBalance - callCost);
     
     console.log(`💰 Balance: $${currentBalance} → $${newBalance} (descuento: $${callCost})`);
 
     // 2. ACTUALIZAR BALANCE EN LA BASE DE DATOS
     const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ 
-        credits: newBalance,
+  .from('user_credits')
+  .update({ 
+    current_balance: newBalance,
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);
@@ -430,7 +430,7 @@ export default function CallsSimple() {
       
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('credit_balance')
+        .select('current_balance')
         .eq('id', user.id)
         .single();
 
@@ -439,7 +439,7 @@ export default function CallsSimple() {
         return;
       }
 
-      const balance = profile?.credit_balance || 0;
+      const balance = profile?.current_balance || 0;
       setUserBalance(balance);
       console.log(`💰 Balance cargado: $${balance.toFixed(4)}`);
       
