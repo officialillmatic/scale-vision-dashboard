@@ -621,10 +621,23 @@ export default function CallsSimple() {
     let errors = 0;
 
     for (const call of callsNeedingProcessing) {
-      try {
-        console.log(`⚡ PROCESANDO: ${call.call_id}`);
-        
-        const calculatedCost = calculateCallCost(call);
+  try {
+    console.log(`⚡ PROCESANDO: ${call.call_id}`);
+    
+    // 🔍 DEBUGGING DETALLADO AGREGADO
+    console.log(`🧮 DEBUGGING CÁLCULO DETALLADO para ${call.call_id}:`);
+    console.log(`   📊 Duration BD: ${call.duration_sec}s`);
+    console.log(`   🎵 Audio Duration: ${audioDurations[call.id] || 'No loaded'}s`);
+    console.log(`   ⏱️ getCallDuration result: ${getCallDuration(call)}s`);
+    console.log(`   💰 Agent rate call_agent: $${call.call_agent?.rate_per_minute || 'No rate'}/min`);
+    console.log(`   💰 Agent rate agents: $${call.agents?.rate_per_minute || 'No rate'}/min`);
+    console.log(`   💳 Cost in BD: $${call.cost_usd}`);
+    
+    const calculatedCost = calculateCallCost(call);
+    console.log(`   🧮 Calculated cost: $${calculatedCost}`);
+    
+    if (calculatedCost > 0) {
+      console.log(`🚨 INTENTANDO DESCUENTO: $${calculatedCost} para usuario ${user.id}`);
         
         if (calculatedCost > 0) {
           // 1. Actualizar costo en la base de datos
