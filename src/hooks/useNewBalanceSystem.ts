@@ -1,5 +1,6 @@
-// 🤖 NUEVO SISTEMA DE DESCUENTOS AUTOMÁTICOS
+// 🤖 SISTEMA INTEGRADO: BALANCE AUTOMÁTICO + ADMIN CREDITS
 // Ubicación: src/hooks/useNewBalanceSystem.ts
+// ✅ INTEGRADO con user_credits y función RPC admin_adjust_user_credits
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,11 +26,24 @@ interface AgentData {
   retell_agent_id?: string;
 }
 
+interface UserCreditData {
+  user_id: string;
+  current_balance: number;
+  warning_threshold: number;
+  critical_threshold: number;
+  is_blocked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 interface BalanceState {
   balance: number;
+  warningThreshold: number;
+  criticalThreshold: number;
+  isBlocked: boolean;
   isLoading: boolean;
   error: string | null;
-  status: 'empty' | 'critical' | 'warning' | 'healthy';
+  status: 'empty' | 'critical' | 'warning' | 'healthy' | 'blocked';
   estimatedMinutes: number;
   lastUpdate: Date;
   processingCalls: string[];
@@ -45,12 +59,16 @@ interface ProcessingResult {
   callId: string;
   amount: number;
   error?: string;
+  newBalance?: number;
 }
 
 export const useNewBalanceSystem = () => {
   const { user } = useAuth();
   const [balanceState, setBalanceState] = useState<BalanceState>({
     balance: 0,
+    warningThreshold: 40,
+    criticalThreshold: 20,
+    isBlocked: false,
     isLoading: true,
     error: null,
     status: 'healthy',
@@ -69,10 +87,16 @@ export const useNewBalanceSystem = () => {
   // FUNCIONES AUXILIARES
   // ============================================================================
 
-  const calculateStatus = (balance: number): 'empty' | 'critical' | 'warning' | 'healthy' => {
+  const calculateStatus = (
+    balance: number, 
+    warningThreshold: number, 
+    criticalThreshold: number, 
+    isBlocked: boolean
+  ): 'empty' | 'critical' | 'warning' | 'healthy' | 'blocked' => {
+    if (isBlocked) return 'blocked';
     if (balance <= 0) return 'empty';
-    if (balance <= 20) return 'critical';
-    if (balance <= 40) return 'warning';
+    if (balance <= criticalThreshold) return 'critical';
+    if (balance <= warningThreshold) return 'warning';
     return 'healthy';
   };
 
@@ -87,7 +111,10 @@ export const useNewBalanceSystem = () => {
   const updateBalanceState = (updates: Partial<BalanceState>) => {
     setBalanceState(prev => {
       const newBalance = updates.balance !== undefined ? updates.balance : prev.balance;
-      const newStatus = updates.balance !== undefined ? calculateStatus(newBalance) : prev.status;
+      const newWarningThreshold = updates.warningThreshold !== undefined ? updates.warningThreshold : prev.warningThreshold;
+      const newCriticalThreshold = updates.criticalThreshold !== undefined ? updates.criticalThreshold : prev.criticalThreshold;
+      const newIsBlocked = updates.isBlocked !== undefined ? updates.isBlocked : prev.isBlocked;
+      const newStatus = calculateStatus(newBalance, newWarningThreshold, newCriticalThreshold, newIsBlocked);
       const newEstimatedMinutes = updates.balance !== undefined ? 
         calculateEstimatedMinutes(newBalance, userAgents) : prev.estimatedMinutes;
 
@@ -102,7 +129,7 @@ export const useNewBalanceSystem = () => {
   };
 
   // ============================================================================
-  // CARGA DE DATOS INICIALES
+  // CARGA DE DATOS INICIALES (INTEGRADO CON ADMIN CREDITS)
   // ============================================================================
 
   const loadUserAgents = async (): Promise<AgentData[]> => {
@@ -149,33 +176,60 @@ export const useNewBalanceSystem = () => {
     }
   };
 
-  const loadCurrentBalance = async (): Promise<number> => {
-    if (!user?.id) return 0;
+  const loadCurrentBalance = async (): Promise<UserCreditData | null> => {
+    if (!user?.id) return null;
 
     try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('credit_balance')
-        .eq('id', user.id)
+      console.log('💰 Cargando balance desde user_credits...');
+
+      // ✅ CAMBIO PRINCIPAL: Usar user_credits en lugar de profiles
+      const { data: userCredit, error } = await supabase
+        .from('user_credits')
+        .select('*')
+        .eq('user_id', user.id)
         .single();
 
       if (error) {
+        if (error.code === 'PGRST116') {
+          // Usuario no tiene registro en user_credits, crear uno
+          console.log('📝 Creando registro en user_credits para usuario nuevo...');
+          
+          const { data: newUserCredit, error: createError } = await supabase
+            .from('user_credits')
+            .insert({
+              user_id: user.id,
+              current_balance: 0,
+              warning_threshold: 40,
+              critical_threshold: 20,
+              is_blocked: false
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('❌ Error creando user_credits:', createError);
+            return null;
+          }
+
+          console.log('✅ Registro creado en user_credits');
+          return newUserCredit;
+        }
+        
         console.error('❌ Error obteniendo balance:', error);
-        return 0;
+        return null;
       }
 
-      const balance = profile?.credit_balance || 0;
-      console.log(`💰 Balance actual: $${balance}`);
-      return balance;
+      console.log(`💰 Balance cargado: $${userCredit.current_balance} (Warning: $${userCredit.warning_threshold}, Critical: $${userCredit.critical_threshold})`);
+      return userCredit;
 
     } catch (error) {
       console.error('❌ Error en loadCurrentBalance:', error);
-      return 0;
+      return null;
     }
   };
 
   // ============================================================================
-  // DETECCIÓN Y PROCESAMIENTO DE LLAMADAS
+  // DETECCIÓN Y PROCESAMIENTO DE LLAMADAS (INTEGRADO CON RPC)
   // ============================================================================
 
   const loadAudioDuration = async (recordingUrl: string): Promise<number> => {
@@ -254,8 +308,8 @@ export const useNewBalanceSystem = () => {
         };
       }
 
-      // 2. Actualizar costo en la base de datos
-      const { error: updateError } = await supabase
+      // 2. Actualizar costo en la tabla calls
+      const { error: updateCallError } = await supabase
         .from('calls')
         .update({ 
           cost_usd: cost,
@@ -263,51 +317,48 @@ export const useNewBalanceSystem = () => {
         })
         .eq('call_id', call.call_id);
 
-      if (updateError) {
+      if (updateCallError) {
+        console.error('❌ Error actualizando costo en calls:', updateCallError);
         return {
           success: false,
           callId: call.call_id,
           amount: cost,
-          error: 'Error actualizando BD'
+          error: 'Error actualizando costo en BD'
         };
       }
 
-      // 3. Descontar del balance
-      const currentBalance = await loadCurrentBalance();
-      const newBalance = Math.max(0, currentBalance - cost);
+      // 3. ✅ INTEGRACIÓN PRINCIPAL: Usar función RPC de Admin Credits
+      console.log(`💳 Usando RPC admin_adjust_user_credits para descontar $${cost.toFixed(4)}`);
+      
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_adjust_user_credits', {
+        p_user_id: user!.id,
+        p_amount: -cost, // Negativo para descuento
+        p_description: `Automatic call cost for ${call.call_id}`,
+        p_admin_id: 'auto_system'
+      });
 
-      const { error: balanceError } = await supabase
-        .from('profiles')
-        .update({ 
-          credit_balance: newBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user!.id);
-
-      if (balanceError) {
+      if (rpcError) {
+        console.error('❌ Error en RPC admin_adjust_user_credits:', rpcError);
         return {
           success: false,
           callId: call.call_id,
           amount: cost,
-          error: 'Error actualizando balance'
+          error: 'Error descontando balance via RPC'
         };
       }
 
-      // 4. Crear registro de transacción
-      await supabase
-        .from('credit_transactions')
-        .insert({
-          user_id: user!.id,
-          amount: -cost,
-          transaction_type: 'call_cost',
-          description: `Call cost for ${call.call_id}`,
-          reference_id: call.call_id,
-          created_at: new Date().toISOString()
-        });
+      console.log('✅ RPC ejecutada exitosamente:', rpcResult);
+
+      // 4. Obtener el nuevo balance después del descuento
+      const newBalanceData = await loadCurrentBalance();
+      const newBalance = newBalanceData?.current_balance || 0;
 
       // 5. Actualizar estado local
       updateBalanceState({
         balance: newBalance,
+        warningThreshold: newBalanceData?.warning_threshold || 40,
+        criticalThreshold: newBalanceData?.critical_threshold || 20,
+        isBlocked: newBalanceData?.is_blocked || false,
         recentDeductions: [
           {
             callId: call.call_id,
@@ -318,11 +369,12 @@ export const useNewBalanceSystem = () => {
         ]
       });
 
-      console.log(`🎉 Llamada procesada exitosamente: ${call.call_id} - $${cost.toFixed(4)}`);
+      console.log(`🎉 Llamada procesada exitosamente: ${call.call_id} - $${cost.toFixed(4)} (Nuevo balance: $${newBalance})`);
       return {
         success: true,
         callId: call.call_id,
-        amount: cost
+        amount: cost,
+        newBalance: newBalance
       };
 
     } catch (error) {
@@ -431,29 +483,39 @@ export const useNewBalanceSystem = () => {
 
     try {
       updateBalanceState({ isLoading: true, error: null });
-      console.log('🚀 Inicializando sistema de balance automático...');
+      console.log('🚀 Inicializando sistema integrado de balance automático...');
 
       // 1. Cargar agentes del usuario
       const agents = await loadUserAgents();
       setUserAgents(agents);
 
-      // 2. Cargar balance actual
-      const balance = await loadCurrentBalance();
+      // 2. Cargar balance y configuración desde user_credits
+      const balanceData = await loadCurrentBalance();
 
-      // 3. Actualizar estado inicial
-      updateBalanceState({
-        balance,
-        isLoading: false,
-        estimatedMinutes: calculateEstimatedMinutes(balance, agents)
-      });
+      if (balanceData) {
+        // 3. Actualizar estado inicial con datos completos
+        updateBalanceState({
+          balance: balanceData.current_balance,
+          warningThreshold: balanceData.warning_threshold,
+          criticalThreshold: balanceData.critical_threshold,
+          isBlocked: balanceData.is_blocked,
+          isLoading: false,
+          estimatedMinutes: calculateEstimatedMinutes(balanceData.current_balance, agents)
+        });
+      } else {
+        updateBalanceState({
+          isLoading: false,
+          error: 'No se pudo cargar el balance del usuario'
+        });
+      }
 
-      console.log('✅ Sistema inicializado correctamente');
+      console.log('✅ Sistema integrado inicializado correctamente');
 
     } catch (error) {
       console.error('❌ Error inicializando sistema:', error);
       updateBalanceState({
         isLoading: false,
-        error: 'Error inicializando sistema'
+        error: 'Error inicializando sistema integrado'
       });
     }
   };
@@ -467,7 +529,7 @@ export const useNewBalanceSystem = () => {
       detectAndProcessNewCalls();
     }, 5000); // Cada 5 segundos
 
-    console.log('🔄 Polling iniciado (cada 5 segundos)');
+    console.log('🔄 Polling integrado iniciado (cada 5 segundos)');
   };
 
   const stopPolling = () => {
@@ -475,7 +537,7 @@ export const useNewBalanceSystem = () => {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
-    console.log('⏹️ Polling detenido');
+    console.log('⏹️ Polling integrado detenido');
   };
 
   // ============================================================================
@@ -483,9 +545,17 @@ export const useNewBalanceSystem = () => {
   // ============================================================================
 
   const refreshBalance = useCallback(async () => {
-    const balance = await loadCurrentBalance();
-    updateBalanceState({ balance });
-    return balance;
+    const balanceData = await loadCurrentBalance();
+    if (balanceData) {
+      updateBalanceState({
+        balance: balanceData.current_balance,
+        warningThreshold: balanceData.warning_threshold,
+        criticalThreshold: balanceData.critical_threshold,
+        isBlocked: balanceData.is_blocked
+      });
+      return balanceData.current_balance;
+    }
+    return 0;
   }, [user?.id]);
 
   const manualProcessCall = async (callId: string): Promise<ProcessingResult> => {
@@ -553,12 +623,15 @@ export const useNewBalanceSystem = () => {
   }, []);
 
   // ============================================================================
-  // RETURN
+  // RETURN (INTEGRADO CON ADMIN CREDITS)
   // ============================================================================
 
   return {
-    // Estado del balance
+    // Estado del balance (integrado con user_credits)
     balance: balanceState.balance,
+    warningThreshold: balanceState.warningThreshold,
+    criticalThreshold: balanceState.criticalThreshold,
+    isBlocked: balanceState.isBlocked,
     isLoading: balanceState.isLoading,
     error: balanceState.error,
     status: balanceState.status,
@@ -581,7 +654,9 @@ export const useNewBalanceSystem = () => {
     // Para debugging
     debugInfo: {
       processedCalls: Array.from(processedCallsRef.current),
-      isPollingActive: pollingIntervalRef.current !== null
+      isPollingActive: pollingIntervalRef.current !== null,
+      usingUserCreditsTable: true,
+      usingRPCFunction: 'admin_adjust_user_credits'
     }
   };
 };
