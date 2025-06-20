@@ -1466,20 +1466,21 @@ export default function CallsSimple() {
                                 <Eye className="h-3 w-3" />
                               </Button>
                               {call.recording_url && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="h-6 w-6 p-0"
-                                  asChild
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  
-                                    href={call.recording_url}
-  download={`call-${call.call_id}.mp3`}
->
-  <Download className="h-3 w-3" />
-</a>
-                                </Button>
+  <Button 
+    variant="ghost" 
+    size="sm" 
+    className="h-6 w-6 p-0"
+    asChild
+    onClick={(e) => e.stopPropagation()}
+  >
+    
+      href={call.recording_url}
+      download={`call-${call.call_id}.mp3`}
+    >
+      <Download className="h-3 w-3" />
+    </a>
+  </Button>
+)}
                               )}
                             </div>
                           </td>
