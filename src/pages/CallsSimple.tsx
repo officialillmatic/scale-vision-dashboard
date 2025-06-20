@@ -245,7 +245,7 @@ export default function CallsSimple() {
     return `Agent ${agentId.substring(0, 8)}...`;
   };
   // ============================================================================
-  // FUNCIONES AUXILIARES
+  // FUNCIONES AUXILIARES CORREGIDAS
   // ============================================================================
   
   const getCallDuration = (call: any) => {
@@ -260,28 +260,73 @@ export default function CallsSimple() {
     return 0;
   };
 
+  // ✅ FUNCIÓN CORREGIDA: calculateCallCost
   const calculateCallCost = (call: Call) => {
-    const durationMinutes = getCallDuration(call) / 60;
+    console.log(`💰 Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
+      existing_cost: call.cost_usd,
+      duration_sec: call.duration_sec,
+      agent_id: call.agent_id,
+      call_agent_rate: call.call_agent?.rate_per_minute,
+      agents_rate: call.agents?.rate_per_minute
+    });
+
+    // 1. Si ya tiene un costo válido en BD, usarlo
+    if (call.cost_usd && call.cost_usd > 0) {
+      console.log(`✅ Usando costo existente de BD: $${call.cost_usd}`);
+      return call.cost_usd;
+    }
+    
+    // 2. Obtener duración
+    const duration = getCallDuration(call);
+    if (duration === 0) {
+      console.log(`⚠️ Sin duración, costo = $0`);
+      return 0;
+    }
+    
+    const durationMinutes = duration / 60;
+    
+    // 3. Buscar tarifa del agente (priorizar call_agent, luego agents)
     let agentRate = 0;
     
     if (call.call_agent?.rate_per_minute) {
       agentRate = call.call_agent.rate_per_minute;
+      console.log(`✅ Usando tarifa de call_agent: $${agentRate}/min`);
     } else if (call.agents?.rate_per_minute) {
       agentRate = call.agents.rate_per_minute;
+      console.log(`✅ Usando tarifa de agents: $${agentRate}/min`);
+    } else {
+      // Buscar en userAssignedAgents como fallback
+      const userAgent = userAssignedAgents.find(agent => 
+        agent.id === call.agent_id || 
+        agent.retell_agent_id === call.agent_id
+      );
+      
+      if (userAgent?.rate_per_minute) {
+        agentRate = userAgent.rate_per_minute;
+        console.log(`✅ Usando tarifa de userAssignedAgents: $${agentRate}/min`);
+      } else {
+        console.log(`❌ Sin tarifa disponible, costo = $0`);
+        return 0;
+      }
     }
     
-    if (agentRate === 0) {
-      return call.cost_usd || 0;
-    }
+    // 4. Calcular costo
+    const calculatedCost = durationMinutes * agentRate;
+    console.log(`🧮 Costo calculado: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${calculatedCost.toFixed(4)}`);
     
-    return durationMinutes * agentRate;
+    return calculatedCost;
+  };
+
+  // ✅ NUEVA FUNCIÓN: calculateCallCostSync (para usar en render)
+  const calculateCallCostSync = (call: Call) => {
+    return calculateCallCost(call);
   };
   // ============================================================================
-  // FUNCIÓN FETCH CALLS
+  // FUNCIÓN FETCH CALLS CORREGIDA PARA COSTOS
   // ============================================================================
   
   const fetchCalls = async () => {
-    console.log("🔄 FETCH CALLS SIMPLIFICADO");
+    console.log("🔄 FETCH CALLS CON COSTOS CORREGIDOS");
     
     if (!user?.id) {
       setError("User not authenticated");
@@ -337,7 +382,7 @@ export default function CallsSimple() {
       console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
       setUserAssignedAgents(agentDetails || []);
 
-      // Buscar llamadas por UUID de agentes
+      // Buscar llamadas por UUID de agentes y Retell IDs
       const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
       const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
       
@@ -345,13 +390,13 @@ export default function CallsSimple() {
       console.log("   • Agent UUIDs:", agentUUIDs);
       console.log("   • Retell Agent IDs:", retellAgentIds);
 
-      const { data: callsByUUID, error: uuidError } = await supabase
+      const { data: callsByUUID } = await supabase
         .from('calls')
         .select('*')
         .in('agent_id', agentUUIDs)
         .order('timestamp', { ascending: false });
 
-      const { data: callsByRetell, error: retellError } = await supabase
+      const { data: callsByRetell } = await supabase
         .from('calls')
         .select('*')
         .in('agent_id', retellAgentIds)
@@ -369,26 +414,54 @@ export default function CallsSimple() {
 
       console.log(`🎯 RESULTADO: ${uniqueCalls.length} llamadas únicas encontradas`);
 
-      // Mapear llamadas con información del agente
+      // ✅ MAPEAR LLAMADAS CON INFORMACIÓN COMPLETA DEL AGENTE
+      const userAgents = agentDetails?.map(agent => ({
+        agent_id: agent.id,
+        agents: agent
+      })) || [];
+
       const mappedCalls = uniqueCalls.map(call => {
-        const userAgentAssignment = agentDetails.find(agent => 
-          agent.id === call.agent_id ||
-          agent.retell_agent_id === call.agent_id
+        let matchedAgent = null;
+
+        // Buscar agente por ID directo o retell_agent_id
+        const userAgentAssignment = userAgents.find(assignment => 
+          assignment.agents.id === call.agent_id ||
+          assignment.agents.retell_agent_id === call.agent_id ||
+          `agent_${assignment.agents.id}` === call.agent_id
         );
+
+        if (userAgentAssignment) {
+          matchedAgent = {
+            id: userAgentAssignment.agents.id,
+            name: userAgentAssignment.agents.name,
+            rate_per_minute: userAgentAssignment.agents.rate_per_minute
+          };
+          console.log(`✅ Agente encontrado para ${call.call_id}: ${matchedAgent.name} ($${matchedAgent.rate_per_minute}/min)`);
+        } else {
+          // Agente no encontrado - usar tarifa por defecto
+          matchedAgent = {
+            id: call.agent_id,
+            name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
+            rate_per_minute: 0.02
+          };
+          console.log(`⚠️ Agente no encontrado para ${call.call_id}, usando tarifa por defecto`);
+        }
 
         return {
           ...call,
           end_reason: call.disconnection_reason || null,
-          call_agent: userAgentAssignment ? {
-            id: userAgentAssignment.id,
-            name: userAgentAssignment.name,
-            rate_per_minute: userAgentAssignment.rate_per_minute
-          } : {
-            id: call.agent_id,
-            name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
-            rate_per_minute: 0.02
-          }
+          call_agent: matchedAgent,
+          // ✅ TAMBIÉN AGREGAR EN agents para compatibilidad
+          agents: matchedAgent
         };
+      });
+
+      console.log(`💰 Ejemplo de llamada mapeada:`, {
+        call_id: mappedCalls[0]?.call_id,
+        agent_name: mappedCalls[0]?.call_agent?.name,
+        rate: mappedCalls[0]?.call_agent?.rate_per_minute,
+        duration: mappedCalls[0]?.duration_sec,
+        cost_in_db: mappedCalls[0]?.cost_usd
       });
 
       setCalls(mappedCalls || []);
