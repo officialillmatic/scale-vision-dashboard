@@ -1,6 +1,6 @@
-// 🤖 SISTEMA CORREGIDO: MAPEO CORRECTO RETELL → CUSTOM AGENT
+// 🤖 SISTEMA SEGURO: SIN REFERENCIAS A SERVICIOS EXTERNOS
 // Ubicación: src/hooks/useNewBalanceSystem.ts
-// ✅ CORREGIDO para mapear retell_agent_id correctamente
+// 🔐 SEGURIDAD: Términos genéricos, sin exponer proveedores
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,7 +10,7 @@ interface CallData {
   id: string;
   call_id: string;
   user_id: string;
-  agent_id: string; // Este es el retell_agent_id
+  agent_id: string; // Este es el external_agent_id
   timestamp: string;
   duration_sec: number;
   cost_usd: number;
@@ -23,7 +23,7 @@ interface CustomAgentData {
   id: string; // Custom Agent ID
   name: string;
   rate_per_minute: number;
-  retell_agent_id: string; // Retell Agent ID para mapeo
+  retell_agent_id: string; // Guardamos el nombre original del campo pero no lo exponemos
 }
 
 interface UserCreditData {
@@ -103,7 +103,7 @@ export const useNewBalanceSystem = () => {
   const calculateEstimatedMinutes = (balance: number, agents: CustomAgentData[]): number => {
     if (balance <= 0 || agents.length === 0) return 0;
     
-    // Usar tarifa promedio de los Custom Agents del usuario
+    // Usar tarifa promedio de los agentes personalizados del usuario
     const avgRate = agents.reduce((sum, agent) => sum + agent.rate_per_minute, 0) / agents.length;
     return Math.floor(balance / avgRate);
   };
@@ -129,35 +129,35 @@ export const useNewBalanceSystem = () => {
   };
 
   // ============================================================================
-  // CARGA DE CUSTOM AGENTS (CORREGIDA)
+  // CARGA DE AGENTES PERSONALIZADOS
   // ============================================================================
 
   const loadUserCustomAgents = async (): Promise<CustomAgentData[]> => {
     if (!user?.id) return [];
 
     try {
-      console.log('🤖 Cargando Custom Agents asignados al usuario...');
+      console.log('🤖 Loading assigned custom agents...');
 
-      // ✅ CORRECCIÓN 1: Obtener Custom Agents asignados (NO Retell Agents)
+      // Obtener agentes personalizados asignados
       const { data: assignments, error: assignmentsError } = await supabase
         .from('user_agent_assignments')
         .select('agent_id') // Este es el Custom Agent ID
         .eq('user_id', user.id);
 
       if (assignmentsError) {
-        console.error('❌ Error obteniendo asignaciones:', assignmentsError);
+        console.error('❌ Error loading agent assignments:', assignmentsError);
         return [];
       }
 
       if (!assignments || assignments.length === 0) {
-        console.log('⚠️ Usuario sin Custom Agents asignados');
+        console.log('⚠️ No custom agents assigned to user');
         return [];
       }
 
       const customAgentIds = assignments.map(a => a.agent_id);
-      console.log('🎯 Custom Agent IDs asignados:', customAgentIds);
+      console.log('🎯 Custom agent IDs assigned:', customAgentIds);
 
-      // ✅ CORRECCIÓN 2: Obtener Custom Agents con retell_agent_id
+      // Obtener detalles de agentes personalizados con ID externo
       const { data: customAgents, error: agentsError } = await supabase
         .from('agents')
         .select('id, name, rate_per_minute, retell_agent_id')
@@ -165,15 +165,15 @@ export const useNewBalanceSystem = () => {
         .eq('status', 'active'); // Solo agentes activos
 
       if (agentsError) {
-        console.error('❌ Error obteniendo Custom Agents:', agentsError);
+        console.error('❌ Error loading custom agents:', agentsError);
         return [];
       }
 
-      console.log(`✅ ${customAgents?.length || 0} Custom Agents cargados:`, customAgents);
+      console.log(`✅ ${customAgents?.length || 0} custom agents loaded successfully`);
       return customAgents || [];
 
     } catch (error) {
-      console.error('❌ Error en loadUserCustomAgents:', error);
+      console.error('❌ Error in loadUserCustomAgents:', error);
       return [];
     }
   };
@@ -182,7 +182,7 @@ export const useNewBalanceSystem = () => {
     if (!user?.id) return null;
 
     try {
-      console.log('💰 Cargando balance desde user_credits...');
+      console.log('💰 Loading current balance...');
 
       const { data: userCredit, error } = await supabase
         .from('user_credits')
@@ -192,7 +192,7 @@ export const useNewBalanceSystem = () => {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          console.log('📝 Creando registro en user_credits para usuario nuevo...');
+          console.log('📝 Creating new user credit record...');
           
           const { data: newUserCredit, error: createError } = await supabase
             .from('user_credits')
@@ -207,29 +207,29 @@ export const useNewBalanceSystem = () => {
             .single();
 
           if (createError) {
-            console.error('❌ Error creando user_credits:', createError);
+            console.error('❌ Error creating user credits:', createError);
             return null;
           }
 
-          console.log('✅ Registro creado en user_credits');
+          console.log('✅ User credit record created');
           return newUserCredit;
         }
         
-        console.error('❌ Error obteniendo balance:', error);
+        console.error('❌ Error loading balance:', error);
         return null;
       }
 
-      console.log(`💰 Balance cargado: $${userCredit.current_balance} (Warning: $${userCredit.warning_threshold}, Critical: $${userCredit.critical_threshold})`);
+      console.log(`💰 Balance loaded: $${userCredit.current_balance} (Warning: $${userCredit.warning_threshold}, Critical: $${userCredit.critical_threshold})`);
       return userCredit;
 
     } catch (error) {
-      console.error('❌ Error en loadCurrentBalance:', error);
+      console.error('❌ Error in loadCurrentBalance:', error);
       return null;
     }
   };
 
   // ============================================================================
-  // DETECCIÓN Y PROCESAMIENTO (CORREGIDA PARA RETELL MAPPING)
+  // DETECCIÓN Y PROCESAMIENTO DE LLAMADAS
   // ============================================================================
 
   const loadAudioDuration = async (recordingUrl: string): Promise<number> => {
@@ -237,67 +237,66 @@ export const useNewBalanceSystem = () => {
       const audio = new Audio(recordingUrl);
       
       const timeout = setTimeout(() => {
-        console.log('⏰ Timeout cargando audio');
+        console.log('⏰ Audio loading timeout');
         resolve(0);
       }, 5000);
 
       audio.addEventListener('loadedmetadata', () => {
         clearTimeout(timeout);
         const duration = Math.round(audio.duration);
-        console.log(`🎵 Duración de audio: ${duration}s`);
+        console.log(`🎵 Audio duration: ${duration}s`);
         resolve(duration);
       });
 
       audio.addEventListener('error', () => {
         clearTimeout(timeout);
-        console.log('❌ Error cargando audio');
+        console.log('❌ Error loading audio');
         resolve(0);
       });
     });
   };
 
   const calculateCallCost = async (call: CallData, customAgents: CustomAgentData[]): Promise<number> => {
-    // ✅ CORRECCIÓN 3: Mapear retell_agent_id → Custom Agent
-    console.log(`🧮 Calculando costo para llamada ${call.call_id}:`);
-    console.log(`   - calls.agent_id (retell): ${call.agent_id}`);
+    console.log(`🧮 Calculating cost for call ${call.call_id}:`);
+    console.log(`   - External agent ID: ${call.agent_id}`);
 
     // 1. Si ya tiene costo, no recalcular (aunque debería ser 0)
     if (call.cost_usd && call.cost_usd > 0) {
-      console.log(`✅ Usando costo existente: $${call.cost_usd}`);
+      console.log(`✅ Using existing cost: $${call.cost_usd}`);
       return call.cost_usd;
     }
 
-    // 2. Buscar Custom Agent por retell_agent_id
+    // 2. Buscar agente personalizado por ID externo
     const customAgent = customAgents.find(agent => 
       agent.retell_agent_id === call.agent_id
     );
 
     if (!customAgent) {
-      console.log(`❌ No se encontró Custom Agent para retell_agent_id: ${call.agent_id}`);
-      console.log('Available Custom Agents:', customAgents.map(a => ({
+      console.log(`❌ Custom agent not found for external ID: ${call.agent_id}`);
+      console.log('Available custom agents:', customAgents.map(a => ({
         id: a.id,
         name: a.name,
-        retell_agent_id: a.retell_agent_id
+        external_id: a.retell_agent_id
       })));
       return 0;
     }
 
-    console.log(`✅ Custom Agent encontrado: ${customAgent.name} (rate: $${customAgent.rate_per_minute}/min)`);
+    console.log(`✅ Custom agent found: ${customAgent.name} (rate: $${customAgent.rate_per_minute}/min)`);
 
     if (!customAgent.rate_per_minute || customAgent.rate_per_minute <= 0) {
-      console.log(`⚠️ Custom Agent sin tarifa válida: ${customAgent.rate_per_minute}`);
+      console.log(`⚠️ Custom agent has invalid rate: ${customAgent.rate_per_minute}`);
       return 0;
     }
 
     // 3. Obtener duración real del audio
     let duration = call.duration_sec || 0;
     if (call.recording_url && duration === 0) {
-      console.log('🎵 Cargando duración desde audio...');
+      console.log('🎵 Loading duration from audio...');
       duration = await loadAudioDuration(call.recording_url);
     }
 
     if (duration === 0) {
-      console.log('⚠️ Sin duración disponible');
+      console.log('⚠️ No duration available');
       return 0;
     }
 
@@ -305,13 +304,13 @@ export const useNewBalanceSystem = () => {
     const durationMinutes = duration / 60;
     const cost = durationMinutes * customAgent.rate_per_minute;
     
-    console.log(`🧮 Costo calculado: ${durationMinutes.toFixed(2)}min × $${customAgent.rate_per_minute}/min = $${cost.toFixed(4)}`);
+    console.log(`🧮 Cost calculated: ${durationMinutes.toFixed(2)}min × $${customAgent.rate_per_minute}/min = $${cost.toFixed(4)}`);
     return cost;
   };
 
   const processCall = async (call: CallData, customAgents: CustomAgentData[]): Promise<ProcessingResult> => {
     try {
-      console.log(`⚡ Procesando llamada: ${call.call_id}`);
+      console.log(`⚡ Processing call: ${call.call_id}`);
 
       // 1. Calcular costo dinámico
       const cost = await calculateCallCost(call, customAgents);
@@ -320,15 +319,15 @@ export const useNewBalanceSystem = () => {
           success: false,
           callId: call.call_id,
           amount: 0,
-          error: 'Costo inválido o Custom Agent no encontrado'
+          error: 'Invalid cost or custom agent not found'
         };
       }
 
-      // ✅ CORRECCIÓN 4: NO actualizar cost_usd en calls (queda en 0)
-      console.log(`💡 NO actualizando cost_usd en calls (queda en 0 - cálculo dinámico)`);
+      // 2. El costo no se guarda en BD (cálculo dinámico)
+      console.log(`💡 Using dynamic cost calculation (not stored in database)`);
 
-      // 2. ✅ Usar función RPC para descontar del balance
-      console.log(`💳 Descontando $${cost.toFixed(4)} vía RPC admin_adjust_user_credits`);
+      // 3. Usar función RPC para descontar del balance
+      console.log(`💳 Deducting $${cost.toFixed(4)} via admin credit adjustment`);
       
       const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_adjust_user_credits', {
         p_user_id: user!.id,
@@ -338,22 +337,22 @@ export const useNewBalanceSystem = () => {
       });
 
       if (rpcError) {
-        console.error('❌ Error en RPC admin_adjust_user_credits:', rpcError);
+        console.error('❌ Error in admin credit adjustment:', rpcError);
         return {
           success: false,
           callId: call.call_id,
           amount: cost,
-          error: 'Error descontando balance via RPC'
+          error: 'Error deducting balance via admin function'
         };
       }
 
-      console.log('✅ RPC ejecutada exitosamente:', rpcResult);
+      console.log('✅ Admin credit adjustment executed successfully');
 
-      // 3. Obtener el nuevo balance después del descuento
+      // 4. Obtener el nuevo balance después del descuento
       const newBalanceData = await loadCurrentBalance();
       const newBalance = newBalanceData?.current_balance || 0;
 
-      // 4. Actualizar estado local
+      // 5. Actualizar estado local
       updateBalanceState({
         balance: newBalance,
         warningThreshold: newBalanceData?.warning_threshold || 40,
@@ -369,7 +368,7 @@ export const useNewBalanceSystem = () => {
         ]
       });
 
-      console.log(`🎉 Llamada procesada exitosamente: ${call.call_id} - $${cost.toFixed(4)} (Nuevo balance: $${newBalance})`);
+      console.log(`🎉 Call processed successfully: ${call.call_id} - $${cost.toFixed(4)} (New balance: $${newBalance})`);
       return {
         success: true,
         callId: call.call_id,
@@ -378,12 +377,12 @@ export const useNewBalanceSystem = () => {
       };
 
     } catch (error) {
-      console.error(`❌ Error procesando ${call.call_id}:`, error);
+      console.error(`❌ Error processing ${call.call_id}:`, error);
       return {
         success: false,
         callId: call.call_id,
         amount: 0,
-        error: 'Error inesperado'
+        error: 'Unexpected error'
       };
     }
   };
@@ -395,34 +394,34 @@ export const useNewBalanceSystem = () => {
 
     try {
       isProcessingRef.current = true;
-      console.log('🔍 Detectando llamadas nuevas con mapeo corregido...');
+      console.log('🔍 Detecting new calls for processing...');
 
-      // ✅ CORRECCIÓN 5: Buscar llamadas SOLO por retell_agent_id
-      const retellAgentIds = userCustomAgents
+      // Buscar llamadas por IDs de agentes externos
+      const externalAgentIds = userCustomAgents
         .map(agent => agent.retell_agent_id)
         .filter(Boolean);
 
-      console.log('🎯 Buscando llamadas con retell_agent_ids:', retellAgentIds);
+      console.log('🎯 Searching calls with external agent IDs:', externalAgentIds);
 
-      if (retellAgentIds.length === 0) {
-        console.log('⚠️ No hay retell_agent_ids para buscar');
+      if (externalAgentIds.length === 0) {
+        console.log('⚠️ No external agent IDs available for search');
         return;
       }
 
       const { data: calls, error } = await supabase
         .from('calls')
         .select('*')
-        .in('agent_id', retellAgentIds) // ✅ SOLO retell_agent_ids
+        .in('agent_id', externalAgentIds) // Buscar por IDs externos
         .in('call_status', ['completed', 'ended'])
         .gte('timestamp', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .order('timestamp', { ascending: false });
 
       if (error) {
-        console.error('❌ Error obteniendo llamadas:', error);
+        console.error('❌ Error fetching calls:', error);
         return;
       }
 
-      console.log(`📞 Llamadas encontradas: ${calls?.length || 0}`);
+      console.log(`📞 Calls found: ${calls?.length || 0}`);
 
       // 2. Filtrar llamadas que necesitan procesamiento
       const callsToProcess = (calls || []).filter(call => {
@@ -432,18 +431,18 @@ export const useNewBalanceSystem = () => {
         );
 
         if (needsProcessing) {
-          console.log(`🎯 Llamada para procesar: ${call.call_id} (retell_agent: ${call.agent_id})`);
+          console.log(`🎯 Call ready for processing: ${call.call_id} (external_agent: ${call.agent_id})`);
         }
 
         return needsProcessing;
       });
 
       if (callsToProcess.length === 0) {
-        console.log('✅ No hay llamadas nuevas para procesar');
+        console.log('✅ No new calls to process');
         return;
       }
 
-      console.log(`🚨 Procesando ${callsToProcess.length} llamadas automáticamente`);
+      console.log(`🚨 Auto-processing ${callsToProcess.length} calls`);
       
       // 3. Marcar como en procesamiento
       updateBalanceState({
@@ -464,7 +463,7 @@ export const useNewBalanceSystem = () => {
         await new Promise(resolve => setTimeout(resolve, 200));
       }
 
-      console.log(`✅ Procesamiento completado: ${successCount}/${callsToProcess.length} exitosos`);
+      console.log(`✅ Processing completed: ${successCount}/${callsToProcess.length} successful`);
 
       // 5. Limpiar estado de procesamiento
       updateBalanceState({
@@ -472,9 +471,9 @@ export const useNewBalanceSystem = () => {
       });
 
     } catch (error) {
-      console.error('❌ Error en detección automática:', error);
+      console.error('❌ Error in automatic detection:', error);
       updateBalanceState({
-        error: 'Error en procesamiento automático',
+        error: 'Error in automatic processing',
         processingCalls: []
       });
     } finally {
@@ -491,9 +490,9 @@ export const useNewBalanceSystem = () => {
 
     try {
       updateBalanceState({ isLoading: true, error: null });
-      console.log('🚀 Inicializando sistema con mapeo Retell corregido...');
+      console.log('🚀 Initializing smart balance system...');
 
-      // 1. Cargar Custom Agents del usuario
+      // 1. Cargar agentes personalizados del usuario
       const customAgents = await loadUserCustomAgents();
       setUserCustomAgents(customAgents);
 
@@ -512,17 +511,17 @@ export const useNewBalanceSystem = () => {
       } else {
         updateBalanceState({
           isLoading: false,
-          error: 'No se pudo cargar el balance del usuario'
+          error: 'Could not load user balance'
         });
       }
 
-      console.log('✅ Sistema con mapeo Retell inicializado correctamente');
+      console.log('✅ Smart balance system initialized successfully');
 
     } catch (error) {
-      console.error('❌ Error inicializando sistema:', error);
+      console.error('❌ Error initializing system:', error);
       updateBalanceState({
         isLoading: false,
-        error: 'Error inicializando sistema con mapeo'
+        error: 'Error initializing smart system'
       });
     }
   };
@@ -536,7 +535,7 @@ export const useNewBalanceSystem = () => {
       detectAndProcessNewCalls();
     }, 5000);
 
-    console.log('🔄 Polling con mapeo Retell iniciado (cada 5 segundos)');
+    console.log('🔄 Smart monitoring started (every 5 seconds)');
   };
 
   const stopPolling = () => {
@@ -544,7 +543,7 @@ export const useNewBalanceSystem = () => {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
-    console.log('⏹️ Polling con mapeo Retell detenido');
+    console.log('⏹️ Smart monitoring stopped');
   };
 
   // ============================================================================
@@ -571,7 +570,7 @@ export const useNewBalanceSystem = () => {
         success: false,
         callId,
         amount: 0,
-        error: 'No hay Custom Agents cargados'
+        error: 'No custom agents loaded'
       };
     }
 
@@ -587,7 +586,7 @@ export const useNewBalanceSystem = () => {
           success: false,
           callId,
           amount: 0,
-          error: 'Llamada no encontrada'
+          error: 'Call not found'
         };
       }
 
@@ -598,7 +597,7 @@ export const useNewBalanceSystem = () => {
         success: false,
         callId,
         amount: 0,
-        error: 'Error inesperado'
+        error: 'Unexpected error'
       };
     }
   };
@@ -627,7 +626,7 @@ export const useNewBalanceSystem = () => {
   }, []);
 
   // ============================================================================
-  // RETURN (CORREGIDO)
+  // RETURN
   // ============================================================================
 
   return {
@@ -647,23 +646,23 @@ export const useNewBalanceSystem = () => {
     recentDeductions: balanceState.recentDeductions,
     isProcessing: isProcessingRef.current,
     
-    // Información adicional (corregida)
-    userAgents: userCustomAgents, // Ahora son Custom Agents
+    // Información adicional
+    userAgents: userCustomAgents,
     processedCallsCount: processedCallsRef.current.size,
     
     // Funciones
     refreshBalance,
     manualProcessCall,
     
-    // Para debugging (actualizado)
+    // Para debugging
     debugInfo: {
       processedCalls: Array.from(processedCallsRef.current),
       isPollingActive: pollingIntervalRef.current !== null,
       usingUserCreditsTable: true,
       usingRPCFunction: 'admin_adjust_user_credits',
-      retellMapping: true,
+      smartMappingEnabled: true,
       customAgentsCount: userCustomAgents.length,
-      retellAgentIds: userCustomAgents.map(a => a.retell_agent_id)
+      externalAgentIds: userCustomAgents.map(a => a.retell_agent_id)
     }
   };
 };
