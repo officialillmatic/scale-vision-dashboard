@@ -1,4 +1,4 @@
-// 🤖 SISTEMA SEGURO: SIN REFERENCIAS A SERVICIOS EXTERNOS
+/ 🤖 SISTEMA SEGURO: SIN REFERENCIAS A SERVICIOS EXTERNOS
 // Ubicación: src/hooks/useNewBalanceSystem.ts
 // 🔐 SEGURIDAD: Términos genéricos, sin exponer proveedores
 
