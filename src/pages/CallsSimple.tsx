@@ -1474,7 +1474,7 @@ export default function CallsSimple() {
     asChild
     onClick={(e) => e.stopPropagation()}
   >
-    
+    <a
       href={call.recording_url}
       download={`call-${call.call_id}.mp3`}
     >
