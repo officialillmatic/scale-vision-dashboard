@@ -1069,24 +1069,26 @@ const processCallsManually = async () => {
               }`} />
               
               <div className="text-right">
-                <div className="text-xs text-gray-500">
-                  Manual Processing: ✅ Ready
-                </div>
-                <div className="text-xs text-gray-400">
-                  Processed: {balanceSystem.processedCallsCount}
-                </div>
-              </div>
-            </div>
-          </div>
+  <div className="text-xs text-gray-500">
+    Manual Processing: ✅ Ready
+  </div>
+  <div className="text-xs text-gray-400">
+    Ready for processing
+  </div>
+</div>
           
           {/* Debug Info (opcional, puedes quitarlo en producción) */}
-          {balanceSystem.lastProcessedCall && (
-            <div className="mt-2 pt-2 border-t border-gray-200">
-              <p className="text-xs text-gray-500">
-                Last processed: {balanceSystem.lastProcessedCall.substring(0, 16)}...
-              </p>
+          // ✅ CAMBIAR por esto:
+<div className="text-right">
+  <div className="text-xs text-gray-500">
+    Manual Processing: ✅ Ready
+  </div>
+  <div className="text-xs text-gray-400">
+    Ready for processing
+  </div>
+</div>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
     );
