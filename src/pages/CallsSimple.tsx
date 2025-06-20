@@ -265,43 +265,7 @@ export default function CallsSimple() {
   return 0;
 };
 
-  // ✅ FUNCIÓN CORREGIDA: calculateCallCost
-  const calculateCallCost = (call: Call) => {
-    console.log(`💰 Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
-      existing_cost: call.cost_usd,
-      duration_sec: call.duration_sec,
-      agent_id: call.agent_id,
-      call_agent_rate: call.call_agent?.rate_per_minute,
-      agents_rate: call.agents?.rate_per_minute
-    });
-
-    // ✅ NUEVA FUNCIÓN: loadAudioDuration  
-const loadAudioDuration = async (call: Call) => {
-  if (!call.recording_url || audioDurations[call.id]) return;
   
-  try {
-    console.log(`🎵 Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
-    const audio = new Audio(call.recording_url);
-    return new Promise<void>((resolve) => {
-      audio.addEventListener('loadedmetadata', () => {
-        const duration = Math.round(audio.duration);
-        console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
-        setAudioDurations(prev => ({
-          ...prev,
-          [call.id]: duration
-        }));
-        resolve();
-      });
-      
-      audio.addEventListener('error', () => {
-        console.log(`❌ Error cargando audio para ${call.call_id?.substring(0, 8)}`);
-        resolve();
-      });
-    });
-  } catch (error) {
-    console.log(`❌ Error loading audio duration:`, error);
-  }
-};
 
     // 1. Si ya tiene un costo válido en BD, usarlo
     if (call.cost_usd && call.cost_usd > 0) {
@@ -354,6 +318,44 @@ const loadAudioDuration = async (call: Call) => {
   const calculateCallCostSync = (call: Call) => {
     return calculateCallCost(call);
   };
+
+// ? FUNCIÓN CORREGIDA: calculateCallCost
+  const calculateCallCost = (call: Call) => {
+    console.log(`?? Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
+      existing_cost: call.cost_usd,
+      duration_sec: call.duration_sec,
+      agent_id: call.agent_id,
+      call_agent_rate: call.call_agent?.rate_per_minute,
+      agents_rate: call.agents?.rate_per_minute
+    });
+
+    // ? NUEVA FUNCIÓN: loadAudioDuration
+const loadAudioDuration = async (call: Call) => {
+  if (!call.recording_url || audioDurations[call.id]) return;
+
+  try {
+    console.log(`?? Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
+    const audio = new Audio(call.recording_url);
+    return new Promise<void>((resolve) => {
+      audio.addEventListener('loadedmetadata', () => {
+        const duration = Math.round(audio.duration);
+        console.log(`? Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
+        setAudioDurations(prev => ({
+          ...prev,
+          [call.id]: duration
+        }));
+        resolve();
+      });
+
+      audio.addEventListener('error', () => {
+        console.log(`? Error cargando audio para ${call.call_id?.substring(0, 8)}`);
+        resolve();
+      });
+    });
+  } catch (error) {
+    console.log(`? Error loading audio duration:`, error);
+  }
+};
   // ============================================================================
   // FUNCIÓN FETCH CALLS CORREGIDA PARA COSTOS
   // ============================================================================
