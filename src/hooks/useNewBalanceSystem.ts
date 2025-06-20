@@ -1,7 +1,6 @@
-// 🤖 SISTEMA SEGURO: SIN REFERENCIAS A SERVICIOS EXTERNOS
-// Ubicación: src/hooks/useNewBalanceSystem.ts
-// 🔐 SEGURIDAD: Términos genéricos, sin exponer proveedores
-// ✅ CORREGIDO: Esquema de base de datos y detección mejorada
+// 🤖 CORRECTED AUTOMATIC BALANCE SYSTEM
+// Location: src/hooks/useNewBalanceSystem.ts
+// ✅ FIXED: Schema errors, detection logic, and integration with Admin Credits
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,20 +10,20 @@ interface CallData {
   id: string;
   call_id: string;
   user_id: string;
-  agent_id: string; // Este es el external_agent_id
+  agent_id: string; // This is the external_agent_id from provider
   timestamp: string;
   duration_sec: number;
   cost_usd: number;
   call_status: string;
   recording_url?: string;
-  disconnection_reason?: string; // ✅ CORREGIDO: era end_reason
+  disconnection_reason?: string; // ✅ FIXED: was end_reason
 }
 
 interface CustomAgentData {
   id: string; // Custom Agent ID
   name: string;
   rate_per_minute: number;
-  retell_agent_id: string; // Guardamos el nombre original del campo pero no lo exponemos
+  retell_agent_id: string; // External agent ID (keeping original field name but not exposing)
 }
 
 interface UserCreditData {
@@ -85,7 +84,7 @@ export const useNewBalanceSystem = () => {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ============================================================================
-  // FUNCIONES AUXILIARES
+  // UTILITY FUNCTIONS
   // ============================================================================
 
   const calculateStatus = (
@@ -104,7 +103,7 @@ export const useNewBalanceSystem = () => {
   const calculateEstimatedMinutes = (balance: number, agents: CustomAgentData[]): number => {
     if (balance <= 0 || agents.length === 0) return 0;
     
-    // Usar tarifa promedio de los agentes personalizados del usuario
+    // Use average rate of user's custom agents
     const avgRate = agents.reduce((sum, agent) => sum + agent.rate_per_minute, 0) / agents.length;
     return Math.floor(balance / avgRate);
   };
@@ -130,7 +129,7 @@ export const useNewBalanceSystem = () => {
   };
 
   // ============================================================================
-  // CARGA DE AGENTES PERSONALIZADOS
+  // DATA LOADING FUNCTIONS
   // ============================================================================
 
   const loadUserCustomAgents = async (): Promise<CustomAgentData[]> => {
@@ -139,10 +138,10 @@ export const useNewBalanceSystem = () => {
     try {
       console.log('🤖 Loading assigned custom agents...');
 
-      // Obtener agentes personalizados asignados
+      // Get assigned custom agents
       const { data: assignments, error: assignmentsError } = await supabase
         .from('user_agent_assignments')
-        .select('agent_id') // Este es el Custom Agent ID
+        .select('agent_id') // This is the Custom Agent ID
         .eq('user_id', user.id);
 
       if (assignmentsError) {
@@ -158,12 +157,12 @@ export const useNewBalanceSystem = () => {
       const customAgentIds = assignments.map(a => a.agent_id);
       console.log('🎯 Custom agent IDs assigned:', customAgentIds);
 
-      // Obtener detalles de agentes personalizados con ID externo
+      // Get custom agent details with external IDs
       const { data: customAgents, error: agentsError } = await supabase
         .from('agents')
         .select('id, name, rate_per_minute, retell_agent_id')
         .in('id', customAgentIds)
-        .eq('status', 'active'); // Solo agentes activos
+        .eq('status', 'active'); // Only active agents
 
       if (agentsError) {
         console.error('❌ Error loading custom agents:', agentsError);
@@ -237,7 +236,7 @@ export const useNewBalanceSystem = () => {
   };
 
   // ============================================================================
-  // DETECCIÓN Y PROCESAMIENTO DE LLAMADAS
+  // CALL PROCESSING FUNCTIONS
   // ============================================================================
 
   const loadAudioDuration = async (recordingUrl: string): Promise<number> => {
@@ -268,7 +267,7 @@ export const useNewBalanceSystem = () => {
     console.log(`🧮 Calculating cost for call ${call.call_id}:`);
     console.log(`   - External agent ID: ${call.agent_id}`);
 
-    // 1. Buscar agente personalizado por ID externo
+    // 1. Find custom agent by external ID
     const customAgent = customAgents.find(agent => 
       agent.retell_agent_id === call.agent_id
     );
@@ -290,7 +289,7 @@ export const useNewBalanceSystem = () => {
       return 0;
     }
 
-    // 2. Obtener duración real del audio
+    // 2. Get real duration from audio
     let duration = call.duration_sec || 0;
     if (call.recording_url && duration === 0) {
       console.log('🎵 Loading duration from audio...');
@@ -302,7 +301,7 @@ export const useNewBalanceSystem = () => {
       return 0;
     }
 
-    // 3. Calcular costo
+    // 3. Calculate cost
     const durationMinutes = duration / 60;
     const cost = durationMinutes * customAgent.rate_per_minute;
     
@@ -314,7 +313,7 @@ export const useNewBalanceSystem = () => {
     try {
       console.log(`⚡ Processing call: ${call.call_id}`);
 
-      // 1. Calcular costo dinámico
+      // 1. Calculate dynamic cost
       const cost = await calculateCallCost(call, customAgents);
       if (cost <= 0) {
         return {
@@ -325,12 +324,12 @@ export const useNewBalanceSystem = () => {
         };
       }
 
-      // 2. Usar función RPC para descontar del balance
+      // 2. Use RPC function to deduct from balance (same as Admin Credits)
       console.log(`💳 Deducting $${cost.toFixed(4)} via admin credit adjustment`);
       
       const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_adjust_user_credits', {
         p_user_id: user!.id,
-        p_amount: -cost, // Negativo para descuento
+        p_amount: -cost, // Negative for deduction
         p_description: `Auto call cost: ${call.call_id} via ${customAgents.find(a => a.retell_agent_id === call.agent_id)?.name}`,
         p_admin_id: 'auto_system'
       });
@@ -347,11 +346,11 @@ export const useNewBalanceSystem = () => {
 
       console.log('✅ Admin credit adjustment executed successfully');
 
-      // 3. Obtener el nuevo balance después del descuento
+      // 3. Get new balance after deduction
       const newBalanceData = await loadCurrentBalance();
       const newBalance = newBalanceData?.current_balance || 0;
 
-      // 4. Actualizar estado local
+      // 4. Update local state
       updateBalanceState({
         balance: newBalance,
         warningThreshold: newBalanceData?.warning_threshold || 40,
@@ -386,6 +385,10 @@ export const useNewBalanceSystem = () => {
     }
   };
 
+  // ============================================================================
+  // AUTOMATIC DETECTION AND PROCESSING
+  // ============================================================================
+
   const detectAndProcessNewCalls = async () => {
     if (!user?.id || isProcessingRef.current || userCustomAgents.length === 0) {
       return;
@@ -395,7 +398,7 @@ export const useNewBalanceSystem = () => {
       isProcessingRef.current = true;
       console.log('🔍 Detecting new calls for processing...');
 
-      // Buscar llamadas por IDs de agentes externos
+      // Search calls by external agent IDs
       const externalAgentIds = userCustomAgents
         .map(agent => agent.retell_agent_id)
         .filter(Boolean);
@@ -407,14 +410,14 @@ export const useNewBalanceSystem = () => {
         return;
       }
 
-      // ✅ MEJORADO: Buscar más estados y llamadas más recientes
+      // ✅ IMPROVED: Search with multiple statuses and additional filters
       const { data: calls, error } = await supabase
         .from('calls')
         .select('*')
-        .in('agent_id', externalAgentIds) // Buscar por IDs externos
-        .in('call_status', ['completed', 'ended', 'finished', 'terminated']) // ✅ MÁS ESTADOS
-        .eq('user_id', user.id) // ✅ FILTRO ADICIONAL por usuario
-        .gte('timestamp', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // ✅ ÚLTIMAS 2 HORAS
+        .in('agent_id', externalAgentIds) // Search by external IDs
+        .in('call_status', ['completed', 'ended', 'finished', 'terminated']) // ✅ MORE STATUSES
+        .eq('user_id', user.id) // ✅ ADDITIONAL FILTER by user
+        .gte('timestamp', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // ✅ LAST 2 HOURS
         .order('timestamp', { ascending: false });
 
       if (error) {
@@ -424,7 +427,7 @@ export const useNewBalanceSystem = () => {
 
       console.log(`📞 Total calls found: ${calls?.length || 0}`);
       
-      // ✅ DEBUG: Mostrar información de todas las llamadas encontradas
+      // ✅ DEBUG: Show information about all found calls
       if (calls && calls.length > 0) {
         console.log('📋 All calls found:');
         calls.forEach((call, index) => {
@@ -432,7 +435,7 @@ export const useNewBalanceSystem = () => {
         });
       }
 
-      // 2. ✅ MEJORADO: Filtrar llamadas que necesitan procesamiento
+      // 2. ✅ IMPROVED: Filter calls that need processing
       const callsToProcess = (calls || []).filter(call => {
         const alreadyProcessed = processedCallsRef.current.has(call.call_id);
         const hasValidDuration = call.duration_sec && call.duration_sec > 0;
@@ -456,12 +459,12 @@ export const useNewBalanceSystem = () => {
 
       console.log(`🚨 Auto-processing ${callsToProcess.length} calls`);
       
-      // 3. Marcar como en procesamiento
+      // 3. Mark as processing
       updateBalanceState({
         processingCalls: callsToProcess.map(c => c.call_id)
       });
 
-      // 4. Procesar llamadas
+      // 4. Process calls
       let successCount = 0;
       for (const call of callsToProcess) {
         const result = await processCall(call, userCustomAgents);
@@ -471,13 +474,13 @@ export const useNewBalanceSystem = () => {
           successCount++;
         }
 
-        // Pausa entre procesamiento
+        // Pause between processing
         await new Promise(resolve => setTimeout(resolve, 200));
       }
 
       console.log(`✅ Processing completed: ${successCount}/${callsToProcess.length} successful`);
 
-      // 5. Limpiar estado de procesamiento
+      // 5. Clear processing state
       updateBalanceState({
         processingCalls: []
       });
@@ -494,7 +497,7 @@ export const useNewBalanceSystem = () => {
   };
 
   // ============================================================================
-  // INICIALIZACIÓN Y POLLING
+  // INITIALIZATION AND POLLING
   // ============================================================================
 
   const initializeSystem = async () => {
@@ -504,11 +507,11 @@ export const useNewBalanceSystem = () => {
       updateBalanceState({ isLoading: true, error: null });
       console.log('🚀 Initializing smart balance system...');
 
-      // 1. Cargar agentes personalizados del usuario
+      // 1. Load user's custom agents
       const customAgents = await loadUserCustomAgents();
       setUserCustomAgents(customAgents);
 
-      // 2. Cargar balance desde user_credits
+      // 2. Load balance from user_credits
       const balanceData = await loadCurrentBalance();
 
       if (balanceData) {
@@ -559,7 +562,7 @@ export const useNewBalanceSystem = () => {
   };
 
   // ============================================================================
-  // FUNCIONES PÚBLICAS
+  // PUBLIC FUNCTIONS
   // ============================================================================
 
   const refreshBalance = useCallback(async () => {
@@ -642,7 +645,7 @@ export const useNewBalanceSystem = () => {
   // ============================================================================
 
   return {
-    // Estado del balance
+    // Balance state
     balance: balanceState.balance,
     warningThreshold: balanceState.warningThreshold,
     criticalThreshold: balanceState.criticalThreshold,
@@ -653,20 +656,20 @@ export const useNewBalanceSystem = () => {
     estimatedMinutes: balanceState.estimatedMinutes,
     lastUpdate: balanceState.lastUpdate,
     
-    // Estado del procesamiento
+    // Processing state
     processingCalls: balanceState.processingCalls,
     recentDeductions: balanceState.recentDeductions,
     isProcessing: isProcessingRef.current,
     
-    // Información adicional
+    // Additional information
     userAgents: userCustomAgents,
     processedCallsCount: processedCallsRef.current.size,
     
-    // Funciones
+    // Functions
     refreshBalance,
     manualProcessCall,
     
-    // Para debugging
+    // For debugging
     debugInfo: {
       processedCalls: Array.from(processedCallsRef.current),
       isPollingActive: pollingIntervalRef.current !== null,
