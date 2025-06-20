@@ -1475,10 +1475,10 @@ export default function CallsSimple() {
                                 >
                                   
                                     href={call.recording_url}
-                                    download={`call-${call.call_id}.mp3`}
-                                  >
-                                    <Download className="h-3 w-3" />
-                                  </a>
+  download={`call-${call.call_id}.mp3`}
+>
+  <Download className="h-3 w-3" />
+</a>
                                 </Button>
                               )}
                             </div>
