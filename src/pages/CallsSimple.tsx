@@ -1076,17 +1076,6 @@ const processCallsManually = async () => {
     Ready for processing
   </div>
 </div>
-          
-          {/* Debug Info (opcional, puedes quitarlo en producción) */}
-          // ✅ CAMBIAR por esto:
-<div className="text-right">
-  <div className="text-xs text-gray-500">
-    Manual Processing: ✅ Ready
-  </div>
-  <div className="text-xs text-gray-400">
-    Ready for processing
-  </div>
-</div>
             </div>
           </div>
         </CardContent>
