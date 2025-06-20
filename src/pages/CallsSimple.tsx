@@ -74,23 +74,74 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
   }
 
   try {
-    console.log(`💳 [SIMPLIFICADO] Emitiendo evento de descuento: $${callCost.toFixed(4)} para ${callId}`);
+    console.log(`💳 DESCUENTO REAL: $${callCost.toFixed(4)} para ${callId}`);
     
-    // Solo emitir evento - Dashboard maneja el descuento real
+    // 1. OBTENER BALANCE ACTUAL
+    const { data: currentUser, error: userError } = await supabase
+      .from('profiles')
+      .select('credit_balance')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      console.error('❌ Error obteniendo balance actual:', userError);
+      return false;
+    }
+
+    const currentBalance = currentUser?.credit_balance || 0;
+    const newBalance = Math.max(0, currentBalance - callCost);
+    
+    console.log(`💰 Balance: $${currentBalance} → $${newBalance} (descuento: $${callCost})`);
+
+    // 2. ACTUALIZAR BALANCE EN LA BASE DE DATOS
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ 
+        credit_balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('❌ Error actualizando balance:', updateError);
+      return false;
+    }
+
+    // 3. CREAR REGISTRO DE TRANSACCIÓN (opcional)
+    try {
+      await supabase
+        .from('credit_transactions')
+        .insert({
+          user_id: userId,
+          amount: -callCost,
+          transaction_type: 'call_cost',
+          description: `Call cost for ${callId}`,
+          reference_id: callId,
+          created_at: new Date().toISOString()
+        });
+    } catch (transactionError) {
+      console.warn('⚠️ Error creando transacción (no crítico):', transactionError);
+    }
+
+    // 4. EMITIR EVENTO PARA ACTUALIZAR UI
     window.dispatchEvent(new CustomEvent('balanceUpdated', { 
       detail: { 
         userId,
         deduction: callCost,
         callId: callId,
-        source: 'automatic_call_processing'
+        oldBalance: currentBalance,
+        newBalance: newBalance,
+        source: 'automatic_call_processing',
+        isDeduction: true,
+        difference: callCost
       } 
     }));
     
-    console.log(`📡 Evento balanceUpdated emitido exitosamente`);
+    console.log(`✅ DESCUENTO COMPLETADO: ${callId} - $${callCost.toFixed(4)}`);
     return true;
 
   } catch (error) {
-    console.error('💥 Error emitiendo evento:', error);
+    console.error('💥 Error en descuento real:', error);
     return false;
   }
 };
