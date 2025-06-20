@@ -82,7 +82,7 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
     
     // 1. OBTENER BALANCE ACTUAL
     const { data: currentUser, error: userError } = await supabase
-      .from('profiles')
+      .from('user_credits')
       .select('credit_balance')
       .eq('id', userId)
       .single();
@@ -92,7 +92,7 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
       return false;
     }
 
-    const currentBalance = currentUser?.credit_balance || 0;
+    const currentBalance = currentUser?.credits || 0;
     const newBalance = Math.max(0, currentBalance - callCost);
     
     console.log(`💰 Balance: $${currentBalance} → $${newBalance} (descuento: $${callCost})`);
@@ -101,7 +101,7 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ 
-        credit_balance: newBalance,
+        credits: newBalance,
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);
