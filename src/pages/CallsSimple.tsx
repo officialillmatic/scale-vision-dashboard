@@ -416,7 +416,7 @@ export default function CallsSimple() {
   // ============================================================================
   
   const fetchCalls = async () => {
-  console.log("🔄 FETCH CALLS - FILTRO DE AGENTES CORREGIDO");
+  console.log("🔄 FETCH CALLS - LÓGICA CORREGIDA PARA MÚLTIPLES AGENTES");
   
   if (!user?.id) {
     setError("User not authenticated");
@@ -428,7 +428,7 @@ export default function CallsSimple() {
     setLoading(true);
     setError(null);
 
-    // Obtener asignaciones de agentes del usuario
+    // PASO 1: Obtener agentes asignados al usuario
     const { data: assignments, error: assignmentsError } = await supabase
       .from('user_agent_assignments')
       .select('agent_id')
@@ -457,7 +457,7 @@ export default function CallsSimple() {
     const agentIds = assignments.map(a => a.agent_id);
     console.log("🎯 IDs de agentes asignados:", agentIds);
 
-    // Obtener detalles de los agentes
+    // PASO 2: Obtener detalles de los agentes asignados
     const { data: agentDetails, error: agentsError } = await supabase
       .from('agents')
       .select('id, name, rate_per_minute, retell_agent_id')
@@ -472,12 +472,23 @@ export default function CallsSimple() {
     console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
     setUserAssignedAgents(agentDetails || []);
 
-    // ✅ NUEVA LÓGICA: OBTENER TODAS LAS LLAMADAS DEL USUARIO
-    // Sin filtrar por agente específico en la consulta SQL
-    const { data: allUserCalls, error: callsError } = await supabase
+    // PASO 3: ✅ NUEVA LÓGICA - Buscar TODAS las llamadas de los agentes asignados
+    // SIN filtrar por user_id - mostrar llamadas de cualquier usuario para estos agentes
+    
+    const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
+    const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
+    
+    console.log("📋 Buscando llamadas por:");
+    console.log("   • Agent UUIDs:", agentUUIDs);
+    console.log("   • Retell Agent IDs:", retellAgentIds);
+
+    // ✅ CONSULTA CORREGIDA: Buscar llamadas por agent_id SIN filtrar por user_id
+    const allAgentIds = [...agentUUIDs, ...retellAgentIds].filter(Boolean);
+    
+    const { data: allAgentCalls, error: callsError } = await supabase
       .from('calls')
       .select('*')
-      .eq('user_id', user.id)  // Solo filtrar por usuario
+      .in('agent_id', allAgentIds)  // ✅ Buscar por CUALQUIER agent_id asignado
       .order('timestamp', { ascending: false });
 
     if (callsError) {
@@ -486,37 +497,15 @@ export default function CallsSimple() {
       return;
     }
 
-    console.log(`📞 TODAS las llamadas del usuario: ${allUserCalls?.length || 0}`);
+    console.log(`📞 TODAS las llamadas de agentes asignados: ${allAgentCalls?.length || 0}`);
 
-    // ✅ FILTRAR MANUALMENTE para incluir solo agentes asignados
-    const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
-    const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
-    
-    console.log("📋 Filtrando llamadas por:");
-    console.log("   • Agent UUIDs:", agentUUIDs);
-    console.log("   • Retell Agent IDs:", retellAgentIds);
-
-    const filteredCalls = (allUserCalls || []).filter(call => {
-      const matchesUUID = agentUUIDs.includes(call.agent_id);
-      const matchesRetell = retellAgentIds.includes(call.agent_id);
-      const isAssigned = matchesUUID || matchesRetell;
-      
-      if (isAssigned) {
-        console.log(`✅ Llamada incluida: ${call.call_id} (agente: ${call.agent_id})`);
-      }
-      
-      return isAssigned;
-    });
-
-    console.log(`🎯 RESULTADO: ${filteredCalls.length} llamadas de agentes asignados`);
-
-    // ✅ MAPEAR LLAMADAS CON INFORMACIÓN COMPLETA DEL AGENTE
+    // PASO 4: ✅ MAPEAR LLAMADAS CON INFORMACIÓN COMPLETA DEL AGENTE
     const userAgents = agentDetails?.map(agent => ({
       agent_id: agent.id,
       agents: agent
     })) || [];
 
-    const mappedCalls = filteredCalls.map(call => {
+    const mappedCalls = (allAgentCalls || []).map(call => {
       let matchedAgent = null;
 
       // Buscar agente por ID directo o retell_agent_id
@@ -582,8 +571,7 @@ export default function CallsSimple() {
   } finally {
     setLoading(false);
   }
-};
-  // ============================================================================
+};  // ============================================================================
   // PROCESAMIENTO AUTOMÁTICO
   // ============================================================================
 
