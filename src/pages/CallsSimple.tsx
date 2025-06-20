@@ -926,7 +926,7 @@ return (
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* Total Calls */}
-          <Card className="border-0 shadow-sm bg-gradient-to
+          
           {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* Total Calls */}
