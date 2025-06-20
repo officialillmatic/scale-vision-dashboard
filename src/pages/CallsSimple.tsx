@@ -329,33 +329,7 @@ export default function CallsSimple() {
       agents_rate: call.agents?.rate_per_minute
     });
 
-    // ? NUEVA FUNCIÓN: loadAudioDuration
-const loadAudioDuration = async (call: Call) => {
-  if (!call.recording_url || audioDurations[call.id]) return;
-
-  try {
-    console.log(`?? Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
-    const audio = new Audio(call.recording_url);
-    return new Promise<void>((resolve) => {
-      audio.addEventListener('loadedmetadata', () => {
-        const duration = Math.round(audio.duration);
-        console.log(`? Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
-        setAudioDurations(prev => ({
-          ...prev,
-          [call.id]: duration
-        }));
-        resolve();
-      });
-
-      audio.addEventListener('error', () => {
-        console.log(`? Error cargando audio para ${call.call_id?.substring(0, 8)}`);
-        resolve();
-      });
-    });
-  } catch (error) {
-    console.log(`? Error loading audio duration:`, error);
-  }
-};
+    
   // ============================================================================
   // FUNCIÓN FETCH CALLS CORREGIDA PARA COSTOS
   // ============================================================================
