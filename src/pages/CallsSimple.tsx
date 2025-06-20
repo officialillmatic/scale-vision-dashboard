@@ -584,21 +584,26 @@ export default function CallsSimple() {
 
     // Filtrar llamadas que necesitan procesamiento
     const callsNeedingProcessing = calls.filter(call => {
-      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
-      const hasDuration = call.duration_sec > 0;
-      const notProcessed = (!call.cost_usd || call.cost_usd === 0);
-      const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
-      const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+  const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+  
+  // ✅ CAMBIO PRINCIPAL: Usar getCallDuration en lugar de call.duration_sec
+  const actualDuration = getCallDuration(call);
+  const hasDuration = actualDuration > 0;
+  
+  const notProcessed = (!call.cost_usd || call.cost_usd === 0);
+  const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
+  const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
       
       const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
       
       if (needsProcessing) {
         console.log(`🎯 Llamada necesita procesamiento: ${call.call_id}`, {
-          status: call.call_status,
-          duration: call.duration_sec,
-          currentCost: call.cost_usd,
-          hasRate: !!hasRate
-        });
+  status: call.call_status,
+  duration_sec_bd: call.duration_sec,         // BD (siempre 0)
+  actual_duration: actualDuration,            // Audio real
+  currentCost: call.cost_usd,
+  hasRate: !!hasRate
+});
       }
       
       return needsProcessing;
