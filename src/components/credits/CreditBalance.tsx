@@ -332,7 +332,7 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
 
               {/* Indicador de integración */}
               <div className="pt-1 border-t border-blue-200 text-xs text-blue-500">
-                🔗 Integrated with Admin Credits system via {debugInfo.usingRPCFunction}
+                🔗 ✅ Connected to Admin System {debugInfo.usingRPCFunction}
               </div>
             </div>
           </div>
