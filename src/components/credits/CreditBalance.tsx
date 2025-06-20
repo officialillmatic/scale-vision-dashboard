@@ -1,6 +1,7 @@
-// 💰 NUEVO COMPONENTE DE BALANCE CON DESCUENTOS AUTOMÁTICOS
+// 💰 COMPONENTE DE BALANCE INTEGRADO CON ADMIN CREDITS
 // Ubicación: src/components/dashboard/CreditBalance.tsx
-// PARTE 1: IMPORTS Y CONFIGURACIÓN
+// ✅ ACTUALIZADO para usar thresholds dinámicos de user_credits
+// PARTE 1: IMPORTS Y SETUP
 
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,7 +17,9 @@ import {
   CheckCircle,
   AlertCircle,
   DollarSign,
-  Activity
+  Activity,
+  Settings,
+  Shield
 } from 'lucide-react';
 import { useNewBalanceSystem } from '@/hooks/useNewBalanceSystem';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -28,6 +31,9 @@ interface CreditBalanceProps {
 export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = false }) => {
   const {
     balance,
+    warningThreshold,      // ✅ NUEVO: Threshold dinámico
+    criticalThreshold,     // ✅ NUEVO: Threshold dinámico
+    isBlocked,             // ✅ NUEVO: Estado de bloqueo
     isLoading,
     error,
     status,
@@ -44,7 +50,7 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   // ============================================================================
-  // FUNCIONES DE FORMATO Y UTILIDAD
+  // FUNCIONES DE FORMATO Y UTILIDAD (ACTUALIZADAS PARA THRESHOLDS DINÁMICOS)
   // ============================================================================
 
   const formatCurrency = (amount: number) => {
@@ -69,6 +75,14 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
 
   const getStatusConfig = () => {
     switch (status) {
+      case 'blocked':
+        return {
+          color: 'bg-gray-100 text-gray-800 border-gray-200',
+          icon: Shield,
+          label: 'Blocked',
+          bgColor: 'bg-gray-50',
+          iconColor: 'text-gray-600'
+        };
       case 'empty':
         return {
           color: 'bg-red-100 text-red-800 border-red-200',
@@ -133,11 +147,14 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
             <div className="flex items-center gap-2">
               <CreditCard className="h-4 w-4 text-gray-600" />
               <span className="text-sm font-medium text-gray-700">Credit Balance</span>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                Integrated
+              </Badge>
             </div>
             <LoadingSpinner size="sm" />
           </div>
           <div className="text-center py-4">
-            <p className="text-gray-500 text-sm">Loading balance...</p>
+            <p className="text-gray-500 text-sm">Loading integrated balance...</p>
           </div>
         </CardContent>
       </Card>
@@ -152,6 +169,9 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
             <div className="flex items-center gap-2">
               <CreditCard className="h-4 w-4 text-red-600" />
               <span className="text-sm font-medium text-red-700">Credit Balance</span>
+              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200 text-xs">
+                Error
+              </Badge>
             </div>
             <Button
               variant="outline"
@@ -176,24 +196,38 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
     );
   }
   // ============================================================================
-  // RENDER PRINCIPAL
+  // RENDER PRINCIPAL - INTEGRADO CON ADMIN CREDITS
   // ============================================================================
 
   return (
     <Card className={`border-0 shadow-sm ${statusConfig.bgColor} relative overflow-hidden`}>
       <CardContent className="p-4">
-        {/* Header */}
+        {/* Header con indicadores de integración */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium text-gray-700">Credit Balance</span>
             
+            {/* Indicador de sistema integrado */}
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+              <Settings className="h-3 w-3 mr-1" />
+              Integrated
+            </Badge>
+            
             {/* Indicador de procesamiento automático */}
             {(isProcessing || processingCalls.length > 0) && (
-              <div className="flex items-center gap-1">
-                <Activity className="h-3 w-3 text-blue-500 animate-pulse" />
-                <span className="text-xs text-blue-600 font-medium">Auto Processing</span>
-              </div>
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                <Activity className="h-3 w-3 mr-1 animate-pulse" />
+                Auto Processing
+              </Badge>
+            )}
+
+            {/* Indicador de bloqueo */}
+            {isBlocked && (
+              <Badge variant="destructive" className="text-xs">
+                <Shield className="h-3 w-3 mr-1" />
+                Account Blocked
+              </Badge>
             )}
           </div>
 
@@ -246,23 +280,33 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
             )}
           </div>
         </div>
-        {/* Thresholds */}
+        {/* ✅ NUEVO: Thresholds dinámicos desde user_credits */}
         <div className="mb-4 p-2 bg-white/50 rounded-md border border-gray-200/50">
           <div className="flex justify-between items-center text-xs">
-            <span className="text-gray-600">Thresholds:</span>
+            <span className="text-gray-600">Personal Thresholds:</span>
             <div className="flex gap-3">
-              <span className="text-yellow-600">Warning: $40.00</span>
-              <span className="text-red-600">Critical: $20.00</span>
+              <span className="text-yellow-600">Warning: {formatCurrency(warningThreshold)}</span>
+              <span className="text-red-600">Critical: {formatCurrency(criticalThreshold)}</span>
             </div>
           </div>
+          {isSuperAdmin && (
+            <div className="mt-1 text-xs text-blue-600">
+              💡 These thresholds can be customized in Admin Credits
+            </div>
+          )}
         </div>
 
-        {/* Información del sistema automático */}
+        {/* Información del sistema automático integrado */}
         {(processingCalls.length > 0 || recentDeductions.length > 0 || processedCallsCount > 0) && (
           <div className="mb-4 p-2 bg-blue-50 rounded-md border border-blue-200">
             <div className="flex items-center gap-1 mb-2">
               <Zap className="h-3 w-3 text-blue-600" />
-              <span className="text-xs font-medium text-blue-700">Automatic System</span>
+              <span className="text-xs font-medium text-blue-700">Integrated Auto System</span>
+              {debugInfo.usingRPCFunction && (
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                  Using RPC
+                </Badge>
+              )}
             </div>
             
             <div className="space-y-1 text-xs text-blue-600">
@@ -276,7 +320,7 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
               
               {recentDeductions.length > 0 && (
                 <div className="space-y-1">
-                  <div className="font-medium">Recent deductions:</div>
+                  <div className="font-medium">Recent auto-deductions:</div>
                   {recentDeductions.slice(0, 3).map((deduction, index) => (
                     <div key={index} className="flex justify-between text-xs">
                       <span>{deduction.callId.substring(0, 12)}...</span>
@@ -285,11 +329,16 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
                   ))}
                 </div>
               )}
+
+              {/* Indicador de integración */}
+              <div className="pt-1 border-t border-blue-200 text-xs text-blue-500">
+                🔗 Integrated with Admin Credits system via {debugInfo.usingRPCFunction}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Request Recharge Button */}
+        {/* Request Recharge Button - ahora conectado con Admin Credits */}
         <div className="flex justify-between items-center">
           <div className="text-xs text-gray-500">
             Last updated: {lastUpdate.toLocaleTimeString()}
@@ -299,22 +348,28 @@ export const CreditBalance: React.FC<CreditBalanceProps> = ({ isSuperAdmin = fal
             onClick={handleRequestRecharge}
             size="sm"
             className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={isBlocked}
           >
             <DollarSign className="h-3 w-3 mr-1" />
-            Request Recharge
+            {isBlocked ? 'Account Blocked' : 'Request Recharge'}
           </Button>
         </div>
 
-        {/* Debug info para Super Admin */}
+        {/* Debug info mejorada para Super Admin */}
         {isSuperAdmin && debugInfo && (
           <div className="mt-4 p-2 bg-gray-100 rounded-md border border-gray-200">
-            <div className="text-xs font-medium text-gray-700 mb-1">Debug Info:</div>
+            <div className="text-xs font-medium text-gray-700 mb-1">🔧 Debug Info (Super Admin):</div>
             <div className="text-xs text-gray-600 space-y-1">
+              <div>✅ Using table: user_credits (integrated)</div>
+              <div>✅ RPC function: {debugInfo.usingRPCFunction}</div>
               <div>User Agents: {userAgents.length}</div>
-              <div>Polling Active: {debugInfo.isPollingActive ? '✅' : '❌'}</div>
+              <div>Polling Active: {debugInfo.isPollingActive ? '🟢' : '🔴'}</div>
               <div>Processed Calls: {debugInfo.processedCalls.length}</div>
+              <div>Current Thresholds: W=${warningThreshold} / C=${criticalThreshold}</div>
+              <div>Account Status: {isBlocked ? '🚫 BLOCKED' : '✅ Active'}</div>
               {debugInfo.processedCalls.length > 0 && (
                 <div className="max-h-20 overflow-y-auto">
+                  <div className="font-medium">Recent processed calls:</div>
                   {debugInfo.processedCalls.slice(0, 5).map((callId, index) => (
                     <div key={index}>{callId.substring(0, 16)}...</div>
                   ))}
