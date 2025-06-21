@@ -1,576 +1,652 @@
-// 💰 ULTRA COMPACT CREDIT BALANCE - INTEGRADO CON CALLSSIMPLE.TSX
-// Location: src/components/dashboard/CreditBalance.tsx
-// ✅ PARTE 1: Imports, Types y Hook
+// src/components/credits/CreditBalance.tsx - PARTE 1 CORREGIDA
+// Imports y configuración inicial
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  AlertTriangle, 
-  CreditCard, 
-  Clock, 
-  TrendingDown, 
-  RefreshCw,
-  CheckCircle,
-  AlertCircle,
-  DollarSign,
-  Activity,
-  Shield,
-  Eye,
-  Bug,
-  Users
-} from 'lucide-react';
-import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useAgents } from '@/hooks/useAgents';
+import { useAutoPollingBalance } from '@/hooks/useAutoPollingBalance';
+import { 
+  Wallet, 
+  AlertTriangle, 
+  AlertCircle, 
+  CheckCircle, 
+  Plus,
+  RefreshCw,
+  Shield,
+  Info,
+  Zap,
+  TrendingDown,
+  TrendingUp,
+  Activity,
+  Clock,
+  DollarSign
+} from 'lucide-react';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { formatCurrency } from '@/lib/formatters';
 
 interface CreditBalanceProps {
-  isSuperAdmin?: boolean;
   onRequestRecharge?: () => void;
   showActions?: boolean;
 }
 
-// ✅ NUEVO: Hook simplificado para balance (compatible con CallsSimple.tsx)
-const useSimplifiedBalance = () => {
+export function CreditBalance({ onRequestRecharge, showActions = true }: CreditBalanceProps) {
   const { user } = useAuth();
-  const [balance, setBalance] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdate, setLastUpdate] = useState(new Date());
-  const [recentDeductions, setRecentDeductions] = useState<any[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [userAgents, setUserAgents] = useState<any[]>([]);
-  const [debugInfo, setDebugInfo] = useState<any>({
-    usingUserCreditsTable: false,
-    customAgentsCount: 0,
-    externalAgentIds: [],
-    isPollingActive: false,
-    processedCalls: [],
-    usingRPCFunction: null
-  });
+  
+  // 🔄 USAR EL NUEVO HOOK CON AUTO-POLLING
+  const { 
+    balanceStats,
+    loading, 
+    error, 
+    lastBalanceChange,
+    isPolling,
+    refreshBalance,
+    canMakeCall,
+    simulateCall,
+    currentBalance,
+    balanceStatus,
+    totalSpentToday,
+    recentTransactionsCount
+  } = useAutoPollingBalance();
 
-  // ✅ FUNCIÓN PRINCIPAL: Cargar balance (SOLO PROFILES como CallsSimple.tsx)
-  const loadBalance = async () => {
-    if (!user?.id) return;
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      console.log('💰 [CreditBalance] Cargando balance desde profiles...');
-      
-      // ✅ USAR SOLO PROFILES (como CallsSimple.tsx)
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('credit_balance')
-        .eq('id', user.id)
-        .single();
+  // ESTADOS LOCALES - CON NUEVOS ESTADOS AGREGADOS
+  const [showUpdateIndicator, setShowUpdateIndicator] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // ✅ NUEVOS ESTADOS PARA TARIFA REAL
+  const [realAgentRate, setRealAgentRate] = useState<number | null>(null);
+  const [rateLoaded, setRateLoaded] = useState(false);
 
-      if (profileError) {
-        console.error('❌ [CreditBalance] Error cargando balance:', profileError);
-        setError(`Error loading balance: ${profileError.message}`);
-        return;
-      }
+  // Hook de agentes para calcular minutos estimados
+  const { agents, isLoadingAgents } = useAgents();
 
-      const currentBalance = profileData?.credit_balance || 0;
-      setBalance(currentBalance);
-      setLastUpdate(new Date());
+  // ✅ EFECTO PARA MOSTRAR INDICADOR DE ACTUALIZACIÓN
+  useEffect(() => {
+    if (lastBalanceChange) {
+      setShowUpdateIndicator(true);
       
-      console.log(`✅ [CreditBalance] Balance cargado: $${currentBalance}`);
-
-      // Cargar agentes asignados para debug
-      await loadUserAgents();
+      // Mostrar indicador por 5 segundos
+      const timer = setTimeout(() => {
+        setShowUpdateIndicator(false);
+      }, 5000);
       
-    } catch (err: any) {
-      console.error('💥 [CreditBalance] Error:', err);
-      setError(`Exception: ${err.message}`);
-    } finally {
-      setIsLoading(false);
+      return () => clearTimeout(timer);
     }
-  };
-  // ✅ FUNCIÓN: Cargar agentes asignados (para debug)
-  const loadUserAgents = async () => {
+  }, [lastBalanceChange]);
+  // ============================================================================
+  // FUNCIONES AUXILIARES - TIEMPO REAL SIN LOADING INFINITO
+  // ============================================================================
+  
+  // Obtener tarifa real del agente en tiempo real
+  const fetchAgentRateRealTime = useCallback(async () => {
     if (!user?.id) return;
 
     try {
-      const { data: assignments, error } = await supabase
+      console.log('🔍 Obteniendo tarifa real del agente en tiempo real...');
+      
+      const { data: userAgents, error } = await supabase
         .from('user_agent_assignments')
         .select(`
-          *,
-          agents:agent_id (
+          agent_id,
+          agents!inner (
             id,
             name,
-            retell_agent_id,
-            rate_per_minute
+            rate_per_minute,
+            retell_agent_id
           )
         `)
         .eq('user_id', user.id)
-        .eq('is_active', true);
+        .eq('is_primary', true);
 
-      if (!error && assignments) {
-        const agents = assignments.map(a => a.agents).filter(Boolean);
-        setUserAgents(agents);
-        
-        // Actualizar debug info
-        setDebugInfo(prev => ({
-          ...prev,
-          customAgentsCount: agents.length,
-          externalAgentIds: agents.map(a => a.retell_agent_id).filter(Boolean),
-          usingUserCreditsTable: false, // Siempre false porque usamos profiles
-          isPollingActive: true // Asumimos que está activo
-        }));
+      if (error) {
+        console.error('❌ Error obteniendo agentes:', error);
+        setRealAgentRate(null);
+        setRateLoaded(true);
+        return;
       }
+
+      if (!userAgents || userAgents.length === 0) {
+        console.warn('⚠️ No se encontraron agentes asignados');
+        setRealAgentRate(null);
+        setRateLoaded(true);
+        return;
+      }
+
+      const agentsData = userAgents.map(assignment => assignment.agents);
+      const validAgents = agentsData.filter(agent => 
+        agent && agent.rate_per_minute && agent.rate_per_minute > 0
+      );
+      
+      if (validAgents.length === 0) {
+        console.warn('⚠️ Agentes sin tarifa configurada');
+        setRealAgentRate(null);
+        setRateLoaded(true);
+        return;
+      }
+
+      // Calcular tarifa promedio real
+      const totalRate = validAgents.reduce((sum, agent) => sum + agent.rate_per_minute, 0);
+      const avgRate = totalRate / validAgents.length;
+      
+      console.log(`✅ Tarifa REAL obtenida: $${avgRate.toFixed(4)}/min`);
+      console.log(`🤖 Agentes: ${validAgents.map(a => a.name).join(', ')}`);
+      
+      setRealAgentRate(avgRate);
+      setRateLoaded(true);
+
     } catch (error) {
-      console.error('❌ Error loading user agents:', error);
+      console.error('❌ Error en fetchAgentRateRealTime:', error);
+      setRealAgentRate(null);
+      setRateLoaded(true);
     }
-  };
-
-  // ✅ LISTENER: Escuchar eventos de balance (como CallsSimple.tsx)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    console.log('🔔 [CreditBalance] Configurando listener para balanceUpdated...');
-    
-    const handleBalanceUpdate = (event: CustomEvent) => {
-      console.log('💳 [CreditBalance] Evento balanceUpdated recibido:', event.detail);
-      
-      const { userId, deduction, callId, newBalance, oldBalance } = event.detail;
-      
-      // Solo procesar si es para este usuario
-      if (userId === user?.id || userId === 'current-user') {
-        console.log('✅ [CreditBalance] Actualizando balance automáticamente...');
-        
-        // Actualizar balance si tenemos el nuevo valor
-        if (typeof newBalance === 'number') {
-          setBalance(newBalance);
-        } else {
-          // Fallback: recargar balance
-          loadBalance();
-        }
-        
-        // Agregar deducción reciente
-        if (deduction && deduction > 0) {
-          setRecentDeductions(prev => [
-            { amount: deduction, callId, timestamp: new Date() },
-            ...prev.slice(0, 4) // Mantener solo las últimas 5
-          ]);
-        }
-        
-        setLastUpdate(new Date());
-        setIsProcessing(false); // Terminar estado de procesamiento
-      }
-    };
-
-    // ✅ LISTENER ADICIONAL: forceBalanceRefresh (del DashboardPage.tsx)
-    const handleForceRefresh = (event: CustomEvent) => {
-      console.log('🔄 [CreditBalance] Force refresh recibido');
-      loadBalance();
-    };
-
-    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-    window.addEventListener('forceBalanceRefresh', handleForceRefresh as EventListener);
-    
-    return () => {
-      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-      window.removeEventListener('forceBalanceRefresh', handleForceRefresh as EventListener);
-    };
   }, [user?.id]);
 
-  // ✅ CARGAR INICIAL
+  // Calcular minutos estimados en tiempo real
+  const calculateEstimatedMinutesRealTime = (): { minutes: number, rate: number | null, hasRate: boolean } => {
+    if (!currentBalance || currentBalance <= 0) {
+      return { minutes: 0, rate: null, hasRate: false };
+    }
+
+    if (!rateLoaded) {
+      return { minutes: 0, rate: null, hasRate: false };
+    }
+
+    if (!realAgentRate || realAgentRate <= 0) {
+      return { minutes: 0, rate: null, hasRate: false };
+    }
+
+    const estimatedMinutes = Math.floor(currentBalance / realAgentRate);
+    
+    console.log(`🧮 CÁLCULO TIEMPO REAL:`);
+    console.log(`   💳 Balance: $${currentBalance.toFixed(2)}`);
+    console.log(`   🤖 Tarifa real: $${realAgentRate.toFixed(4)}/min`);
+    console.log(`   ⏱️ Minutos: ${estimatedMinutes}`);
+    
+    return { 
+      minutes: estimatedMinutes, 
+      rate: realAgentRate, 
+      hasRate: true 
+    };
+  };
+
+  // Effect para cargar tarifa real al inicializar
   useEffect(() => {
     if (user?.id) {
-      loadBalance();
+      fetchAgentRateRealTime();
     }
-  }, [user?.id]);
-  return {
-    balance,
-    isLoading,
-    error,
-    lastUpdate,
-    recentDeductions,
-    isProcessing,
-    userAgents,
-    debugInfo,
-    refreshBalance: loadBalance,
-    // Calculadas
-    warningThreshold: 10,
-    criticalThreshold: 5,
-    isBlocked: balance <= 0,
-    status: balance <= 0 ? 'blocked' : balance <= 5 ? 'critical' : balance <= 10 ? 'warning' : 'healthy',
-    estimatedMinutes: userAgents.length > 0 && userAgents[0]?.rate_per_minute ? 
-      Math.floor(balance / (userAgents[0].rate_per_minute / 60)) : 0,
-    processingCalls: [] // Placeholder para compatibilidad
-  };
-};
+  }, [user?.id, fetchAgentRateRealTime]);
 
-// ============================================================================
-// COMPONENTE PRINCIPAL
-// ============================================================================
+  // Effect para recargar tarifa cuando cambie el balance
+  useEffect(() => {
+    if (user?.id && currentBalance !== undefined) {
+      // Solo recargar si no tenemos tarifa aún
+      if (!rateLoaded) {
+        fetchAgentRateRealTime();
+      }
+    }
+  }, [user?.id, currentBalance, rateLoaded, fetchAgentRateRealTime]);
 
-export const CreditBalance: React.FC<CreditBalanceProps> = ({ 
-  isSuperAdmin = false,
-  onRequestRecharge,
-  showActions = true
-}) => {
-  const {
-    balance,
-    warningThreshold,
-    criticalThreshold,
-    isBlocked,
-    isLoading,
-    error,
-    status,
-    estimatedMinutes,
-    lastUpdate,
-    processingCalls,
-    recentDeductions,
-    isProcessing,
-    userAgents,
-    debugInfo,
-    refreshBalance
-  } = useSimplifiedBalance();
+  // 🔔 ESCUCHAR DESCUENTOS AUTOMÁTICOS DE LLAMADAS
+  useEffect(() => {
+    console.log('🔔 Conectando balance con descuentos automáticos...');
+    
+    if (!user?.id) {
+      return;
+    }
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
+    // Función que se ejecuta cuando hay un descuento automático
+    const handleBalanceUpdate = (event: CustomEvent) => {
+      const { userId, deduction, callId } = event.detail;
+      
+      console.log('💳 Descuento automático detectado:', deduction);
+      
+      // Solo procesar si es para este usuario
+      if (userId === user.id) {
+        console.log('✅ Actualizando balance automáticamente...');
+        
+        // Actualizar balance inmediatamente
+        refreshBalance();
+        
+        // Mostrar indicador visual
+        setShowUpdateIndicator(true);
+      }
+    };
+
+    // Escuchar el evento de descuento
+    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    
+    console.log('✅ Balance conectado con sistema de descuentos');
+    
+    // Limpiar cuando se cierre el componente
+    return () => {
+      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    };
+  }, [user?.id, refreshBalance]);
+  // ============================================================================
+  // FUNCIONES PARA PROCESAR LLAMADAS PENDIENTES
+  // ============================================================================
+  
+  
+
 
   // ============================================================================
-  // UTILITY FUNCTIONS
+  // FUNCIONES DE CONFIGURACIÓN
   // ============================================================================
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 4,
-    }).format(amount);
-  };
-
-  const formatMinutes = (minutes: number) => {
-    if (minutes === 0) return '0 min';
-    if (minutes < 60) return `${minutes} min`;
-    
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    
-    if (remainingMinutes === 0) return `${hours}h`;
-    return `${hours}h ${remainingMinutes}m`;
-  };
-
-  const getStatusConfig = () => {
+  // Obtener configuración de estado del balance
+  const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'blocked':
-        return {
-          color: 'bg-gray-100 text-gray-800',
-          icon: Shield,
-          label: 'Blocked',
-          bgColor: 'bg-gray-50'
-        };
       case 'empty':
         return {
-          color: 'bg-red-100 text-red-800',
-          icon: AlertTriangle,
-          label: 'Empty',
-          bgColor: 'bg-red-50'
+          badge: { variant: 'destructive' as const, text: 'Account Blocked' },
+          icon: Shield,
+          iconColor: 'text-red-500',
+          balanceColor: 'text-red-600',
+          message: 'Add funds to reactivate your account'
         };
       case 'critical':
         return {
-          color: 'bg-red-100 text-red-800',
+          badge: { variant: 'destructive' as const, text: 'Critical Balance' },
           icon: AlertTriangle,
-          label: 'Critical',
-          bgColor: 'bg-red-50'
+          iconColor: 'text-orange-500',
+          balanceColor: 'text-orange-600',
+          message: 'Urgent: Add funds to prevent service interruption'
         };
       case 'warning':
         return {
-          color: 'bg-yellow-100 text-yellow-800',
+          badge: { variant: 'outline' as const, text: 'Low Balance' },
           icon: AlertCircle,
-          label: 'Warning',
-          bgColor: 'bg-yellow-50'
+          iconColor: 'text-yellow-500',
+          balanceColor: 'text-yellow-700',
+          message: 'Consider adding funds soon'
+        };
+      case 'healthy':
+        return {
+          badge: { variant: 'outline' as const, text: 'Good Standing' },
+          icon: CheckCircle,
+          iconColor: 'text-emerald-500',
+          balanceColor: 'text-emerald-700',
+          message: 'Your account is in good standing'
         };
       default:
         return {
-          color: 'bg-green-100 text-green-800',
-          icon: CheckCircle,
-          label: 'Healthy',
-          bgColor: 'bg-green-50'
+          badge: { variant: 'outline' as const, text: 'Loading...' },
+          icon: Wallet,
+          iconColor: 'text-gray-500',
+          balanceColor: 'text-gray-700',
+          message: 'Loading balance information...'
         };
     }
   };
 
+  // Función de refresh manual
   const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await refreshBalance();
-    } catch (error) {
-      console.error('Error refreshing balance:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
+    setRefreshing(true);
+    refreshBalance();
+    
+    // Simular delay mínimo para UX
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
   };
 
-  const handleRequestRecharge = () => {
-    if (onRequestRecharge) {
-      onRequestRecharge();
-    } else {
-      window.open('mailto:support@scaleai.com?subject=Credit Recharge Request', '_blank');
-    }
-  };
-
-  const statusConfig = getStatusConfig();
-  const StatusIcon = statusConfig.icon;
   // ============================================================================
-  // LOADING & ERROR STATES - ULTRA COMPACT
+  // VARIABLES COMPUTADAS
+  // ============================================================================
+  
+  const config = getStatusConfig(balanceStatus);
+  const IconComponent = config.icon;
+  const lastDeduction = lastBalanceChange && lastBalanceChange.isDeduction 
+    ? lastBalanceChange.difference 
+    : null;
+  // ============================================================================
+  // RENDERS CONDICIONALES
   // ============================================================================
 
-  if (isLoading) {
+  // Super Admin View
+  if (user?.user_metadata?.role === 'super_admin') {
     return (
-      <Card className="border-0 shadow-sm bg-blue-50">
-        <CardContent className="p-2">
+      <Card className="border border-black bg-blue-50 rounded-xl shadow-sm">
+        <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-blue-600" />
-              <span className="text-sm font-medium">Credit Balance</span>
-              <Badge variant="outline" className="text-xs">Loading...</Badge>
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-xl bg-blue-100 border border-blue-200">
+                <Shield className="h-6 w-6 text-blue-700" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-blue-900">Super Admin Account</h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  You have full access to manage all user credits and system administration
+                </p>
+              </div>
             </div>
-            <LoadingSpinner size="sm" />
+            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 font-semibold">
+              Administrator
+            </Badge>
+          </div>
+          
+          <div className="mt-4 pt-4 border-t border-blue-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                <span className="text-sm font-medium text-blue-700">
+                  All system features available
+                </span>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.location.href = '/admin/credits'}
+                className="border-blue-300 text-blue-700 hover:bg-blue-100"
+              >
+                <Info className="h-4 w-4 mr-2" />
+                Manage User Credits
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
     );
   }
 
+  // Loading State
+  if (loading) {
+    return (
+      <Card className="border border-black rounded-xl">
+        <CardContent className="p-3 sm:p-6">
+          <div className="flex items-center justify-center space-x-3">
+            <LoadingSpinner size="sm" />
+            <span className="text-sm text-muted-foreground">Loading balance...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Error State
   if (error) {
     return (
-      <Card className="border-0 shadow-sm bg-red-50">
-        <CardContent className="p-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-red-600" />
-              <span className="text-sm font-medium text-red-700">Credit Balance</span>
-              <Badge variant="destructive" className="text-xs">Error</Badge>
+      <Card className="border border-black rounded-xl">
+        <CardContent className="p-3 sm:p-6">
+          <div className="flex items-center justify-between flex-col sm:flex-row space-y-3 sm:space-y-0">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              <div>
+                <p className="text-sm font-medium text-red-900">Unable to load balance</p>
+                <p className="text-xs text-red-600">{error}</p>
+              </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="h-6 w-6 p-0"
-            >
-              <RefreshCw className="h-3 w-3" />
+            <Button onClick={handleRefresh} variant="outline" size="sm" className="shrink-0">
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
-          <p className="text-red-600 text-xs mt-1">⚠️ {error}</p>
         </CardContent>
       </Card>
     );
   }
   // ============================================================================
-  // ULTRA COMPACT MAIN RENDER - INSPIRED BY WORKING ADMIN PANELS
+  // RENDER PRINCIPAL DEL COMPONENTE
   // ============================================================================
-
+  
   return (
-    <Card className={`border-0 shadow-sm ${statusConfig.bgColor}`}>
-      <CardContent className="p-2">
-        {/* Ultra Compact Header - Single Line */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4 text-gray-600" />
-            <span className="text-sm font-medium text-gray-700">Credit Balance</span>
-            
-            {/* Compact status badges */}
-            <Badge className={`text-xs ${statusConfig.color} flex items-center gap-1`}>
-              <StatusIcon className="h-3 w-3" />
-              {statusConfig.label}
-            </Badge>
-            
-            {(isProcessing || processingCalls.length > 0) && (
-              <Badge variant="outline" className="bg-green-50 text-green-700 text-xs">
-                <Activity className="h-3 w-3 animate-pulse" />
-              </Badge>
-            )}
-
-            {isBlocked && (
-              <Badge variant="destructive" className="text-xs">Blocked</Badge>
-            )}
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="h-6 w-6 p-0"
-          >
-            <RefreshCw className="h-3 w-3" />
-          </Button>
+    <Card className="border border-black bg-white rounded-xl shadow-sm relative">
+      {/* 🔄 INDICADOR DE AUTO-POLLING EN TIEMPO REAL */}
+      <div className="absolute top-2 left-2 z-10">
+        <div className={`flex items-center space-x-1 text-xs px-2 py-1 rounded-full transition-all duration-300 ${
+          isPolling 
+            ? 'bg-green-100 text-green-800 border border-green-200' 
+            : 'bg-gray-100 text-gray-600 border border-gray-200'
+        }`}>
+          <Activity className={`h-3 w-3 ${isPolling ? 'animate-pulse' : ''}`} />
+          <span>{isPolling ? 'Live' : 'Offline'}</span>
         </div>
+      </div>
 
-        {/* Ultra Compact Balance Display - Main Focus */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold text-gray-900">
-              {formatCurrency(balance)}
-            </span>
-            {recentDeductions.length > 0 && (
-              <span className="text-xs text-red-600 flex items-center gap-1">
-                <TrendingDown className="h-3 w-3" />
-                -{formatCurrency(recentDeductions[0].amount)}
-              </span>
-            )}
+      {/* ✅ INDICADOR DE ACTUALIZACIÓN EN TIEMPO REAL */}
+      {showUpdateIndicator && lastDeduction && (
+        <div className="absolute top-2 right-2 z-10">
+          <div className="flex items-center space-x-2 bg-red-100 border border-red-300 rounded-lg px-3 py-1 text-xs font-medium text-red-800 animate-bounce">
+            <TrendingDown className="h-3 w-3" />
+            <span>Call cost: -{formatCurrency(lastDeduction)}</span>
+            <Zap className="h-3 w-3" />
           </div>
+        </div>
+      )}
+      
+      <CardContent className="p-3 sm:p-8">
+        {/* LAYOUT RESPONSIVO */}
+        <div className="flex flex-col sm:space-y-8">
           
-          <div className="text-right text-xs text-gray-600">
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {formatMinutes(estimatedMinutes)} left
+          {/* ROW 1: Account Balance + Icon + Amount + Status + Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            
+            {/* Left: Account Balance + Icon + Amount */}
+            <div className="flex items-center justify-center sm:justify-start space-x-3 mb-4 sm:mb-0">
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 relative">
+                <Wallet className="h-6 w-6 text-blue-600" />
+                {/* Indicador de actualización en el ícono */}
+                {showUpdateIndicator && (
+                  <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-ping"></div>
+                )}
+              </div>
+              <div className="text-center sm:text-left">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Account Balance</h3>
+                <p className={`text-2xl sm:text-4xl font-bold ${config.balanceColor} mt-1 transition-all duration-300`}>
+                  {formatCurrency(currentBalance)}
+                </p>
+                {/* Mostrar último descuento */}
+                {lastDeduction && showUpdateIndicator && (
+                  <p className="text-sm text-red-600 font-medium mt-1 animate-fade-in">
+                    Last call: -{formatCurrency(lastDeduction)}
+                  </p>
+                )}
+                {/* Mostrar gastos del día */}
+                {totalSpentToday > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Today: -{formatCurrency(totalSpentToday)}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Compact Thresholds - Only if they exist */}
-        {warningThreshold > 0 && criticalThreshold > 0 && (
-          <div className="flex justify-between text-xs text-gray-600 mb-2">
-            <span>Thresholds:</span>
-            <div className="flex gap-2">
-              <span className="text-yellow-600">W: {formatCurrency(warningThreshold)}</span>
-              <span className="text-red-600">C: {formatCurrency(criticalThreshold)}</span>
+            {/* Desktop: Status Badge */}
+            <div className="hidden sm:flex items-center justify-center">
+              <div className="flex items-center space-x-3">
+                <IconComponent className={`h-8 w-8 ${config.iconColor}`} />
+                <Badge 
+                  variant={config.badge.variant} 
+                  className="text-base font-semibold px-4 py-2 rounded-lg"
+                >
+                  {config.badge.text}
+                </Badge>
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* ✅ NUEVO: Auto System Status integrado con CallsSimple.tsx */}
-        {(processingCalls.length > 0 || recentDeductions.length > 0 || debugInfo.customAgentsCount > 0) && (
-          <div className="bg-blue-50 p-2 rounded text-xs mb-2">
-            <div className="flex items-center justify-between">
-              <span className="text-blue-700 font-medium">CallsSimple System Active</span>
-              {debugInfo.usingRPCFunction && (
-                <Badge variant="outline" className="text-xs">RPC</Badge>
+            {/* Desktop: Action Buttons - CON REFRESH BALANCE INTEGRADO */}
+            {showActions && (
+              <div className="hidden sm:flex items-center space-x-3">
+                
+
+                {/* Botón Request Recharge */}
+                {onRequestRecharge && (
+                  <Button 
+                    onClick={onRequestRecharge}
+                    variant={balanceStatus === 'empty' || balanceStatus === 'critical' ? 'default' : 'outline'}
+                    size="sm"
+                    className="px-4 py-2 rounded-lg font-semibold"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    {balanceStatus === 'empty' ? 'Add Funds' : 'Request Recharge'}
+                  </Button>
+                )}
+                
+                {/* Botón Contact Support solo si es crítico */}
+                {(balanceStatus === 'warning' || balanceStatus === 'critical' || balanceStatus === 'empty') && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      alert('Please contact support to recharge your account: support@drscaleai.com');
+                    }}
+                    className="px-4 py-2 rounded-lg font-semibold"
+                  >
+                    Contact Support
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+{/* ROW 2: Mobile Status Badge (centered) */}
+          <div className="flex sm:hidden items-center justify-center space-x-3 mb-4">
+            <IconComponent className={`h-6 w-6 ${config.iconColor}`} />
+            <Badge 
+              variant={config.badge.variant} 
+              className="text-sm font-semibold px-3 py-1 rounded-lg"
+            >
+              {config.badge.text}
+            </Badge>
+          </div>
+
+          {/* ROW 3: Mobile Action Buttons - CON REFRESH BALANCE INTEGRADO */}
+          {showActions && (
+            <div className="flex sm:hidden flex-col space-y-3 mb-4">
+              
+
+              {/* Botón Request Recharge - Mobile */}
+              {onRequestRecharge && (
+                <Button 
+                  onClick={onRequestRecharge}
+                  variant={balanceStatus === 'empty' || balanceStatus === 'critical' ? 'default' : 'outline'}
+                  size="lg"
+                  className="w-full py-3 rounded-lg font-semibold"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  {balanceStatus === 'empty' ? 'Add Funds' : 'Request Recharge'}
+                </Button>
+              )}
+              
+              {/* Botón Contact Support - Mobile */}
+              {(balanceStatus === 'warning' || balanceStatus === 'critical' || balanceStatus === 'empty') && (
+                <Button 
+                  variant="outline" 
+                  size="lg"
+                  onClick={() => {
+                    alert('Please contact support to recharge your account: support@drscaleai.com');
+                  }}
+                  className="w-full py-3 rounded-lg font-semibold"
+                >
+                  Contact Support
+                </Button>
               )}
             </div>
-            {debugInfo.customAgentsCount > 0 && (
-              <div className="text-blue-600">🤖 {debugInfo.customAgentsCount} agents assigned</div>
-            )}
-            {recentDeductions.length > 0 && (
-              <div className="text-blue-600">
-                Recent: -{formatCurrency(recentDeductions[0].amount)}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Ultra Compact Footer */}
-        <div className="flex justify-between items-center">
-          <span className="text-xs text-gray-500">
-            {lastUpdate.toLocaleTimeString()}
-          </span>
-          
-          {showActions && (
-            <Button
-              onClick={handleRequestRecharge}
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-6"
-              disabled={isBlocked}
-            >
-              <DollarSign className="h-3 w-3 mr-1" />
-              {isBlocked ? 'Blocked' : 'Recharge'}
-            </Button>
           )}
-        </div>
-        {/* ✅ MEJORADO: Debug section integrado con CallsSimple.tsx */}
-        <div className="mt-2 border-t pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowDebug(!showDebug)}
-            className="w-full text-xs h-6"
-          >
-            <Bug className="h-3 w-3 mr-1" />
-            {showDebug ? 'Hide' : 'Show'} CallsSimple Debug
-          </Button>
-            
-            {showDebug && (
-              <div className="mt-2 p-2 bg-gray-100 rounded text-xs space-y-1">
-                <div className="font-bold text-red-600">🚨 CALLSSIMPLE SYSTEM DEBUG:</div>
-                
-                {/* Critical debugging info */}
-                <div>Source: Profiles Table ✅</div>
-                <div>Balance: {formatCurrency(balance)}</div>
-                <div>Custom Agents: {debugInfo.customAgentsCount}</div>
-                <div>External Agent IDs: {debugInfo.externalAgentIds?.length || 0}</div>
-                <div>System Active: {debugInfo.isPollingActive ? '🟢 YES' : '🔴 NO'}</div>
-                <div>Recent Deductions: {recentDeductions.length}</div>
-                
-                {/* Show external agent IDs */}
-                {debugInfo.externalAgentIds && debugInfo.externalAgentIds.length > 0 && (
-                  <div className="border-t pt-1">
-                    <div className="font-medium">External Agent IDs:</div>
-                    {debugInfo.externalAgentIds.slice(0, 3).map((id, index) => (
-                      <div key={index} className="font-mono text-xs">{id}</div>
-                    ))}
-                  </div>
+
+          {/* BOTTOM ROW - Secondary Information */}
+          <div className="border-t border-gray-100 pt-4 sm:pt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+              
+              {/* Left: Availability Status */}
+              <div className="flex items-center justify-center sm:justify-start space-x-2">
+                <div className={`h-3 w-3 rounded-full ${
+                  currentBalance > 0 ? 'bg-green-500' : 'bg-red-500'
+                } ${showUpdateIndicator ? 'animate-pulse' : ''}`}></div>
+                <p className="text-sm sm:text-base font-medium text-gray-700">
+                  {currentBalance > 0 ? 'Available for calls' : 'Service unavailable'}
+                </p>
+                {/* Mostrar conteo de transacciones recientes */}
+                {recentTransactionsCount > 0 && (
+                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                    {recentTransactionsCount} recent
+                  </span>
                 )}
-                
-                {/* Show user agents info */}
-                {userAgents && userAgents.length > 0 && (
-                  <div className="border-t pt-1">
-                    <div className="font-medium">Assigned Agents:</div>
-                    {userAgents.slice(0, 2).map((agent, index) => (
-                      <div key={index} className="text-xs">
-                        {agent.name} - ${agent.rate_per_minute}/min
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Recent deductions */}
-                {recentDeductions.length > 0 && (
-                  <div className="border-t pt-1">
-                    <div className="font-medium">Recent Deductions:</div>
-                    {recentDeductions.slice(0, 3).map((deduction, index) => (
-                      <div key={index} className="text-xs">
-                        -{formatCurrency(deduction.amount)} 
-                        {deduction.callId && ` (${deduction.callId.substring(0, 12)}...)`}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Critical status indicators */}
-                <div className="border-t pt-1 space-y-1">
-                  <div className="font-medium">System Status:</div>
-                  <div>Balance Loading: {isLoading ? '🔄' : '✅'}</div>
-                  <div>Agents Loaded: {userAgents.length > 0 ? '✅' : '❌'}</div>
-                  <div>Currently Processing: {isProcessing ? '🔄' : '⏸️'}</div>
-                  <div>Balance Source: Profiles ✅</div>
-                </div>
-
-                {/* Integration status */}
-                <div className="border-t pt-1 bg-green-50 p-1 rounded">
-                  <div className="font-bold text-green-800">✅ INTEGRATED WITH CALLSSIMPLE:</div>
-                  <div className="text-green-700 text-xs">
-                    • Uses same profiles table<br/>
-                    • Listens to balanceUpdated events<br/>
-                    • Shows same agent assignments<br/>
-                    • Real-time balance updates
-                  </div>
-                </div>
-
-                {/* Real-time status */}
-                <div className="border-t pt-1 bg-blue-50 p-1 rounded">
-                  <div className="font-bold text-blue-800">💡 SYSTEM STATUS:</div>
-                  <div className="text-blue-700 text-xs">
-                    ✅ Connected to CallsSimple.tsx<br/>
-                    ✅ Real-time balance updates<br/>
-                    ✅ Same data source (profiles)<br/>
-                    ✅ Event-driven updates
-                  </div>
-                </div>
               </div>
-            )}
+
+              {/* ✅ Center: Status Message + Estimado EN TIEMPO REAL - CORREGIDO */}
+              <div className="text-center">
+                <p className="text-sm sm:text-base font-medium text-gray-600">
+                  {config.message}
+                </p>
+                {currentBalance > 0 && (
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                    {(() => {
+                      if (!rateLoaded) {
+                        return (
+                          <span className="flex items-center justify-center gap-1">
+                            <LoadingSpinner size="sm" />
+                            Getting agent rate...
+                          </span>
+                        );
+                      }
+
+                      const calculation = calculateEstimatedMinutesRealTime();
+                      
+                      if (calculation.hasRate && calculation.minutes > 0) {
+                        return (
+                          <>
+                            Estimated {calculation.minutes.toLocaleString()} minutes remaining
+                            <span className="text-xs text-blue-600 ml-2">
+                              (avg ${calculation.rate!.toFixed(3)}/min)
+                            </span>
+                          </>
+                        );
+                      } else {
+                        return (
+                          <span className="text-orange-600">
+                            Configure agent rate to see estimated minutes
+                          </span>
+                        );
+                      }
+                    })()}
+                  </p>
+                )}
+              </div>
+
+              {/* Right: Thresholds + Controls */}
+              <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-6">
+                {balanceStats && (
+                  <div className="text-center sm:text-right">
+                    <div className="flex flex-col sm:flex-row items-center space-y-1 sm:space-y-0 sm:space-x-4 text-xs sm:text-sm font-medium">
+                      <span className="text-yellow-700">
+                        Warning: {formatCurrency(balanceStats.warning_threshold)}
+                      </span>
+                      <span className="text-orange-700">
+                        Critical: {formatCurrency(balanceStats.critical_threshold)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Updated {new Date(balanceStats.updated_at).toLocaleDateString()}
+                      {/* Indicador de tiempo real */}
+                      {isPolling && (
+                        <span className="ml-2 text-green-600 font-medium">• Live</span>
+                      )}
+                      {showUpdateIndicator && (
+                        <span className="ml-2 text-blue-600 font-medium animate-pulse">• Updated</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                
+                <Button 
+                  onClick={handleRefresh} 
+                  variant="ghost" 
+                  size="sm"
+                  disabled={refreshing}
+                  className="h-10 w-10 p-0 rounded-lg"
+                >
+                  {refreshing ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <RefreshCw className={`h-5 w-5 ${isPolling ? 'text-green-600' : ''} ${showUpdateIndicator ? 'animate-spin' : ''}`} />
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
-        )
+        </div>
       </CardContent>
     </Card>
   );
-};
+}
