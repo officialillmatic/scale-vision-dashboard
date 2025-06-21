@@ -631,7 +631,8 @@ if (!calls.length || !user?.id || loading || isProcessing) {
   const hasAudio = !!call.recording_url;
   const hasDuration = actualDuration > 0 || hasAudio;
   
-  const notProcessed = (!call.cost_usd || call.cost_usd === 0);
+  // ✅ NUEVA LÓGICA: Verificar si ya se descontó del balance
+const notProcessed = !lastProcessedRef.current.has(call.call_id);
   const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
   
   // ✅ FIX: Corregir la detección de rate
