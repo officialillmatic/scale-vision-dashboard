@@ -76,54 +76,78 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
   try {
     console.log(`💳 DESCUENTO REAL: $${callCost.toFixed(4)} para ${callId}`);
     
-    // 1. OBTENER BALANCE ACTUAL
-    const { data: currentUser, error: userError } = await supabase
-      .from('profiles')
-      .select('credit_balance')
-      .eq('id', userId)
+    // ✅ USAR RPC DEL SISTEMA UNIFICADO (como el webhook)
+    const { data, error } = await supabase.rpc('admin_adjust_user_credits', {
+      p_user_id: userId,
+      p_amount: -callCost, // Negativo para descuento
+      p_description: `Call cost: ${callId} (auto-processed from CallsSimple)`,
+      p_admin_id: 'callssimple-auto-processor'
+    });
+
+    if (!error) {
+      console.log(`✅ Créditos descontados vía RPC: $${callCost.toFixed(4)}`);
+      
+      // ✅ EMITIR EVENTO PARA ACTUALIZAR CreditBalance
+      window.dispatchEvent(new CustomEvent('balanceUpdated', { 
+        detail: { 
+          userId,
+          deduction: callCost,
+          callId: callId,
+          source: 'callssimple-auto-processing',
+          isDeduction: true,
+          difference: callCost
+        } 
+      }));
+      
+      return true;
+    }
+
+    console.error('❌ Error RPC, intentando descuento directo:', error);
+
+    // ✅ FALLBACK: Descuento directo en user_credits
+    const { data: currentCredit, error: creditError } = await supabase
+      .from('user_credits')
+      .select('current_balance')
+      .eq('user_id', userId)
       .single();
 
-    if (userError) {
-      console.error('❌ Error obteniendo balance actual:', userError);
+    if (creditError || !currentCredit) {
+      console.error(`❌ Usuario sin registro en user_credits:`, creditError);
       return false;
     }
 
-    const currentBalance = currentUser?.credit_balance || 0;
+    const currentBalance = currentCredit.current_balance || 0;
     const newBalance = Math.max(0, currentBalance - callCost);
     
-    console.log(`💰 Balance: $${currentBalance} → $${newBalance} (descuento: $${callCost})`);
+    console.log(`💰 Balance directo: $${currentBalance} → $${newBalance}`);
 
-    // 2. ACTUALIZAR BALANCE EN LA BASE DE DATOS
+    // Actualizar balance
     const { error: updateError } = await supabase
-      .from('profiles')
+      .from('user_credits')
       .update({ 
-        credit_balance: newBalance,
+        current_balance: newBalance,
         updated_at: new Date().toISOString()
       })
-      .eq('id', userId);
+      .eq('user_id', userId);
 
     if (updateError) {
       console.error('❌ Error actualizando balance:', updateError);
       return false;
     }
 
-    // 3. CREAR REGISTRO DE TRANSACCIÓN (opcional)
-    try {
-      await supabase
-        .from('credit_transactions')
-        .insert({
-          user_id: userId,
-          amount: -callCost,
-          transaction_type: 'call_cost',
-          description: `Call cost for ${callId}`,
-          reference_id: callId,
-          created_at: new Date().toISOString()
-        });
-    } catch (transactionError) {
-      console.warn('⚠️ Error creando transacción (no crítico):', transactionError);
-    }
+    // Crear transacción
+    await supabase.from('credit_transactions').insert({
+      user_id: userId,
+      amount: -callCost,
+      transaction_type: 'call_charge',
+      description: `Call cost: ${callId} (auto-processed fallback)`,
+      balance_after: newBalance,
+      created_by: 'callssimple-fallback',
+      reference_id: callId,
+      created_at: new Date().toISOString()
+    });
 
-    // 4. EMITIR EVENTO PARA ACTUALIZAR UI
+    // Emitir evento
     window.dispatchEvent(new CustomEvent('balanceUpdated', { 
       detail: { 
         userId,
@@ -131,13 +155,13 @@ const deductCallCost = async (callId: string, callCost: number, userId: string) 
         callId: callId,
         oldBalance: currentBalance,
         newBalance: newBalance,
-        source: 'automatic_call_processing',
+        source: 'callssimple-fallback',
         isDeduction: true,
         difference: callCost
       } 
     }));
     
-    console.log(`✅ DESCUENTO COMPLETADO: ${callId} - $${callCost.toFixed(4)}`);
+    console.log(`✅ DESCUENTO DIRECTO COMPLETADO: ${callId} - $${callCost.toFixed(4)}`);
     return true;
 
   } catch (error) {
@@ -705,19 +729,17 @@ export default function CallsSimple() {
     }
   }, [user?.id]);
 
-  /*
   // ✅ EFECTO CORREGIDO: Procesar llamadas automáticamente cuando cambien
-  useEffect(() => {
-    if (calls.length > 0 && user?.id && !loading) {
-      console.log('🔍 Verificando llamadas para procesamiento automático...');
-      const timeoutId = setTimeout(() => {
-        processNewCalls();
-      }, 1000); // Pequeño delay para evitar múltiples ejecuciones
+useEffect(() => {
+  if (calls.length > 0 && user?.id && !loading) {
+    console.log('🔍 Verificando llamadas para procesamiento automático...');
+    const timeoutId = setTimeout(() => {
+      processNewCalls();
+    }, 2000); // 2 segundos de delay
 
-      return () => clearTimeout(timeoutId);
-    }
-  }, [calls.length, user?.id]); // ✅ REMOVIDO loading de dependencias
-  */
+    return () => clearTimeout(timeoutId);
+  }
+}, [calls.length, user?.id]); // ✅ REMOVIDO loading de dependencias
 
   // REEMPLAZAR con un efecto pasivo que solo observe:
 useEffect(() => {
