@@ -600,6 +600,16 @@ export default function CallsSimple() {
   // ============================================================================
 
   const processNewCalls = async () => {
+    console.log('🤖 INICIANDO PROCESAMIENTO AUTOMÁTICO...');
+console.log(`📊 Total calls: ${calls.length}`);
+console.log(`👤 User ID: ${user?.id}`);
+console.log(`⏳ Loading: ${loading}`);
+console.log(`🔄 Is processing: ${isProcessing}`);
+
+if (!calls.length || !user?.id || loading || isProcessing) {
+  console.log('❌ SALIENDO - condiciones no cumplidas');
+  return;
+}
     if (!calls.length || !user?.id || loading || isProcessing) {
       return;
     }
@@ -612,13 +622,29 @@ export default function CallsSimple() {
   
   // ✅ CAMBIO PRINCIPAL: Usar getCallDuration en lugar de call.duration_sec
   const actualDuration = getCallDuration(call);
-  const hasDuration = actualDuration > 0;
+  const hasAudio = !!call.recording_url;
+const hasDuration = actualDuration > 0 || hasAudio; // ✅ PERMITIR si tiene audio
   
   const notProcessed = (!call.cost_usd || call.cost_usd === 0);
   const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
   const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
       
       const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
+      // ✅ AGREGAR LOG DETALLADO
+if (isCompleted && notProcessed && notProcessedYet) {
+  console.log(`🔍 ANÁLISIS LLAMADA ${call.call_id.substring(0, 8)}:`, {
+    status: call.call_status,
+    duration_bd: call.duration_sec,
+    audio_duration: audioDurations[call.id] || 'not loaded',
+    actual_duration: actualDuration,
+    has_audio: hasAudio,
+    has_duration: hasDuration,
+    current_cost: call.cost_usd,
+    has_rate: !!hasRate,
+    rate_value: call.call_agent?.rate_per_minute || call.agents?.rate_per_minute,
+    needs_processing: needsProcessing
+  });
+}
       
       if (needsProcessing) {
         console.log(`🎯 Llamada necesita procesamiento: ${call.call_id}`, {
@@ -735,31 +761,14 @@ useEffect(() => {
     console.log('🔍 Verificando llamadas para procesamiento automático...');
     const timeoutId = setTimeout(() => {
       processNewCalls();
-    }, 2000); // 2 segundos de delay
+    }, 5000); // 2 segundos de delay
 
     return () => clearTimeout(timeoutId);
   }
 }, [calls.length, user?.id]); // ✅ REMOVIDO loading de dependencias
 
   // REEMPLAZAR con un efecto pasivo que solo observe:
-useEffect(() => {
-  if (calls.length > 0 && user?.id && !loading) {
-    console.log('📊 MODO PASIVO: Webhook de Retell maneja el procesamiento automático');
-    console.log(`📞 ${calls.length} llamadas cargadas desde BD`);
-    
-    // Solo observar y reportar estadísticas
-    const needsProcessing = calls.filter(call => {
-      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
-      const hasNoCost = (!call.cost_usd || call.cost_usd === 0);
-      return isCompleted && hasNoCost;
-    });
-    
-    if (needsProcessing.length > 0) {
-      console.log(`⚠️ ${needsProcessing.length} llamadas sin costo - deberían ser procesadas por webhook`);
-      // Solo observar, no procesar
-    }
-  }
-}, [calls.length, user?.id, loading]);
+
 
   // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
