@@ -52,7 +52,7 @@ interface Call {
   };
 }
 
-// ✅ NUEVA interfaz para agente
+// ✅ INTERFAZ para agente (compatible con CallsSimple.tsx)
 interface Agent {
   id: string;
   name: string;
@@ -67,48 +67,79 @@ interface CallDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   audioDuration?: number;
-  // ✅ NUEVOS props para pasar información de agentes
+  // ✅ Props para integración con CallsSimple.tsx
   userAssignedAgents?: Agent[];
   getAgentNameFunction?: (agentId: string) => string;
 }
-
-// ✅ FUNCIÓN PARA CALCULAR COSTO CORRECTO
-const calculateCallCost = (call: Call, audioDurationParam?: number) => {
-  const getCallDuration = (call: any) => {
-    // PRIORIDAD 1: Usar audioDurationParam si se pasa
-    if (audioDurationParam && audioDurationParam > 0) {
-      return audioDurationParam;
-    }
-    
-    const possibleFields = ['duration_sec', 'duration', 'call_duration', 'length', 'time_duration', 'total_duration'];
-    for (const field of possibleFields) {
-      if (call[field] && call[field] > 0) {
-        return call[field];
-      }
-    }
-    return 0;
-  };
-
-  const durationMinutes = getCallDuration(call) / 60;
-  const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute || 0;
-  
-  console.log(`💰 Modal calculateCallCost: duration=${getCallDuration(call)}s, rate=$${agentRate}/min, result=$${(durationMinutes * agentRate).toFixed(2)}`);
-  
-  if (agentRate === 0) {
-    console.warn(`Modal: No agent rate found for call ${call.call_id?.substring(0, 8)}, using original cost`);
-    return Math.round((call.cost_usd || 0) * 10000) / 10000;
+// ✅ FUNCIÓN CORREGIDA: getCallDuration (alineada con CallsSimple.tsx)
+const getCallDuration = (call: any, audioDurationParam?: number) => {
+  // PRIORIDAD 1: Audio duration del parent (CallsSimple.tsx)
+  if (audioDurationParam && audioDurationParam > 0) {
+    console.log(`🎵 Modal - Using passed audio duration: ${audioDurationParam}s`);
+    return audioDurationParam;
   }
   
-  return Math.round((durationMinutes * agentRate) * 10000) / 10000;
+  // PRIORIDAD 2: duration_sec de BD (como CallsSimple.tsx)
+  if (call.duration_sec && call.duration_sec > 0) {
+    console.log(`📊 Modal - Using BD duration: ${call.duration_sec}s`);
+    return call.duration_sec;
+  }
+  
+  console.log("⚠️ Modal - No duration found, using 0");
+  return 0;
 };
 
+// ✅ FUNCIÓN CORREGIDA: calculateCallCost (exactamente como CallsSimple.tsx)
+const calculateCallCost = (call: Call, audioDurationParam?: number) => {
+  console.log(`💰 Modal calculateCallCost para ${call.call_id?.substring(0, 8)}:`, {
+    existing_cost: call.cost_usd,
+    duration_sec: call.duration_sec,
+    audio_duration: audioDurationParam,
+    agent_rate: call.call_agent?.rate_per_minute || call.agents?.rate_per_minute
+  });
+
+  // 1. Si ya tiene un costo válido en BD, usarlo
+  if (call.cost_usd && call.cost_usd > 0) {
+    console.log(`✅ Modal - Using existing cost: $${call.cost_usd}`);
+    return call.cost_usd;
+  }
+  
+  // 2. Obtener duración usando la misma lógica que CallsSimple.tsx
+  const duration = getCallDuration(call, audioDurationParam);
+  if (duration === 0) {
+    console.log(`⚠️ Modal - No duration, cost = $0`);
+    return 0;
+  }
+  
+  const durationMinutes = duration / 60;
+  
+  // 3. Buscar tarifa del agente (misma prioridad que CallsSimple.tsx)
+  let agentRate = 0;
+  
+  if (call.call_agent?.rate_per_minute) {
+    agentRate = call.call_agent.rate_per_minute;
+    console.log(`✅ Modal - Using call_agent rate: $${agentRate}/min`);
+  } else if (call.agents?.rate_per_minute) {
+    agentRate = call.agents.rate_per_minute;
+    console.log(`✅ Modal - Using agents rate: $${agentRate}/min`);
+  } else {
+    console.log(`❌ Modal - No agent rate found, cost = $0`);
+    return 0;
+  }
+  
+  // 4. Calcular costo
+  const calculatedCost = durationMinutes * agentRate;
+  console.log(`🧮 Modal - Calculated cost: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${calculatedCost.toFixed(4)}`);
+  
+  return calculatedCost;
+};
 export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   call,
   isOpen,
   onClose,
   audioDuration,
-  userAssignedAgents = [], // ✅ NUEVO
-  getAgentNameFunction, // ✅ NUEVO
+  userAssignedAgents = [],
+  getAgentNameFunction,
 }) => {
   const [copied, setCopied] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -116,7 +147,7 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
   const [duration, setDuration] = useState(0);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
-  // ✅ FUNCIÓN LOCAL para obtener nombre de agente (REEMPLAZA el hook useAgents)
+  // ✅ FUNCIÓN LOCAL para obtener nombre de agente (compatible con CallsSimple.tsx)
   const getAgentName = (agentId: string): string => {
     console.log(`🔍 Modal - getAgentName buscando: ${agentId}`);
     console.log(`🔍 Modal - userAssignedAgents disponibles:`, userAssignedAgents);
@@ -174,7 +205,6 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     
     return null;
   };
-
   // Audio setup
   useEffect(() => {
     if (call?.recording_url) {
@@ -209,43 +239,12 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     }
   };
 
-  // Helper function to get actual duration from call object or audio
-  const getCallDuration = (call: any) => {
-    // First try to get duration from passed audio duration
-    if (audioDuration) {
-      console.log(`🎵 Modal - Using passed audio duration: ${audioDuration}s`);
-      return audioDuration;
-    }
-    
-    // Try different possible duration fields from database
-    const possibleFields = [
-      'duration_sec',
-      'duration', 
-      'call_duration',
-      'length',
-      'time_duration',
-      'total_duration'
-    ];
-    
-    for (const field of possibleFields) {
-      if (call[field] && call[field] > 0) {
-        console.log(`🎵 Modal - Found non-zero duration in field '${field}':`, call[field]);
-        return call[field];
-      }
-    }
-    
-    console.log("🎵 Modal - No duration found, using 0");
-    return 0;
-  };
-
-  // Fixed duration formatting - same as in CallsSimple.tsx with debug
+  // ✅ FUNCIÓN formatDuration CORREGIDA (exactamente como CallsSimple.tsx)
   const formatDuration = (seconds: number) => {
-    // Handle null, undefined, or non-numeric values
     if (seconds === null || seconds === undefined || isNaN(seconds)) {
       return "0:00";
     }
     
-    // Convert to number if it's a string
     const numSeconds = Number(seconds);
     if (numSeconds === 0) {
       return "0:00";
@@ -264,18 +263,17 @@ export const CallDetailModal: React.FC<CallDetailModalProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // ✅ FUNCIÓN formatCurrency CORREGIDA con 4 decimales máximo
-const formatCurrency = (amount: number) => {
-  // Redondear a 4 decimales para evitar problemas de precisión flotante
-  const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
-  
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
-  }).format(roundedAmount);
-};
+  // ✅ FUNCIÓN formatCurrency CORREGIDA (exactamente como CallsSimple.tsx)
+  const formatCurrency = (amount: number) => {
+    const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
+    
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    }).format(roundedAmount);
+  };
 
   const formatDate = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-US', {
@@ -287,7 +285,6 @@ const formatCurrency = (amount: number) => {
       second: '2-digit',
     });
   };
-
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed':
@@ -363,7 +360,6 @@ const formatCurrency = (amount: number) => {
     userAssignedAgents: userAssignedAgents,
     hasGetAgentNameFunction: !!getAgentNameFunction
   });
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
@@ -406,7 +402,7 @@ const formatCurrency = (amount: number) => {
                       <Clock className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">Duration:</span>
                       <span className="text-sm font-bold text-blue-600">
-                        {formatDuration(getCallDuration(call))}
+                        {formatDuration(getCallDuration(call, audioDuration))}
                         {audioDuration && <span className="text-xs text-gray-500 ml-1">(from audio)</span>}
                       </span>
                     </div>
@@ -486,7 +482,6 @@ const formatCurrency = (amount: number) => {
                 </CardContent>
               </Card>
             </TabsContent>
-
             <TabsContent value="analysis" className="space-y-4">
               <Card>
                 <CardHeader>
@@ -565,7 +560,7 @@ const formatCurrency = (amount: number) => {
                       <Clock className="h-6 w-6 text-blue-600 mx-auto mb-1" />
                       <div className="text-sm font-medium text-blue-800">Duration</div>
                       <div className="text-lg font-bold text-blue-900">
-                        {formatDuration(getCallDuration(call))}
+                        {formatDuration(getCallDuration(call, audioDuration))}
                       </div>
                     </div>
                     <div className="p-3 bg-green-50 rounded-lg">
@@ -586,7 +581,6 @@ const formatCurrency = (amount: number) => {
                 </CardContent>
               </Card>
             </TabsContent>
-
             <TabsContent value="transcript" className="space-y-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
