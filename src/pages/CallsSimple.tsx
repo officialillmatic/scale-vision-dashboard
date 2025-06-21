@@ -324,21 +324,21 @@ export default function CallsSimple() {
   // ============================================================================
   
   const getCallDuration = (call: any) => {
-    // ✅ PRIORIZAR duración del audio (más precisa)
-    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
-      console.log(`🎵 Usando duración de audio: ${audioDurations[call.id]}s para ${call.call_id?.substring(0, 8)}`);
-      return audioDurations[call.id];
-    }
-    
-    // Fallback a duration_sec de la BD
-    if (call.duration_sec && call.duration_sec > 0) {
-      console.log(`📊 Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
-      return call.duration_sec;
-    }
-    
-    console.log(`⚠️ Sin duración disponible para ${call.call_id?.substring(0, 8)}`);
-    return 0;
-  };
+  // ✅ PRIORIZAR duración del audio (más precisa)
+  if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+    console.log(`🎵 Usando duración de audio: ${audioDurations[call.id]}s para ${call.call_id?.substring(0, 8)}`);
+    return audioDurations[call.id];
+  }
+  
+  // Fallback a duration_sec de la BD
+  if (call.duration_sec && call.duration_sec > 0) {
+    console.log(`📊 Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
+    return call.duration_sec;
+  }
+  
+  console.log(`⚠️ Sin duración disponible para ${call.call_id?.substring(0, 8)}`);
+  return 0;
+};
 
   // ✅ FUNCIÓN CORREGIDA: calculateCallCost
   const calculateCallCost = (call: Call) => {
