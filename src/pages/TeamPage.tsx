@@ -1405,11 +1405,11 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
               <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
                 <TabsList className="grid w-full max-w-2xl grid-cols-5 bg-gray-100/80 p-1 rounded-lg"
                   {/* COMENTADO: Pestaña Miembros
-                  <TabsTrigger value="members" className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    <span className="hidden sm:inline">Miembros</span>
-                  </TabsTrigger>
-                  */}
+  <TabsTrigger value="members" className="flex items-center gap-2">
+    <Users className="h-4 w-4" />
+    <span className="hidden sm:inline">Miembros</span>
+  </TabsTrigger>
+*/}
                   <TabsTrigger value="registered-users" className="flex items-center gap-2">
   <User className="h-4 w-4" />
   <span className="hidden sm:inline">Usuarios</span>
