@@ -705,6 +705,7 @@ export default function CallsSimple() {
     }
   }, [user?.id]);
 
+  /*
   // ✅ EFECTO CORREGIDO: Procesar llamadas automáticamente cuando cambien
   useEffect(() => {
     if (calls.length > 0 && user?.id && !loading) {
@@ -716,6 +717,27 @@ export default function CallsSimple() {
       return () => clearTimeout(timeoutId);
     }
   }, [calls.length, user?.id]); // ✅ REMOVIDO loading de dependencias
+  */
+
+  // REEMPLAZAR con un efecto pasivo que solo observe:
+useEffect(() => {
+  if (calls.length > 0 && user?.id && !loading) {
+    console.log('📊 MODO PASIVO: Webhook de Retell maneja el procesamiento automático');
+    console.log(`📞 ${calls.length} llamadas cargadas desde BD`);
+    
+    // Solo observar y reportar estadísticas
+    const needsProcessing = calls.filter(call => {
+      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+      const hasNoCost = (!call.cost_usd || call.cost_usd === 0);
+      return isCompleted && hasNoCost;
+    });
+    
+    if (needsProcessing.length > 0) {
+      console.log(`⚠️ ${needsProcessing.length} llamadas sin costo - deberían ser procesadas por webhook`);
+      // Solo observar, no procesar
+    }
+  }
+}, [calls.length, user?.id, loading]);
 
   // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
