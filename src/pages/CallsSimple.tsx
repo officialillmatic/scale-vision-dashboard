@@ -620,45 +620,48 @@ if (!calls.length || !user?.id || loading || isProcessing) {
     const callsNeedingProcessing = calls.filter(call => {
   const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
   
-  // ✅ CAMBIO PRINCIPAL: Usar getCallDuration en lugar de call.duration_sec
+  // ✅ USAR getCallDuration pero permitir 0 si tiene audio
   const actualDuration = getCallDuration(call);
   const hasAudio = !!call.recording_url;
-const hasDuration = actualDuration > 0 || hasAudio; // ✅ PERMITIR si tiene audio
+  const hasDuration = actualDuration > 0 || hasAudio;
   
   const notProcessed = (!call.cost_usd || call.cost_usd === 0);
   const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
-  const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-      
-      const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
-      // ✅ AGREGAR LOG DETALLADO
-if (isCompleted && notProcessed && notProcessedYet) {
-  console.log(`🔍 ANÁLISIS LLAMADA ${call.call_id.substring(0, 8)}:`, {
-    status: call.call_status,
-    duration_bd: call.duration_sec,
-    audio_duration: audioDurations[call.id] || 'not loaded',
-    actual_duration: actualDuration,
-    has_audio: hasAudio,
-    has_duration: hasDuration,
-    current_cost: call.cost_usd,
-    has_rate: !!hasRate,
-    rate_value: call.call_agent?.rate_per_minute || call.agents?.rate_per_minute,
-    needs_processing: needsProcessing
-  });
-}
-      
-      if (needsProcessing) {
-        console.log(`🎯 Llamada necesita procesamiento: ${call.call_id}`, {
-  status: call.call_status,
-  duration_sec_bd: call.duration_sec,         // BD (siempre 0)
-  actual_duration: actualDuration,            // Audio real
-  currentCost: call.cost_usd,
-  hasRate: !!hasRate
-});
+  
+  // ✅ FIX: Corregir la detección de rate
+  const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+  const hasRate = agentRate && agentRate > 0;
+  
+  const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
+  
+  // ✅ LOGS DETALLADOS CORREGIDOS
+  if (isCompleted && notProcessed && notProcessedYet) {
+    console.log(`🔍 ANÁLISIS LLAMADA ${call.call_id.substring(0, 8)}:`, {
+      status: call.call_status,
+      duration_bd: call.duration_sec,
+      audio_duration: audioDurations[call.id] || 'not loaded',
+      actual_duration: actualDuration,
+      has_audio: hasAudio,
+      has_duration: hasDuration,
+      current_cost: call.cost_usd,
+      has_rate: hasRate,
+      rate_value: agentRate,
+      needs_processing: needsProcessing,
+      // 🔧 DEBUGGING EXTRA:
+      not_processed: notProcessed,
+      not_processed_yet: notProcessedYet,
+      all_conditions: {
+        isCompleted,
+        hasDuration, 
+        notProcessed,
+        notProcessedYet,
+        hasRate
       }
-      
-      return needsProcessing;
     });
-
+  }
+  
+  return needsProcessing;
+});
     if (callsNeedingProcessing.length === 0) {
       console.log('✅ No hay llamadas nuevas para procesar');
       return;
