@@ -630,7 +630,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       <div className="absolute top-2 right-2 z-10">
         <div className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
           <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-          <span>Webhook</span>
+          <span>System active</span>
         </div>
       </div>
 
@@ -875,11 +875,11 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span>Webhook System Active</span>
+                  <span>DrScale System Active</span>
                   <span className="text-blue-600">• Real-time processing</span>
                 </div>
                 <div className="flex items-center space-x-4">
-                  <span>Balance from: user_credits table</span>
+                  <span>Balance from: user credits</span>
                   <span>Last sync: {new Date().toLocaleTimeString()}</span>
                 </div>
               </div>
