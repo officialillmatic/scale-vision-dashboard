@@ -589,6 +589,12 @@ export default function CallsSimple() {
 
     setCalls(mappedCalls || []);
 
+    // ✅ PROCESAR DESPUÉS DE CARGAR AUDIOS
+setTimeout(() => {
+  console.log('🔄 Procesando llamadas después de cargar audios...');
+  processNewCalls();
+}, 2000);
+
   } catch (err: any) {
     console.error("❌ Excepción en fetch calls:", err);
     setError(`Exception: ${err.message}`);
@@ -758,17 +764,6 @@ if (!calls.length || !user?.id || loading || isProcessing) {
     }
   }, [user?.id]);
 
-  // ✅ EFECTO CORREGIDO: Procesar llamadas automáticamente cuando cambien
-useEffect(() => {
-  if (calls.length > 0 && user?.id && !loading) {
-    console.log('🔍 Verificando llamadas para procesamiento automático...');
-    const timeoutId = setTimeout(() => {
-      processNewCalls();
-    }, 5000); // 2 segundos de delay
-
-    return () => clearTimeout(timeoutId);
-  }
-}, [calls.length, user?.id]); // ✅ REMOVIDO loading de dependencias
 
   // REEMPLAZAR con un efecto pasivo que solo observe:
 
