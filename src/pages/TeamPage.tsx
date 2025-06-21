@@ -138,7 +138,7 @@ export default function TeamPage() {
   const { user } = useAuth();
   
   // Estados principales
-  const [activeTab, setActiveTab] = useState('members');
+  const [activeTab, setActiveTab] = useState('registered-users');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -1322,25 +1322,28 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Users className="h-4 w-4 text-blue-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Miembros del Equipo</p>
-                  <p className="text-xl font-bold">{stats.totalMembers}</p>
-                  <p className="text-xs text-green-600">{stats.activeMembers} activos</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          
+          {/* COMENTADO: Estadística de Miembros del Equipo
+<Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+  <CardContent className="p-4">
+    <div className="flex items-center space-x-2">
+      <Users className="h-4 w-4 text-blue-500" />
+      <div>
+        <p className="text-xs text-muted-foreground">Miembros del Equipo</p>
+        <p className="text-xl font-bold">{stats.totalMembers}</p>
+        <p className="text-xs text-green-600">{stats.activeMembers} activos</p>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+*/}
 
           <Card className="border-0 shadow-sm bg-gradient-to-br from-cyan-50 to-cyan-100/50">
   <CardContent className="p-4">
     <div className="flex items-center space-x-2">
       <User className="h-4 w-4 text-cyan-500" />
       <div>
-        <p className="text-xs text-muted-foreground">Usuarios Registrados</p>
+        <p className="text-xs text-muted-foreground">Usuarios</p>
         <p className="text-xl font-bold">{stats.totalRegistered}</p>
         <p className="text-xs text-green-600">{stats.activeRegistered} activos</p>
       </div>
@@ -1400,14 +1403,16 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
             <CardHeader className="pb-2">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-                <TabsList className="grid w-full max-w-2xl grid-cols-6 bg-gray-100/80 p-1 rounded-lg">
+                <TabsList className="grid w-full max-w-2xl grid-cols-5 bg-gray-100/80 p-1 rounded-lg"
+                  {/* COMENTADO: Pestaña Miembros
                   <TabsTrigger value="members" className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     <span className="hidden sm:inline">Miembros</span>
                   </TabsTrigger>
+                  */}
                   <TabsTrigger value="registered-users" className="flex items-center gap-2">
   <User className="h-4 w-4" />
-  <span className="hidden sm:inline">Registrados</span>
+  <span className="hidden sm:inline">Usuarios</span>
 </TabsTrigger>
                   <TabsTrigger value="invitations" className="flex items-center gap-2">
                     <Mail className="h-4 w-4" />
@@ -1453,6 +1458,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
 
             <CardContent>
               {/* Tab: Miembros del Equipo */}
+              {/* COMENTADO: Tab Content de Miembros
               <TabsContent value="members" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Miembros del Equipo ({filteredMembers.length})</h3>
@@ -1524,10 +1530,13 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                   </div>
                 )}
               </TabsContent>
+              */}
+              
               {/* Tab: Usuarios Registrados */}
               <TabsContent value="registered-users" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Usuarios Registrados ({filteredRegisteredUsers.length})</h3>
+                  <h3 className="text-lg font-semibold">Usuarios ({filteredRegisteredUsers.length})</h3>
+
                   <div className="flex gap-2">
                     <Button onClick={fetchAllRegisteredUsers} variant="outline" size="sm" disabled={loading}>
                       <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -1541,14 +1550,13 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                 </div>
 
                 <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3">
-                  <div className="flex items-start gap-2">
-                    <User className="h-4 w-4 text-cyan-600 mt-0.5" />
-                    <div className="text-sm text-cyan-800">
-                      <strong>Usuarios Registrados:</strong> Aquí aparecen TODOS los usuarios que se han registrado en la plataforma, 
-                      incluyendo aquellos que se registraron directamente sin invitación.
-                    </div>
-                  </div>
-                </div>
+  <div className="flex items-start gap-2">
+    <User className="h-4 w-4 text-cyan-600 mt-0.5" />
+    <div className="text-sm text-cyan-800">
+      <strong>Usuarios:</strong> Aquí aparecen TODOS los usuarios que se han registrado con o sin invitación en la plataforma.
+    </div>
+  </div>
+</div>
 
                 {filteredRegisteredUsers.length === 0 ? (
                   <div className="text-center py-8">
