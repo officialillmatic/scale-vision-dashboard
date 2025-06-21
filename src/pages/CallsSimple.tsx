@@ -3,47 +3,52 @@ import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { CallDetailModal } from "@/components/calls/CallDetailModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/contexts/AuthContext";
 import { 
-  Phone, 
+  Phone,
   Clock, 
   DollarSign, 
   User, 
   Calendar, 
-  ChevronDown, 
-  ChevronUp, 
-  RefreshCw, 
-  Zap,
-  CreditCard,
   Search,
+  FileText,
+  PlayCircle,
+  TrendingUp,
   Filter,
+  Eye,
+  ArrowUpDown,
+  Volume2,
   Download,
-  ExternalLink,
-  AlertCircle,
-  CheckCircle
+  CalendarDays,
+  ChevronDown,
+  Users
 } from "lucide-react";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAgents } from "@/hooks/useAgents";
 
 // ============================================================================
 // INTERFACES Y TIPOS
 // ============================================================================
-
-interface CallData {
+interface Call {
   id: string;
   call_id: string;
   user_id: string;
+  agent_id: string;
+  company_id: string;
+  timestamp: string;
+  duration_sec: number;
+  cost_usd: number;
   call_status: string;
-  start_timestamp: string;
-  end_timestamp?: string;
-  duration_sec?: number;
-  cost_usd?: number;
+  from_number: string;
+  to_number: string;
+  transcript?: string;
+  call_summary?: string;
+  sentiment?: string;
   recording_url?: string;
-  summary?: string;
-  agent_id?: string;
-  call_analysis?: any;
+  end_reason?: string;
   call_agent?: {
     id: string;
     name: string;
@@ -56,330 +61,354 @@ interface CallData {
   };
 }
 
-interface CustomAgentData {
-  id: string;
-  name: string;
-  retell_agent_id: string;
-  rate_per_minute: number;
-  is_primary?: boolean;
-  assigned_at?: string;
-}
+type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
+type SortOrder = 'asc' | 'desc';
+type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
 // ============================================================================
-// FUNCIÓN DE DESCUENTO SINCRONIZADA CON SUPERADMIN
+// FUNCIÓN SIMPLIFICADA DE DESCUENTO (SOLO EVENTOS)
 // ============================================================================
+const deductCallCost = async (callId: string, callCost: number, userId: string) => {
+  if (!callCost || callCost <= 0) {
+    console.log(`⚠️ No se descuenta - costo inválido: $${callCost}`);
+    return false;
+  }
 
-const deductCallCost = async (callId: string, callCost: number, userId: string): Promise<boolean> => {
   try {
-    console.log(`💳 INICIANDO DESCUENTO: Call ${callId.substring(0, 8)} - $${callCost.toFixed(4)}`);
+    console.log(`💳 DESCUENTO REAL: $${callCost.toFixed(4)} para ${callId}`);
     
-    // 1. Obtener balance actual desde user_credits
+    // 1. OBTENER BALANCE ACTUAL
     const { data: currentUser, error: userError } = await supabase
-      .from('user_credits')
-      .select('current_balance')  // ✅ COLUMNA CORRECTA
-      .eq('user_id', userId)
+      .from('profiles')
+      .select('credit_balance')
+      .eq('id', userId)
       .single();
 
     if (userError) {
-      console.error('❌ Error obteniendo balance:', userError);
+      console.error('❌ Error obteniendo balance actual:', userError);
       return false;
     }
 
-    const currentBalance = currentUser?.current_balance || 0;
-    console.log(`💰 Balance actual: $${currentBalance.toFixed(4)}`);
+    const currentBalance = currentUser?.credit_balance || 0;
+    const newBalance = Math.max(0, currentBalance - callCost);
+    
+    console.log(`💰 Balance: $${currentBalance} → $${newBalance} (descuento: $${callCost})`);
 
-    // 2. Verificar fondos suficientes
-    if (currentBalance < callCost) {
-      console.warn(`⚠️ Fondos insuficientes: $${currentBalance.toFixed(4)} < $${callCost.toFixed(4)}`);
-      return false;
-    }
-
-    // 3. Calcular nuevo balance
-    const newBalance = currentBalance - callCost;
-    console.log(`🧮 Nuevo balance: $${newBalance.toFixed(4)}`);
-
-    // 4. Actualizar balance en user_credits (SINCRONIZADO CON ADMIN PANEL)
+    // 2. ACTUALIZAR BALANCE EN LA BASE DE DATOS
     const { error: updateError } = await supabase
-      .from('user_credits')
+      .from('profiles')
       .update({ 
-        current_balance: newBalance,  // ✅ COLUMNA CORRECTA
+        credit_balance: newBalance,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', userId);
+      .eq('id', userId);
 
     if (updateError) {
       console.error('❌ Error actualizando balance:', updateError);
       return false;
     }
 
-    console.log(`✅ DESCUENTO COMPLETADO: ${callId.substring(0, 8)} - $${callCost.toFixed(4)}`);
-    
-    // 5. Emitir evento para actualizar UI
-    window.dispatchEvent(new CustomEvent('balanceUpdated', {
-      detail: { 
-        newBalance, 
-        deduction: callCost, 
-        callId: callId.substring(0, 8) 
-      }
-    }));
+    // 3. CREAR REGISTRO DE TRANSACCIÓN (opcional)
+    try {
+      await supabase
+        .from('credit_transactions')
+        .insert({
+          user_id: userId,
+          amount: -callCost,
+          transaction_type: 'call_cost',
+          description: `Call cost for ${callId}`,
+          reference_id: callId,
+          created_at: new Date().toISOString()
+        });
+    } catch (transactionError) {
+      console.warn('⚠️ Error creando transacción (no crítico):', transactionError);
+    }
 
+    // 4. EMITIR EVENTO PARA ACTUALIZAR UI
+    window.dispatchEvent(new CustomEvent('balanceUpdated', { 
+      detail: { 
+        userId,
+        deduction: callCost,
+        callId: callId,
+        oldBalance: currentBalance,
+        newBalance: newBalance,
+        source: 'automatic_call_processing',
+        isDeduction: true,
+        difference: callCost
+      } 
+    }));
+    
+    console.log(`✅ DESCUENTO COMPLETADO: ${callId} - $${callCost.toFixed(4)}`);
     return true;
 
   } catch (error) {
-    console.error('❌ Error en descuento:', error);
+    console.error('💥 Error en descuento real:', error);
     return false;
   }
 };
 // ============================================================================
 // COMPONENTE FILTRO DE AGENTES
 // ============================================================================
+const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const selectedAgentName = selectedAgent 
+    ? agents.find(agent => agent.id === selectedAgent)?.name || 'Unknown Agent'
+    : 'All Agents';
 
-const AgentFilter = ({ agents, selectedAgent, onAgentChange }: {
-  agents: any[];
-  selectedAgent: string;
-  onAgentChange: (agentId: string) => void;
-}) => (
-  <div className="relative">
-    <select 
-      value={selectedAgent}
-      onChange={(e) => onAgentChange(e.target.value)}
-      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm appearance-none cursor-pointer"
-    >
-      <option value="">All Agents</option>
-      {agents.map((agent) => (
-        <option key={agent.id} value={agent.id}>
-          {agent.name}
-        </option>
-      ))}
-    </select>
-    <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-  </div>
-);
+  if (isLoading) {
+    return (
+      <div className="relative">
+        <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm font-medium text-gray-500 min-w-[160px]">
+          <User className="w-4 h-4" />
+          <span>Loading agents...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!agents || agents.length === 0) {
+    return (
+      <div className="relative">
+        <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-sm font-medium text-gray-500 min-w-[160px]">
+          <User className="w-4 h-4" />
+          <span>No agents assigned</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-w-[160px]"
+      >
+        <User className="w-4 h-4" />
+        <span className="truncate flex-1 text-left">{selectedAgentName}</span>
+        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+          <div className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+            <div className="py-1 max-h-60 overflow-y-auto">
+              <button
+                onClick={() => {
+                  onAgentChange(null);
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${
+                  selectedAgent === null ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Users className="w-4 h-4" />
+                  <div>
+                    <div className="font-medium">All Agents</div>
+                    <div className="text-xs text-gray-500">Show all calls</div>
+                  </div>
+                </div>
+              </button>
+              
+              {agents.length > 0 && <hr className="my-1" />}
+              
+              {agents.map((agent) => (
+                <button
+                  key={agent.id}
+                  onClick={() => {
+                    onAgentChange(agent.id);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${
+                    selectedAgent === agent.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <User className="w-4 h-4" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{agent.name}</div>
+                      <div className="text-xs text-gray-500 truncate">
+                        ID: {agent.id.substring(0, 12)}...
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 // ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
-
 export default function CallsSimple() {
   const { user } = useAuth();
+  const { getAgentName, isLoadingAgents } = useAgents();
   
-  // ============================================================================
-  // ESTADOS PRINCIPALES
-  // ============================================================================
-  
-  const [calls, setCalls] = useState<CallData[]>([]);
-  const [filteredCalls, setFilteredCalls] = useState<CallData[]>([]);
+  // Estados básicos del componente
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userAssignedAgents, setUserAssignedAgents] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [agentFilter, setAgentFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
-  const [customDate, setCustomDate] = useState("");
-  const [selectedCall, setSelectedCall] = useState<CallData | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [agentFilter, setAgentFilter] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>('timestamp');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
-  const [uniqueAgents, setUniqueAgents] = useState<any[]>([]);
-  
-  // Estados para estadísticas
-  const [totalCalls, setTotalCalls] = useState(0);
-  const [totalDuration, setTotalDuration] = useState(0);
-  const [totalCost, setTotalCost] = useState(0);
-  const [avgDuration, setAvgDuration] = useState(0);
-  const [completedCalls, setCompletedCalls] = useState(0);
-  
-  // Estados para balance (CORREGIDOS)
-  const [userBalance, setUserBalance] = useState<number | null>(null);
-  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [customDate, setCustomDate] = useState<string>('');
+  const [stats, setStats] = useState({
+    total: 0,
+    totalCost: 0,
+    totalDuration: 0,
+    avgDuration: 0,
+    completedCalls: 0
+  });
+
+  // Estados para procesamiento automático
   const [isProcessing, setIsProcessing] = useState(false);
-  
-  // Referencias
   const lastProcessedRef = useRef<Set<string>>(new Set());
+
+  // Variables auxiliares
+  const uniqueAgents = userAssignedAgents || [];
+
+  const getAgentNameLocal = (agentId) => {
+    const agent = userAssignedAgents.find(a => 
+      a.id === agentId || a.retell_agent_id === agentId
+    );
+    
+    if (agent) {
+      return agent.name;
+    }
+    
+    if (getAgentName) {
+      return getAgentName(agentId);
+    }
+    
+    return `Agent ${agentId.substring(0, 8)}...`;
+  };
   // ============================================================================
   // FUNCIONES AUXILIARES CORREGIDAS
   // ============================================================================
   
   const getCallDuration = (call: any) => {
-    // Prioridad 1: Duración desde el archivo de audio
-    if (audioDurations[call.id]) {
+    // ✅ PRIORIZAR duración del audio (más precisa)
+    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+      console.log(`🎵 Usando duración de audio: ${audioDurations[call.id]}s para ${call.call_id?.substring(0, 8)}`);
       return audioDurations[call.id];
     }
     
-    // Prioridad 2: Duración calculada desde timestamps
-    if (call.start_timestamp && call.end_timestamp) {
-      const start = new Date(call.start_timestamp);
-      const end = new Date(call.end_timestamp);
-      return Math.max(0, (end.getTime() - start.getTime()) / 1000);
-    }
-    
-    // Prioridad 3: Duración desde la base de datos
+    // Fallback a duration_sec de la BD
     if (call.duration_sec && call.duration_sec > 0) {
+      console.log(`📊 Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
       return call.duration_sec;
     }
     
+    console.log(`⚠️ Sin duración disponible para ${call.call_id?.substring(0, 8)}`);
     return 0;
   };
 
-  const calculateCallCost = (call: any): number => {
-    try {
-      // Obtener duración en segundos
-      const durationSec = getCallDuration(call);
-      if (durationSec <= 0) return 0;
-      
-      // Convertir a minutos
-      const durationMin = durationSec / 60;
-      
-      // Obtener tarifa por minuto
-      let ratePerMinute = 0;
-      if (call.call_agent?.rate_per_minute) {
-        ratePerMinute = call.call_agent.rate_per_minute;
-      } else if (call.agents?.rate_per_minute) {
-        ratePerMinute = call.agents.rate_per_minute;
-      }
-      
-      if (ratePerMinute <= 0) return 0;
-      
-      // Calcular costo
-      const cost = durationMin * ratePerMinute;
-      console.log(`🧮 Cálculo: ${durationSec}s (${durationMin.toFixed(2)}min) × $${ratePerMinute}/min = $${cost.toFixed(4)}`);
-      
-      return cost;
-    } catch (error) {
-      console.error('Error calculando costo:', error);
+  // ✅ FUNCIÓN CORREGIDA: calculateCallCost
+  const calculateCallCost = (call: Call) => {
+    console.log(`💰 Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
+      existing_cost: call.cost_usd,
+      duration_sec: call.duration_sec,
+      agent_id: call.agent_id,
+      call_agent_rate: call.call_agent?.rate_per_minute,
+      agents_rate: call.agents?.rate_per_minute
+    });
+
+    // 1. Si ya tiene un costo válido en BD, usarlo
+    if (call.cost_usd && call.cost_usd > 0) {
+      console.log(`✅ Usando costo existente de BD: $${call.cost_usd}`);
+      return call.cost_usd;
+    }
+    
+    // 2. Obtener duración
+    const duration = getCallDuration(call);
+    if (duration === 0) {
+      console.log(`⚠️ Sin duración, costo = $0`);
       return 0;
     }
-  };
-
-  // ✅ FUNCIÓN CORREGIDA: Cargar balance desde user_credits
-  const loadUserBalance = async () => {
-    if (!user?.id) return;
     
-    try {
-      setBalanceLoading(true);
-      
-      const { data: userCredit, error } = await supabase
-        .from('user_credits')
-        .select('current_balance')  // ✅ COLUMNA CORRECTA
-        .eq('user_id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Error cargando balance:', error);
-        return;
-      }
-
-      const balance = userCredit?.current_balance || 0;  // ✅ COLUMNA CORRECTA
-      setUserBalance(balance);
-      console.log(`💰 Balance cargado desde user_credits: $${balance.toFixed(4)}`);
-      
-    } catch (error) {
-      console.error('Error en loadUserBalance:', error);
-    } finally {
-      setBalanceLoading(false);
-    }
-  };
-
-  // ✅ FUNCIÓN: Escuchar actualizaciones de balance
-  const handleBalanceUpdate = (event: CustomEvent) => {
-    const { newBalance, deduction, callId } = event.detail;
-    console.log(`🎉 Balance actualizado: $${newBalance} (descuento: $${deduction} para ${callId})`);
-    setUserBalance(newBalance);
-  };
-  // ✅ FUNCIÓN MANUAL CORREGIDA PARA SINCRONIZACIÓN
-  const processCallsManually = async () => {
-    if (!user?.id || !calls.length) {
-      console.log('❌ No hay usuario o llamadas');
-      alert('No hay usuario autenticado o llamadas disponibles');
-      return;
-    }
-
-    console.log('🚀 PROCESAMIENTO MANUAL INICIADO');
-    setIsProcessing(true);
+    const durationMinutes = duration / 60;
     
-    try {
-      // 1. Buscar llamadas completadas sin costo
-      const callsToProcess = calls.filter(call => 
-        ['completed', 'ended'].includes(call.call_status?.toLowerCase()) &&
-        (!call.cost_usd || call.cost_usd === 0) &&
-        (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute)
+    // 3. Buscar tarifa del agente (priorizar call_agent, luego agents)
+    let agentRate = 0;
+    
+    if (call.call_agent?.rate_per_minute) {
+      agentRate = call.call_agent.rate_per_minute;
+      console.log(`✅ Usando tarifa de call_agent: $${agentRate}/min`);
+    } else if (call.agents?.rate_per_minute) {
+      agentRate = call.agents.rate_per_minute;
+      console.log(`✅ Usando tarifa de agents: $${agentRate}/min`);
+    } else {
+      // Buscar en userAssignedAgents como fallback
+      const userAgent = userAssignedAgents.find(agent => 
+        agent.id === call.agent_id || 
+        agent.retell_agent_id === call.agent_id
       );
-
-      console.log(`📞 Encontradas ${callsToProcess.length} llamadas para procesar`);
-
-      if (callsToProcess.length === 0) {
-        alert('No hay llamadas nuevas para procesar');
-        setIsProcessing(false);
-        return;
-      }
-
-      let processedCount = 0;
-      let errors = 0;
-
-      // 2. Procesar cada llamada
-      for (const call of callsToProcess) {
-        try {
-          console.log(`⚡ Procesando: ${call.call_id?.substring(0, 8)}`);
-          
-          // Calcular costo
-          const cost = calculateCallCost(call);
-          
-          if (cost > 0) {
-            console.log(`💰 Costo calculado: $${cost.toFixed(4)}`);
-            
-            // Actualizar costo en BD
-            const { error: updateError } = await supabase
-              .from('calls')
-              .update({ 
-                cost_usd: cost,
-                updated_at: new Date().toISOString()
-              })
-              .eq('call_id', call.call_id);
-
-            if (updateError) {
-              console.error('❌ Error actualizando call:', updateError);
-              errors++;
-              continue;
-            }
-
-            // Descontar del balance (SINCRONIZADO CON ADMIN PANEL)
-            const deductSuccess = await deductCallCost(call.call_id, cost, user.id);
-            
-            if (deductSuccess) {
-              console.log(`✅ ÉXITO: ${call.call_id?.substring(0, 8)} - $${cost.toFixed(4)}`);
-              processedCount++;
-            } else {
-              console.log(`❌ Error en descuento: ${call.call_id?.substring(0, 8)}`);
-              errors++;
-            }
-          } else {
-            console.log(`⚠️ Costo $0 para: ${call.call_id?.substring(0, 8)}`);
-          }
-          
-          // Pausa entre llamadas para evitar sobrecarga
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-        } catch (error) {
-          console.error(`❌ Error procesando ${call.call_id}:`, error);
-          errors++;
-        }
-      }
-
-      console.log(`🎉 PROCESAMIENTO MANUAL COMPLETADO: ${processedCount} éxitos, ${errors} errores`);
       
-      // Recargar datos
-      await fetchCalls();
-      await loadUserBalance();
-      
-      // Mostrar resultado
-      if (processedCount > 0) {
-        alert(`✅ Procesadas ${processedCount} llamadas exitosamente!\n${errors > 0 ? `❌ ${errors} errores` : ''}`);
+      if (userAgent?.rate_per_minute) {
+        agentRate = userAgent.rate_per_minute;
+        console.log(`✅ Usando tarifa de userAssignedAgents: $${agentRate}/min`);
       } else {
-        alert(`❌ No se procesaron llamadas. Revisa la consola para detalles.`);
+        console.log(`❌ Sin tarifa disponible, costo = $0`);
+        return 0;
       }
+    }
+    
+    // 4. Calcular costo
+    const calculatedCost = durationMinutes * agentRate;
+    console.log(`🧮 Costo calculado: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${calculatedCost.toFixed(4)}`);
+    
+    return calculatedCost;
+  };
 
+  // ✅ NUEVA FUNCIÓN: calculateCallCostSync (para usar en render)
+  const calculateCallCostSync = (call: Call) => {
+    return calculateCallCost(call);
+  };
+
+  // ✅ NUEVA FUNCIÓN: loadAudioDuration (UBICACIÓN CORRECTA)
+  const loadAudioDuration = async (call: Call) => {
+    if (!call.recording_url || audioDurations[call.id]) return;
+    
+    try {
+      console.log(`🎵 Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
+      const audio = new Audio(call.recording_url);
+      return new Promise<void>((resolve) => {
+        audio.addEventListener('loadedmetadata', () => {
+          const duration = Math.round(audio.duration);
+          console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
+          setAudioDurations(prev => ({
+            ...prev,
+            [call.id]: duration
+          }));
+          resolve();
+        });
+        
+        audio.addEventListener('error', () => {
+          console.log(`❌ Error cargando audio para ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        });
+
+        // Timeout de seguridad
+        setTimeout(() => {
+          console.log(`⏰ Timeout cargando audio para ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        }, 5000);
+      });
     } catch (error) {
-      console.error('❌ Error general en procesamiento:', error);
-      alert('Error durante el procesamiento. Revisa la consola.');
-    } finally {
-      setIsProcessing(false);
+      console.log(`❌ Error loading audio duration:`, error);
     }
   };
   // ============================================================================
@@ -387,83 +416,283 @@ export default function CallsSimple() {
   // ============================================================================
   
   const fetchCalls = async () => {
-    if (!user?.id) return;
-    
-    try {
-      setLoading(true);
-      console.log('📞 Cargando llamadas...');
+  console.log("🔄 FETCH CALLS - LÓGICA CORREGIDA PARA MÚLTIPLES AGENTES");
+  
+  if (!user?.id) {
+    setError("User not authenticated");
+    setLoading(false);
+    return;
+  }
 
-      const { data: callsData, error } = await supabase
-        .from('calls')
-        .select(`
-          *,
-          call_agent:call_agents(id, name, rate_per_minute),
-          agents(id, name, rate_per_minute)
-        `)
-        .eq('user_id', user.id)
-        .order('start_timestamp', { ascending: false });
+  try {
+    setLoading(true);
+    setError(null);
 
-      if (error) {
-        console.error('Error fetching calls:', error);
-        return;
-      }
+    // PASO 1: Obtener agentes asignados al usuario
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('user_agent_assignments')
+      .select('agent_id')
+      .eq('user_id', user.id);
 
-      console.log(`✅ Cargadas ${callsData?.length || 0} llamadas`);
-      setCalls(callsData || []);
-
-      // Extraer agentes únicos
-      const agents = new Set();
-      const agentsList: any[] = [];
-      
-      callsData?.forEach(call => {
-        if (call.call_agent && !agents.has(call.call_agent.id)) {
-          agents.add(call.call_agent.id);
-          agentsList.push(call.call_agent);
-        }
-        if (call.agents && !agents.has(call.agents.id)) {
-          agents.add(call.agents.id);
-          agentsList.push(call.agents);
-        }
-      });
-      
-      setUniqueAgents(agentsList);
-
-      // Cargar duraciones de audio para llamadas sin duración
-      const callsWithoutDuration = callsData?.filter(call => 
-        call.recording_url && 
-        (!call.duration_sec || call.duration_sec === 0) &&
-        !audioDurations[call.id]
-      ) || [];
-
-      if (callsWithoutDuration.length > 0) {
-        console.log(`🎵 Detectando duraciones de audio para ${callsWithoutDuration.length} llamadas...`);
-        
-        for (const call of callsWithoutDuration.slice(0, 5)) { // Limitar a 5 para no sobrecargar
-          try {
-            const audio = new Audio(call.recording_url);
-            audio.addEventListener('loadedmetadata', () => {
-              if (audio.duration && audio.duration > 0) {
-                setAudioDurations(prev => ({
-                  ...prev,
-                  [call.id]: audio.duration
-                }));
-                console.log(`🎵 Audio ${call.call_id?.substring(0, 8)}: ${audio.duration.toFixed(1)}s`);
-              }
-            });
-            audio.addEventListener('error', () => {
-              console.warn(`⚠️ Error cargando audio: ${call.call_id?.substring(0, 8)}`);
-            });
-          } catch (error) {
-            console.warn(`⚠️ Error procesando audio ${call.call_id}:`, error);
-          }
-        }
-      }
-
-    } catch (error) {
-      console.error('Error en fetchCalls:', error);
-    } finally {
-      setLoading(false);
+    if (assignmentsError) {
+      console.error("❌ Error obteniendo asignaciones:", assignmentsError);
+      setError(`Error obteniendo asignaciones: ${assignmentsError.message}`);
+      return;
     }
+
+    if (!assignments || assignments.length === 0) {
+      console.log("⚠️ Usuario sin asignaciones de agentes");
+      setCalls([]);
+      setUserAssignedAgents([]);
+      setStats({
+        total: 0,
+        totalCost: 0,
+        totalDuration: 0,
+        avgDuration: 0,
+        completedCalls: 0
+      });
+      return;
+    }
+
+    const agentIds = assignments.map(a => a.agent_id);
+    console.log("🎯 IDs de agentes asignados:", agentIds);
+
+    // PASO 2: Obtener detalles de los agentes asignados
+    const { data: agentDetails, error: agentsError } = await supabase
+      .from('agents')
+      .select('id, name, rate_per_minute, retell_agent_id')
+      .in('id', agentIds);
+
+    if (agentsError) {
+      console.error("❌ Error obteniendo detalles de agentes:", agentsError);
+      setError(`Error obteniendo agentes: ${agentsError.message}`);
+      return;
+    }
+
+    console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
+    setUserAssignedAgents(agentDetails || []);
+
+    // PASO 3: ✅ NUEVA LÓGICA - Buscar TODAS las llamadas de los agentes asignados
+    // SIN filtrar por user_id - mostrar llamadas de cualquier usuario para estos agentes
+    
+    const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
+    const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
+    
+    console.log("📋 Buscando llamadas por:");
+    console.log("   • Agent UUIDs:", agentUUIDs);
+    console.log("   • Retell Agent IDs:", retellAgentIds);
+
+    // ✅ CONSULTA CORREGIDA: Buscar llamadas por agent_id SIN filtrar por user_id
+    const allAgentIds = [...agentUUIDs, ...retellAgentIds].filter(Boolean);
+    
+    const { data: allAgentCalls, error: callsError } = await supabase
+      .from('calls')
+      .select('*')
+      .in('agent_id', allAgentIds)  // ✅ Buscar por CUALQUIER agent_id asignado
+      .order('timestamp', { ascending: false });
+
+    if (callsError) {
+      console.error("❌ Error obteniendo llamadas:", callsError);
+      setError(`Error obteniendo llamadas: ${callsError.message}`);
+      return;
+    }
+
+    console.log(`📞 TODAS las llamadas de agentes asignados: ${allAgentCalls?.length || 0}`);
+
+    // PASO 4: ✅ MAPEAR LLAMADAS CON INFORMACIÓN COMPLETA DEL AGENTE
+    const userAgents = agentDetails?.map(agent => ({
+      agent_id: agent.id,
+      agents: agent
+    })) || [];
+
+    const mappedCalls = (allAgentCalls || []).map(call => {
+      let matchedAgent = null;
+
+      // Buscar agente por ID directo o retell_agent_id
+      const userAgentAssignment = userAgents.find(assignment => 
+        assignment.agents.id === call.agent_id ||
+        assignment.agents.retell_agent_id === call.agent_id ||
+        `agent_${assignment.agents.id}` === call.agent_id
+      );
+
+      if (userAgentAssignment) {
+        matchedAgent = {
+          id: userAgentAssignment.agents.id,
+          name: userAgentAssignment.agents.name,
+          rate_per_minute: userAgentAssignment.agents.rate_per_minute
+        };
+        console.log(`✅ Agente encontrado para ${call.call_id}: ${matchedAgent.name} ($${matchedAgent.rate_per_minute}/min)`);
+      } else {
+        // Agente no encontrado - usar tarifa por defecto
+        matchedAgent = {
+          id: call.agent_id,
+          name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
+          rate_per_minute: 0.02
+        };
+        console.log(`⚠️ Agente no encontrado para ${call.call_id}, usando tarifa por defecto`);
+      }
+
+      return {
+        ...call,
+        end_reason: call.disconnection_reason || null,
+        call_agent: matchedAgent,
+        // ✅ TAMBIÉN AGREGAR EN agents para compatibilidad
+        agents: matchedAgent
+      };
+    });
+
+    console.log(`💰 Ejemplo de llamada mapeada:`, {
+      call_id: mappedCalls[0]?.call_id,
+      agent_name: mappedCalls[0]?.call_agent?.name,
+      rate: mappedCalls[0]?.call_agent?.rate_per_minute,
+      duration: mappedCalls[0]?.duration_sec,
+      cost_in_db: mappedCalls[0]?.cost_usd
+    });
+
+    // ✅ CARGAR DURACIONES DE AUDIO INMEDIATAMENTE
+    console.log('🎵 Cargando duraciones de audio...');
+    const callsWithAudio = mappedCalls.filter(call => call.recording_url);
+    console.log(`📻 ${callsWithAudio.length} llamadas con audio encontradas`);
+
+    // Cargar audio en lotes pequeños
+    for (let i = 0; i < callsWithAudio.length; i += 3) {
+      const batch = callsWithAudio.slice(i, i + 3);
+      await Promise.all(batch.map(call => loadAudioDuration(call)));
+      if (i + 3 < callsWithAudio.length) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+
+    setCalls(mappedCalls || []);
+
+  } catch (err: any) {
+    console.error("❌ Excepción en fetch calls:", err);
+    setError(`Exception: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};  // ============================================================================
+  // PROCESAMIENTO AUTOMÁTICO
+  // ============================================================================
+
+  const processNewCalls = async () => {
+    if (!calls.length || !user?.id || loading || isProcessing) {
+      return;
+    }
+
+    console.log('🤖 VERIFICANDO LLAMADAS PARA PROCESAMIENTO...');
+
+    // Filtrar llamadas que necesitan procesamiento
+    const callsNeedingProcessing = calls.filter(call => {
+  const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+  
+  // ✅ CAMBIO PRINCIPAL: Usar getCallDuration en lugar de call.duration_sec
+  const actualDuration = getCallDuration(call);
+  const hasDuration = actualDuration > 0;
+  
+  const notProcessed = (!call.cost_usd || call.cost_usd === 0);
+  const notProcessedYet = !lastProcessedRef.current.has(call.call_id);
+  const hasRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+      
+      const needsProcessing = isCompleted && hasDuration && notProcessed && notProcessedYet && hasRate;
+      
+      if (needsProcessing) {
+        console.log(`🎯 Llamada necesita procesamiento: ${call.call_id}`, {
+  status: call.call_status,
+  duration_sec_bd: call.duration_sec,         // BD (siempre 0)
+  actual_duration: actualDuration,            // Audio real
+  currentCost: call.cost_usd,
+  hasRate: !!hasRate
+});
+      }
+      
+      return needsProcessing;
+    });
+
+    if (callsNeedingProcessing.length === 0) {
+      console.log('✅ No hay llamadas nuevas para procesar');
+      return;
+    }
+
+    console.log(`🚨 PROCESANDO ${callsNeedingProcessing.length} llamadas automáticamente`);
+    setIsProcessing(true);
+
+    let processedCount = 0;
+    let errors = 0;
+
+    for (const call of callsNeedingProcessing) {
+  try {
+    console.log(`⚡ PROCESANDO: ${call.call_id}`);
+    
+    // 🔍 DEBUGGING DETALLADO AGREGADO
+    console.log(`🧮 DEBUGGING CÁLCULO DETALLADO para ${call.call_id}:`);
+    console.log(`   📊 Duration BD: ${call.duration_sec}s`);
+    console.log(`   🎵 Audio Duration: ${audioDurations[call.id] || 'No loaded'}s`);
+    console.log(`   ⏱️ getCallDuration result: ${getCallDuration(call)}s`);
+    console.log(`   💰 Agent rate call_agent: $${call.call_agent?.rate_per_minute || 'No rate'}/min`);
+    console.log(`   💰 Agent rate agents: $${call.agents?.rate_per_minute || 'No rate'}/min`);
+    console.log(`   💳 Cost in BD: $${call.cost_usd}`);
+    
+    const calculatedCost = calculateCallCost(call);
+    console.log(`   🧮 Calculated cost: $${calculatedCost}`);
+    
+    if (calculatedCost > 0) {
+      console.log(`🚨 INTENTANDO DESCUENTO: $${calculatedCost} para usuario ${user.id}`);
+        
+        if (calculatedCost > 0) {
+          // 1. Actualizar costo en la base de datos
+          const { error: updateError } = await supabase
+            .from('calls')
+            .update({ 
+              cost_usd: calculatedCost,
+              updated_at: new Date().toISOString()
+            })
+            .eq('call_id', call.call_id);
+
+          if (updateError) {
+            console.error(`❌ Error actualizando costo:`, updateError);
+            errors++;
+            continue;
+          }
+
+          // 2. Descontar del balance (vía evento)
+          const deductionSuccess = await deductCallCost(call.call_id, calculatedCost, user.id);
+          
+          if (deductionSuccess) {
+            // 3. Marcar como procesada
+            lastProcessedRef.current.add(call.call_id);
+            
+            // 4. Actualizar estado local
+            setCalls(prevCalls => 
+              prevCalls.map(c => 
+                c.call_id === call.call_id 
+                  ? { ...c, cost_usd: calculatedCost }
+                  : c
+              )
+            );
+            
+            console.log(`🎉 PROCESADO EXITOSO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
+            processedCount++;
+          } else {
+            console.error(`❌ Error en descuento para ${call.call_id}`);
+            errors++;
+          }
+        } else {
+          console.warn(`⚠️ Costo calculado inválido para ${call.call_id}: $${calculatedCost}`);
+          errors++;
+        }
+        
+        // Pequeña pausa entre procesamiento
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`❌ Error procesando ${call.call_id}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`✅ PROCESAMIENTO COMPLETADO: ${processedCount} éxitos, ${errors} errores`);
+    setIsProcessing(false);
   };
   // ============================================================================
   // useEffects CORREGIDOS
@@ -474,23 +703,20 @@ export default function CallsSimple() {
     if (user?.id) {
       console.log('🚀 INICIANDO SISTEMA SIMPLIFICADO para:', user.email);
       fetchCalls();
-      loadUserBalance(); // ✅ Cargar balance inicial
     }
   }, [user?.id]);
 
-  // ✅ useEffect: Inicializar sistema de balance
+  // ✅ EFECTO CORREGIDO: Procesar llamadas automáticamente cuando cambien
   useEffect(() => {
-    if (user?.id) {
-      console.log('💰 Inicializando sistema de balance...');
-      
-      // Escuchar eventos de actualización de balance
-      window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-      
-      return () => {
-        window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-      };
+    if (calls.length > 0 && user?.id && !loading) {
+      console.log('🔍 Verificando llamadas para procesamiento automático...');
+      const timeoutId = setTimeout(() => {
+        processNewCalls();
+      }, 1000); // Pequeño delay para evitar múltiples ejecuciones
+
+      return () => clearTimeout(timeoutId);
     }
-  }, [user?.id]);
+  }, [calls.length, user?.id]); // ✅ REMOVIDO loading de dependencias
 
   // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
@@ -504,89 +730,157 @@ export default function CallsSimple() {
   // ============================================================================
 
   const applyFiltersAndSort = () => {
-    let filtered = [...calls];
+  let filtered = [...calls];
 
-    // Filtro de búsqueda
-    if (searchTerm) {
-      filtered = filtered.filter(call =>
-        call.call_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.call_agent?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.agents?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
+  // Filtro por búsqueda
+  if (searchTerm) {
+    filtered = filtered.filter(call => 
+      call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      call.from_number.includes(searchTerm) ||
+      call.to_number.includes(searchTerm) ||
+      call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }
 
-    // Filtro de estado
-    if (statusFilter) {
-      filtered = filtered.filter(call => call.call_status === statusFilter);
-    }
+  // Filtro por estado
+  if (statusFilter !== "all") {
+    filtered = filtered.filter(call => call.call_status === statusFilter);
+  }
 
-    // Filtro de agente
-    if (agentFilter) {
-      filtered = filtered.filter(call => 
-        call.call_agent?.id === agentFilter || call.agents?.id === agentFilter
-      );
-    }
-
-    // Filtro de fecha
-    if (dateFilter && dateFilter !== 'custom') {
-      const now = new Date();
-      const filterDate = new Date();
+  // ✅ FILTRO POR AGENTE CORREGIDO
+  if (agentFilter !== null) {
+    // agentFilter contiene el ID del agente seleccionado
+    const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
+    if (selectedAgent) {
+      console.log(`🔍 Filtrando por agente: ${selectedAgent.name} (${selectedAgent.id})`);
       
-      switch (dateFilter) {
-        case 'today':
-          filterDate.setHours(0, 0, 0, 0);
-          break;
-        case 'yesterday':
-          filterDate.setDate(now.getDate() - 1);
-          filterDate.setHours(0, 0, 0, 0);
-          break;
-        case 'week':
-          filterDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          filterDate.setMonth(now.getMonth() - 1);
-          break;
-      }
-      
-      filtered = filtered.filter(call => 
-        new Date(call.start_timestamp) >= filterDate
-      );
-    }
-
-    if (dateFilter === 'custom' && customDate) {
-      const selectedDate = new Date(customDate);
       filtered = filtered.filter(call => {
-        const callDate = new Date(call.start_timestamp);
-        return callDate.toDateString() === selectedDate.toDateString();
+        const matchesId = call.agent_id === selectedAgent.id;
+        const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
+        const matchesCallAgent = call.call_agent?.id === selectedAgent.id;
+        
+        const isMatch = matchesId || matchesRetell || matchesCallAgent;
+        
+        if (isMatch) {
+          console.log(`✅ Llamada incluida en filtro: ${call.call_id}`);
+        }
+        
+        return isMatch;
       });
+      
+      console.log(`📊 Llamadas después del filtro de agente: ${filtered.length}`);
+    } else {
+      console.log(`❌ Agente seleccionado no encontrado: ${agentFilter}`);
+      filtered = [];
+    }
+  }
+  // ✅ Si agentFilter es null, mostrar TODAS las llamadas (comportamiento "All Agents")
+
+  // Filtro por fecha
+  filtered = filtered.filter(call => isDateInRange(call.timestamp));
+
+  // Ordenamiento
+  filtered.sort((a, b) => {
+    let aValue: any = a[sortField];
+    let bValue: any = b[sortField];
+
+    if (sortField === 'timestamp') {
+      aValue = new Date(aValue).getTime();
+      bValue = new Date(bValue).getTime();
     }
 
-    setFilteredCalls(filtered);
+    if (sortOrder === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
+    }
+  });
+
+  console.log(`🎯 Llamadas después de todos los filtros: ${filtered.length}`);
+  setFilteredCalls(filtered);
+};
+  const calculateStats = () => {
+    let totalCost = 0;
+    let totalDuration = 0;
+    let completedCalls = 0;
+
+    calls.forEach((call) => {
+      const duration = getCallDuration(call);
+      totalDuration += duration;
+      const callCost = calculateCallCost(call);
+      totalCost += callCost;
+      if (['completed', 'ended'].includes(call.call_status?.toLowerCase())) {
+        completedCalls++;
+      }
+    });
+
+    const avgDuration = calls.length > 0 ? Math.round(totalDuration / calls.length) : 0;
+
+    setStats({
+      total: calls.length,
+      totalCost: Number(totalCost.toFixed(4)),
+      totalDuration,
+      avgDuration,
+      completedCalls
+    });
   };
 
-  const calculateStats = () => {
-    const completed = calls.filter(call => 
-      ['completed', 'ended'].includes(call.call_status?.toLowerCase())
-    );
-    
-    const totalDur = calls.reduce((sum, call) => {
-      const duration = getCallDuration(call);
-      return sum + duration;
-    }, 0);
-    
-    const totalCostCalc = calls.reduce((sum, call) => {
-      if (call.cost_usd && call.cost_usd > 0) {
-        return sum + call.cost_usd;
-      }
-      return sum + calculateCallCost(call);
-    }, 0);
-    
-    setTotalCalls(calls.length);
-    setCompletedCalls(completed.length);
-    setTotalDuration(totalDur);
-    setTotalCost(totalCostCalc);
-    setAvgDuration(calls.length > 0 ? totalDur / calls.length : 0);
+  // ============================================================================
+  // FUNCIONES DE UTILIDAD
+  // ============================================================================
+
+  const isDateInRange = (callTimestamp: string): boolean => {
+    const callDate = new Date(callTimestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const last7Days = new Date(today);
+    last7Days.setDate(last7Days.getDate() - 7);
+
+    const callDateOnly = new Date(callDate.getFullYear(), callDate.getMonth(), callDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+    switch (dateFilter) {
+      case 'all':
+        return true;
+      case 'today':
+        return callDateOnly.getTime() === todayOnly.getTime();
+      case 'yesterday':
+        return callDateOnly.getTime() === yesterdayOnly.getTime();
+      case 'last7days':
+        return callDate >= last7Days;
+      case 'custom':
+        if (!customDate) return true;
+        const selectedDate = new Date(customDate);
+        const selectedDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+        return callDateOnly.getTime() === selectedDateOnly.getTime();
+      default:
+        return true;
+    }
+  };
+
+  const handleDateFilterChange = (newFilter: DateFilter) => {
+    setDateFilter(newFilter);
+    if (newFilter !== 'custom') {
+      setCustomDate('');
+    }
+  };
+
+  const getDateFilterText = () => {
+    switch (dateFilter) {
+      case 'today':
+        return 'Today';
+      case 'yesterday':
+        return 'Yesterday';
+      case 'last7days':
+        return 'Last 7 days';
+      case 'custom':
+        return customDate ? new Date(customDate).toLocaleDateString() : 'Custom date';
+      default:
+        return 'All dates';
+    }
   };
   // ============================================================================
   // FUNCIONES DE FORMATO
@@ -594,19 +888,20 @@ export default function CallsSimple() {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'completed':
-      case 'ended':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'in_progress':
-      case 'ongoing':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'failed':
-      case 'error':
-        return 'bg-red-100 text-red-700 border-red-200';
-      case 'cancelled':
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-      default:
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'error': return 'bg-red-100 text-red-800 border-red-200';
+      case 'ended': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'in_progress': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getSentimentColor = (sentiment: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case 'positive': return 'bg-green-100 text-green-700 border-green-200';
+      case 'negative': return 'bg-red-100 text-red-700 border-red-200';
+      case 'neutral': return 'bg-gray-100 text-gray-700 border-gray-200';
+      default: return 'bg-gray-50 text-gray-600 border-gray-200';
     }
   };
 
@@ -616,59 +911,95 @@ export default function CallsSimple() {
     switch (endReason.toLowerCase()) {
       case 'user hangup':
       case 'user_hangup':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'agent hangup':
       case 'agent_hangup':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'max_duration_reached':
-        return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'inactivity':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'error':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'dial no answer':
+      case 'dial_no_answer':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'error llm websocket open':
+      case 'error_llm_websocket_open':
+      case 'technical_error':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'call completed':
+      case 'call_completed':
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200';
       default:
         return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
 
-  const formatDuration = (seconds: number): string => {
-    if (!seconds || seconds <= 0) return '0s';
-    
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ${secs}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`;
-    } else {
-      return `${secs}s`;
+  const formatDuration = (seconds: number) => {
+    if (seconds === null || seconds === undefined || isNaN(seconds)) {
+      return "0:00";
     }
+    
+    const numSeconds = Number(seconds);
+    if (numSeconds === 0) {
+      return "0:00";
+    }
+    
+    const mins = Math.floor(numSeconds / 60);
+    const secs = Math.floor(numSeconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const formatCurrency = (amount: number): string => {
+  const formatCurrency = (amount: number) => {
+    const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 4,
-      maximumFractionDigits: 4
-    }).format(amount);
+      maximumFractionDigits: 4,
+    }).format(roundedAmount);
   };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleString('en-US', {
+  const formatDate = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
     });
   };
 
-  // Handlers para modal
-  const handleCallClick = (call: CallData) => {
-    setSelectedCall(call);
+  const formatTime = (timestamp: string) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone || phone === 'unknown') return 'Unknown';
+    return phone;
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+    return sortOrder === 'asc' ? '↑' : '↓';
+  };
+  // ============================================================================
+  // HANDLERS DE EVENTOS
+  // ============================================================================
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const handleCallClick = (call: Call) => {
+    const originalCall = calls.find(c => c.id === call.id) || call;
+    setSelectedCall(originalCall);
     setIsModalOpen(true);
   };
 
@@ -676,263 +1007,235 @@ export default function CallsSimple() {
     setIsModalOpen(false);
     setSelectedCall(null);
   };
-  // ✅ COMPONENTE DE BALANCE CORREGIDO
-  const BalanceDisplay = () => {
-    const isLowBalance = userBalance !== null && userBalance < 10;
-    const isVeryLowBalance = userBalance !== null && userBalance < 5;
-    
+
+  // Variables auxiliares para la UI
+  const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
+  const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
+
+  // ============================================================================
+  // VERIFICACIÓN DE USUARIO
+  // ============================================================================
+
+  if (!user) {
     return (
-      <Card className={`border-0 shadow-sm ${isVeryLowBalance ? 'bg-gradient-to-br from-red-50 to-red-100/50' : isLowBalance ? 'bg-gradient-to-br from-yellow-50 to-yellow-100/50' : 'bg-gradient-to-br from-green-50 to-green-100/50'}`}>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`p-2 rounded-lg ${isVeryLowBalance ? 'bg-red-100' : isLowBalance ? 'bg-yellow-100' : 'bg-green-100'}`}>
-                <CreditCard className={`w-4 h-4 ${isVeryLowBalance ? 'text-red-600' : isLowBalance ? 'text-yellow-600' : 'text-green-600'}`} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 font-medium">Credit Balance</p>
-                <div className="flex items-center gap-2">
-                  {balanceLoading ? (
-                    <div className="flex items-center gap-1">
-                      <LoadingSpinner size="sm" />
-                      <span className="text-lg font-bold text-gray-400">Loading...</span>
-                    </div>
-                  ) : (
-                    <p className={`text-lg font-bold ${isVeryLowBalance ? 'text-red-700' : isLowBalance ? 'text-yellow-700' : 'text-green-700'}`}>
-                      {userBalance !== null ? formatCurrency(userBalance) : 'N/A'}
-                    </p>
-                  )}
-                  {isProcessing && (
-                    <div className="flex items-center gap-1">
-                      <Zap className="w-4 h-4 text-blue-500 animate-pulse" />
-                      <span className="text-xs text-blue-600 font-medium">Processing</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <div className="text-right">
-              <div className="text-xs text-gray-500">
-                Manual Processing: ✅ Ready
-              </div>
-              <div className="text-xs text-gray-400">
-                Ready for processing
-              </div>
-            </div>
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <p className="text-red-600 font-medium">Please log in to view your calls</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </DashboardLayout>
     );
-  };
+  }
   // ============================================================================
   // RENDER DEL COMPONENTE PRINCIPAL
   // ============================================================================
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <Phone className="w-6 h-6 text-blue-600" />
-            </div>
+      <div className="container mx-auto py-4">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">My Calls</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                  <User className="w-3 h-3 mr-1" />
-                  Active User
-                </Badge>
-                {filteredCalls.length > 0 && (
-                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    System Ready
-                  </Badge>
+              <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
+              <div className="flex items-center gap-4 mt-2">
+                <p className="text-gray-600">
+                  Comprehensive call data for your account
+                  {selectedAgentName && (
+                    <span className="ml-2 text-blue-600 font-medium">
+                      • Filtered by {selectedAgentName}
+                    </span>
+                  )}
+                </p>
+                
+                <div className="flex items-center gap-3">
+                  {isProcessing && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                      <span className="text-xs font-medium text-blue-600">Auto Processing</span>
+                    </div>
+                  )}
+                  
+                  <span className="text-xs text-gray-400">
+                    Last update: {new Date().toLocaleTimeString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                <User className="w-3 h-3 mr-1" />
+                Active User
+              </Badge>
+              
+              <Button
+                onClick={() => {
+                  console.log("🔄 REFRESH MANUAL");
+                  fetchCalls();
+                }}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+                className="text-gray-500 border-gray-300"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-1">
+                    <LoadingSpinner size="sm" />
+                    <span className="text-xs">Updating...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 border border-gray-400 rounded-full"></div>
+                    <span className="text-xs">Refresh</span>
+                  </div>
                 )}
+              </Button>
+              
+              <div className="text-right">
+                <div className="text-xs font-medium text-green-600">🤖 Auto System</div>
+                <div className="text-xs text-gray-500">Simplified</div>
               </div>
             </div>
           </div>
+
+          {/* Indicador de Procesamiento */}
+          {isProcessing && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="p-4">
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
+                  <span className="text-blue-700 font-medium">
+                    🤖 Procesando llamadas nuevas automáticamente...
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={processCallsManually}
-              disabled={loading || isProcessing}
-              variant="outline"
-              size="sm"
-              className="text-green-600 border-green-300 hover:bg-green-50 disabled:opacity-50"
-            >
-              {isProcessing ? (
-                <div className="flex items-center gap-2">
-                  <LoadingSpinner size="sm" />
-                  <span className="text-xs">Processing...</span>
+          {/* Error Alert */}
+          {error && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="p-4">
+                <p className="text-red-800 font-medium">❌ {error}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Calls</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                  </div>
+                  <Phone className="h-8 w-8 text-blue-600" />
                 </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <Zap className="w-3 h-3" />
-                  <span className="text-xs">Process Calls</span>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Completed</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-600" />
                 </div>
-              )}
-            </Button>
-            
-            <Button
-              onClick={() => {
-                console.log("🔄 REFRESH MANUAL CON BALANCE");
-                fetchCalls();
-                loadUserBalance();
-              }}
-              disabled={loading}
-              variant="outline"
-              size="sm"
-              className="text-gray-500 border-gray-300"
-            >
-              {loading ? (
-                <div className="flex items-center gap-1">
-                  <LoadingSpinner size="sm" />
-                  <span className="text-xs">Updating...</span>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Cost</p>
+                    <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-purple-600" />
                 </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <RefreshCw className="w-3 h-3" />
-                  <span className="text-xs">Refresh All</span>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Total Duration</p>
+                    <p className="text-xl font-bold text-gray-900">{formatDuration(stats.totalDuration)}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-orange-600" />
                 </div>
-              )}
-            </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-pink-50 to-pink-100/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Avg Duration</p>
+                    <p className="text-xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-pink-600" />
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+          {/* Filters */}
+          <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Phone className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Total Calls</p>
-                    <p className="text-lg font-bold text-blue-700">{totalCalls}</p>
-                  </div>
+              <div className="flex flex-col lg:flex-row gap-4 items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search calls by ID, phone, agent, or summary..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+                
                 <div className="flex items-center gap-2">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Completed</p>
-                    <p className="text-lg font-bold text-green-700">{completedCalls}</p>
-                  </div>
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Status</option>
+                    {uniqueStatuses.map(status => (
+                      <option key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Clock className="w-4 h-4 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Total Duration</p>
-                    <p className="text-lg font-bold text-purple-700">{formatDuration(totalDuration)}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <Clock className="w-4 h-4 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Avg Duration</p>
-                    <p className="text-lg font-bold text-orange-700">{formatDuration(avgDuration)}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-indigo-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-indigo-100 rounded-lg">
-                    <DollarSign className="w-4 h-4 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Total Cost</p>
-                    <p className="text-lg font-bold text-indigo-700">{formatCurrency(totalCost)}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* ✅ BALANCE CARD AGREGADA */}
-          <BalanceDisplay />
-        </div>
-        {/* Filters */}
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex flex-col lg:flex-row gap-4 items-center">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search calls..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              
-              <div className="flex gap-2 flex-wrap">
-                <select 
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                >
-                  <option value="">All Status</option>
-                  <option value="completed">Completed</option>
-                  <option value="ended">Ended</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="failed">Failed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-
-                <AgentFilter 
+                <AgentFilter
                   agents={uniqueAgents}
                   selectedAgent={agentFilter}
                   onAgentChange={setAgentFilter}
+                  isLoading={isLoadingAgents}
                 />
 
-                <select 
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                >
-                  <option value="">All Time</option>
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="week">Last 7 Days</option>
-                  <option value="month">Last 30 Days</option>
-                  <option value="custom">Custom Date</option>
-                </select>
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={dateFilter}
+                    onChange={(e) => handleDateFilterChange(e.target.value as DateFilter)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Dates</option>
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="last7days">Last 7 Days</option>
+                    <option value="custom">Custom Date</option>
+                  </select>
+                </div>
 
                 {dateFilter === 'custom' && (
                   <Input
@@ -942,48 +1245,109 @@ export default function CallsSimple() {
                     className="w-auto"
                   />
                 )}
+
+                <div className="text-sm text-gray-500 whitespace-nowrap">
+                  {dateFilter !== 'all' && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 mr-2">
+                      📅 {getDateFilterText()}
+                    </Badge>
+                  )}
+                  Showing {filteredCalls.length} of {calls.length} calls
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        {/* Calls Table */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b border-gray-100 pb-4">
-            <CardTitle className="text-xl font-semibold text-gray-900">
-              📋 Call History
-              <span className="ml-2 text-sm font-normal text-gray-500">
-                ({filteredCalls.length} {filteredCalls.length === 1 ? 'call' : 'calls'})
-              </span>
-            </CardTitle>
-          </CardHeader>
-          
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <LoadingSpinner size="lg" />
-                <span className="ml-3 text-gray-500">Loading calls...</span>
-              </div>
-            ) : filteredCalls.length === 0 ? (
-              <div className="text-center py-12">
-                <Phone className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg font-medium">No calls found</p>
-                <p className="text-gray-400 text-sm mt-1">
-                  {calls.length === 0 ? 'Make your first call to see it here' : 'Try adjusting your filters'}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-hidden">
+            </CardContent>
+          </Card>
+          {/* Calls Table */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="border-b border-gray-100 pb-4">
+              <CardTitle className="text-xl font-semibold text-gray-900">
+                📋 Call History ({filteredCalls.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size="lg" />
+                  <span className="ml-3 text-gray-600">Loading calls...</span>
+                </div>
+              ) : filteredCalls.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Phone className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-lg font-medium mb-2">No calls found</p>
+                  <p className="text-sm">
+                    {dateFilter !== 'all' 
+                      ? `No calls found for ${getDateFilterText().toLowerCase()}`
+                      : 'No calls match your current filters'
+                    }
+                  </p>
+                  {dateFilter !== 'all' && (
+                    <div className="mt-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setDateFilter('all');
+                          setCustomDate('');
+                        }}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        📅 Show All Dates
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Call</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('timestamp')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Date & Time {getSortIcon('timestamp')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Call Details
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Agent
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('duration_sec')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Duration {getSortIcon('duration_sec')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('cost_usd')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Cost {getSortIcon('cost_usd')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleSort('call_status')}
+                            className="flex items-center gap-1 hover:text-gray-700"
+                          >
+                            Status {getSortIcon('call_status')}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          End Reason
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Content
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -993,112 +1357,145 @@ export default function CallsSimple() {
                           className="hover:bg-gray-50 transition-colors cursor-pointer"
                           onClick={() => handleCallClick(call)}
                         >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0">
-                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                  <Phone className="w-4 h-4 text-blue-600" />
-                                </div>
-                              </div>
-                              <div className="ml-3">
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900 font-medium">
+                              {formatDate(call.timestamp).split(',')[0]}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {formatTime(call.timestamp)}
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
+                              <Phone className="h-3 w-3 text-gray-400" />
+                              {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono">
+                              ID: {call.call_id.substring(0, 16)}...
+                            </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <div>
                                 <div className="text-sm font-medium text-gray-900">
-                                  {call.call_id?.substring(0, 16)}...
+                                  {call.call_agent?.name || getAgentNameLocal(call.agent_id)}
                                 </div>
-                                <div className="text-sm text-gray-500">
-                                  {call.summary ? (call.summary.length > 30 ? `${call.summary.substring(0, 30)}...` : call.summary) : 'No summary'}
+                                <div className="text-xs text-gray-500">
+                                  {call.agent_id.substring(0, 8)}...
                                 </div>
                               </div>
                             </div>
                           </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatDuration(getCallDuration(call))}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {audioDurations[call.id] ? 
+                                `${getCallDuration(call)}s (from audio)` : 
+                                `${getCallDuration(call)}s`
+                              }
+                            </div>
+                          </td>
 
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {call.call_agent?.name || call.agents?.name || 'Unknown Agent'}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatCurrency(calculateCallCost(call))}
                             </div>
                             <div className="text-xs text-gray-500">
                               {(() => {
                                 const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-                                return agentRate ? `$${agentRate.toFixed(3)}/min` : 'No rate';
+                                return agentRate ? 
+                                  `${(getCallDuration(call)/60).toFixed(1)}min × ${agentRate}/min` :
+                                  `DB: ${formatCurrency(call.cost_usd)}`;
                               })()}
                             </div>
                           </td>
-
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <Badge className={`${getStatusColor(call.call_status)} text-xs`}>
-                              {call.call_status || 'unknown'}
-                            </Badge>
-                            {call.call_analysis?.call_end_reason && (
-                              <div className="mt-1">
-                                <Badge className={`${getEndReasonColor(call.call_analysis.call_end_reason)} text-xs`}>
-                                  {call.call_analysis.call_end_reason.replace(/_/g, ' ')}
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
+                                {call.call_status}
+                              </Badge>
+                              {call.sentiment && (
+                                <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
+                                  {call.sentiment}
                                 </Badge>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            {call.end_reason ? (
+                              <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
+                                {call.end_reason.replace(/_/g, ' ')}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-gray-400">No reason</span>
+                            )}
+                          </td>
+                          
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              {call.transcript && (
+                                <div className="flex items-center gap-1 text-xs text-green-600">
+                                  <FileText className="h-3 w-3" />
+                                  Transcript
+                                </div>
+                              )}
+                              {call.call_summary && (
+                                <div className="flex items-center gap-1 text-xs text-blue-600">
+                                  <PlayCircle className="h-3 w-3" />
+                                  Summary
+                                </div>
+                              )}
+                              {call.recording_url && (
+                                <div className="flex items-center gap-1 text-xs text-red-600">
+                                  <Volume2 className="h-3 w-3" />
+                                  Audio
+                                </div>
+                              )}
+                            </div>
+                            {call.call_summary && (
+                              <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
+                                {call.call_summary}
                               </div>
                             )}
                           </td>
-
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {formatDuration(getCallDuration(call))}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {audioDurations[call.id] ? '🎵 Audio' : call.duration_sec ? '📊 DB' : '⏱️ Calc'}
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {call.cost_usd && call.cost_usd > 0 
-                                ? formatCurrency(call.cost_usd)
-                                : (() => {
-                                    const calculatedCost = calculateCallCost(call);
-                                    return calculatedCost > 0 ? (
-                                      <span className="text-orange-600">
-                                        {formatCurrency(calculatedCost)} *
-                                      </span>
-                                    ) : (
-                                      <span className="text-gray-400">$0.0000</span>
-                                    );
-                                  })()
-                              }
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {call.cost_usd && call.cost_usd > 0 ? '✅ Processed' : '⏳ Pending'}
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div className="flex items-center">
-                              <Calendar className="w-4 h-4 mr-1" />
-                              {formatDate(call.start_timestamp)}
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex items-center gap-2">
-                              {call.recording_url && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.open(call.recording_url, '_blank');
-                                  }}
-                                  className="text-blue-600 hover:text-blue-800"
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 w-6 p-0"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleCallClick(call);
                                 }}
-                                className="text-gray-600 hover:text-gray-800"
                               >
-                                View Details
+                                <Eye className="h-3 w-3" />
                               </Button>
+                              {call.recording_url && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-6 w-6 p-0"
+                                  asChild
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <a
+                                    href={call.recording_url}
+                                    download={`call-${call.call_id}.mp3`}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </a>
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1106,18 +1503,19 @@ export default function CallsSimple() {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        {/* Call Detail Modal */}
-        <CallDetailModal 
-          call={selectedCall}
-          isOpen={isModalOpen}
-          onClose={handleModalClose}
-          audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
-        />
-
+              )}
+            </CardContent>
+          </Card>
+          {/* Call Detail Modal */}
+          <CallDetailModal 
+            call={selectedCall}
+            isOpen={isModalOpen}
+            onClose={handleModalClose}
+            audioDuration={selectedCall ? audioDurations[selectedCall.id] : undefined}
+            userAssignedAgents={userAssignedAgents}
+            getAgentNameFunction={getAgentNameLocal}
+          />
+        </div>
       </div>
     </DashboardLayout>
   );
