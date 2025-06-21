@@ -639,7 +639,6 @@ export default function CallsSimple() {
     if (calculatedCost > 0) {
       console.log(`🚨 INTENTANDO DESCUENTO: $${calculatedCost} para usuario ${user.id}`);
         
-        if (calculatedCost > 0) {
           // 1. Actualizar costo en la base de datos
           const { error: updateError } = await supabase
             .from('calls')
