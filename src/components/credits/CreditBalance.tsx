@@ -530,7 +530,7 @@ useEffect(() => {
           setIsPolling(false);
         });
       }
-    }, 5000); // 30 segundos
+    }, 2000); // 30 segundos
 
     return () => clearInterval(interval);
   }, [user?.id, fetchBalance, showUpdateIndicator, refreshing]);
