@@ -124,8 +124,8 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
             .insert({
               user_id: user.id,
               current_balance: 0,
-              warning_threshold: 10,
-              critical_threshold: 5,
+              warning_threshold: 40,
+              critical_threshold: 20,
               is_blocked: false,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
@@ -448,58 +448,76 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
   }, [user?.id, currentBalance, rateLoaded, fetchAgentRateRealTime]);
 
   // ✅ EFECTO CRÍTICO: Escuchar descuentos automáticos del webhook
-  useEffect(() => {
-    console.log('🔔 [CreditBalance] Conectando con sistema de descuentos del webhook...');
-    
-    if (!user?.id) {
-      return;
-    }
+useEffect(() => {
+  console.log('🔔 [CreditBalance] Conectando con sistema de descuentos del webhook...');
+  
+  if (!user?.id) {
+    return;
+  }
 
-    // Función que se ejecuta cuando hay un descuento automático desde webhook
-    const handleBalanceUpdate = (event: CustomEvent) => {
-      const { userId, deduction, callId, source, isDeduction, difference } = event.detail;
+  // Función que se ejecuta cuando hay un descuento automático desde webhook
+  const handleBalanceUpdate = (event: CustomEvent) => {
+    const { userId, deduction, callId, source, isDeduction, difference, newBalance, oldBalance } = event.detail;
+    
+    console.log('💳 [CreditBalance] Descuento automático detectado desde webhook:', {
+      userId,
+      deduction,
+      callId,
+      source,
+      difference,
+      newBalance,
+      oldBalance
+    });
+    
+    // Solo procesar si es para este usuario
+    if (userId === user.id) {
+      console.log('✅ [CreditBalance] Actualizando balance por evento del webhook...');
       
-      console.log('💳 [CreditBalance] Descuento automático detectado desde webhook:', {
-        userId,
-        deduction,
-        callId,
-        source,
-        difference
-      });
-      
-      // Solo procesar si es para este usuario
-      if (userId === user.id) {
-        console.log('✅ [CreditBalance] Actualizando balance por evento del webhook...');
-        
-        // Actualizar balance inmediatamente
-        refreshBalance();
-        
-        // Registrar el cambio para mostrar indicador
-        if (isDeduction && difference) {
-          setLastBalanceChange({
-            isDeduction: true,
-            difference: difference,
-            timestamp: new Date().toISOString(),
-            source: source || 'webhook'
-          });
-        }
-        
-        // Mostrar indicador visual
-        setShowUpdateIndicator(true);
+      // ✅ ACTUALIZAR BALANCE INMEDIATAMENTE CON EL NUEVO VALOR
+      if (newBalance !== undefined) {
+        console.log(`💰 Balance actualizado: $${currentBalance} → $${newBalance}`);
+        setCurrentBalance(newBalance);
       }
-    };
+      
+      // ✅ REFRESCAR DATOS COMPLETOS DE LA BD
+      setTimeout(() => {
+        refreshBalance();
+      }, 500);
+      
+      // ✅ REGISTRAR EL CAMBIO PARA MOSTRAR INDICADOR
+      if (isDeduction && (difference || deduction)) {
+        const amountDeducted = difference || deduction;
+        setLastBalanceChange({
+          isDeduction: true,
+          difference: amountDeducted,
+          timestamp: new Date().toISOString(),
+          source: source || 'webhook'
+        });
+        
+        console.log(`📉 Registrado descuento visual: $${amountDeducted}`);
+      }
+      
+      // ✅ MOSTRAR INDICADOR VISUAL
+      setShowUpdateIndicator(true);
+      
+      // ✅ OCULTAR INDICADOR DESPUÉS DE 8 SEGUNDOS
+      setTimeout(() => {
+        setShowUpdateIndicator(false);
+      }, 8000);
+    }
+  };
 
-    // Escuchar el evento de descuento del webhook
-    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-    
-    console.log('✅ [CreditBalance] Sistema conectado con webhook de descuentos');
-    
-    // Limpiar cuando se cierre el componente
-    return () => {
-      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-    };
-  }, [user?.id, refreshBalance]);
-
+  // ✅ ESCUCHAR EL EVENTO DE DESCUENTO DEL WEBHOOK
+  window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+  
+  console.log('✅ [CreditBalance] Sistema conectado con webhook de descuentos');
+  
+  // Limpiar cuando se cierre el componente
+  return () => {
+    window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    console.log('🔌 [CreditBalance] Desconectado del webhook');
+  };
+}, [user?.id, refreshBalance, currentBalance]);
   // ✅ EFECTO: Auto-polling cada 30 segundos (reducido para no sobrecargar)
   useEffect(() => {
     if (!user?.id) return;
