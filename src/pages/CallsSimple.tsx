@@ -1461,7 +1461,7 @@ const notProcessed = !lastProcessedRef.current.has(call.call_id);
                               {(() => {
                                 const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
                                 return agentRate ? 
-                                  `${(getCallDuration(call)/60).toFixed(1)}min × ${agentRate}/min` :
+                                  `${(getCallDuration(call)/60).toFixed(1)}min × Rate for minute` :
                                   `DB: ${formatCurrency(call.cost_usd)}`;
                               })()}
                             </div>
