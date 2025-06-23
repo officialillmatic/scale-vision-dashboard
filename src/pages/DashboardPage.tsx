@@ -431,62 +431,32 @@ export default function DashboardPage() {
     }
   }, [user?.id, isSuperAdmin]);
 
-  // ✅ LISTENER PARA BALANCE UPDATE EN DASHBOARD
+  // ✅ LISTENER SIMPLIFICADO PARA BALANCE UPDATE
 useEffect(() => {
   if (!user?.id) return;
 
-  console.log('🔔 Dashboard: Configurando listener para balanceUpdated...');
-  
-  const handleBalanceUpdate = async (event: CustomEvent) => {
-  console.log('💳 Dashboard: Evento balanceUpdated recibido:', event.detail);
-  
-  const { userId, deduction, callId, source } = event.detail;
-  
-  // ✅ AGREGAR DESCUENTO REAL EN BASE DE DATOS
-  if (deduction && deduction > 0 && userId) {
-    const actualUserId = userId === 'current-user' ? user?.id : userId;
+  const handleBalanceUpdate = (event: CustomEvent) => {
+    console.log('💳 Dashboard: Balance actualizado por webhook:', event.detail);
     
-    if (actualUserId) {
-      console.log('🔄 Ejecutando descuento real en BD...');
-      const result = await universalBalanceDeduction(
-        actualUserId, 
-        deduction, 
-        callId,
-        `Call cost deduction - ${callId || 'Manual test'}`
-      );
+    const { userId, deduction, callId } = event.detail;
+    
+    // Solo procesar si es para este usuario
+    if (userId === user.id || userId === 'current-user') {
+      // Mostrar notificación simple
+      console.log(`✅ Balance descontado: $${deduction} por llamada ${callId}`);
       
-      if (result.success) {
-        console.log(`✅ DESCUENTO EXITOSO: $${result.oldBalance} → $${result.newBalance}`);
-      } else {
-        console.error('❌ Error en descuento:', result.error);
+      // Refrescar datos sin recargar página
+      if (user?.id) {
+        refreshCreditBalance(user.id);
+        fetchCallsData();
       }
     }
-  }
-  
-  // Solo procesar si es para este usuario
-  if (userId === user?.id || userId === 'current-user' || userId === 'test-user') {
-    console.log('✅ Dashboard: Refrescando balance automáticamente...');
-    
-    // Refrescar balance automáticamente
-    if (user?.id) {
-      refreshCreditBalance(user.id);
-    }
-    
-    // También forzar actualización de datos de calls si es necesario
-    if (source === 'automatic_processing' || source === 'dashboard-refresh') {
-      fetchCallsData();
-    }
-  }
-};
+  };
 
-  // Escuchar el evento
   window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-  
-  console.log('✅ Dashboard: Listener balanceUpdated configurado');
   
   return () => {
     window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-    console.log('🧹 Dashboard: Listener balanceUpdated removido');
   };
 }, [user?.id]);
   
@@ -561,9 +531,9 @@ useEffect(() => {
       
       // 4. SOLUCIÓN DEFINITIVA: Recarga completa después de 2 segundos
       setTimeout(() => {
-        console.log('✅ SOLUCIÓN DEFINITIVA: Recargando página para actualizar balance...');
-        window.location.reload();
-      }, 2000);
+  console.log('✅ Balance actualizado sin recarga de página');
+  // window.location.reload(); // ✅ COMENTADO - No recargar página
+}, 2000);
     }
   };
 
