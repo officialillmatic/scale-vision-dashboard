@@ -424,7 +424,7 @@ export function CreditBalance({ onRequestRecharge, showActions = true }: CreditB
       // Mostrar indicador por 5 segundos
       const timer = setTimeout(() => {
         setShowUpdateIndicator(false);
-      }, 5000);
+      }, 2000);
       
       return () => clearTimeout(timer);
     }
