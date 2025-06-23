@@ -1447,7 +1447,7 @@ const notProcessed = !lastProcessedRef.current.has(call.call_id);
                             </div>
                             <div className="text-xs text-gray-500">
                               {audioDurations[call.id] ? 
-                                `${getCallDuration(call)}s (from audio)` : 
+                                `${getCallDuration(call)}s (call duration)` : 
                                 `${getCallDuration(call)}s`
                               }
                             </div>
