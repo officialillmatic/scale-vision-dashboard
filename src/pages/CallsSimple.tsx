@@ -351,10 +351,10 @@ export default function CallsSimple() {
     });
 
     // 1. Si ya tiene un costo válido en BD, usarlo
-    if (call.cost_usd && call.cost_usd > 0) {
-      console.log(`✅ Usando costo existente de BD: $${call.cost_usd}`);
-      return call.cost_usd;
-    }
+    //if (call.cost_usd && call.cost_usd > 0) {
+     // console.log(`✅ Usando costo existente de BD: $${call.cost_usd}`);
+     // return call.cost_usd;
+   // }
     
     // 2. Obtener duración
     const duration = getCallDuration(call);
