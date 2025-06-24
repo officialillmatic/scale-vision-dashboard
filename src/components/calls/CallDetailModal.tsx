@@ -99,10 +99,10 @@ const calculateCallCost = (call: Call, audioDurationParam?: number) => {
   });
 
   // 1. Si ya tiene un costo válido en BD, usarlo
-  if (call.cost_usd && call.cost_usd > 0) {
-    console.log(`✅ Modal - Using existing cost: $${call.cost_usd}`);
-    return call.cost_usd;
-  }
+  //if (call.cost_usd && call.cost_usd > 0) {
+    //console.log(`✅ Modal - Using existing cost: $${call.cost_usd}`);
+    //return call.cost_usd;
+  //}
   
   // 2. Obtener duración usando la misma lógica que CallsSimple.tsx
   const duration = getCallDuration(call, audioDurationParam);
@@ -128,7 +128,7 @@ const calculateCallCost = (call: Call, audioDurationParam?: number) => {
   }
   
   // 4. Calcular costo
-  const calculatedCost = durationMinutes * agentRate;
+  const calculatedCost = Math.round(((duration / 60.0) * agentRate) * 10000) / 10000;
   console.log(`🧮 Modal - Calculated cost: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${calculatedCost.toFixed(4)}`);
   
   return calculatedCost;
