@@ -391,8 +391,7 @@ export default function CallsSimple() {
     }
     
     // 4. Calcular costo
-    const exactResult = (duration / 60.0) * agentRate;
-const calculatedCost = Math.round(exactResult * 10000) / 10000;
+    const calculatedCost = Math.round(((duration / 60.0) * agentRate) * 10000) / 10000;
     console.log(`🧮 Costo calculado: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${calculatedCost.toFixed(4)}`);
     
     return calculatedCost;
