@@ -1008,8 +1008,8 @@ export default function CallsSimple() {
               
               {/* 🚨 INDICADOR CORREGIDO */}
               <div className="text-right">
-                <div className="text-xs font-medium text-green-600">👁️ Visual Only</div>
-                <div className="text-xs text-gray-500">Webhook Handles Billing</div>
+                <div className="text-xs font-medium text-green-600">🟢 System Active</div>
+                <div className="text-xs text-gray-500">Updated</div>
               </div>
             </div>
           </div>
@@ -1020,8 +1020,7 @@ export default function CallsSimple() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  ✅ Sistema Corregido: Los descuentos se procesan automáticamente por webhook.
-                  Este panel solo muestra costos calculados.
+                  📊 Real-time data updates - Showing complete call information.
                 </span>
               </div>
             </CardContent>
@@ -1080,7 +1079,7 @@ export default function CallsSimple() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-600 font-medium">Total Cost (Visual)</p>
+                    <p className="text-xs text-gray-600 font-medium">Total Cost</p>
                     <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
                   </div>
                   <DollarSign className="h-8 w-8 text-purple-600" />
