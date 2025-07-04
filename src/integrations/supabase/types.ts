@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action_type: string
+          admin_user_id: string
+          created_at: string | null
+          details: Json | null
+          id: string
+          target_user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          admin_user_id: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          target_user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          admin_user_id?: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          target_user_id?: string | null
+        }
+        Relationships: []
+      }
       agents: {
         Row: {
           avatar_url: string | null
@@ -426,6 +453,39 @@ export type Database = {
           },
         ]
       }
+      drscale_user_backup: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string | null
+          is_super_admin: boolean | null
+          raw_app_meta_data: Json | null
+          raw_user_meta_data: Json | null
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          is_super_admin?: boolean | null
+          raw_app_meta_data?: Json | null
+          raw_user_meta_data?: Json | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          is_super_admin?: boolean | null
+          raw_app_meta_data?: Json | null
+          raw_user_meta_data?: Json | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           billing_period_end: string
@@ -811,6 +871,56 @@ export type Database = {
         }
         Relationships: []
       }
+      team_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          company_id: string | null
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          invitation_token: string
+          invited_by: string | null
+          role: string
+          status: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          invitation_token: string
+          invited_by?: string | null
+          role?: string
+          status?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          invitation_token?: string
+          invited_by?: string | null
+          role?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_invitations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           amount: number
@@ -1010,6 +1120,59 @@ export type Database = {
         }
         Relationships: []
       }
+      user_invitations: {
+        Row: {
+          accepted_at: string | null
+          company_id: string | null
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          name: string
+          role: string
+          status: string
+          token: string
+          user_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          invited_by?: string | null
+          name: string
+          role?: string
+          status?: string
+          token: string
+          user_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          name?: string
+          role?: string
+          status?: string
+          token?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_invitations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_preferences: {
         Row: {
           created_at: string | null
@@ -1058,6 +1221,7 @@ export type Database = {
       user_profiles: {
         Row: {
           avatar_url: string | null
+          company_id: string | null
           created_at: string
           email: string
           id: string
@@ -1067,6 +1231,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          company_id?: string | null
           created_at?: string
           email: string
           id: string
@@ -1076,6 +1241,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          company_id?: string | null
           created_at?: string
           email?: string
           id?: string
@@ -1083,7 +1249,15 @@ export type Database = {
           role?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
@@ -1381,6 +1555,38 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_change_user_password: {
+        Args: {
+          target_user_id: string
+          new_password: string
+          admin_user_id: string
+        }
+        Returns: Json
+      }
+      admin_change_user_password_bypass: {
+        Args: {
+          target_user_id: string
+          new_password: string
+          admin_user_id: string
+        }
+        Returns: Json
+      }
+      admin_service_role_password_change: {
+        Args: {
+          target_user_email: string
+          new_password: string
+          admin_user_id: string
+        }
+        Returns: Json
+      }
+      admin_superuser_password_change: {
+        Args: {
+          target_user_id: string
+          new_password: string
+          admin_user_id: string
+        }
+        Returns: Json
+      }
       admin_update_user_credits: {
         Args: {
           target_user_id: string
@@ -1393,9 +1599,17 @@ export type Database = {
           message: string
         }[]
       }
+      bytea_to_text: {
+        Args: { data: string }
+        Returns: string
+      }
       can_access_company: {
         Args: { p_company_id: string }
         Returns: boolean
+      }
+      check_auth_users_schema: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       check_rate_limit: {
         Args:
@@ -1414,6 +1628,10 @@ export type Database = {
           bucket_exists: boolean
         }[]
       }
+      check_user_balance_for_call: {
+        Args: { p_user_id: string; p_estimated_cost?: number }
+        Returns: Json
+      }
       check_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Json
@@ -1430,9 +1648,21 @@ export type Database = {
         Args: { user_data: Record<string, unknown> }
         Returns: undefined
       }
+      debug_user_info: {
+        Args: { user_id_param: string }
+        Returns: Json
+      }
+      debug_user_lookup: {
+        Args: { lookup_user_id: string }
+        Returns: Json
+      }
       deduct_call_credits: {
         Args: { call_cost: number; call_id_ref: string }
         Returns: boolean
+      }
+      delete_registered_user: {
+        Args: { user_id_to_delete: string }
+        Returns: Json
       }
       delete_team_member: {
         Args: { user_id_to_delete: string }
@@ -1441,6 +1671,22 @@ export type Database = {
       delete_user_completely: {
         Args: { user_id_to_delete: string }
         Returns: Json
+      }
+      diagnose_user_issue: {
+        Args: { user_identifier: string }
+        Returns: Json
+      }
+      emergency_password_change_by_email: {
+        Args: {
+          target_email: string
+          new_password: string
+          admin_email: string
+        }
+        Returns: Json
+      }
+      force_password_update: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       get_call_metrics_for_period: {
         Args: {
@@ -1460,6 +1706,18 @@ export type Database = {
         Returns: {
           status_type: string
           count: number
+        }[]
+      }
+      get_call_transactions: {
+        Args: { p_user_id: string; p_limit?: number }
+        Returns: {
+          transaction_id: string
+          amount: number
+          description: string
+          call_id_ref: string
+          created_at: string
+          transaction_type: string
+          balance_after: number
         }[]
       }
       get_company_user_agents: {
@@ -1498,6 +1756,18 @@ export type Database = {
           date: string
           call_count: number
           total_duration_min: number
+        }[]
+      }
+      get_recent_call_transactions: {
+        Args: { p_user_id: string; p_limit?: number }
+        Returns: {
+          transaction_id: string
+          amount: number
+          description: string
+          call_id_ref: string
+          created_at: string
+          transaction_type: string
+          balance_after: number
         }[]
       }
       get_retell_call_metrics: {
@@ -1605,6 +1875,10 @@ export type Database = {
           remaining_minutes: number
         }[]
       }
+      get_user_balance_stats: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
       get_user_companies: {
         Args: Record<PropertyKey, never>
         Returns: string[]
@@ -1673,6 +1947,57 @@ export type Database = {
         Args: { p_user_id: string; p_amount: number }
         Returns: boolean
       }
+      http: {
+        Args: { request: Database["public"]["CompositeTypes"]["http_request"] }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_delete: {
+        Args:
+          | { uri: string }
+          | { uri: string; content: string; content_type: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_get: {
+        Args: { uri: string } | { uri: string; data: Json }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_head: {
+        Args: { uri: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_header: {
+        Args: { field: string; value: string }
+        Returns: Database["public"]["CompositeTypes"]["http_header"]
+      }
+      http_list_curlopt: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          curlopt: string
+          value: string
+        }[]
+      }
+      http_patch: {
+        Args: { uri: string; content: string; content_type: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_post: {
+        Args:
+          | { uri: string; content: string; content_type: string }
+          | { uri: string; data: Json }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_put: {
+        Args: { uri: string; content: string; content_type: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_reset_curlopt: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      http_set_curlopt: {
+        Args: { curlopt: string; value: string }
+        Returns: boolean
+      }
       is_company_admin: {
         Args: { p_user_id?: string; p_company_id?: string }
         Returns: boolean
@@ -1693,12 +2018,65 @@ export type Database = {
         Args: { p_user_id: string; p_company_id: string }
         Returns: boolean
       }
+      mark_expired_invitations: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      refund_call_cost: {
+        Args: { p_call_uuid: string; p_reason?: string }
+        Returns: Json
+      }
+      simple_password_change: {
+        Args: { user_email: string; new_pass: string }
+        Returns: string
+      }
+      simulate_call_for_testing: {
+        Args: { p_agent_id: string; p_cost?: number; p_call_id_custom?: string }
+        Returns: Json
+      }
       simulate_new_user_registration: {
         Args: { user_email: string }
         Returns: Json
       }
       sync_calls: {
         Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      test_all_password_methods: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      test_password_function: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      test_password_function_v2: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      test_password_system: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      test_password_system_v3: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      test_superadmin_password_system: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      text_to_bytea: {
+        Args: { data: string }
+        Returns: string
+      }
+      universal_balance_deduction: {
+        Args: {
+          p_user_id: string
+          p_amount: number
+          p_call_id?: string
+          p_description?: string
+        }
         Returns: Json
       }
       update_user_balance: {
@@ -1717,6 +2095,10 @@ export type Database = {
           message: string
         }[]
       }
+      urlencode: {
+        Args: { data: Json } | { string: string } | { string: string }
+        Returns: string
+      }
       user_has_company_access: {
         Args: { p_company_id: string }
         Returns: boolean
@@ -1729,6 +2111,10 @@ export type Database = {
         Args: { p_user_id: string; p_company_id: string }
         Returns: boolean
       }
+      verify_password: {
+        Args: { user_email: string; test_password: string }
+        Returns: Json
+      }
       webhook_monitor: {
         Args: Record<PropertyKey, never>
         Returns: Json
@@ -1738,7 +2124,23 @@ export type Database = {
       [_ in never]: never
     }
     CompositeTypes: {
-      [_ in never]: never
+      http_header: {
+        field: string | null
+        value: string | null
+      }
+      http_request: {
+        method: unknown | null
+        uri: string | null
+        headers: Database["public"]["CompositeTypes"]["http_header"][] | null
+        content_type: string | null
+        content: string | null
+      }
+      http_response: {
+        status: number | null
+        content_type: string | null
+        headers: Database["public"]["CompositeTypes"]["http_header"][] | null
+        content: string | null
+      }
     }
   }
 }

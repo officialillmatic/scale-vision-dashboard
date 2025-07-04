@@ -59,7 +59,7 @@ const Index = () => {
               Intelligent Call Analytics
             </h1>
             <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-              Gain valuable insights from your customer calls with AI-powered analytics
+              AI-powered analytics plus 24/7 customer service with automated support, real-time sentiment alerts, and proactive issue resolution.
             </p>
             <div className="flex justify-center gap-4">
               {!isLoading && user ? (
@@ -112,7 +112,7 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="mt-20 grid md:grid-cols-3 gap-8">
+          <div className="mt-20 grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="bg-card rounded-lg p-6 shadow-sm border border-muted">
               <div className="h-12 w-12 rounded-full bg-brand-light-purple flex items-center justify-center mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-brand-purple">
@@ -150,6 +150,20 @@ const Index = () => {
               <h3 className="text-xl font-medium mb-2">Team Management</h3>
               <p className="text-muted-foreground">
                 Manage your team's performance and assign AI agents to optimize workflow
+              </p>
+            </div>
+
+            <div className="bg-card rounded-lg p-6 shadow-sm border border-muted">
+              <div className="h-12 w-12 rounded-full bg-brand-light-purple flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-brand-purple">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  <path d="M13 8H7" />
+                  <path d="M17 12H7" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-medium mb-2">Customer Support Automation</h3>
+              <p className="text-muted-foreground">
+                Automate ticket triage, FAQ responses, and live-agent handoffs to resolve issues faster and boost satisfaction around the clock
               </p>
             </div>
           </div>
