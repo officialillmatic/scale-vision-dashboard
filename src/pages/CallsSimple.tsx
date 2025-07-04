@@ -343,45 +343,67 @@ export default function CallsSimple() {
   // 🚨 PROCESAMIENTO AUTOMÁTICO CORREGIDO - SOLO VISUAL, SIN DESCUENTOS
   // ============================================================================
 
-  // 🔧 NUEVA FUNCIÓN processNewCalls - PROCESA LLAMADAS PENDIENTES DEL WEBHOOK
-// Reemplazar la función processNewCalls en CallsSimple.tsx
-
-const processNewCalls = async () => {
-  console.log('🔄 PROCESANDO LLAMADAS PENDIENTES DEL WEBHOOK...');
-  
-  if (!calls.length || !user?.id || loading || isProcessing) {
-    console.log('❌ SALIENDO - condiciones no cumplidas para procesamiento');
-    return;
-  }
-
-  // ✅ BUSCAR LLAMADAS PENDIENTES DE PROCESAMIENTO
-  const pendingCalls = calls.filter(call => 
-    call.call_status === 'pending_processing' &&
-    call.cost_usd === 0 &&
-    !lastProcessedRef.current.has(call.call_id)
-  );
-
-  if (pendingCalls.length === 0) {
-    console.log('✅ No hay llamadas pendientes de procesamiento');
+  const processNewCalls = async () => {
+    console.log('🛑 AUTO-PROCESSING MODIFICADO - Solo actualización visual, sin descuentos');
+    console.log('📋 Webhook de Retell maneja TODOS los descuentos automáticamente');
     
-    // TAMBIÉN PROCESAR LLAMADAS COMPLETADAS QUE NECESITAN ACTUALIZACIÓN VISUAL
-    const callsNeedingVisualUpdate = calls.filter(call => {
+    if (!calls.length || !user?.id || loading || isProcessing) {
+      console.log('❌ SALIENDO - condiciones no cumplidas para actualización visual');
+      return;
+    }
+
+    console.log('📊 VERIFICANDO LLAMADAS PARA ACTUALIZACIÓN VISUAL...');
+
+    // Filtrar llamadas que necesitan actualización de costo visual
+    const callsNeedingCostUpdate = calls.filter(call => {
       const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
       const actualDuration = getCallDuration(call);
       const hasValidDuration = actualDuration > 0;
       const notVisuallyProcessed = !lastProcessedRef.current.has(call.call_id);
+      
+      // ✅ NUEVA LÓGICA: Solo verificar si necesita actualización visual
       const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
       const hasRate = agentRate && agentRate > 0;
       
-      return isCompleted && hasValidDuration && notVisuallyProcessed && hasRate && call.cost_usd > 0;
-    });
-    
-    if (callsNeedingVisualUpdate.length > 0) {
-      console.log(`📊 Actualizando costos visuales para ${callsNeedingVisualUpdate.length} llamadas ya procesadas`);
+      const needsVisualUpdate = isCompleted && hasValidDuration && notVisuallyProcessed && hasRate;
       
-      for (const call of callsNeedingVisualUpdate) {
+      if (isCompleted && notVisuallyProcessed) {
+        console.log(`🔍 ANÁLISIS VISUAL ${call.call_id.substring(0, 8)}:`, {
+          status: call.call_status,
+          duration_bd: call.duration_sec,
+          audio_duration: audioDurations[call.id] || 'not loaded',
+          actual_duration: actualDuration,
+          current_cost: call.cost_usd,
+          has_rate: hasRate,
+          rate_value: agentRate,
+          needs_visual_update: needsVisualUpdate
+        });
+      }
+      
+      return needsVisualUpdate;
+    });
+
+    if (callsNeedingCostUpdate.length === 0) {
+      console.log('✅ Todas las llamadas tienen costos visuales actualizados');
+      return;
+    }
+
+    console.log(`📊 ACTUALIZANDO COSTOS VISUALES para ${callsNeedingCostUpdate.length} llamadas`);
+    setIsProcessing(true);
+
+    let updatedCount = 0;
+    let errors = 0;
+
+    for (const call of callsNeedingCostUpdate) {
+      try {
+        console.log(`📊 ACTUALIZANDO COSTO VISUAL: ${call.call_id}`);
+        
         const calculatedCost = calculateCallCost(call);
-        if (calculatedCost > 0 && Math.abs(calculatedCost - call.cost_usd) > 0.0001) {
+        console.log(`💰 Costo calculado para visualización: $${calculatedCost}`);
+        
+        if (calculatedCost > 0) {
+          // ✅ SOLO ACTUALIZAR COSTO EN BASE DE DATOS PARA VISUALIZACIÓN
+          // ❌ NO DESCONTAR BALANCE (eso lo hace el webhook)
           const { error: updateError } = await supabase
             .from('calls')
             .update({ 
@@ -389,8 +411,9 @@ const processNewCalls = async () => {
               updated_at: new Date().toISOString()
             })
             .eq('call_id', call.call_id);
-            
+
           if (!updateError) {
+            // ✅ ACTUALIZAR ESTADO LOCAL PARA MOSTRAR EN UI
             setCalls(prevCalls => 
               prevCalls.map(c => 
                 c.call_id === call.call_id 
@@ -398,178 +421,36 @@ const processNewCalls = async () => {
                   : c
               )
             );
+            
+            // ✅ MARCAR COMO PROCESADA VISUALMENTE (no financieramente)
+            lastProcessedRef.current.add(call.call_id);
+            
+            console.log(`✅ COSTO VISUAL ACTUALIZADO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
+            console.log(`🔒 BALANCE NO AFECTADO - Webhook ya procesó el descuento`);
+            updatedCount++;
+          } else {
+            console.error(`❌ Error actualizando costo visual:`, updateError);
+            errors++;
           }
-        }
-        lastProcessedRef.current.add(call.call_id);
-      }
-    }
-    
-    return;
-  }
-
-  console.log(`🚀 PROCESANDO ${pendingCalls.length} LLAMADAS PENDIENTES...`);
-  setIsProcessing(true);
-
-  let processedCount = 0;
-  let errorCount = 0;
-
-  for (const call of pendingCalls) {
-    try {
-      console.log(`\n🔄 PROCESANDO LLAMADA PENDIENTE: ${call.call_id}`);
-      
-      // PASO 1: CALCULAR DURACIÓN REAL DEL AUDIO
-      let realDuration = 0;
-      
-      if (audioDurations[call.id] && audioDurations[call.id] > 0) {
-        realDuration = audioDurations[call.id];
-        console.log(`🎵 Usando duración de audio cargada: ${realDuration}s`);
-      } else if (call.recording_url) {
-        console.log(`🎵 Cargando duración de audio desde URL...`);
-        await loadAudioDuration(call);
-        
-        // Esperar un momento para que se cargue
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        if (audioDurations[call.id]) {
-          realDuration = audioDurations[call.id];
-          console.log(`✅ Duración de audio obtenida: ${realDuration}s`);
         } else {
-          console.log(`⚠️ No se pudo obtener duración de audio, usando duración mínima`);
-          realDuration = 5; // Duración mínima
+          console.warn(`⚠️ Costo calculado inválido para visualización ${call.call_id}: $${calculatedCost}`);
+          errors++;
         }
-      } else {
-        console.log(`❌ Sin URL de audio, usando duración mínima`);
-        realDuration = 5; // Duración mínima
-      }
-
-      // PASO 2: OBTENER TARIFA DEL AGENTE
-      const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-      
-      if (!agentRate || agentRate <= 0) {
-        console.error(`❌ Sin tarifa configurada para agente ${call.agent_id}`);
         
-        // Marcar como error
-        await supabase
-          .from('calls')
-          .update({ 
-            call_status: 'error',
-            updated_at: new Date().toISOString()
-          })
-          .eq('call_id', call.call_id);
-          
-        errorCount++;
-        continue;
+        // Pequeña pausa entre procesamiento
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`❌ Error en actualización visual ${call.call_id}:`, error);
+        errors++;
       }
-
-      console.log(`💰 Tarifa del agente: $${agentRate}/min`);
-
-      // PASO 3: CALCULAR COSTO REAL
-      const calculatedCost = Math.round(((realDuration / 60.0) * agentRate) * 10000) / 10000;
-      console.log(`🧮 COSTO CALCULADO: ${realDuration}s ÷ 60 × $${agentRate} = $${calculatedCost.toFixed(4)}`);
-
-      if (calculatedCost <= 0) {
-        console.error(`❌ Costo calculado inválido: $${calculatedCost}`);
-        errorCount++;
-        continue;
-      }
-
-      // PASO 4: DESCONTAR DEL BALANCE DEL USUARIO
-      console.log(`💳 DESCONTANDO DEL BALANCE: $${calculatedCost.toFixed(4)}`);
-      
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_adjust_user_credits', {
-        p_user_id: call.user_id,
-        p_amount: -calculatedCost,
-        p_description: `Call cost: ${call.call_id} (${(realDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
-        p_admin_id: 'callssimple-processor'
-      });
-
-      if (rpcError) {
-        console.error(`❌ Error descontando balance:`, rpcError);
-        errorCount++;
-        continue;
-      }
-
-      console.log(`✅ BALANCE DESCONTADO EXITOSAMENTE:`, rpcResult);
-
-      // PASO 5: ACTUALIZAR LLAMADA A COMPLETADA
-      const { error: updateError } = await supabase
-        .from('calls')
-        .update({ 
-          duration_sec: realDuration,
-          cost_usd: calculatedCost,
-          call_status: 'completed',
-          updated_at: new Date().toISOString()
-        })
-        .eq('call_id', call.call_id);
-
-      if (updateError) {
-        console.error(`❌ Error actualizando llamada:`, updateError);
-        errorCount++;
-        continue;
-      }
-
-      // PASO 6: ACTUALIZAR ESTADO LOCAL
-      setCalls(prevCalls => 
-        prevCalls.map(c => 
-          c.call_id === call.call_id 
-            ? { 
-                ...c, 
-                duration_sec: realDuration,
-                cost_usd: calculatedCost,
-                call_status: 'completed'
-              }
-            : c
-        )
-      );
-
-      // PASO 7: MARCAR COMO PROCESADA
-      lastProcessedRef.current.add(call.call_id);
-
-      console.log(`✅ LLAMADA PROCESADA COMPLETAMENTE: ${call.call_id}`);
-      console.log(`   📏 Duración: ${realDuration}s`);
-      console.log(`   💰 Costo: $${calculatedCost.toFixed(4)}`);
-      console.log(`   💳 Balance descontado exitosamente`);
-      
-      processedCount++;
-
-      // PASO 8: DISPARAR EVENTO PARA CreditBalance
-      const balanceEvent = new CustomEvent('balanceUpdated', {
-        detail: {
-          userId: call.user_id,
-          deduction: calculatedCost,
-          callId: call.call_id,
-          source: 'callssimple-processor',
-          isDeduction: true,
-          difference: calculatedCost
-        }
-      });
-      window.dispatchEvent(balanceEvent);
-      console.log(`📡 Evento de balance enviado a CreditBalance.tsx`);
-
-      // Pausa entre procesamiento
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-    } catch (processingError) {
-      console.error(`❌ Error procesando llamada ${call.call_id}:`, processingError);
-      errorCount++;
     }
-  }
 
-  setIsProcessing(false);
+    console.log(`✅ ACTUALIZACIÓN VISUAL COMPLETADA: ${updatedCount} actualizados, ${errors} errores`);
+    console.log(`💰 IMPORTANTE: No se afectó el balance - Webhook maneja descuentos`);
+    setIsProcessing(false);
+  };
 
-  console.log(`\n🎯 PROCESAMIENTO COMPLETADO:`);
-  console.log(`   ✅ Procesadas: ${processedCount}`);
-  console.log(`   ❌ Errores: ${errorCount}`);
-  console.log(`   💰 Total llamadas pendientes procesadas con descuentos aplicados`);
-
-  // Recargar llamadas para mostrar cambios
-  if (processedCount > 0) {
-    console.log(`🔄 Recargando llamadas para mostrar cambios...`);
-    setTimeout(() => {
-      fetchCalls();
-    }, 1000);
-  }
-};
   // ============================================================================
   // FUNCIÓN FETCH CALLS (SIN CAMBIOS MAYORES)
   // ============================================================================
@@ -735,26 +616,6 @@ const processNewCalls = async () => {
       setLoading(false);
     }
   };
-// ============================================================================
-  // useEffects nuevo de descuentos llamadas pendientes ALEX
-  // ============================================================================
-// Efecto para procesar llamadas pendientes (agregar si no existe)
-useEffect(() => {
-  if (calls.length > 0 && !loading) {
-    // Procesar inmediatamente al cargar
-    setTimeout(() => {
-      processNewCalls();
-    }, 2000);
-    
-    // Y cada 30 segundos para nuevas llamadas pendientes
-    const interval = setInterval(() => {
-      processNewCalls();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }
-}, [calls.length, loading]);
-  
   // ============================================================================
   // useEffects CORREGIDOS
   // ============================================================================
