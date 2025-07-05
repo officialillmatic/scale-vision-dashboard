@@ -637,6 +637,23 @@ export default function CallsSimple() {
     }
   }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
+  // Efecto para procesar llamadas pendientes (agregar si no existe)
+useEffect(() => {
+  if (calls.length > 0 && !loading) {
+    // Procesar inmediatamente al cargar
+    setTimeout(() => {
+      processNewCalls();
+    }, 2000);
+    
+    // Y cada 30 segundos para nuevas llamadas pendientes
+    const interval = setInterval(() => {
+      processNewCalls();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }
+}, [calls.length, loading]);
+
   // ============================================================================
   // FUNCIONES DE FILTROS Y ESTADÍSTICAS
   // ============================================================================
