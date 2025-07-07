@@ -258,22 +258,30 @@ const Index = () => {
               
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-semibold mb-6">Pay-As-You-Go</h3>
-                <ul className="space-y-3 text-muted-foreground text-left max-w-md mx-auto">
-                  <li className="flex items-center gap-3">
-                    <Check className="h-5 w-5 text-brand-green flex-shrink-0" />
-                    <span className="text-lg">Just <strong>$0.15 per minute</strong></span>
+                <ul className="space-y-4 text-muted-foreground text-left max-w-lg mx-auto">
+                  <li className="flex items-start gap-3">
+                    <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
+                      <Check className="h-4 w-4 text-white" />
+                    </div>
+                    <span className="text-lg leading-relaxed"><strong>Starting at $0.15 per connected minute</strong> – pay for real talk time, nothing else.</span>
                   </li>
-                  <li className="flex items-center gap-3">
-                    <Check className="h-5 w-5 text-brand-green flex-shrink-0" />
-                    <span>No monthly commitments</span>
+                  <li className="flex items-start gap-3">
+                    <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
+                      <Check className="h-4 w-4 text-white" />
+                    </div>
+                    <span className="leading-relaxed"><strong>Zero contracts, zero commitment</strong> – start or stop whenever you want.</span>
                   </li>
-                  <li className="flex items-center gap-3">
-                    <Check className="h-5 w-5 text-brand-green flex-shrink-0" />
-                    <span>Scale up or down anytime</span>
+                  <li className="flex items-start gap-3">
+                    <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
+                      <Check className="h-4 w-4 text-white" />
+                    </div>
+                    <span className="leading-relaxed"><strong>Instant elasticity</strong> – spin agents up or down in seconds as call volume changes.</span>
                   </li>
-                  <li className="flex items-center gap-3">
-                    <Check className="h-5 w-5 text-brand-green flex-shrink-0" />
-                    <span>Ideal for pilots, startups, and enterprise tests</span>
+                  <li className="flex items-start gap-3">
+                    <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
+                      <Check className="h-4 w-4 text-white" />
+                    </div>
+                    <span className="leading-relaxed">Built for <strong>pilots, lean startups, and enterprise proof-of-concepts</strong> who need results fast.</span>
                   </li>
                 </ul>
               </div>
