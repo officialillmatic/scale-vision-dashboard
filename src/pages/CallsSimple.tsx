@@ -352,7 +352,7 @@ export default function CallsSimple() {
 
   // 🆕 Estados de paginación
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(10);
   const [paginatedCalls, setPaginatedCalls] = useState<Call[]>([]);
 
   // Estados para procesamiento automático (SOLO VISUAL AHORA)
