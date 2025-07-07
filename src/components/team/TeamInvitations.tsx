@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchCompanyInvitations } from '@/services/invitation';
 import { cancelInvitation, resendInvitation } from '@/services/invitation/invitationActions';
-import { deleteInvitationCompletely, deleteManyInvitations } from '@/services/invitation/deleteInvitation'; // ✅ NUEVO IMPORT
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,7 +22,6 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
-import { Checkbox } from '@/components/ui/checkbox'; // ✅ NUEVO IMPORT para selección múltiple
 import { toast } from 'sonner';
 import { 
   MoreHorizontal, 
@@ -31,18 +29,69 @@ import {
   RefreshCw, 
   X, 
   Bug, 
-  Trash2,        // ✅ NUEVO ICONO
-  CheckSquare,   // ✅ NUEVO ICONO
-  Square         // ✅ NUEVO ICONO
+  Trash2
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+
+// ✅ NUEVA FUNCIÓN: Eliminar invitación completamente
+const deleteInvitationCompletely = async (invitationId: string) => {
+  console.log("🗑️ [deleteInvitation] Deleting invitation completely:", invitationId);
+  
+  try {
+    // Eliminar de team_invitations
+    const { error: deleteError } = await supabase
+      .from('team_invitations')
+      .delete()
+      .eq('id', invitationId);
+
+    if (deleteError) {
+      console.error("❌ [deleteInvitation] Error deleting from team_invitations:", deleteError);
+      throw new Error(`Failed to delete invitation: ${deleteError.message}`);
+    }
+
+    console.log("✅ [deleteInvitation] Invitation deleted successfully");
+    return { success: true, message: "Invitation deleted completely" };
+
+  } catch (error: any) {
+    console.error("💥 [deleteInvitation] Unexpected error:", error);
+    throw new Error(`Failed to delete invitation: ${error.message}`);
+  }
+};
+
+// ✅ NUEVA FUNCIÓN: Eliminar múltiples invitaciones
+const deleteManyInvitations = async (invitationIds: string[]) => {
+  console.log("🗑️ [deleteManyInvitations] Deleting multiple invitations:", invitationIds.length);
+  
+  try {
+    const { error: deleteError } = await supabase
+      .from('team_invitations')
+      .delete()
+      .in('id', invitationIds);
+
+    if (deleteError) {
+      console.error("❌ [deleteManyInvitations] Error deleting from team_invitations:", deleteError);
+      throw new Error(`Failed to delete invitations: ${deleteError.message}`);
+    }
+
+    console.log("✅ [deleteManyInvitations] Invitations deleted successfully");
+    return { 
+      success: true, 
+      message: `${invitationIds.length} invitations deleted completely`,
+      deletedCount: invitationIds.length 
+    };
+
+  } catch (error: any) {
+    console.error("💥 [deleteManyInvitations] Unexpected error:", error);
+    throw new Error(`Failed to delete invitations: ${error.message}`);
+  }
+};
 
 export function TeamInvitations() {
   const { company } = useAuth();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   
-  // ✅ NUEVO: Estados para selección múltiple
+  // ✅ NUEVOS ESTADOS: Para selección múltiple
   const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
 
@@ -64,7 +113,7 @@ export function TeamInvitations() {
     }
   });
 
-  // Listen for new team member registrations to refresh the invitations list
+  // Listen for new team member registrations
   useEffect(() => {
     const handleTeamMemberRegistered = (event: CustomEvent) => {
       console.log('🔄 [TeamInvitations] Team member registered, refreshing invitations...', event.detail);
@@ -80,7 +129,7 @@ export function TeamInvitations() {
     };
   }, [refetch]);
 
-  // ✅ NUEVO: Manejar selección individual
+  // ✅ NUEVA FUNCIÓN: Manejar selección individual
   const handleSelectInvitation = (invitationId: string, checked: boolean) => {
     if (checked) {
       setSelectedInvitations(prev => [...prev, invitationId]);
@@ -90,7 +139,7 @@ export function TeamInvitations() {
     }
   };
 
-  // ✅ NUEVO: Manejar selección de todas
+  // ✅ NUEVA FUNCIÓN: Manejar selección de todas
   const handleSelectAll = (checked: boolean) => {
     if (checked && invitations) {
       setSelectedInvitations(invitations.map(inv => inv.id));
@@ -101,7 +150,7 @@ export function TeamInvitations() {
     }
   };
 
-  // ✅ NUEVO: Eliminar invitación completamente (una sola)
+  // ✅ NUEVA FUNCIÓN: Eliminar invitación completamente
   const handleDeleteCompletely = async (invitationId: string) => {
     if (!company) return;
     
@@ -109,16 +158,16 @@ export function TeamInvitations() {
     try {
       await deleteInvitationCompletely(invitationId);
       await refetch();
-      toast.success("✅ Invitación eliminada completamente de la base de datos");
+      toast.success("✅ Invitación eliminada completamente");
     } catch (error: any) {
       console.error("Error deleting invitation completely:", error);
-      toast.error(`❌ Error al eliminar invitación: ${error.message}`);
+      toast.error(`❌ Error al eliminar: ${error.message}`);
     } finally {
       setIsProcessing(null);
     }
   };
 
-  // ✅ NUEVO: Eliminar múltiples invitaciones
+  // ✅ NUEVA FUNCIÓN: Eliminar múltiples invitaciones
   const handleDeleteSelected = async () => {
     if (selectedInvitations.length === 0) {
       toast.error("No hay invitaciones seleccionadas");
@@ -129,17 +178,18 @@ export function TeamInvitations() {
     try {
       await deleteManyInvitations(selectedInvitations);
       await refetch();
-      toast.success(`✅ ${selectedInvitations.length} invitaciones eliminadas completamente`);
+      toast.success(`✅ ${selectedInvitations.length} invitaciones eliminadas`);
       setSelectedInvitations([]);
       setSelectAll(false);
     } catch (error: any) {
       console.error("Error deleting multiple invitations:", error);
-      toast.error(`❌ Error al eliminar invitaciones: ${error.message}`);
+      toast.error(`❌ Error al eliminar: ${error.message}`);
     } finally {
       setIsProcessing(null);
     }
   };
 
+  // ✅ FUNCIONES ORIGINALES: Mantener las existentes
   const handleResend = async (invitationId: string) => {
     if (!company) return;
     
@@ -156,7 +206,6 @@ export function TeamInvitations() {
     }
   };
 
-  // ✅ MANTENER: Función original de cancelar (solo cambia status)
   const handleCancel = async (invitationId: string) => {
     if (!company) return;
     
@@ -300,7 +349,7 @@ export function TeamInvitations() {
               ) : (
                 <Trash2 className="mr-2 h-4 w-4" />
               )}
-              Eliminar {selectedInvitations.length} seleccionadas
+              Eliminar {selectedInvitations.length}
             </Button>
           )}
           
@@ -336,23 +385,15 @@ export function TeamInvitations() {
         </div>
       </div>
       
+      {/* ✅ NUEVO: Debug info */}
       {debugMode && (
         <Card className="p-4 bg-gray-50 border-gray-200">
           <h3 className="font-semibold mb-2">🐛 Debug Information</h3>
           <div className="text-sm space-y-1">
             <p><strong>Company ID:</strong> {company.id}</p>
-            <p><strong>Total Pending Invitations:</strong> {pendingInvitations.length}</p>
-            <p><strong>Selected Invitations:</strong> {selectedInvitations.length}</p>
+            <p><strong>Total Pending:</strong> {pendingInvitations.length}</p>
+            <p><strong>Selected:</strong> {selectedInvitations.length}</p>
             <p><strong>Last Refresh:</strong> {new Date().toLocaleTimeString()}</p>
-            <p><strong>Query Status:</strong> {isLoading ? 'Loading...' : 'Loaded'}</p>
-          </div>
-          <div className="mt-2">
-            <strong>Pending Emails:</strong>
-            <ul className="ml-4">
-              {pendingInvitations.map(inv => (
-                <li key={inv.id} className="text-xs">• {inv.email}</li>
-              ))}
-            </ul>
           </div>
         </Card>
       )}
@@ -362,12 +403,14 @@ export function TeamInvitations() {
           <Table>
             <TableHeader>
               <TableRow>
-                {/* ✅ NUEVO: Columna de selección */}
+                {/* ✅ NUEVA COLUMNA: Selección con checkbox HTML nativo */}
                 <TableHead className="w-12">
-                  <Checkbox
+                  <input
+                    type="checkbox"
                     checked={selectAll}
-                    onCheckedChange={handleSelectAll}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
                     disabled={pendingInvitations.length === 0}
+                    className="h-4 w-4"
                   />
                 </TableHead>
                 <TableHead>Email</TableHead>
@@ -388,11 +431,13 @@ export function TeamInvitations() {
               ) : pendingInvitations.length > 0 ? (
                 pendingInvitations.map((invitation) => (
                   <TableRow key={invitation.id}>
-                    {/* ✅ NUEVO: Checkbox individual */}
+                    {/* ✅ NUEVA COLUMNA: Checkbox individual HTML nativo */}
                     <TableCell>
-                      <Checkbox
+                      <input
+                        type="checkbox"
                         checked={selectedInvitations.includes(invitation.id)}
-                        onCheckedChange={(checked) => handleSelectInvitation(invitation.id, checked as boolean)}
+                        onChange={(e) => handleSelectInvitation(invitation.id, e.target.checked)}
+                        className="h-4 w-4"
                       />
                     </TableCell>
                     <TableCell className="font-medium">
@@ -432,13 +477,13 @@ export function TeamInvitations() {
                               <X className="mr-2 h-4 w-4" />
                               Cancel (solo status)
                             </DropdownMenuItem>
-                            {/* ✅ NUEVO: Opción para eliminar completamente */}
+                            {/* ✅ NUEVA OPCIÓN: Eliminar completamente */}
                             <DropdownMenuItem 
                               className="text-red-600"
                               onClick={() => handleDeleteCompletely(invitation.id)}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Eliminar Completamente
+                              🗑️ Eliminar Completamente
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
