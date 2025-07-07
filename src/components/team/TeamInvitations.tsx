@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchCompanyInvitations } from '@/services/invitation';
 import { cancelInvitation, resendInvitation } from '@/services/invitation/invitationActions';
+import { deleteInvitationCompletely, deleteManyInvitations } from '@/services/invitation/deleteInvitation'; // ✅ NUEVO IMPORT
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,14 +23,28 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox'; // ✅ NUEVO IMPORT para selección múltiple
 import { toast } from 'sonner';
-import { MoreHorizontal, Loader, RefreshCw, X, Bug } from 'lucide-react';
+import { 
+  MoreHorizontal, 
+  Loader, 
+  RefreshCw, 
+  X, 
+  Bug, 
+  Trash2,        // ✅ NUEVO ICONO
+  CheckSquare,   // ✅ NUEVO ICONO
+  Square         // ✅ NUEVO ICONO
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export function TeamInvitations() {
   const { company } = useAuth();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
+  
+  // ✅ NUEVO: Estados para selección múltiple
+  const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   const {
     data: invitations,
@@ -41,9 +55,8 @@ export function TeamInvitations() {
     queryKey: ['company-invitations', company?.id],
     queryFn: () => company?.id ? fetchCompanyInvitations(company.id) : Promise.resolve([]),
     enabled: !!company?.id,
-    refetchInterval: 5000, // Refrescar cada 5 segundos para debug
+    refetchInterval: 5000,
     retry: (failureCount, error) => {
-      // Don't retry on 403 or 401 errors
       if (error?.message?.includes('403') || error?.message?.includes('401')) {
         return false;
       }
@@ -57,7 +70,7 @@ export function TeamInvitations() {
       console.log('🔄 [TeamInvitations] Team member registered, refreshing invitations...', event.detail);
       setTimeout(() => {
         refetch();
-      }, 2000); // Esperar 2 segundos para que la base de datos se actualice
+      }, 2000);
     };
 
     window.addEventListener('teamMemberRegistered', handleTeamMemberRegistered as EventListener);
@@ -66,6 +79,66 @@ export function TeamInvitations() {
       window.removeEventListener('teamMemberRegistered', handleTeamMemberRegistered as EventListener);
     };
   }, [refetch]);
+
+  // ✅ NUEVO: Manejar selección individual
+  const handleSelectInvitation = (invitationId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedInvitations(prev => [...prev, invitationId]);
+    } else {
+      setSelectedInvitations(prev => prev.filter(id => id !== invitationId));
+      setSelectAll(false);
+    }
+  };
+
+  // ✅ NUEVO: Manejar selección de todas
+  const handleSelectAll = (checked: boolean) => {
+    if (checked && invitations) {
+      setSelectedInvitations(invitations.map(inv => inv.id));
+      setSelectAll(true);
+    } else {
+      setSelectedInvitations([]);
+      setSelectAll(false);
+    }
+  };
+
+  // ✅ NUEVO: Eliminar invitación completamente (una sola)
+  const handleDeleteCompletely = async (invitationId: string) => {
+    if (!company) return;
+    
+    setIsProcessing(invitationId);
+    try {
+      await deleteInvitationCompletely(invitationId);
+      await refetch();
+      toast.success("✅ Invitación eliminada completamente de la base de datos");
+    } catch (error: any) {
+      console.error("Error deleting invitation completely:", error);
+      toast.error(`❌ Error al eliminar invitación: ${error.message}`);
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
+  // ✅ NUEVO: Eliminar múltiples invitaciones
+  const handleDeleteSelected = async () => {
+    if (selectedInvitations.length === 0) {
+      toast.error("No hay invitaciones seleccionadas");
+      return;
+    }
+
+    setIsProcessing('delete-multiple');
+    try {
+      await deleteManyInvitations(selectedInvitations);
+      await refetch();
+      toast.success(`✅ ${selectedInvitations.length} invitaciones eliminadas completamente`);
+      setSelectedInvitations([]);
+      setSelectAll(false);
+    } catch (error: any) {
+      console.error("Error deleting multiple invitations:", error);
+      toast.error(`❌ Error al eliminar invitaciones: ${error.message}`);
+    } finally {
+      setIsProcessing(null);
+    }
+  };
 
   const handleResend = async (invitationId: string) => {
     if (!company) return;
@@ -83,6 +156,7 @@ export function TeamInvitations() {
     }
   };
 
+  // ✅ MANTENER: Función original de cancelar (solo cambia status)
   const handleCancel = async (invitationId: string) => {
     if (!company) return;
     
@@ -104,14 +178,11 @@ export function TeamInvitations() {
     setIsProcessing('force-refresh');
     
     try {
-      // Invalidar cache y refrescar
       await refetch();
       
-      // También debug de datos directos
       if (company?.id) {
         console.log('🔍 [DEBUG] Checking database directly...');
         
-        // Check invitations raw
         const { data: rawInvitations } = await supabase
           .from('company_invitations_raw')
           .select('*')
@@ -120,7 +191,6 @@ export function TeamInvitations() {
         
         console.log('📋 [DEBUG] Raw pending invitations in DB:', rawInvitations?.length || 0);
         
-        // Check confirmed users
         const { data: confirmedUsers } = await supabase
           .from('profiles')
           .select('email, email_confirmed_at')
@@ -128,7 +198,6 @@ export function TeamInvitations() {
         
         console.log('👥 [DEBUG] Confirmed users in DB:', confirmedUsers?.length || 0);
         
-        // Check overlap
         const pendingEmails = rawInvitations?.map(inv => inv.email.toLowerCase()) || [];
         const confirmedEmails = confirmedUsers?.map(user => user.email.toLowerCase()) || [];
         const overlap = pendingEmails.filter(email => confirmedEmails.includes(email));
@@ -188,7 +257,6 @@ export function TeamInvitations() {
     }
   };
 
-  // All invitations are already filtered by the API to only show truly pending ones
   const pendingInvitations = invitations || [];
   
   if (!company) {
@@ -218,8 +286,24 @@ export function TeamInvitations() {
               {pendingInvitations.length} pending
             </Badge>
           )}
+
+          {/* ✅ NUEVO: Botón para eliminar seleccionadas */}
+          {selectedInvitations.length > 0 && (
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={handleDeleteSelected}
+              disabled={isProcessing === 'delete-multiple'}
+            >
+              {isProcessing === 'delete-multiple' ? (
+                <Loader className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Eliminar {selectedInvitations.length} seleccionadas
+            </Button>
+          )}
           
-          {/* Debug button */}
           <Button 
             variant="outline" 
             size="sm" 
@@ -230,7 +314,6 @@ export function TeamInvitations() {
             Debug
           </Button>
           
-          {/* Force refresh button for debugging */}
           <Button 
             variant="outline" 
             onClick={handleForceRefresh} 
@@ -253,16 +336,15 @@ export function TeamInvitations() {
         </div>
       </div>
       
-      {/* Debug info */}
       {debugMode && (
         <Card className="p-4 bg-gray-50 border-gray-200">
           <h3 className="font-semibold mb-2">🐛 Debug Information</h3>
           <div className="text-sm space-y-1">
             <p><strong>Company ID:</strong> {company.id}</p>
             <p><strong>Total Pending Invitations:</strong> {pendingInvitations.length}</p>
+            <p><strong>Selected Invitations:</strong> {selectedInvitations.length}</p>
             <p><strong>Last Refresh:</strong> {new Date().toLocaleTimeString()}</p>
             <p><strong>Query Status:</strong> {isLoading ? 'Loading...' : 'Loaded'}</p>
-            <p><strong>Auto-refresh:</strong> Every 5 seconds</p>
           </div>
           <div className="mt-2">
             <strong>Pending Emails:</strong>
@@ -280,6 +362,14 @@ export function TeamInvitations() {
           <Table>
             <TableHeader>
               <TableRow>
+                {/* ✅ NUEVO: Columna de selección */}
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectAll}
+                    onCheckedChange={handleSelectAll}
+                    disabled={pendingInvitations.length === 0}
+                  />
+                </TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Sent</TableHead>
@@ -291,13 +381,20 @@ export function TeamInvitations() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     <LoadingSpinner size="md" className="mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : pendingInvitations.length > 0 ? (
                 pendingInvitations.map((invitation) => (
                   <TableRow key={invitation.id}>
+                    {/* ✅ NUEVO: Checkbox individual */}
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedInvitations.includes(invitation.id)}
+                        onCheckedChange={(checked) => handleSelectInvitation(invitation.id, checked as boolean)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {invitation.email}
                       {debugMode && (
@@ -331,12 +428,17 @@ export function TeamInvitations() {
                               Resend
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleCancel(invitation.id)}>
+                              <X className="mr-2 h-4 w-4" />
+                              Cancel (solo status)
+                            </DropdownMenuItem>
+                            {/* ✅ NUEVO: Opción para eliminar completamente */}
                             <DropdownMenuItem 
                               className="text-red-600"
-                              onClick={() => handleCancel(invitation.id)}
+                              onClick={() => handleDeleteCompletely(invitation.id)}
                             >
-                              <X className="mr-2 h-4 w-4" />
-                              Cancel
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Eliminar Completamente
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -346,7 +448,7 @@ export function TeamInvitations() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <span className="text-muted-foreground">No pending invitations found.</span>
                       <span className="text-sm text-muted-foreground">
