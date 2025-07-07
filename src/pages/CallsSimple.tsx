@@ -232,7 +232,7 @@ const PaginationControls = ({
     <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2 text-sm text-gray-700">
-          <span>Mostrar</span>
+          <span>Show</span>
           <select
             value={pageSize}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
@@ -242,11 +242,11 @@ const PaginationControls = ({
               <option key={size} value={size}>{size}</option>
             ))}
           </select>
-          <span>por página</span>
+          <span>per page</span>
         </div>
         
         <div className="text-sm text-gray-700">
-          Mostrando {startItem} a {endItem} de {totalItems} llamadas
+          Showing {startItem} to {endItem} of {totalItems} calls
         </div>
       </div>
 
@@ -640,7 +640,7 @@ export default function CallsSimple() {
     try {
       setLoading(true);
       setError(null);
-      setLoadingProgress('Obteniendo configuración de agentes...');
+      setLoadingProgress('Getting agent configuration...');
 
       // PASO 1: Obtener agentes asignados al usuario
       const { data: assignments, error: assignmentsError } = await supabase
@@ -672,7 +672,7 @@ export default function CallsSimple() {
       const agentIds = assignments.map(a => a.agent_id);
       console.log("🎯 IDs de agentes asignados:", agentIds);
 
-      setLoadingProgress('Cargando información de agentes...');
+      setLoadingProgress('Loading agent information...');
 
       // PASO 2: Obtener detalles de los agentes asignados
       const { data: agentDetails, error: agentsError } = await supabase
@@ -694,7 +694,7 @@ export default function CallsSimple() {
       const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
       const allAgentIds = [...agentUUIDs, ...retellAgentIds].filter(Boolean);
 
-      setLoadingProgress('Cargando llamadas recientes...');
+      setLoadingProgress('Loading recent calls...');
 
       // 🚀 PASO 4: CARGA PROGRESIVA - Primero las más recientes
       const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
@@ -1297,7 +1297,7 @@ export default function CallsSimple() {
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
                   <span className="text-blue-700 font-medium">
-                    📊 Actualizando costos visuales... (sin descuentos)
+                    📊 Updating visual costs... (no deductions)
                   </span>
                 </div>
               </CardContent>
@@ -1469,7 +1469,7 @@ export default function CallsSimple() {
                 {backgroundLoading && (
                   <div className="flex items-center gap-2 text-blue-600">
                     <div className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-sm font-medium">Cargando más llamadas...</span>
+                    <span className="text-sm font-medium">Loading more calls...</span>
                   </div>
                 )}
                 
