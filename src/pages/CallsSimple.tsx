@@ -330,8 +330,11 @@ export default function CallsSimple() {
   const [calls, setCalls] = useState<Call[]>([]);
   const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState<string>('');
   const [userAssignedAgents, setUserAssignedAgents] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [hasMoreCalls, setHasMoreCalls] = useState(true);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
@@ -489,6 +492,26 @@ export default function CallsSimple() {
     }
   };
 
+  // 🚀 NUEVA FUNCIÓN: Cargar audio solo para llamadas visibles
+  const loadAudioForVisibleCalls = async (visibleCalls: Call[]) => {
+    const callsWithAudio = visibleCalls.filter(call => 
+      call.recording_url && !audioDurations[call.id]
+    );
+    
+    if (callsWithAudio.length === 0) return;
+    
+    console.log(`🎵 Cargando audio para ${callsWithAudio.length} llamadas visibles...`);
+    
+    // Cargar en pequeños lotes para no bloquear
+    for (let i = 0; i < callsWithAudio.length; i += 2) {
+      const batch = callsWithAudio.slice(i, i + 2);
+      await Promise.all(batch.map(call => loadAudioDuration(call)));
+      if (i + 2 < callsWithAudio.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+  };
+
   // ============================================================================
   // 🚨 PROCESAMIENTO AUTOMÁTICO CORREGIDO - SOLO VISUAL, SIN DESCUENTOS
   // ============================================================================
@@ -602,11 +625,11 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FUNCIÓN FETCH CALLS (SIN CAMBIOS MAYORES)
+  // FUNCIÓN FETCH CALLS OPTIMIZADA CON CARGA PROGRESIVA
   // ============================================================================
   
   const fetchCalls = async () => {
-    console.log("🔄 FETCH CALLS - SISTEMA CORREGIDO (Solo lectura, sin descuentos)");
+    console.log("🚀 FETCH CALLS OPTIMIZADO - Carga progresiva iniciada");
     
     if (!user?.id) {
       setError("User not authenticated");
@@ -617,6 +640,7 @@ export default function CallsSimple() {
     try {
       setLoading(true);
       setError(null);
+      setLoadingProgress('Obteniendo configuración de agentes...');
 
       // PASO 1: Obtener agentes asignados al usuario
       const { data: assignments, error: assignmentsError } = await supabase
@@ -641,11 +665,14 @@ export default function CallsSimple() {
           avgDuration: 0,
           completedCalls: 0
         });
+        setLoading(false);
         return;
       }
 
       const agentIds = assignments.map(a => a.agent_id);
       console.log("🎯 IDs de agentes asignados:", agentIds);
+
+      setLoadingProgress('Cargando información de agentes...');
 
       // PASO 2: Obtener detalles de los agentes asignados
       const { data: agentDetails, error: agentsError } = await supabase
@@ -662,107 +689,126 @@ export default function CallsSimple() {
       console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
       setUserAssignedAgents(agentDetails || []);
 
-      // PASO 3: Buscar TODAS las llamadas de los agentes asignados
+      // PASO 3: Preparar IDs para búsqueda
       const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
       const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
-      
-      console.log("📋 Buscando llamadas por:");
-      console.log("   • Agent UUIDs:", agentUUIDs);
-      console.log("   • Retell Agent IDs:", retellAgentIds);
-
       const allAgentIds = [...agentUUIDs, ...retellAgentIds].filter(Boolean);
+
+      setLoadingProgress('Cargando llamadas recientes...');
+
+      // 🚀 PASO 4: CARGA PROGRESIVA - Primero las más recientes
+      const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
       
-      const { data: allAgentCalls, error: callsError } = await supabase
+      const { data: initialCalls, error: callsError } = await supabase
         .from('calls')
         .select('*')
         .in('agent_id', allAgentIds)
-        .order('timestamp', { ascending: false });
+        .order('timestamp', { ascending: false })
+        .limit(INITIAL_BATCH);
 
       if (callsError) {
-        console.error("❌ Error obteniendo llamadas:", callsError);
+        console.error("❌ Error obteniendo llamadas iniciales:", callsError);
         setError(`Error obteniendo llamadas: ${callsError.message}`);
         return;
       }
 
-      console.log(`📞 TODAS las llamadas de agentes asignados: ${allAgentCalls?.length || 0}`);
+      console.log(`📞 Llamadas iniciales cargadas: ${initialCalls?.length || 0}`);
 
-      // PASO 4: MAPEAR LLAMADAS CON INFORMACIÓN COMPLETA DEL AGENTE
+      // PASO 5: Mapear llamadas iniciales con información del agente
       const userAgents = agentDetails?.map(agent => ({
         agent_id: agent.id,
         agents: agent
       })) || [];
 
-      const mappedCalls = (allAgentCalls || []).map(call => {
-        let matchedAgent = null;
+      const mapCalls = (calls) => {
+        return (calls || []).map(call => {
+          let matchedAgent = null;
 
-        // Buscar agente por ID directo o retell_agent_id
-        const userAgentAssignment = userAgents.find(assignment => 
-          assignment.agents.id === call.agent_id ||
-          assignment.agents.retell_agent_id === call.agent_id ||
-          `agent_${assignment.agents.id}` === call.agent_id
-        );
+          const userAgentAssignment = userAgents.find(assignment => 
+            assignment.agents.id === call.agent_id ||
+            assignment.agents.retell_agent_id === call.agent_id ||
+            `agent_${assignment.agents.id}` === call.agent_id
+          );
 
-        if (userAgentAssignment) {
-          matchedAgent = {
-            id: userAgentAssignment.agents.id,
-            name: userAgentAssignment.agents.name,
-            rate_per_minute: userAgentAssignment.agents.rate_per_minute
+          if (userAgentAssignment) {
+            matchedAgent = {
+              id: userAgentAssignment.agents.id,
+              name: userAgentAssignment.agents.name,
+              rate_per_minute: userAgentAssignment.agents.rate_per_minute
+            };
+          } else {
+            matchedAgent = {
+              id: call.agent_id,
+              name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
+              rate_per_minute: 0.02
+            };
+          }
+
+          return {
+            ...call,
+            end_reason: call.disconnection_reason || null,
+            call_agent: matchedAgent,
+            agents: matchedAgent
           };
-          console.log(`✅ Agente encontrado para ${call.call_id}: ${matchedAgent.name} ($${matchedAgent.rate_per_minute}/min)`);
-        } else {
-          // Agente no encontrado - usar tarifa por defecto
-          matchedAgent = {
-            id: call.agent_id,
-            name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
-            rate_per_minute: 0.02
-          };
-          console.log(`⚠️ Agente no encontrado para ${call.call_id}, usando tarifa por defecto`);
-        }
+        });
+      };
 
-        return {
-          ...call,
-          end_reason: call.disconnection_reason || null,
-          call_agent: matchedAgent,
-          // ✅ TAMBIÉN AGREGAR EN agents para compatibilidad
-          agents: matchedAgent
-        };
-      });
+      const mappedInitialCalls = mapCalls(initialCalls);
+      
+      // ✅ MOSTRAR DATOS INICIALES RÁPIDAMENTE
+      setCalls(mappedInitialCalls);
+      setLoading(false); // ¡YA NO ESTÁ CARGANDO!
+      setLoadingProgress('');
 
-      console.log(`💰 Ejemplo de llamada mapeada:`, {
-        call_id: mappedCalls[0]?.call_id,
-        agent_name: mappedCalls[0]?.call_agent?.name,
-        rate: mappedCalls[0]?.call_agent?.rate_per_minute,
-        duration: mappedCalls[0]?.duration_sec,
-        cost_in_db: mappedCalls[0]?.cost_usd
-      });
+      console.log("🎉 PRIMERA CARGA COMPLETADA - Mostrando datos iniciales");
 
-      // ✅ CARGAR DURACIONES DE AUDIO INMEDIATAMENTE
-      console.log('🎵 Cargando duraciones de audio...');
-      const callsWithAudio = mappedCalls.filter(call => call.recording_url);
-      console.log(`📻 ${callsWithAudio.length} llamadas con audio encontradas`);
+      // 🔄 PASO 6: CARGAR EL RESTO EN BACKGROUND
+      if (initialCalls.length === INITIAL_BATCH) {
+        setBackgroundLoading(true);
+        setHasMoreCalls(true);
+        
+        setTimeout(async () => {
+          try {
+            console.log("📦 Cargando llamadas adicionales en background...");
+            
+            // Obtener timestamp de la última llamada cargada
+            const lastTimestamp = initialCalls[initialCalls.length - 1]?.timestamp;
+            
+            const { data: remainingCalls, error: remainingError } = await supabase
+              .from('calls')
+              .select('*')
+              .in('agent_id', allAgentIds)
+              .order('timestamp', { ascending: false })
+              .lt('timestamp', lastTimestamp); // Llamadas más antiguas
 
-      // Cargar audio en lotes pequeños
-      for (let i = 0; i < callsWithAudio.length; i += 3) {
-        const batch = callsWithAudio.slice(i, i + 3);
-        await Promise.all(batch.map(call => loadAudioDuration(call)));
-        if (i + 3 < callsWithAudio.length) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
+            if (!remainingError && remainingCalls) {
+              const mappedRemainingCalls = mapCalls(remainingCalls);
+              const allCalls = [...mappedInitialCalls, ...mappedRemainingCalls];
+              
+              console.log(`📞 Llamadas adicionales cargadas: ${remainingCalls.length}`);
+              console.log(`📊 Total de llamadas: ${allCalls.length}`);
+              
+              setCalls(allCalls);
+              setHasMoreCalls(false);
+            }
+          } catch (err) {
+            console.error("❌ Error cargando llamadas adicionales:", err);
+          } finally {
+            setBackgroundLoading(false);
+          }
+        }, 1000); // Esperar 1 segundo antes de cargar más
+      } else {
+        setHasMoreCalls(false);
       }
 
-      setCalls(mappedCalls || []);
-
-      // ✅ PROCESAR DESPUÉS DE CARGAR AUDIOS (SOLO VISUAL)
+      // 🎵 PASO 7: CARGAR AUDIO SOLO DE LAS PRIMERAS LLAMADAS VISIBLES
       setTimeout(() => {
-        console.log('📊 Actualizando costos visuales después de cargar audios...');
-        console.log('🔒 RECORDATORIO: No se afectará el balance del usuario');
-        processNewCalls(); // ✅ Solo actualiza costos visuales, no descuenta
-      }, 2000);
+        loadAudioForVisibleCalls(mappedInitialCalls.slice(0, 10));
+      }, 500);
 
     } catch (err: any) {
       console.error("❌ Excepción en fetch calls:", err);
       setError(`Exception: ${err.message}`);
-    } finally {
       setLoading(false);
     }
   };
@@ -814,13 +860,18 @@ export default function CallsSimple() {
     }
   }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
-  // 🆕 Efecto para aplicar paginación y resetear página cuando cambien los filtros
+  // 🆕 Efecto para aplicar paginación y cargar audio de página actual
   useEffect(() => {
     const totalPages = applyPagination();
     
     // Si la página actual es mayor que el total de páginas, resetear a la primera
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(1);
+    }
+
+    // 🎵 Cargar audio solo para las llamadas de la página actual
+    if (paginatedCalls.length > 0) {
+      loadAudioForVisibleCalls(paginatedCalls);
     }
   }, [filteredCalls, currentPage, pageSize]);
 
@@ -831,20 +882,22 @@ export default function CallsSimple() {
 
   // Efecto para procesar llamadas pendientes
   useEffect(() => {
-    if (calls.length > 0 && !loading) {
-      // Procesar inmediatamente al cargar
+    if (calls.length > 0 && !loading && !backgroundLoading) {
+      // Procesar solo cuando no esté cargando en background
       setTimeout(() => {
         processNewCalls();
-      }, 2000);
+      }, 1000);
       
       // Y cada 30 segundos para nuevas llamadas pendientes
       const interval = setInterval(() => {
-        processNewCalls();
+        if (!backgroundLoading) { // Solo si no está cargando en background
+          processNewCalls();
+        }
       }, 30000);
       
       return () => clearInterval(interval);
     }
-  }, [calls.length, loading]);
+  }, [calls.length, loading, backgroundLoading]);
 
   // ============================================================================
   // FUNCIONES DE FILTROS Y ESTADÍSTICAS
@@ -1402,20 +1455,41 @@ export default function CallsSimple() {
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
-              <CardTitle className="text-xl font-semibold text-gray-900">
-                📋 Call History ({filteredCalls.length})
-                {totalPages > 1 && (
-                  <span className="text-sm font-normal text-gray-500 ml-2">
-                    - Página {currentPage} de {totalPages}
-                  </span>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl font-semibold text-gray-900">
+                  📋 Call History ({filteredCalls.length})
+                  {totalPages > 1 && (
+                    <span className="text-sm font-normal text-gray-500 ml-2">
+                      - Página {currentPage} de {totalPages}
+                    </span>
+                  )}
+                </CardTitle>
+                
+                {/* 🔄 Indicador de carga en background */}
+                {backgroundLoading && (
+                  <div className="flex items-center gap-2 text-blue-600">
+                    <div className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm font-medium">Cargando más llamadas...</span>
+                  </div>
                 )}
-              </CardTitle>
+                
+                {hasMoreCalls && !backgroundLoading && (
+                  <div className="text-sm text-gray-500">
+                    ⏳ Hay más llamadas disponibles
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <LoadingSpinner size="lg" />
-                  <span className="ml-3 text-gray-600">Loading calls...</span>
+                  <div className="ml-3">
+                    <span className="text-gray-600 block">Loading calls...</span>
+                    {loadingProgress && (
+                      <span className="text-sm text-gray-500 mt-1 block">{loadingProgress}</span>
+                    )}
+                  </div>
                 </div>
               ) : filteredCalls.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
