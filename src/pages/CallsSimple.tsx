@@ -23,7 +23,11 @@ import {
   Download,
   CalendarDays,
   ChevronDown,
-  Users
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,6 +68,7 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
+
 // ============================================================================
 // 🚨 FUNCIÓN ELIMINADA: deductCallCost (CAUSABA DESCUENTOS DUPLICADOS)
 // ============================================================================
@@ -175,6 +180,145 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
     </div>
   );
 };
+
+// ============================================================================
+// 🆕 COMPONENTE DE PAGINACIÓN
+// ============================================================================
+const PaginationControls = ({ 
+  currentPage, 
+  totalPages, 
+  pageSize, 
+  totalItems, 
+  onPageChange, 
+  onPageSizeChange 
+}) => {
+  const pageSizeOptions = [10, 25, 50, 100];
+  
+  const getVisiblePages = () => {
+    const delta = 2; // Número de páginas a mostrar a cada lado de la actual
+    const range = [];
+    const rangeWithDots = [];
+
+    for (let i = Math.max(2, currentPage - delta); 
+         i <= Math.min(totalPages - 1, currentPage + delta); 
+         i++) {
+      range.push(i);
+    }
+
+    if (currentPage - delta > 2) {
+      rangeWithDots.push(1, '...');
+    } else {
+      rangeWithDots.push(1);
+    }
+
+    rangeWithDots.push(...range);
+
+    if (currentPage + delta < totalPages - 1) {
+      rangeWithDots.push('...', totalPages);
+    } else {
+      rangeWithDots.push(totalPages);
+    }
+
+    return rangeWithDots;
+  };
+
+  if (totalPages <= 1) return null;
+
+  const visiblePages = getVisiblePages();
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  return (
+    <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 text-sm text-gray-700">
+          <span>Mostrar</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {pageSizeOptions.map(size => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+          <span>por página</span>
+        </div>
+        
+        <div className="text-sm text-gray-700">
+          Mostrando {startItem} a {endItem} de {totalItems} llamadas
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {/* Botón Primera Página */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronsLeft className="h-4 w-4" />
+        </Button>
+
+        {/* Botón Página Anterior */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        {/* Números de Página */}
+        <div className="flex items-center gap-1">
+          {visiblePages.map((page, index) => (
+            <React.Fragment key={index}>
+              {page === '...' ? (
+                <span className="px-2 py-1 text-gray-500">...</span>
+              ) : (
+                <Button
+                  variant={currentPage === page ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => onPageChange(page as number)}
+                  className="h-8 w-8 p-0"
+                >
+                  {page}
+                </Button>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Botón Página Siguiente */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        {/* Botón Última Página */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronsRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 // ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
@@ -205,6 +349,11 @@ export default function CallsSimple() {
     avgDuration: 0,
     completedCalls: 0
   });
+
+  // 🆕 Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [paginatedCalls, setPaginatedCalls] = useState<Call[]>([]);
 
   // Estados para procesamiento automático (SOLO VISUAL AHORA)
   const [isProcessing, setIsProcessing] = useState(false);
@@ -339,6 +488,7 @@ export default function CallsSimple() {
       console.log(`❌ Error loading audio duration:`, error);
     }
   };
+
   // ============================================================================
   // 🚨 PROCESAMIENTO AUTOMÁTICO CORREGIDO - SOLO VISUAL, SIN DESCUENTOS
   // ============================================================================
@@ -616,6 +766,33 @@ export default function CallsSimple() {
       setLoading(false);
     }
   };
+
+  // ============================================================================
+  // 🆕 FUNCIÓN DE PAGINACIÓN
+  // ============================================================================
+  const applyPagination = () => {
+    const totalPages = Math.ceil(filteredCalls.length / pageSize);
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedData = filteredCalls.slice(startIndex, endIndex);
+    
+    console.log(`📄 Paginación aplicada: Página ${currentPage}/${totalPages}, mostrando ${startIndex + 1}-${Math.min(endIndex, filteredCalls.length)} de ${filteredCalls.length}`);
+    
+    setPaginatedCalls(paginatedData);
+    return totalPages;
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    console.log(`📄 Cambio de página: ${newPage}`);
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1); // Reset a la primera página
+    console.log(`📄 Cambio de tamaño de página: ${newPageSize}`);
+  };
+
   // ============================================================================
   // useEffects CORREGIDOS
   // ============================================================================
@@ -637,22 +814,37 @@ export default function CallsSimple() {
     }
   }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
-  // Efecto para procesar llamadas pendientes (agregar si no existe)
-useEffect(() => {
-  if (calls.length > 0 && !loading) {
-    // Procesar inmediatamente al cargar
-    setTimeout(() => {
-      processNewCalls();
-    }, 2000);
+  // 🆕 Efecto para aplicar paginación y resetear página cuando cambien los filtros
+  useEffect(() => {
+    const totalPages = applyPagination();
     
-    // Y cada 30 segundos para nuevas llamadas pendientes
-    const interval = setInterval(() => {
-      processNewCalls();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }
-}, [calls.length, loading]);
+    // Si la página actual es mayor que el total de páginas, resetear a la primera
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [filteredCalls, currentPage, pageSize]);
+
+  // 🆕 Efecto para resetear página cuando cambien filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
+
+  // Efecto para procesar llamadas pendientes
+  useEffect(() => {
+    if (calls.length > 0 && !loading) {
+      // Procesar inmediatamente al cargar
+      setTimeout(() => {
+        processNewCalls();
+      }, 2000);
+      
+      // Y cada 30 segundos para nuevas llamadas pendientes
+      const interval = setInterval(() => {
+        processNewCalls();
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [calls.length, loading]);
 
   // ============================================================================
   // FUNCIONES DE FILTROS Y ESTADÍSTICAS
@@ -941,6 +1133,7 @@ useEffect(() => {
   // Variables auxiliares para la UI
   const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
   const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
+  const totalPages = Math.ceil(filteredCalls.length / pageSize);
 
   // ============================================================================
   // VERIFICACIÓN DE USUARIO
@@ -957,8 +1150,9 @@ useEffect(() => {
       </DashboardLayout>
     );
   }
+
   // ============================================================================
-  // RENDER DEL COMPONENTE PRINCIPAL CON MENSAJES CORREGIDOS
+  // RENDER DEL COMPONENTE PRINCIPAL CON PAGINACIÓN
   // ============================================================================
 
   return (
@@ -1196,7 +1390,10 @@ useEffect(() => {
                       📅 {getDateFilterText()}
                     </Badge>
                   )}
-                  Showing {filteredCalls.length} of {calls.length} calls
+                  Showing {paginatedCalls.length} of {filteredCalls.length} calls
+                  {filteredCalls.length !== calls.length && (
+                    <span className="text-gray-400"> (filtered from {calls.length})</span>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -1207,6 +1404,11 @@ useEffect(() => {
             <CardHeader className="border-b border-gray-100 pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
                 📋 Call History ({filteredCalls.length})
+                {totalPages > 1 && (
+                  <span className="text-sm font-normal text-gray-500 ml-2">
+                    - Página {currentPage} de {totalPages}
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -1242,212 +1444,224 @@ useEffect(() => {
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('timestamp')}
-                            className="flex items-center gap-1 hover:text-gray-700"
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <button
+                              onClick={() => handleSort('timestamp')}
+                              className="flex items-center gap-1 hover:text-gray-700"
+                            >
+                              Date & Time {getSortIcon('timestamp')}
+                            </button>
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Call Details
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Agent
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <button
+                              onClick={() => handleSort('duration_sec')}
+                              className="flex items-center gap-1 hover:text-gray-700"
+                            >
+                              Duration {getSortIcon('duration_sec')}
+                            </button>
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <button
+                              onClick={() => handleSort('cost_usd')}
+                              className="flex items-center gap-1 hover:text-gray-700"
+                            >
+                              Cost (Visual) {getSortIcon('cost_usd')}
+                            </button>
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <button
+                              onClick={() => handleSort('call_status')}
+                              className="flex items-center gap-1 hover:text-gray-700"
+                            >
+                              Status {getSortIcon('call_status')}
+                            </button>
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            End Reason
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Content
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {paginatedCalls.map((call, index) => (
+                          <tr 
+                            key={call.id} 
+                            className="hover:bg-gray-50 transition-colors cursor-pointer"
+                            onClick={() => handleCallClick(call)}
                           >
-                            Date & Time {getSortIcon('timestamp')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Call Details
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Agent
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('duration_sec')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Duration {getSortIcon('duration_sec')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('cost_usd')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Cost (Visual) {getSortIcon('cost_usd')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort('call_status')}
-                            className="flex items-center gap-1 hover:text-gray-700"
-                          >
-                            Status {getSortIcon('call_status')}
-                          </button>
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          End Reason
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Content
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredCalls.map((call, index) => (
-                        <tr 
-                          key={call.id} 
-                          className="hover:bg-gray-50 transition-colors cursor-pointer"
-                          onClick={() => handleCallClick(call)}
-                        >
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900 font-medium">
-                              {formatDate(call.timestamp).split(',')[0]}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {formatTime(call.timestamp)}
-                            </div>
-                          </td>
-                          
-                          <td className="px-4 py-4">
-                            <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
-                              <Phone className="h-3 w-3 text-gray-400" />
-                              {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
-                            </div>
-                            <div className="text-xs text-gray-500 font-mono">
-                              ID: {call.call_id.substring(0, 16)}...
-                            </div>
-                          </td>
-                          
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <User className="w-4 h-4 text-gray-400" />
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  {call.call_agent?.name || getAgentNameLocal(call.agent_id)}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {call.agent_id.substring(0, 8)}...
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900 font-medium">
+                                {formatDate(call.timestamp).split(',')[0]}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {formatTime(call.timestamp)}
+                              </div>
+                            </td>
+                            
+                            <td className="px-4 py-4">
+                              <div className="text-sm text-gray-900 flex items-center gap-1 mb-1">
+                                <Phone className="h-3 w-3 text-gray-400" />
+                                {formatPhoneNumber(call.from_number)} → {formatPhoneNumber(call.to_number)}
+                              </div>
+                              <div className="text-xs text-gray-500 font-mono">
+                                ID: {call.call_id.substring(0, 16)}...
+                              </div>
+                            </td>
+                            
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-gray-400" />
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {call.call_agent?.name || getAgentNameLocal(call.agent_id)}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {call.agent_id.substring(0, 8)}...
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </td>
-                          
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {formatDuration(getCallDuration(call))}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {audioDurations[call.id] ? 
-                                `${getCallDuration(call)}s (audio)` : 
-                                `${getCallDuration(call)}s (db)`
-                              }
-                            </div>
-                          </td>
+                            </td>
+                            
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {formatDuration(getCallDuration(call))}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {audioDurations[call.id] ? 
+                                  `${getCallDuration(call)}s (audio)` : 
+                                  `${getCallDuration(call)}s (db)`
+                                }
+                              </div>
+                            </td>
 
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {formatCurrency(calculateCallCost(call))}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {(() => {
-                                const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-                                return agentRate ? 
-                                  `$${agentRate}/min` :
-                                  `DB: ${formatCurrency(call.cost_usd)}`;
-                              })()}
-                            </div>
-                          </td>
-                          
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="flex flex-col gap-1">
-                              <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
-                                {call.call_status}
-                              </Badge>
-                              {call.sentiment && (
-                                <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
-                                  {call.sentiment}
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {formatCurrency(calculateCallCost(call))}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {(() => {
+                                  const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+                                  return agentRate ? 
+                                    `$${agentRate}/min` :
+                                    `DB: ${formatCurrency(call.cost_usd)}`;
+                                })()}
+                              </div>
+                            </td>
+                            
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="flex flex-col gap-1">
+                                <Badge className={`text-xs ${getStatusColor(call.call_status)}`}>
+                                  {call.call_status}
                                 </Badge>
-                              )}
-                            </div>
-                          </td>
-
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            {call.end_reason ? (
-                              <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
-                                {call.end_reason.replace(/_/g, ' ')}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-gray-400">No reason</span>
-                            )}
-                          </td>
-                          
-                          <td className="px-4 py-4">
-                            <div className="flex items-center gap-2">
-                              {call.transcript && (
-                                <div className="flex items-center gap-1 text-xs text-green-600">
-                                  <FileText className="h-3 w-3" />
-                                  Transcript
-                                </div>
-                              )}
-                              {call.call_summary && (
-                                <div className="flex items-center gap-1 text-xs text-blue-600">
-                                  <PlayCircle className="h-3 w-3" />
-                                  Summary
-                                </div>
-                              )}
-                              {call.recording_url && (
-                                <div className="flex items-center gap-1 text-xs text-red-600">
-                                  <Volume2 className="h-3 w-3" />
-                                  Audio
-                                </div>
-                              )}
-                            </div>
-                            {call.call_summary && (
-                              <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
-                                {call.call_summary}
+                                {call.sentiment && (
+                                  <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
+                                    {call.sentiment}
+                                  </Badge>
+                                )}
                               </div>
-                            )}
-                          </td>
-                          
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-1">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-6 w-6 p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCallClick(call);
-                                }}
-                              >
-                                <Eye className="h-3 w-3" />
-                              </Button>
-                              {call.recording_url && (
+                            </td>
+
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              {call.end_reason ? (
+                                <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
+                                  {call.end_reason.replace(/_/g, ' ')}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-gray-400">No reason</span>
+                              )}
+                            </td>
+                            
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-2">
+                                {call.transcript && (
+                                  <div className="flex items-center gap-1 text-xs text-green-600">
+                                    <FileText className="h-3 w-3" />
+                                    Transcript
+                                  </div>
+                                )}
+                                {call.call_summary && (
+                                  <div className="flex items-center gap-1 text-xs text-blue-600">
+                                    <PlayCircle className="h-3 w-3" />
+                                    Summary
+                                  </div>
+                                )}
+                                {call.recording_url && (
+                                  <div className="flex items-center gap-1 text-xs text-red-600">
+                                    <Volume2 className="h-3 w-3" />
+                                    Audio
+                                  </div>
+                                )}
+                              </div>
+                              {call.call_summary && (
+                                <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
+                                  {call.call_summary}
+                                </div>
+                              )}
+                            </td>
+                            
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-1">
                                 <Button 
                                   variant="ghost" 
                                   size="sm" 
                                   className="h-6 w-6 p-0"
-                                  asChild
-                                  onClick={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCallClick(call);
+                                  }}
                                 >
-                                  <a
-                                    href={call.recording_url}
-                                    download={`call-${call.call_id}.mp3`}
-                                  >
-                                    <Download className="h-3 w-3" />
-                                  </a>
+                                  <Eye className="h-3 w-3" />
                                 </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                                {call.recording_url && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-6 w-6 p-0"
+                                    asChild
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <a
+                                      href={call.recording_url}
+                                      download={`call-${call.call_id}.mp3`}
+                                    >
+                                      <Download className="h-3 w-3" />
+                                    </a>
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* 🆕 Controles de Paginación */}
+                  <PaginationControls
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    pageSize={pageSize}
+                    totalItems={filteredCalls.length}
+                    onPageChange={handlePageChange}
+                    onPageSizeChange={handlePageSizeChange}
+                  />
+                </>
               )}
             </CardContent>
           </Card>
