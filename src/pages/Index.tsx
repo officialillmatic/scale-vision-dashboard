@@ -53,33 +53,59 @@ const Index = () => {
 
         <main className="mt-20">
           {/* Enhanced Hero Section */}
-          <div className="max-w-5xl mx-auto text-center relative py-24 md:py-32">
+          <div className="max-w-6xl mx-auto relative py-24 md:py-32">
             <div className="absolute inset-0 bg-gradient-to-r from-brand-green/5 to-brand-purple/5 rounded-3xl blur-3xl"></div>
-            <div className="relative">
-              <h1 className="text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-brand-green via-brand-navy to-brand-purple bg-clip-text text-transparent leading-[1.1] md:leading-[1.2]">
-                AI Agents That Close Deals and Delight Customers 24/7
-              </h1>
-              <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed">
-                Book more sales calls, handle support tickets, and boost CSAT—no burnout, just results on autopilot.
-              </p>
-              <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8">
-                {!isLoading && user ? (
-                  <Button size="lg" onClick={handleDashboardClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
-                    Access Your Dashboard
-                  </Button>
-                ) : (
-                  <>
-                    <Button size="lg" onClick={handleSignUpClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
-                      Book Live Demo
+            <div className="grid lg:grid-cols-2 gap-12 items-center relative">
+              {/* Left Content */}
+              <div className="text-center lg:text-left">
+                <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-8 bg-gradient-to-r from-brand-green via-brand-navy to-brand-purple bg-clip-text text-transparent leading-[1.1]">
+                  AI Agents That Close Deals and Delight Customers 24/7
+                </h1>
+                <p className="text-xl md:text-2xl text-muted-foreground mb-12 leading-relaxed">
+                  Book more sales calls, handle support tickets, and boost CSAT—no burnout, just results on autopilot.
+                </p>
+                <div className="flex flex-col sm:flex-row lg:justify-start justify-center gap-4 mb-8">
+                  {!isLoading && user ? (
+                    <Button size="lg" onClick={handleDashboardClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
+                      Access Your Dashboard
                     </Button>
-                    <button 
-                      onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
-                      className="text-brand-green hover:text-brand-deep-green text-lg font-semibold underline decoration-2 underline-offset-4 transition-colors duration-300"
-                    >
-                      See Pricing
-                    </button>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <Button size="lg" onClick={handleSignUpClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
+                        Book Live Demo
+                      </Button>
+                      <button 
+                        onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+                        className="text-brand-green hover:text-brand-deep-green text-lg font-semibold underline decoration-2 underline-offset-4 transition-colors duration-300"
+                      >
+                        See Pricing
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              {/* Right Hero Image */}
+              <div className="relative lg:order-2">
+                <div className="relative overflow-hidden rounded-2xl shadow-2xl bg-gradient-to-br from-brand-green/10 to-brand-purple/10 p-8">
+                  <img 
+                    src="https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=800&h=600&fit=crop&crop=center" 
+                    alt="AI-powered business automation and customer service technology"
+                    className="w-full h-auto rounded-xl shadow-lg transform hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/20 to-transparent rounded-2xl"></div>
+                  
+                  {/* Floating Stats Cards */}
+                  <div className="absolute -top-4 -left-4 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-brand-green/20">
+                    <div className="text-2xl font-bold text-brand-green">300%</div>
+                    <div className="text-sm text-muted-foreground">Close Rate Boost</div>
+                  </div>
+                  
+                  <div className="absolute -bottom-4 -right-4 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-brand-purple/20">
+                    <div className="text-2xl font-bold text-brand-purple">24/7</div>
+                    <div className="text-sm text-muted-foreground">Always Available</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
