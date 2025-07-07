@@ -3,7 +3,7 @@ import React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { Check, Star, ArrowDown, Users, Shield, Clock } from "lucide-react";
+import { Check, Star, ArrowDown, Users, Shield, Clock, Headphones } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -53,14 +53,14 @@ const Index = () => {
 
         <main className="mt-20">
           {/* Enhanced Hero Section */}
-          <div className="max-w-5xl mx-auto text-center relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-brand-green/10 to-brand-purple/10 rounded-3xl blur-3xl"></div>
+          <div className="max-w-5xl mx-auto text-center relative py-24 md:py-32">
+            <div className="absolute inset-0 bg-gradient-to-r from-brand-green/5 to-brand-purple/5 rounded-3xl blur-3xl"></div>
             <div className="relative">
-              <h1 className="text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-brand-green via-brand-navy to-brand-purple bg-clip-text text-transparent leading-tight">
-                Automate Your Outbound Sales with Human-Like AI Agents
+              <h1 className="text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-brand-green via-brand-navy to-brand-purple bg-clip-text text-transparent leading-[1.1] md:leading-[1.2]">
+                AI Agents That Close Deals and Delight Customers 24/7
               </h1>
               <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed">
-                Replace entire sales teams with AI agents that qualify leads, book appointments, and close deals 24/7. No payroll, no burnout—just results on autopilot.
+                Book more sales calls, handle support tickets, and boost CSAT—no burnout, just results on autopilot.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8">
                 {!isLoading && user ? (
@@ -70,76 +70,72 @@ const Index = () => {
                 ) : (
                   <>
                     <Button size="lg" onClick={handleSignUpClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
-                      Start Free Trial
+                      Book Live Demo
                     </Button>
-                    <Button size="lg" variant="outline" onClick={handleLoginClick} className="border-brand-green text-brand-green hover:bg-brand-green hover:text-white px-8 py-4 text-lg font-semibold transition-all duration-300">
-                      Watch Demo
-                    </Button>
+                    <button 
+                      onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+                      className="text-brand-green hover:text-brand-deep-green text-lg font-semibold underline decoration-2 underline-offset-4 transition-colors duration-300"
+                    >
+                      See Pricing
+                    </button>
                   </>
                 )}
-              </div>
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Check className="h-4 w-4 text-brand-green" />
-                <span>No credit card required</span>
-                <span className="mx-2">•</span>
-                <Check className="h-4 w-4 text-brand-green" />
-                <span>Setup in 5 minutes</span>
               </div>
             </div>
           </div>
 
           {/* How It Works Section */}
-          <div className="mt-32 max-w-6xl mx-auto">
+          <div className="mt-24 md:mt-32 max-w-6xl mx-auto py-16 md:py-24">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">How It Works</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-[1.1]">How It Works</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">Get up and running in minutes with our simple 3-step process</p>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-8 md:gap-12">
+            <div className="grid md:grid-cols-3 gap-8 relative">
               <div className="text-center group">
                 <div className="relative mb-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-brand-green to-brand-deep-green rounded-full flex items-center justify-center mx-auto shadow-lg group-hover:shadow-xl transition-all duration-300">
+                  <div className="w-20 h-20 bg-gradient-to-br from-brand-green to-brand-deep-green rounded-full flex items-center justify-center mx-auto shadow-lg group-hover:shadow-xl transition-all duration-300 relative z-10">
                     <span className="text-2xl font-bold text-white">1</span>
                   </div>
-                  {/* Connection line */}
-                  <div className="hidden md:block absolute top-10 left-full w-full h-0.5 bg-gradient-to-r from-brand-green to-brand-purple transform -translate-x-1/2"></div>
+                  {/* Connection line - properly centered */}
+                  <div className="hidden md:block absolute top-10 left-1/2 w-full h-0.5 bg-gradient-to-r from-brand-green to-brand-purple transform translate-x-10 z-0"></div>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Integrate Your Numbers</h3>
-                <p className="text-muted-foreground">Connect your existing phone system or get new numbers. Our AI integrates seamlessly with your current setup.</p>
+                <h3 className="text-xl font-semibold mb-3">Pick Your Use Case</h3>
+                <p className="text-muted-foreground">Choose Outbound Sales, Inbound Support, or Blended.</p>
               </div>
               
               <div className="text-center group">
                 <div className="relative mb-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-brand-purple to-brand-navy rounded-full flex items-center justify-center mx-auto shadow-lg group-hover:shadow-xl transition-all duration-300">
+                  <div className="w-20 h-20 bg-gradient-to-br from-brand-purple to-brand-navy rounded-full flex items-center justify-center mx-auto shadow-lg group-hover:shadow-xl transition-all duration-300 relative z-10">
                     <span className="text-2xl font-bold text-white">2</span>
                   </div>
-                  <div className="hidden md:block absolute top-10 left-full w-full h-0.5 bg-gradient-to-r from-brand-purple to-brand-green transform -translate-x-1/2"></div>
+                  <div className="hidden md:block absolute top-10 left-1/2 w-full h-0.5 bg-gradient-to-r from-brand-purple to-brand-green transform translate-x-10 z-0"></div>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Configure AI Scripts</h3>
-                <p className="text-muted-foreground">Customize conversation flows, objection handling, and appointment booking for your specific industry and goals.</p>
+                <h3 className="text-xl font-semibold mb-3">Upload / Customize Script</h3>
+                <p className="text-muted-foreground">Paste your script or use our templates—AI handles objections & FAQs.</p>
               </div>
               
               <div className="text-center group">
                 <div className="relative mb-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-brand-green to-brand-purple rounded-full flex items-center justify-center mx-auto shadow-lg group-hover:shadow-xl transition-all duration-300">
+                  <div className="w-20 h-20 bg-gradient-to-br from-brand-green to-brand-purple rounded-full flex items-center justify-center mx-auto shadow-lg group-hover:shadow-xl transition-all duration-300 relative z-10">
                     <span className="text-2xl font-bold text-white">3</span>
                   </div>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Start Calling & Get Transfers</h3>
-                <p className="text-muted-foreground">Launch your campaign and receive qualified leads with live transfers, appointments booked, and detailed call analytics.</p>
+                <h3 className="text-xl font-semibold mb-3">Go Live & Monitor</h3>
+                <p className="text-muted-foreground">Launch in minutes; get transfers, support tickets, and live analytics.</p>
               </div>
             </div>
           </div>
 
-          {/* Enhanced Feature Highlights - 3 Column Grid */}
-          <div className="mt-32 max-w-6xl mx-auto">
+          {/* Enhanced Feature Highlights - 2x2 Grid */}
+          <div className="mt-24 md:mt-32 max-w-5xl mx-auto py-16 md:py-24">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Powerful Features That Drive Results</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-[1.1]">Powerful Features That Drive Results</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">Everything you need to automate and scale your sales operations</p>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-green/30 transition-all duration-300 cursor-pointer">
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-green/30 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <div className="h-16 w-16 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <Shield className="h-8 w-8 text-white" />
                 </div>
@@ -147,7 +143,7 @@ const Index = () => {
                 <p className="text-muted-foreground">Never waste minutes on voicemails again. Our AI detects voicemails instantly and moves to the next call, maximizing your connect rate.</p>
               </div>
 
-              <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-purple/30 transition-all duration-300 cursor-pointer">
+              <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-purple/30 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <div className="h-16 w-16 rounded-full bg-gradient-to-br from-brand-purple to-brand-navy flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <Clock className="h-8 w-8 text-white" />
                 </div>
@@ -155,12 +151,20 @@ const Index = () => {
                 <p className="text-muted-foreground">Qualified prospects get transferred to your sales team instantly while the conversation is hot, increasing your close rate by 300%.</p>
               </div>
 
-              <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-green/30 transition-all duration-300 cursor-pointer">
+              <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-green/30 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <div className="h-16 w-16 rounded-full bg-gradient-to-br from-brand-green to-brand-purple flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <Users className="h-8 w-8 text-white" />
                 </div>
                 <h3 className="text-xl font-semibold mb-3">Smart Lead Qualification</h3>
                 <p className="text-muted-foreground">AI agents qualify leads using your exact criteria, ensuring only high-intent prospects reach your team. No more time wasted on tire-kickers.</p>
+              </div>
+
+              <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-purple/30 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-brand-purple to-brand-green flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                  <Headphones className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">24/7 Customer Service</h3>
+                <p className="text-muted-foreground">AI answers FAQs, raises tickets, and routes urgent callers—boost CSAT without extra headcount.</p>
               </div>
             </div>
           </div>
@@ -191,12 +195,12 @@ const Index = () => {
             {/* Testimonials */}
             <div className="grid md:grid-cols-3 gap-8">
               <div className="bg-card rounded-xl p-8 shadow-sm border border-muted">
-                <div className="flex items-center mb-4">
+                <div className="flex justify-center items-center mb-6">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
                   ))}
                 </div>
-                <p className="text-muted-foreground mb-6 italic">"We doubled our appointment rate in two weeks. The AI agents are so natural, prospects actually prefer talking to them over our human reps."</p>
+                <p className="text-muted-foreground mb-6 italic text-lg">"We doubled our appointment rate in two weeks. The AI agents are so natural, prospects actually prefer talking to them over our human reps."</p>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-brand-green to-brand-deep-green rounded-full flex items-center justify-center">
                     <span className="text-white font-semibold">MJ</span>
@@ -209,12 +213,12 @@ const Index = () => {
               </div>
 
               <div className="bg-card rounded-xl p-8 shadow-sm border border-muted">
-                <div className="flex items-center mb-4">
+                <div className="flex justify-center items-center mb-6">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
                   ))}
                 </div>
-                <p className="text-muted-foreground mb-6 italic">"Reduced our cost per lead by 75% while increasing quality. The AI never gets tired and handles objections better than our junior reps."</p>
+                <p className="text-muted-foreground mb-6 italic text-lg">"Reduced our cost per lead by 75% while increasing quality. The AI never gets tired and handles objections better than our junior reps."</p>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-brand-purple to-brand-navy rounded-full flex items-center justify-center">
                     <span className="text-white font-semibold">SR</span>
@@ -227,12 +231,12 @@ const Index = () => {
               </div>
 
               <div className="bg-card rounded-xl p-8 shadow-sm border border-muted">
-                <div className="flex items-center mb-4">
+                <div className="flex justify-center items-center mb-6">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
                   ))}
                 </div>
-                <p className="text-muted-foreground mb-6 italic">"The ROI is incredible. We're booking 10x more appointments with half the overhead. It's like having 50 top performers working 24/7."</p>
+                <p className="text-muted-foreground mb-6 italic text-lg">"The ROI is incredible. We're booking 10x more appointments with half the overhead. It's like having 50 top performers working 24/7."</p>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-brand-green to-brand-purple rounded-full flex items-center justify-center">
                     <span className="text-white font-semibold">DK</span>
@@ -246,51 +250,35 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Pricing Tease Section */}
-          <div className="mt-32 max-w-4xl mx-auto text-center">
+          {/* Pricing Section */}
+          <div id="pricing" className="mt-32 max-w-2xl mx-auto text-center">
             <div className="bg-gradient-to-br from-brand-light-green to-brand-background rounded-2xl p-8 md:p-12 border border-brand-green/20">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
               <p className="text-xl text-muted-foreground mb-8">Choose the plan that fits your scale</p>
               
-              <div className="grid md:grid-cols-2 gap-8 mb-8">
-                <div className="text-left">
-                  <h3 className="text-xl font-semibold mb-3">Pay-As-You-Go</h3>
-                  <ul className="space-y-2 text-muted-foreground">
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-brand-green" />
-                      <span>$0.15 per minute</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-brand-green" />
-                      <span>No monthly commitments</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-brand-green" />
-                      <span>Perfect for testing</span>
-                    </li>
-                  </ul>
-                </div>
-                
-                <div className="text-left">
-                  <h3 className="text-xl font-semibold mb-3">Subscription Plans</h3>
-                  <ul className="space-y-2 text-muted-foreground">
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-brand-green" />
-                      <span>Up to 40% savings</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-brand-green" />
-                      <span>Priority support</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-brand-green" />
-                      <span>Advanced analytics</span>
-                    </li>
-                  </ul>
-                </div>
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-semibold mb-6">Pay-As-You-Go</h3>
+                <ul className="space-y-3 text-muted-foreground text-left max-w-md mx-auto">
+                  <li className="flex items-center gap-3">
+                    <Check className="h-5 w-5 text-brand-green flex-shrink-0" />
+                    <span className="text-lg">Just <strong>$0.15 per minute</strong></span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="h-5 w-5 text-brand-green flex-shrink-0" />
+                    <span>No monthly commitments</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="h-5 w-5 text-brand-green flex-shrink-0" />
+                    <span>Scale up or down anytime</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="h-5 w-5 text-brand-green flex-shrink-0" />
+                    <span>Ideal for pilots, startups, and enterprise tests</span>
+                  </li>
+                </ul>
               </div>
               
-              <Button size="lg" variant="outline" className="border-brand-green text-brand-green hover:bg-brand-green hover:text-white">
+              <Button size="lg" className="bg-brand-green hover:bg-brand-deep-green text-white w-full sm:w-auto">
                 View Detailed Pricing
               </Button>
             </div>
@@ -319,6 +307,10 @@ const Index = () => {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Check className="h-4 w-4 text-brand-green" />
                   <span>99.9% Uptime SLA</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Headphones className="h-4 w-4 text-brand-green" />
+                  <span>24/7 Live Support</span>
                 </div>
               </div>
             </div>
