@@ -101,13 +101,30 @@ const refreshCreditBalance = async (userId: string) => {
 interface Call {
   id: string;
   call_id: string;
+  user_id: string;
+  agent_id: string;
+  company_id: string;
   timestamp: string;
   duration_sec: number;
   cost_usd: number;
   call_status: string;
+  from_number: string;
+  to_number: string;
+  transcript?: string;
+  call_summary?: string;
   sentiment?: string;
   recording_url?: string;
-  agent_id?: string;
+  end_reason?: string;
+  call_agent?: {
+    id: string;
+    name: string;
+    rate_per_minute: number;
+  };
+  agents?: {
+    id: string;
+    name: string;
+    rate_per_minute: number;
+  };
 }
 
 interface DashboardStats {
@@ -133,6 +150,7 @@ interface AdminStats {
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+
 // ============================================================================
 // FUNCIÓN PARA PROCESAR LLAMADAS PENDIENTES EN DASHBOARD
 // ============================================================================
@@ -372,6 +390,7 @@ const handleRefreshBalance = async (userId: string, setRefreshing: (state: boole
     setRefreshing(false);
   }
 };
+
 export default function DashboardPage() {
   const { user } = useAuth();
   
@@ -387,8 +406,11 @@ export default function DashboardPage() {
   // Estados para usuarios normales
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState<string>('');
   const [refreshingBalance, setRefreshingBalance] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasMoreCalls, setHasMoreCalls] = useState(true);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalCalls: 0,
     totalCost: 0,
@@ -400,6 +422,7 @@ export default function DashboardPage() {
     costToday: 0
   });
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
+  const [userAssignedAgents, setUserAssignedAgents] = useState<any[]>([]);
 
   // Estados para super admin
   const [adminStats, setAdminStats] = useState<AdminStats>({
@@ -414,7 +437,325 @@ export default function DashboardPage() {
   });
   const [chartData, setChartData] = useState<any[]>([]);
   const [userDistribution, setUserDistribution] = useState<any[]>([]);
-  const [userAgents, setUserAgents] = useState<any[]>([]);
+
+  // ============================================================================
+  // 🔄 FUNCIONES SINCRONIZADAS CON CALLSSIMPLE
+  // ============================================================================
+
+  // ✅ FUNCIÓN SINCRONIZADA: getCallDuration (IDÉNTICA A CALLSSIMPLE)
+  const getCallDuration = (call: any) => {
+    // ✅ PRIORIZAR duración del audio (más precisa)
+    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
+      console.log(`🎵 [Dashboard] Usando duración de audio: ${audioDurations[call.id]}s para ${call.call_id?.substring(0, 8)}`);
+      return audioDurations[call.id];
+    }
+    
+    // Fallback a duration_sec de la BD
+    if (call.duration_sec && call.duration_sec > 0) {
+      console.log(`📊 [Dashboard] Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
+      return call.duration_sec;
+    }
+    
+    console.log(`⚠️ [Dashboard] Sin duración disponible para ${call.call_id?.substring(0, 8)}`);
+    return 0;
+  };
+
+  // ✅ FUNCIÓN SINCRONIZADA: calculateCallCost (IDÉNTICA A CALLSSIMPLE)
+  const calculateCallCost = (call: Call) => {
+    console.log(`💰 [Dashboard] Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
+      existing_cost: call.cost_usd,
+      duration_sec: call.duration_sec,
+      agent_id: call.agent_id,
+      call_agent_rate: call.call_agent?.rate_per_minute,
+      agents_rate: call.agents?.rate_per_minute
+    });
+    
+    // 1. Obtener duración
+    const duration = getCallDuration(call);
+    if (duration === 0) {
+      console.log(`⚠️ [Dashboard] Sin duración, costo = $0`);
+      return 0;
+    }
+    
+    const durationMinutes = duration / 60;
+    
+    // 2. Buscar tarifa del agente (priorizar call_agent, luego agents)
+    let agentRate = 0;
+    
+    if (call.call_agent?.rate_per_minute) {
+      agentRate = call.call_agent.rate_per_minute;
+      console.log(`✅ [Dashboard] Usando tarifa de call_agent: $${agentRate}/min`);
+    } else if (call.agents?.rate_per_minute) {
+      agentRate = call.agents.rate_per_minute;
+      console.log(`✅ [Dashboard] Usando tarifa de agents: $${agentRate}/min`);
+    } else {
+      // Buscar en userAssignedAgents como fallback
+      const userAgent = userAssignedAgents.find(agent => 
+        agent.id === call.agent_id || 
+        agent.retell_agent_id === call.agent_id
+      );
+      
+      if (userAgent?.rate_per_minute) {
+        agentRate = userAgent.rate_per_minute;
+        console.log(`✅ [Dashboard] Usando tarifa de userAssignedAgents: $${agentRate}/min`);
+      } else {
+        console.log(`❌ [Dashboard] Sin tarifa disponible, costo = $0`);
+        return 0;
+      }
+    }
+    
+    // 3. Calcular costo
+    const calculatedCost = Math.round(((duration / 60.0) * agentRate) * 10000) / 10000;
+    console.log(`🧮 [Dashboard] Costo calculado: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${calculatedCost.toFixed(4)}`);
+    
+    return calculatedCost;
+  };
+
+  // ✅ FUNCIÓN SINCRONIZADA: loadAudioDuration (IDÉNTICA A CALLSSIMPLE)
+  const loadAudioDuration = async (call: Call) => {
+    if (!call.recording_url || audioDurations[call.id]) return;
+    
+    try {
+      console.log(`🎵 [Dashboard] Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
+      const audio = new Audio(call.recording_url);
+      return new Promise<void>((resolve) => {
+        audio.addEventListener('loadedmetadata', () => {
+          const duration = Math.round(audio.duration);
+          console.log(`✅ [Dashboard] Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
+          setAudioDurations(prev => ({
+            ...prev,
+            [call.id]: duration
+          }));
+          resolve();
+        });
+        
+        audio.addEventListener('error', () => {
+          console.log(`❌ [Dashboard] Error cargando audio para ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        });
+
+        // Timeout de seguridad
+        setTimeout(() => {
+          console.log(`⏰ [Dashboard] Timeout cargando audio para ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        }, 5000);
+      });
+    } catch (error) {
+      console.log(`❌ [Dashboard] Error loading audio duration:`, error);
+    }
+  };
+
+  // 🚀 FUNCIÓN SINCRONIZADA: Cargar audio solo para llamadas visibles
+  const loadAudioForVisibleCalls = async (visibleCalls: Call[]) => {
+    const callsWithAudio = visibleCalls.filter(call => 
+      call.recording_url && !audioDurations[call.id]
+    );
+    
+    if (callsWithAudio.length === 0) return;
+    
+    console.log(`🎵 [Dashboard] Cargando audio para ${callsWithAudio.length} llamadas visibles...`);
+    
+    // Cargar en pequeños lotes para no bloquear
+    for (let i = 0; i < callsWithAudio.length; i += 2) {
+      const batch = callsWithAudio.slice(i, i + 2);
+      await Promise.all(batch.map(call => loadAudioDuration(call)));
+      if (i + 2 < callsWithAudio.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+  };
+
+  // ============================================================================
+  // ✅ FUNCIÓN FETCH CALLS SINCRONIZADA CON CALLSSIMPLE
+  // ============================================================================
+  
+  const fetchCallsData = async () => {
+    console.log("🚀 [Dashboard] FETCH CALLS SINCRONIZADO - Carga progresiva iniciada");
+    
+    if (!user?.id) {
+      setError("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      setLoadingProgress('Getting agent configuration...');
+
+      // PASO 1: Obtener agentes asignados al usuario (IDÉNTICO A CALLSSIMPLE)
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('user_agent_assignments')
+        .select('agent_id')
+        .eq('user_id', user.id);
+
+      if (assignmentsError) {
+        console.error("❌ [Dashboard] Error obteniendo asignaciones:", assignmentsError);
+        setError(`Error obteniendo asignaciones: ${assignmentsError.message}`);
+        return;
+      }
+
+      if (!assignments || assignments.length === 0) {
+        console.log("⚠️ [Dashboard] Usuario sin asignaciones de agentes");
+        setCalls([]);
+        setUserAssignedAgents([]);
+        setStats({
+          totalCalls: 0,
+          totalCost: 0,
+          totalDuration: 0,
+          avgDuration: 0,
+          successRate: 0,
+          positiveRatio: 0,
+          callsToday: 0,
+          costToday: 0
+        });
+        setLoading(false);
+        return;
+      }
+
+      const agentIds = assignments.map(a => a.agent_id);
+      console.log("🎯 [Dashboard] IDs de agentes asignados:", agentIds);
+
+      setLoadingProgress('Loading agent information...');
+
+      // PASO 2: Obtener detalles de los agentes asignados (IDÉNTICO A CALLSSIMPLE)
+      const { data: agentDetails, error: agentsError } = await supabase
+        .from('agents')
+        .select('id, name, rate_per_minute, retell_agent_id')
+        .in('id', agentIds);
+
+      if (agentsError) {
+        console.error("❌ [Dashboard] Error obteniendo detalles de agentes:", agentsError);
+        setError(`Error obteniendo agentes: ${agentsError.message}`);
+        return;
+      }
+
+      console.log("🤖 [Dashboard] Detalles de agentes obtenidos:", agentDetails);
+      setUserAssignedAgents(agentDetails || []);
+
+      // PASO 3: Preparar IDs para búsqueda (IDÉNTICO A CALLSSIMPLE)
+      const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
+      const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
+      const allAgentIds = [...agentUUIDs, ...retellAgentIds].filter(Boolean);
+
+      setLoadingProgress('Loading recent calls...');
+
+      // 🚀 PASO 4: CARGA PROGRESIVA - Primero las más recientes (IDÉNTICO A CALLSSIMPLE)
+      const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
+      
+      const { data: initialCalls, error: callsError } = await supabase
+        .from('calls')
+        .select('*')
+        .in('agent_id', allAgentIds)
+        .order('timestamp', { ascending: false })
+        .limit(INITIAL_BATCH);
+
+      if (callsError) {
+        console.error("❌ [Dashboard] Error obteniendo llamadas iniciales:", callsError);
+        setError(`Error obteniendo llamadas: ${callsError.message}`);
+        return;
+      }
+
+      console.log(`📞 [Dashboard] Llamadas iniciales cargadas: ${initialCalls?.length || 0}`);
+
+      // PASO 5: Mapear llamadas iniciales con información del agente (IDÉNTICO A CALLSSIMPLE)
+      const userAgents = agentDetails?.map(agent => ({
+        agent_id: agent.id,
+        agents: agent
+      })) || [];
+
+      const mapCalls = (calls) => {
+        return (calls || []).map(call => {
+          let matchedAgent = null;
+
+          const userAgentAssignment = userAgents.find(assignment => 
+            assignment.agents.id === call.agent_id ||
+            assignment.agents.retell_agent_id === call.agent_id ||
+            `agent_${assignment.agents.id}` === call.agent_id
+          );
+
+          if (userAgentAssignment) {
+            matchedAgent = {
+              id: userAgentAssignment.agents.id,
+              name: userAgentAssignment.agents.name,
+              rate_per_minute: userAgentAssignment.agents.rate_per_minute
+            };
+          } else {
+            matchedAgent = {
+              id: call.agent_id,
+              name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
+              rate_per_minute: 0.02
+            };
+          }
+
+          return {
+            ...call,
+            end_reason: call.disconnection_reason || null,
+            call_agent: matchedAgent,
+            agents: matchedAgent
+          };
+        });
+      };
+
+      const mappedInitialCalls = mapCalls(initialCalls);
+      
+      // ✅ MOSTRAR DATOS INICIALES RÁPIDAMENTE (IDÉNTICO A CALLSSIMPLE)
+      setCalls(mappedInitialCalls);
+      setLoading(false); // ¡YA NO ESTÁ CARGANDO!
+      setLoadingProgress('');
+
+      console.log("🎉 [Dashboard] PRIMERA CARGA COMPLETADA - Mostrando datos iniciales");
+
+      // 🔄 PASO 6: CARGAR EL RESTO EN BACKGROUND (IDÉNTICO A CALLSSIMPLE)
+      if (initialCalls.length === INITIAL_BATCH) {
+        setBackgroundLoading(true);
+        setHasMoreCalls(true);
+        
+        setTimeout(async () => {
+          try {
+            console.log("📦 [Dashboard] Cargando llamadas adicionales en background...");
+            
+            // Obtener timestamp de la última llamada cargada
+            const lastTimestamp = initialCalls[initialCalls.length - 1]?.timestamp;
+            
+            const { data: remainingCalls, error: remainingError } = await supabase
+              .from('calls')
+              .select('*')
+              .in('agent_id', allAgentIds)
+              .order('timestamp', { ascending: false })
+              .lt('timestamp', lastTimestamp); // Llamadas más antiguas
+
+            if (!remainingError && remainingCalls) {
+              const mappedRemainingCalls = mapCalls(remainingCalls);
+              const allCalls = [...mappedInitialCalls, ...mappedRemainingCalls];
+              
+              console.log(`📞 [Dashboard] Llamadas adicionales cargadas: ${remainingCalls.length}`);
+              console.log(`📊 [Dashboard] Total de llamadas: ${allCalls.length}`);
+              
+              setCalls(allCalls);
+              setHasMoreCalls(false);
+            }
+          } catch (err) {
+            console.error("❌ [Dashboard] Error cargando llamadas adicionales:", err);
+          } finally {
+            setBackgroundLoading(false);
+          }
+        }, 1000); // Esperar 1 segundo antes de cargar más
+      } else {
+        setHasMoreCalls(false);
+      }
+
+      // 🎵 PASO 7: CARGAR AUDIO SOLO DE LAS PRIMERAS LLAMADAS VISIBLES (IDÉNTICO A CALLSSIMPLE)
+      setTimeout(() => {
+        loadAudioForVisibleCalls(mappedInitialCalls.slice(0, 10));
+      }, 500);
+
+    } catch (err: any) {
+      console.error("❌ [Dashboard] Excepción en fetch calls:", err);
+      setError(`Exception: ${err.message}`);
+      setLoading(false);
+    }
+  };
 
   // ✅ useEffect PRINCIPAL - CORREGIDO PARA CARGA AUTOMÁTICA
   useEffect(() => {
@@ -432,122 +773,123 @@ export default function DashboardPage() {
   }, [user?.id, isSuperAdmin]);
 
   // ✅ LISTENER SIMPLIFICADO PARA BALANCE UPDATE
-useEffect(() => {
-  if (!user?.id) return;
+  useEffect(() => {
+    if (!user?.id) return;
 
-  const handleBalanceUpdate = (event: CustomEvent) => {
-    console.log('💳 Dashboard: Balance actualizado por webhook:', event.detail);
-    
-    const { userId, deduction, callId } = event.detail;
-    
-    // Solo procesar si es para este usuario
-    if (userId === user.id || userId === 'current-user') {
-      // Mostrar notificación simple
-      console.log(`✅ Balance descontado: $${deduction} por llamada ${callId}`);
+    const handleBalanceUpdate = (event: CustomEvent) => {
+      console.log('💳 [Dashboard] Balance actualizado por webhook:', event.detail);
       
-      // Refrescar datos sin recargar página
-      if (user?.id) {
-        refreshCreditBalance(user.id);
-        fetchCallsData();
+      const { userId, deduction, callId } = event.detail;
+      
+      // Solo procesar si es para este usuario
+      if (userId === user.id || userId === 'current-user') {
+        // Mostrar notificación simple
+        console.log(`✅ [Dashboard] Balance descontado: $${deduction} por llamada ${callId}`);
+        
+        // Refrescar datos sin recargar página
+        if (user?.id) {
+          refreshCreditBalance(user.id);
+          fetchCallsData();
+        }
       }
-    }
-  };
+    };
 
-  window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-  
-  return () => {
-    window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-  };
-}, [user?.id]);
+    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    };
+  }, [user?.id]);
   
   // ✅ SOLUCIÓN FINAL: Balance update sin reload
-useEffect(() => {
-  if (!user?.id) return;
-
-  console.log('✅ SOLUCIÓN FINAL: Configurando balance update directo...');
-  
-  const handleBalanceUpdate = (event: CustomEvent) => {
-    console.log('💳 BALANCE UPDATE: Evento recibido:', event.detail);
-    
-    const { deduction } = event.detail;
-    
-    // Mostrar notificación visual
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: linear-gradient(135deg, #ef4444, #dc2626);
-      color: white;
-      padding: 16px 20px;
-      border-radius: 12px;
-      font-weight: bold;
-      font-size: 14px;
-      z-index: 9999;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-      animation: slideIn 0.3s ease-out;
-    `;
-    notification.innerHTML = `💳 Call cost: -$${deduction.toFixed(2)}`;
-    
-    // Agregar animación CSS
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
-    
-    document.body.appendChild(notification);
-    
-    // Remover después de 5 segundos
-    setTimeout(() => {
-      notification.remove();
-      style.remove();
-    }, 5000);
-    
-    // Refrescar datos del balance - VERSIÓN MEJORADA
-    if (user?.id) {
-      console.log('🔄 Forzando actualización completa del balance...');
-      
-      // 1. Refrescar balance
-      refreshCreditBalance(user.id);
-      
-      // 2. Forzar re-render del componente CreditBalance
-      setTimeout(() => {
-        const creditBalanceElement = document.querySelector('[class*="credit"], [class*="balance"], [class*="Account"]');
-        if (creditBalanceElement) {
-          console.log('🎯 Elemento balance encontrado, forzando actualización...');
-          // Disparar evento de actualización adicional
-          window.dispatchEvent(new CustomEvent('forceBalanceRefresh', { 
-            detail: { userId: user.id, timestamp: Date.now() }
-          }));
-        }
-      }, 500);
-      
-      // 3. Actualizar datos de llamadas
-      fetchCallsData();
-      
-      // 4. SOLUCIÓN DEFINITIVA: Recarga completa después de 2 segundos
-      setTimeout(() => {
-  console.log('✅ Balance actualizado sin recarga de página');
-  // window.location.reload(); // ✅ COMENTADO - No recargar página
-}, 2000);
-    }
-  };
-
-  window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-  
-  console.log('✅ Balance update directo configurado');
-  
-  return () => {
-    window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
-  };
-}, [user?.id]);
-  
   useEffect(() => {
-    console.log('📊 Dashboard - useEffect para estadísticas automáticas ejecutado:', {
+    if (!user?.id) return;
+
+    console.log('✅ [Dashboard] SOLUCIÓN FINAL: Configurando balance update directo...');
+    
+    const handleBalanceUpdate = (event: CustomEvent) => {
+      console.log('💳 [Dashboard] BALANCE UPDATE: Evento recibido:', event.detail);
+      
+      const { deduction } = event.detail;
+      
+      // Mostrar notificación visual
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+        padding: 16px 20px;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 14px;
+        z-index: 9999;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        animation: slideIn 0.3s ease-out;
+      `;
+      notification.innerHTML = `💳 Call cost: -$${deduction.toFixed(2)}`;
+      
+      // Agregar animación CSS
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+      
+      document.body.appendChild(notification);
+      
+      // Remover después de 5 segundos
+      setTimeout(() => {
+        notification.remove();
+        style.remove();
+      }, 5000);
+      
+      // Refrescar datos del balance - VERSIÓN MEJORADA
+      if (user?.id) {
+        console.log('🔄 [Dashboard] Forzando actualización completa del balance...');
+        
+        // 1. Refrescar balance
+        refreshCreditBalance(user.id);
+        
+        // 2. Forzar re-render del componente CreditBalance
+        setTimeout(() => {
+          const creditBalanceElement = document.querySelector('[class*="credit"], [class*="balance"], [class*="Account"]');
+          if (creditBalanceElement) {
+            console.log('🎯 [Dashboard] Elemento balance encontrado, forzando actualización...');
+            // Disparar evento de actualización adicional
+            window.dispatchEvent(new CustomEvent('forceBalanceRefresh', { 
+              detail: { userId: user.id, timestamp: Date.now() }
+            }));
+          }
+        }, 500);
+        
+        // 3. Actualizar datos de llamadas
+        fetchCallsData();
+        
+        // 4. SOLUCIÓN DEFINITIVA: Balance actualizado sin recarga
+        setTimeout(() => {
+          console.log('✅ [Dashboard] Balance actualizado sin recarga de página');
+          // window.location.reload(); // ✅ COMENTADO - No recargar página
+        }, 2000);
+      }
+    };
+
+    window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    
+    console.log('✅ [Dashboard] Balance update directo configurado');
+    
+    return () => {
+      window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+    };
+  }, [user?.id]);
+  
+  // ✅ ESTADÍSTICAS SINCRONIZADAS (USANDO FUNCIONES IDÉNTICAS A CALLSSIMPLE)
+  useEffect(() => {
+    console.log('📊 [Dashboard] - useEffect para estadísticas automáticas ejecutado:', {
       callsLength: calls.length,
       loading: loading,
       audioDurationsCount: Object.keys(audioDurations).length,
@@ -556,7 +898,7 @@ useEffect(() => {
 
     // Solo para usuarios normales (no super admin)
     if (!isSuperAdmin && !loading && calls.length > 0) {
-      console.log('🧮 Dashboard - Recalculando estadísticas automáticamente...');
+      console.log('🧮 [Dashboard] - Recalculando estadísticas automáticamente...');
       
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -570,14 +912,12 @@ useEffect(() => {
       let callsWithSentiment = 0;
 
       calls.forEach((call, index) => {
-        // 1. Obtener duración real usando la función existente
+        // 1. Obtener duración real usando la función SINCRONIZADA
         const duration = getCallDuration(call);
         totalDuration += duration;
         
-        // 2. Calcular costo usando la función existente
-        const callCost = calculateCallCostForDashboard ? 
-          calculateCallCostForDashboard(call, userAgents || []) : 
-          (call.cost_usd || 0);
+        // 2. Calcular costo usando la función SINCRONIZADA
+        const callCost = calculateCallCost(call);
         totalCost += callCost;
         
         // 3. Contar llamadas completadas
@@ -601,7 +941,7 @@ useEffect(() => {
         }
 
         if (index < 3) { // Log solo las primeras 3 para debug
-          console.log(`📞 Dashboard AUTO - Call ${call.call_id?.substring(0, 8)}: duration=${duration}s, cost=$${callCost.toFixed(4)}, today=${callDate >= today}`);
+          console.log(`📞 [Dashboard] AUTO - Call ${call.call_id?.substring(0, 8)}: duration=${duration}s, cost=$${callCost.toFixed(4)}, today=${callDate >= today}`);
         }
       });
 
@@ -621,7 +961,7 @@ useEffect(() => {
         costToday: Number(costToday.toFixed(4))
       };
 
-      console.log('✅ Dashboard - Estadísticas AUTO actualizadas:', {
+      console.log('✅ [Dashboard] - Estadísticas AUTO actualizadas:', {
         totalCalls: finalStats.totalCalls,
         totalCost: `$${finalStats.totalCost}`,
         totalDuration: `${finalStats.totalDuration}s`,
@@ -634,7 +974,7 @@ useEffect(() => {
       
     } else if (!isSuperAdmin && !loading && calls.length === 0) {
       // Resetear estadísticas si no hay llamadas
-      console.log('🔄 Dashboard - Reseteando estadísticas (no hay llamadas)');
+      console.log('🔄 [Dashboard] - Reseteando estadísticas (no hay llamadas)');
       setStats({
         totalCalls: 0,
         totalCost: 0,
@@ -646,7 +986,8 @@ useEffect(() => {
         costToday: 0
       });
     }
-  }, [calls, loading, audioDurations, isSuperAdmin, userAgents]); // ✅ DEPENDENCIAS CLAVE
+  }, [calls, loading, audioDurations, isSuperAdmin, userAssignedAgents]); // ✅ DEPENDENCIAS CLAVE
+
   // ============================================================================
   // 🤖 FUNCIONES DEL SUPER ADMIN (MANTENER IGUAL)
   // ============================================================================
@@ -747,178 +1088,6 @@ useEffect(() => {
   };
 
   // ============================================================================
-  // 👤 FUNCIONES DE USUARIOS NORMALES - CORREGIDAS
-  // ============================================================================
-  
-  const loadAudioDuration = async (call: Call) => {
-    if (!call.recording_url || audioDurations[call.id]) return;
-    
-    try {
-      const audio = new Audio(call.recording_url);
-      return new Promise<void>((resolve) => {
-        audio.addEventListener('loadedmetadata', () => {
-          const duration = Math.round(audio.duration);
-          setAudioDurations(prev => ({
-            ...prev,
-            [call.id]: duration
-          }));
-          resolve();
-        });
-        audio.addEventListener('error', () => resolve());
-      });
-    } catch (error) {
-      console.log('Error loading audio duration:', error);
-    }
-  };
-
-  // ✅ FUNCIÓN CORREGIDA: getCallDuration
-  const getCallDuration = (call: Call) => {
-    // Priorizar duration_sec de la BD (más confiable para estadísticas)
-    if (call.duration_sec && call.duration_sec > 0) {
-      return call.duration_sec;
-    }
-    
-    // Fallback a audioDurations si está disponible
-    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
-      return audioDurations[call.id];
-    }
-    
-    return 0;
-  };
-
-  // ✅ NUEVA FUNCIÓN: calculateCallCostForDashboard
-  const calculateCallCostForDashboard = (call: Call, userAgents: any[]) => {
-    console.log(`💰 [Dashboard] Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
-      existing_cost: call.cost_usd,
-      duration_sec: call.duration_sec,
-      agent_id: call.agent_id
-    });
-
-    // Si ya tiene un costo válido en BD, usarlo
-    if (call.cost_usd && call.cost_usd > 0) {
-      console.log(`✅ [Dashboard] Usando costo existente: $${call.cost_usd}`);
-      return call.cost_usd;
-    }
-    
-    // Obtener duración
-    const duration = getCallDuration(call);
-    if (duration === 0) {
-      console.log(`⚠️ [Dashboard] Sin duración, costo = $0`);
-      return 0;
-    }
-    
-    const durationMinutes = duration / 60;
-    
-    // Buscar el agente en las asignaciones del usuario para obtener rate_per_minute
-    const userAgentAssignment = userAgents.find(assignment => 
-      assignment.agents?.id === call.agent_id || 
-      assignment.agents?.retell_agent_id === call.agent_id
-    );
-    
-    if (userAgentAssignment?.agents?.rate_per_minute) {
-      const rate = userAgentAssignment.agents.rate_per_minute;
-      const calculatedCost = durationMinutes * rate;
-      console.log(`🧮 [Dashboard] Costo calculado: ${durationMinutes.toFixed(2)}min × $${rate}/min = $${calculatedCost.toFixed(4)}`);
-      return calculatedCost;
-    }
-    
-    console.log(`❌ [Dashboard] Sin tarifa disponible, costo = $0`);
-    return 0;
-  };
-  // ✅ FUNCIÓN CORREGIDA: fetchCallsData
-  const fetchCallsData = async () => {
-    if (!user?.id) {
-      setError("User not authenticated");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log('🔍 [Dashboard] Fetching calls data for regular user...');
-
-      // 👤 USUARIO NORMAL: Ver solo llamadas de sus agentes asignados
-      const { data: userAgents, error: agentsError } = await supabase
-        .from('user_agent_assignments')
-        .select(`
-          agent_id,
-          agents!inner (
-            id,
-            name,
-            retell_agent_id,
-            rate_per_minute
-          )
-        `)
-        .eq('user_id', user.id);
-
-      if (agentsError) {
-        console.error('❌ [Dashboard] Error fetching user agents:', agentsError);
-        setError(`Error fetching agents: ${agentsError.message}`);
-        return;
-      }
-
-      if (!userAgents || userAgents.length === 0) {
-        console.log('⚠️ [Dashboard] No agents assigned to user');
-        setCalls([]);
-        setUserAgents([]);
-        setStats({
-          totalCalls: 0,
-          totalCost: 0,
-          totalDuration: 0,
-          avgDuration: 0,
-          successRate: 0,
-          positiveRatio: 0,
-          callsToday: 0,
-          costToday: 0
-        });
-        setLoading(false);
-        return;
-      }
-
-      const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-      const userRetellAgentIds = userAgents.map(assignment => assignment.agents.retell_agent_id).filter(Boolean);
-      const allAgentIds = [...userAgentIds, ...userRetellAgentIds];
-      
-      console.log('👤 [Dashboard] User agent IDs:', allAgentIds);
-      setUserAgents(userAgents || []);
-
-      // Obtener llamadas de esos agentes
-      const { data, error: fetchError } = await supabase
-        .from('calls')
-        .select('*')
-        .in('agent_id', allAgentIds)
-        .order('timestamp', { ascending: false });
-
-      if (fetchError) {
-        console.error('❌ [Dashboard] Error fetching calls for user:', fetchError);
-        setError(`Error: ${fetchError.message}`);
-        return;
-      }
-
-      const callsData = data || [];
-      console.log('✅ [Dashboard] User calls loaded:', callsData.length);
-
-      setCalls(callsData);
-      setUserAgents(userAgents || []);
-
-      // Load audio durations for recent calls
-      if (callsData && callsData.length > 0) {
-        const recentCalls = callsData.slice(0, 10).filter(call => call.recording_url);
-        await Promise.all(recentCalls.map(call => loadAudioDuration(call)));
-      }
-
-      
-
-    } catch (err: any) {
-      console.error('💥 [Dashboard] Exception fetching calls data:', err);
-      setError(`Exception: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-  // ============================================================================
   // FUNCIONES AUXILIARES PARA GRÁFICOS (MANTENER IGUAL)
   // ============================================================================
   
@@ -940,9 +1109,9 @@ useEffect(() => {
       return {
         date: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
         calls: daysCalls.length,
-        cost: daysCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0),
+        cost: daysCalls.reduce((sum, call) => sum + calculateCallCost(call), 0), // ✅ USAR FUNCIÓN SINCRONIZADA
         avgDuration: daysCalls.length > 0 
-          ? daysCalls.reduce((sum, call) => sum + getCallDuration(call), 0) / daysCalls.length 
+          ? daysCalls.reduce((sum, call) => sum + getCallDuration(call), 0) / daysCalls.length  // ✅ USAR FUNCIÓN SINCRONIZADA
           : 0
       };
     });
@@ -970,15 +1139,16 @@ useEffect(() => {
   };
 
   const formatCurrency = (amount: number) => {
-  const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
-  
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
-  }).format(roundedAmount);
-};
+    const roundedAmount = Math.round((amount || 0) * 10000) / 10000;
+    
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    }).format(roundedAmount);
+  };
+
   // ============================================================================
   // VERIFICACIONES Y ESTADOS DE CARGA
   // ============================================================================
@@ -1000,11 +1170,17 @@ useEffect(() => {
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
           <LoadingSpinner size="lg" />
-          <span className="ml-3 text-gray-600">Loading dashboard...</span>
+          <div className="ml-3">
+            <span className="text-gray-600 block">Loading dashboard...</span>
+            {loadingProgress && (
+              <span className="text-sm text-gray-500 mt-1 block">{loadingProgress}</span>
+            )}
+          </div>
         </div>
       </DashboardLayout>
     );
   }
+
   // 🤖 RENDER SUPER ADMIN DASHBOARD
   if (isSuperAdmin) {
     return (
@@ -1293,6 +1469,7 @@ useEffect(() => {
       </DashboardLayout>
     );
   }
+
   // 👤 RENDER REGULAR USER DASHBOARD (LAYOUT CORREGIDO)
   const regularChartData = getChartData();
   const sentimentData = getSentimentData();
