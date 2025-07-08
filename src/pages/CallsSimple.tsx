@@ -346,7 +346,6 @@ export default function CallsSimple() {
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customDate, setCustomDate] = useState<string>('');
-  const [customDate, setCustomDate] = useState<string>('');
 const [showOnlyPending, setShowOnlyPending] = useState(false); // 🆕 NUEVO ESTADO
   const [stats, setStats] = useState({
     total: 0,
@@ -1780,8 +1779,6 @@ useEffect(() => {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-gray-500" />
-                  <div className="flex items-center gap-2">
   <Filter className="h-4 w-4 text-gray-500" />
   
   {/* 🆕 PENDING FILTER TOGGLE */}
@@ -1808,6 +1805,14 @@ useEffect(() => {
     onChange={(e) => setStatusFilter(e.target.value)}
     className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
   >
+    <option value="all">All Status</option>
+    {uniqueStatuses.map(status => (
+      <option key={status} value={status}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </option>
+    ))}
+  </select>
+</div>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
@@ -1986,9 +1991,6 @@ useEffect(() => {
                             End Reason
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Content
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
   Content
 </th>
 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1997,9 +1999,6 @@ useEffect(() => {
 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
   Actions
 </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -2090,35 +2089,6 @@ useEffect(() => {
                                 <span className="text-xs text-gray-400">No reason</span>
                               )}
                             </td>
-                            
-                            <td className="px-4 py-4">
-                              <div className="flex items-center gap-2">
-                                {call.transcript && (
-                                  <div className="flex items-center gap-1 text-xs text-green-600">
-                                    <FileText className="h-3 w-3" />
-                                    Transcript
-                                  </div>
-                                )}
-                                {call.call_summary && (
-                                  <div className="flex items-center gap-1 text-xs text-blue-600">
-                                    <PlayCircle className="h-3 w-3" />
-                                    Summary
-                                  </div>
-                                )}
-                                {call.recording_url && (
-                                  <div className="flex items-center gap-1 text-xs text-red-600">
-                                    <Volume2 className="h-3 w-3" />
-                                    Audio
-                                  </div>
-                                )}
-                              </div>
-                              {call.call_summary && (
-                                <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
-                                  {call.call_summary}
-                                </div>
-                              )}
-                            </td>
-
                             <td className="px-4 py-4">
   <div className="flex items-center gap-2">
     {call.transcript && (
@@ -2127,8 +2097,24 @@ useEffect(() => {
         Transcript
       </div>
     )}
-    // ... resto del contenido existente
+    {call.call_summary && (
+      <div className="flex items-center gap-1 text-xs text-blue-600">
+        <PlayCircle className="h-3 w-3" />
+        Summary
+      </div>
+    )}
+    {call.recording_url && (
+      <div className="flex items-center gap-1 text-xs text-red-600">
+        <Volume2 className="h-3 w-3" />
+        Audio
+      </div>
+    )}
   </div>
+  {call.call_summary && (
+    <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
+      {call.call_summary}
+    </div>
+  )}
 </td>
 
 {/* 🆕 NEW PROCESS STATUS COLUMN */}
@@ -2155,38 +2141,31 @@ useEffect(() => {
       variant="ghost" 
       size="sm" 
       className="h-6 w-6 p-0"
-                            
-                            <td className="px-4 py-4 whitespace-nowrap">
-                              <div className="flex items-center gap-1">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="h-6 w-6 p-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCallClick(call);
-                                  }}
-                                >
-                                  <Eye className="h-3 w-3" />
-                                </Button>
-                                {call.recording_url && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-6 w-6 p-0"
-                                    asChild
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <a
-                                      href={call.recording_url}
-                                      download={`call-${call.call_id}.mp3`}
-                                    >
-                                      <Download className="h-3 w-3" />
-                                    </a>
-                                  </Button>
-                                )}
-                              </div>
-                            </td>
+      onClick={(e) => {
+        e.stopPropagation();
+        handleCallClick(call);
+      }}
+    >
+      <Eye className="h-3 w-3" />
+    </Button>
+    {call.recording_url && (
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        className="h-6 w-6 p-0"
+        asChild
+        onClick={(e) => e.stopPropagation()}
+      >
+        
+          href={call.recording_url}
+          download={`call-${call.call_id}.mp3`}
+        >
+          <Download className="h-3 w-3" />
+        </a>
+      </Button>
+    )}
+  </div>
+</td>
                           </tr>
                         ))}
                       </tbody>
