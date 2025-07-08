@@ -541,7 +541,7 @@ export default function CallsSimple() {
           hasValidDuration,
           notProcessed,
           hasRate,
-          ➜: isPending ? '✅ PENDIENTE' : '❌ No pendiente'
+          result: isPending ? '✅ PENDIENTE' : '❌ No pendiente'
         });
       }
       
