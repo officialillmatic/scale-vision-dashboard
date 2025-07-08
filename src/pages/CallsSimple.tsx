@@ -1173,21 +1173,25 @@ useEffect(() => {
       
       // Procesar llamadas con descuentos exactos (CON DELAY)
       setTimeout(() => {
-        if (!isProcessing && shouldProcessCalls()) { // 🔒 DOBLE VERIFICACIÓN
-          processNewCallsExact();
-        }
-      }, 1000);
+  // 🛑 EMERGENCIA: DETENIDO TEMPORALMENTE
+  // if (!isProcessing && shouldProcessCalls()) { // 🔒 DOBLE VERIFICACIÓN
+  //   processNewCallsExact();
+  // }
+  console.log("🛑 EMERGENCIA: processNewCallsExact DETENIDO");
+}, 1000);
     } else {
       console.log(`✅ No hay llamadas pendientes de procesamiento`);
     }
     
     // 🔒 Intervalo con verificaciones adicionales
     const interval = setInterval(() => {
-      if (!backgroundLoading && !isProcessing && shouldProcessCalls()) {
-        console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
-        processNewCallsExact();
-      }
-    }, 30000);
+  // 🛑 EMERGENCIA: INTERVALO DETENIDO
+  // if (!backgroundLoading && !isProcessing && shouldProcessCalls()) {
+  //   console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
+  //   processNewCallsExact();
+  // }
+  console.log("🛑 EMERGENCIA: Intervalo detenido");
+}, 30000);
     
     return () => clearInterval(interval);
   }
