@@ -266,9 +266,11 @@ const Index = () => {
                 </div>
                 <p className="text-muted-foreground mb-6 italic text-lg">"The ROI is incredible. We're booking 10x more appointments with half the overhead. It's like having 50 top performers working 24/7."</p>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-brand-green to-brand-purple rounded-full flex items-center justify-center">
-                    <span className="text-white font-semibold">DK</span>
-                  </div>
+                  <img 
+                    src="/lovable-uploads/67f04a61-20f5-4c88-b471-20c5bd987615.png" 
+                    alt="David Kim, Founder of PropData"
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
                   <div>
                     <div className="font-semibold">David Kim</div>
                     <div className="text-sm text-muted-foreground">Founder, PropData</div>
