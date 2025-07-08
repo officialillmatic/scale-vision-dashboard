@@ -961,11 +961,12 @@ export default function CallsSimple() {
       const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
       
       const { data: initialCalls, error: callsError } = await supabase
-        .from('calls')
-        .select('*')
-        .in('agent_id', allAgentIds)
-        .order('timestamp', { ascending: false })
-        .limit(INITIAL_BATCH);
+  .from('calls')
+  .select('*')
+  .in('agent_id', allAgentIds)
+  .or('processed_for_cost.is.null,processed_for_cost.eq.false') // 🎯 SOLO traer llamadas no procesadas
+  .order('timestamp', { ascending: false })
+  .limit(INITIAL_BATCH);
 
       if (callsError) {
         console.error("❌ Error obteniendo llamadas iniciales:", callsError);
@@ -1036,11 +1037,12 @@ export default function CallsSimple() {
             const lastTimestamp = initialCalls[initialCalls.length - 1]?.timestamp;
             
             const { data: remainingCalls, error: remainingError } = await supabase
-              .from('calls')
-              .select('*')
-              .in('agent_id', allAgentIds)
-              .order('timestamp', { ascending: false })
-              .lt('timestamp', lastTimestamp); // Llamadas más antiguas
+  .from('calls')
+  .select('*')
+  .in('agent_id', allAgentIds)
+  .or('processed_for_cost.is.null,processed_for_cost.eq.false') // 🎯 SOLO traer llamadas no procesadas
+  .order('timestamp', { ascending: false })
+  .lt('timestamp', lastTimestamp);
 
             if (!remainingError && remainingCalls) {
               const mappedRemainingCalls = mapCalls(remainingCalls);
