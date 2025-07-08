@@ -569,7 +569,6 @@ export default function CallsSimple() {
           cost_usd: exactCost,
           duration_sec: exactDuration, // Actualizar con duración exacta también
           processed_for_cost: true,
-          updated_at: new Date().toISOString()
         })
         .eq('call_id', call.call_id);
 
