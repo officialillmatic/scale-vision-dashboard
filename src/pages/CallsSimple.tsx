@@ -1043,14 +1043,55 @@ export default function CallsSimple() {
       const mappedInitialCalls = mapCalls(initialCalls);
       
       // ✅ MOSTRAR DATOS INICIALES RÁPIDAMENTE
-      setCalls(mappedInitialCalls);
-      setLoading(false);
-      setLoadingProgress('');
+      // ✅ MOSTRAR DATOS INICIALES RÁPIDAMENTE
+setCalls(mappedInitialCalls);
+setLoading(false);
+setLoadingProgress('');
 
-      if (debugMode) {
-        console.log("🎉 PRIMERA CARGA COMPLETADA - Mostrando datos iniciales");
-        console.log(`📊 Llamadas cargadas: ${mappedInitialCalls.length}`);
-      }
+if (debugMode) {
+  console.log("🎉 PRIMERA CARGA COMPLETADA - Mostrando datos iniciales");
+  console.log(`📊 Llamadas cargadas: ${mappedInitialCalls.length}`);
+}
+
+// 🚀 TRIGGER AUTOMÁTICO SIMPLE Y DIRECTO (NUEVA IMPLEMENTACIÓN)
+setTimeout(async () => {
+  console.log('🚀 TRIGGER AUTOMÁTICO SIMPLE - Verificando llamadas pendientes...');
+  
+  // Verificar llamadas pendientes DIRECTAMENTE en las llamadas cargadas
+  const pendingCalls = mappedInitialCalls.filter(call => {
+    const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+    const hasValidDuration = (call.duration_sec || 0) > 0;
+    const notProcessed = !call.processed_for_cost;
+    const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
+    
+    const isPending = isCompleted && hasValidDuration && notProcessed && hasRate;
+    
+    if (isPending) {
+      console.log(`🔥 LLAMADA PENDIENTE DETECTADA: ${call.call_id?.substring(0, 8)} - Status: ${call.call_status}, Duration: ${call.duration_sec}s, Processed: ${call.processed_for_cost}`);
+    }
+    
+    return isPending;
+  });
+  
+  console.log(`📊 RESULTADO SIMPLE: ${pendingCalls.length} llamadas pendientes encontradas`);
+  
+  if (pendingCalls.length > 0 && !isProcessing) {
+    console.log(`🚀 EJECUTANDO TRIGGER AUTOMÁTICO SIMPLE - Procesando ${pendingCalls.length} llamadas`);
+    
+    // Ejecutar procesamiento SIN verificaciones complejas
+    try {
+      await triggerAutomaticProcessing('simple-post-fetch');
+      console.log('✅ TRIGGER SIMPLE COMPLETADO EXITOSAMENTE');
+    } catch (error) {
+      console.error('❌ Error en trigger simple:', error);
+    }
+  } else {
+    console.log('ℹ️ No hay llamadas pendientes o ya está procesando', {
+      pendingCount: pendingCalls.length,
+      isProcessing
+    });
+  }
+}, 4000); // 4 segundos para asegurar que todo esté cargado
 
       // 🚀 TRIGGER DIRECTO POST-CARGA (CRÍTICO)
       setTimeout(async () => {
@@ -1173,35 +1214,62 @@ export default function CallsSimple() {
     }
   }, [user?.id, showOnlyPending]);
 
-  // 🚀 useEffect SIMPLIFICADO para trigger automático
-  useEffect(() => {
-    if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
-      if (debugMode) {
-        console.log('🔥 useEffect TRIGGER - Condiciones cumplidas');
-        console.log(`📊 Llamadas cargadas: ${calls.length}`);
-      }
+  // 🚀 useEffect SIMPLIFICADO - TRIGGER AUTOMÁTICO DIRECTO
+useEffect(() => {
+  // Solo ejecutar si tenemos llamadas y no estamos cargando
+  if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
+    console.log('🔄 useEffect SIMPLE - Iniciando verificación automática...');
+    console.log(`📊 Estado actual: ${calls.length} llamadas, loading: ${loading}, backgroundLoading: ${backgroundLoading}, processing: ${isProcessing}`);
+    
+    // Detectar llamadas pendientes DIRECTAMENTE
+    const pendingCalls = calls.filter(call => {
+      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+      const hasValidDuration = (call.duration_sec || 0) > 0;
+      const notProcessed = !call.processed_for_cost;
+      const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
       
-      // Trigger con delay para asegurar que todo esté cargado
+      return isCompleted && hasValidDuration && notProcessed && hasRate;
+    });
+    
+    console.log(`📋 useEffect detectó ${pendingCalls.length} llamadas pendientes de ${calls.length} totales`);
+    
+    if (pendingCalls.length > 0) {
+      console.log('🎯 Llamadas pendientes encontradas, programando trigger automático...');
+      
+      // Programar trigger con delay para evitar conflictos
       const triggerTimeout = setTimeout(async () => {
-        if (debugMode) console.log('⚡ EJECUTANDO TRIGGER AUTOMÁTICO VIA useEffect');
-        await triggerAutomaticProcessing('useEffect');
-      }, 2000);
+        console.log('⚡ EJECUTANDO TRIGGER AUTOMÁTICO VIA useEffect');
+        
+        // Verificación final antes de procesar
+        if (!isProcessing) {
+          try {
+            await triggerAutomaticProcessing('useEffect-simple');
+            console.log('✅ useEffect trigger completado exitosamente');
+          } catch (error) {
+            console.error('❌ Error en useEffect trigger:', error);
+          }
+        } else {
+          console.log('🛑 useEffect trigger cancelado - ya está procesando');
+        }
+      }, 6000); // 6 segundos para evitar conflictos con otros triggers
 
+      // Cleanup function
       return () => {
-        if (debugMode) console.log('🧹 Limpiando timeout de trigger');
+        console.log('🧹 Limpiando timeout useEffect');
         clearTimeout(triggerTimeout);
       };
     } else {
-      if (debugMode) {
-        console.log('🛑 useEffect TRIGGER - Condiciones NO cumplidas:', {
-          callsLength: calls.length,
-          loading,
-          backgroundLoading,
-          isProcessing
-        });
-      }
+      console.log('✅ useEffect: No hay llamadas pendientes para procesar');
     }
-  }, [calls.length, loading, backgroundLoading]);
+  } else {
+    console.log('🛑 useEffect SIMPLE: Condiciones no cumplidas para trigger', {
+      callsLength: calls.length,
+      loading,
+      backgroundLoading,
+      isProcessing
+    });
+  }
+}, [calls.length, loading, backgroundLoading]); // Mantener las mismas dependencias
 
   // useEffect para filtros y estadísticas
   useEffect(() => {
