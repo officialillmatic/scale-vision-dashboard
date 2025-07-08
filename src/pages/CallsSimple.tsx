@@ -1128,13 +1128,13 @@ export default function CallsSimple() {
     if (calls.length > 0 && !loading && !backgroundLoading) {
       // Procesar llamadas con descuentos exactos
       setTimeout(() => {
-        processNewCallsExact(); // 🆕 Nueva función de descuentos exactos
+        // processNewCallsExact(); // 🆕 Nueva función de descuentos exactos
       }, 1000);
       
       // Y cada 30 segundos para nuevas llamadas pendientes
       const interval = setInterval(() => {
         if (!backgroundLoading) {
-          processNewCallsExact(); // 🆕 Nueva función de descuentos exactos
+          // processNewCallsExact(); // 🆕 Nueva función de descuentos exactos
         }
       }, 30000);
       
