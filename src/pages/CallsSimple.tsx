@@ -616,12 +616,26 @@ export default function CallsSimple() {
   // ============================================================================
 
   const processNewCallsExact = async () => {
-    console.log('💰 PROCESANDO DESCUENTOS EXACTOS - CallsSimple maneja todo');
-    
-    if (!calls.length || !user?.id || loading || isProcessing) {
-      console.log('❌ SALIENDO - condiciones no cumplidas para procesamiento exacto');
-      return;
-    }
+  // 🛡️ PROTECCIÓN TEMPRANA MEJORADA
+  if (isProcessing) {
+    console.log('🛑 Ya está procesando, saltando...');
+    return;
+  }
+  
+  if (!calls.length || !user?.id || loading || backgroundLoading) {
+    console.log('❌ SALIENDO - condiciones no cumplidas para procesamiento exacto');
+    return;
+  }
+  
+  if (!shouldProcessCalls()) {
+    console.log('🛑 shouldProcessCalls() retornó false');
+    return;
+  }
+  
+  console.log('💰 INICIANDO PROCESAMIENTO EXACTO CON PROTECCIONES...');
+  setIsProcessing(true);
+  
+  try {
 
     console.log('📊 VERIFICANDO LLAMADAS PARA DESCUENTO EXACTO...');
 
@@ -692,8 +706,12 @@ export default function CallsSimple() {
     console.log(`   ❌ Errores: ${errors}`);
     console.log(`   💰 Total descontado: $${totalDeducted.toFixed(4)}`);
     console.log(`   🎯 Precisión: 100% exacta con duración de audio`);
-    
-    setIsProcessing(false);
+  
+} catch (error) {
+  console.error(`❌ Error crítico en processNewCallsExact:`, error);
+} finally {
+  setIsProcessing(false); // 🔒 IMPORTANTE: Siempre resetear
+}
 
     // Actualizar estadísticas
     if (processedCount > 0) {
@@ -1123,24 +1141,64 @@ export default function CallsSimple() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
-  // Efecto para procesar llamadas pendientes CON DESCUENTOS EXACTOS
-  useEffect(() => {
-    if (calls.length > 0 && !loading && !backgroundLoading) {
-      // Procesar llamadas con descuentos exactos
+  // 🆕 FUNCIÓN AUXILIAR: Verificar estado antes de procesar
+const shouldProcessCalls = () => {
+  if (loading || backgroundLoading || isProcessing) {
+    console.log(`🛑 No procesar: loading=${loading}, backgroundLoading=${backgroundLoading}, isProcessing=${isProcessing}`);
+    return false;
+  }
+  
+  const pendingCalls = calls.filter(call => 
+    ['completed', 'ended'].includes(call.call_status?.toLowerCase()) && 
+    !call.processed_for_cost &&
+    (call.duration_sec > 0 || call.recording_url) &&
+    (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0
+  );
+  
+  if (pendingCalls.length === 0) {
+    console.log(`✅ Sin llamadas pendientes de procesamiento`);
+    return false;
+  }
+  
+  console.log(`🔄 ${pendingCalls.length} llamadas pendientes encontradas`);
+  return true;
+};
+
+  // ✅ useEffect CORREGIDO para evitar loops infinitos
+useEffect(() => {
+  if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
+    // 🔒 Solo procesar si hay llamadas realmente pendientes
+    if (shouldProcessCalls()) {
+      console.log(`🔄 Iniciando procesamiento de llamadas pendientes...`);
+      
+      // Procesar llamadas con descuentos exactos (CON DELAY)
       setTimeout(() => {
-        processNewCallsExact(); // 🆕 Nueva función de descuentos exactos
-      }, 1000);
-      
-      // Y cada 30 segundos para nuevas llamadas pendientes
-      const interval = setInterval(() => {
-        if (!backgroundLoading) {
-          processNewCallsExact(); // 🆕 Nueva función de descuentos exactos
+        if (!isProcessing && shouldProcessCalls()) { // 🔒 DOBLE VERIFICACIÓN
+          processNewCallsExact();
         }
-      }, 30000);
-      
-      return () => clearInterval(interval);
+      }, 1000);
+    } else {
+      console.log(`✅ No hay llamadas pendientes de procesamiento`);
     }
-  }, [calls.length, loading, backgroundLoading]);
+    
+    // 🔒 Intervalo con verificaciones adicionales
+    const interval = setInterval(() => {
+      if (!backgroundLoading && !isProcessing && shouldProcessCalls()) {
+        console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
+        processNewCallsExact();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }
+}, [
+  // ✅ DEPENDENCIAS CORREGIDAS
+  user?.id,           // Usuario cambia → recargar
+  calls.length,       // Nuevas llamadas → verificar
+  loading,            // Estado de carga cambia
+  backgroundLoading   // Carga en background cambia
+  // ❌ NO incluir isProcessing para evitar loops
+]);
 
   // ============================================================================
   // FUNCIONES DE FILTROS Y ESTADÍSTICAS
