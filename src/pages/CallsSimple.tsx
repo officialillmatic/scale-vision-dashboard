@@ -1813,19 +1813,7 @@ useEffect(() => {
     ))}
   </select>
 </div>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="all">All Status</option>
-                    {uniqueStatuses.map(status => (
-                      <option key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  
 
                 <AgentFilter
                   agents={uniqueAgents}
@@ -2148,21 +2136,15 @@ useEffect(() => {
     >
       <Eye className="h-3 w-3" />
     </Button>
-    {call.recording_url && (
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        className="h-6 w-6 p-0"
-        asChild
-        onClick={(e) => e.stopPropagation()}
-      >
-        
-          href={call.recording_url}
-          download={`call-${call.call_id}.mp3`}
-        >
-          <Download className="h-3 w-3" />
-        </a>
-      </Button>
+{call.recording_url && (
+  
+    href={call.recording_url}
+    download={`call-${call.call_id}.mp3`}
+    onClick={(e) => e.stopPropagation()}
+    className="inline-flex items-center justify-center h-6 w-6 p-0 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+  >
+    <Download className="h-3 w-3" />
+  </a>
     )}
   </div>
 </td>
