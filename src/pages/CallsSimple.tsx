@@ -1141,8 +1141,7 @@ export default function CallsSimple() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
-  // 🆕 FUNCIÓN AUXILIAR: Verificar estado antes de procesar
-// 🆕 FUNCIÓN MEJORADA: Verificar transacciones existentes en BD
+// 🛡️ FUNCIÓN SIMPLIFICADA: Verificación robusta sin errores SQL
 const shouldProcessCalls = async () => {
   if (loading || backgroundLoading || isProcessing) {
     console.log(`🛑 No procesar: loading=${loading}, backgroundLoading=${backgroundLoading}, isProcessing=${isProcessing}`);
@@ -1161,52 +1160,60 @@ const shouldProcessCalls = async () => {
     return false;
   }
   
-  console.log(`🔍 Verificando ${potentiallyPendingCalls.length} llamadas contra transacciones existentes...`);
+  console.log(`🔍 Verificando ${potentiallyPendingCalls.length} llamadas contra transacciones...`);
   
-  // 🔍 VERIFICACIÓN EN BD: ¿Ya existen transacciones para estas llamadas?
+  // 🔍 VERIFICACIÓN SIMPLIFICADA: Buscar por descripción (más robusta)
   try {
-    const callIds = potentiallyPendingCalls.map(call => call.call_id);
+    const processedCallIds = new Set();
     
-    const { data: existingTransactions, error } = await supabase
-      .from('credit_transactions')
-      .select('call_id, amount, created_at')
-      .in('call_id', callIds)
-      .in('transaction_type', ['call_charge_auto', 'call_charge_exact']);
-    
-    if (error) {
-      console.error('❌ Error verificando transacciones existentes:', error);
-      return false; // No procesar si hay error
+    // Verificar cada llamada individualmente
+    for (const call of potentiallyPendingCalls) {
+      const callIdShort = call.call_id.substring(0, 16); // Usar parte del ID
+      
+      const { data: existingTx, error } = await supabase
+        .from('credit_transactions')
+        .select('id, description')
+        .eq('user_id', user.id)
+        .ilike('description', `%${callIdShort}%`)
+        .limit(1);
+      
+      if (error) {
+        console.log(`⚠️ Error verificando ${callIdShort}:`, error.message);
+        continue; // Continuar con siguiente llamada
+      }
+      
+      if (existingTx && existingTx.length > 0) {
+        processedCallIds.add(call.call_id);
+        console.log(`✅ Transacción encontrada para: ${callIdShort}`);
+      } else {
+        console.log(`🔄 Sin transacción para: ${callIdShort} - PENDIENTE`);
+      }
     }
     
-    // Crear set de call_ids que ya tienen transacciones
-    const processedCallIds = new Set(
-      existingTransactions?.map(tx => tx.call_id) || []
-    );
-    
-    // Filtrar llamadas que NO tienen transacciones
+    // Llamadas realmente pendientes
     const trulyPendingCalls = potentiallyPendingCalls.filter(call => 
       !processedCallIds.has(call.call_id)
     );
     
     if (trulyPendingCalls.length === 0) {
       console.log(`✅ Todas las llamadas ya tienen transacciones procesadas`);
-      console.log(`📊 Transacciones encontradas para:`, Array.from(processedCallIds));
       return false;
     }
     
-    console.log(`🎯 ${trulyPendingCalls.length} llamadas REALMENTE pendientes encontradas:`);
+    console.log(`🎯 ${trulyPendingCalls.length} llamadas REALMENTE pendientes:`);
     trulyPendingCalls.forEach(call => {
-      console.log(`   - ${call.call_id.substring(0, 12)} (sin transacción)`);
+      console.log(`   - ${call.call_id.substring(0, 16)} (sin transacción)`);
     });
     
-    return true;
+    return trulyPendingCalls.length > 0;
     
   } catch (error) {
     console.error('❌ Excepción verificando transacciones:', error);
-    return false; // No procesar si hay excepción
+    // En caso de error, procesar para estar seguros
+    console.log('🔄 Error en verificación - procesando por seguridad');
+    return true;
   }
 };
-
   // ✅ useEffect CORREGIDO para evitar loops infinitos
 useEffect(() => {
   if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
