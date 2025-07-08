@@ -1053,6 +1053,148 @@ if (debugMode) {
   console.log(`📊 Llamadas cargadas: ${mappedInitialCalls.length}`);
 }
 
+      // 🚀 SOLUCIÓN SIMPLE: TRIGGER INDEPENDIENTE DEL FILTRO UI
+//
+// BUSCAR en fetchCalls() estas líneas (aproximadamente línea 1100):
+//
+// setCalls(mappedInitialCalls);
+// setLoading(false);
+// setLoadingProgress('');
+// console.log("🎉 PRIMERA CARGA COMPLETADA - Mostrando datos iniciales");
+//
+// Y AGREGAR INMEDIATAMENTE DESPUÉS:
+
+// 🚀 TRIGGER AUTOMÁTICO INDEPENDIENTE (NUEVA IMPLEMENTACIÓN)
+setTimeout(async () => {
+  console.log('🚀 TRIGGER INDEPENDIENTE - Verificando llamadas pendientes...');
+  
+  // 1. CONSULTA INDEPENDIENTE: Buscar llamadas pendientes sin importar el filtro UI
+  try {
+    const { data: pendingCallsRaw, error: pendingError } = await supabase
+      .from('calls')
+      .select('*')
+      .in('agent_id', allAgentIds)
+      .or('processed_for_cost.is.null,processed_for_cost.eq.false')
+      .in('call_status', ['completed', 'ended'])
+      .order('timestamp', { ascending: false })
+      .limit(20);
+
+    if (pendingError) {
+      console.error('❌ Error buscando llamadas pendientes:', pendingError);
+      return;
+    }
+
+    console.log(`📊 CONSULTA INDEPENDIENTE: ${pendingCallsRaw?.length || 0} llamadas pendientes encontradas`);
+
+    if (!pendingCallsRaw || pendingCallsRaw.length === 0) {
+      console.log('✅ No hay llamadas pendientes para procesar automáticamente');
+      return;
+    }
+
+    // 2. MAPEAR LLAMADAS PENDIENTES CON INFORMACIÓN DE AGENTES
+    const mappedPendingCalls = pendingCallsRaw.map(call => {
+      let matchedAgent = null;
+
+      const userAgentAssignment = userAgents.find(assignment => 
+        assignment.agents.id === call.agent_id ||
+        assignment.agents.retell_agent_id === call.agent_id
+      );
+
+      if (userAgentAssignment) {
+        matchedAgent = {
+          id: userAgentAssignment.agents.id,
+          name: userAgentAssignment.agents.name,
+          rate_per_minute: userAgentAssignment.agents.rate_per_minute
+        };
+      } else {
+        matchedAgent = {
+          id: call.agent_id,
+          name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
+          rate_per_minute: 0.02
+        };
+      }
+
+      return {
+        ...call,
+        end_reason: call.disconnection_reason || null,
+        call_agent: matchedAgent,
+        agents: matchedAgent
+      };
+    });
+
+    // 3. FILTRAR LLAMADAS QUE REALMENTE NECESITAN PROCESAMIENTO
+    const trulyPendingCalls = mappedPendingCalls.filter(call => {
+      const hasValidDuration = (call.duration_sec || 0) > 0;
+      const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
+      const notProcessed = !call.processed_for_cost;
+      
+      const needsProcessing = hasValidDuration && hasRate && notProcessed;
+      
+      if (needsProcessing) {
+        console.log(`🔥 LLAMADA PENDIENTE DETECTADA: ${call.call_id?.substring(0, 8)} - Duration: ${call.duration_sec}s, Rate: $${call.call_agent?.rate_per_minute || call.agents?.rate_per_minute}/min`);
+      }
+      
+      return needsProcessing;
+    });
+
+    console.log(`🎯 RESULTADO INDEPENDIENTE: ${trulyPendingCalls.length} llamadas realmente pendientes`);
+
+    if (trulyPendingCalls.length > 0 && !isProcessing) {
+      console.log(`🚀 EJECUTANDO TRIGGER AUTOMÁTICO INDEPENDIENTE - Procesando ${trulyPendingCalls.length} llamadas`);
+      
+      // 4. PROCESAR LLAMADAS PENDIENTES
+      setIsProcessing(true);
+      
+      for (const call of trulyPendingCalls) {
+        try {
+          console.log(`💰 PROCESANDO AUTOMÁTICAMENTE: ${call.call_id?.substring(0, 8)}`);
+          const result = await processCallCostAndDeduct(call);
+          
+          if (result.success) {
+            console.log(`✅ PROCESAMIENTO AUTOMÁTICO EXITOSO: ${call.call_id?.substring(0, 8)} - $${(result.cost || 0).toFixed(4)}`);
+            
+            // Actualizar las llamadas mostradas SI coinciden
+            setCalls(prevCalls => 
+              prevCalls.map(c => 
+                c.call_id === call.call_id 
+                  ? { 
+                      ...c, 
+                      cost_usd: result.cost || c.cost_usd, 
+                      duration_sec: result.duration || c.duration_sec,
+                      processed_for_cost: true 
+                    }
+                  : c
+              )
+            );
+            
+          } else {
+            console.error(`❌ Error en procesamiento automático ${call.call_id?.substring(0, 8)}:`, result.error);
+          }
+          
+          // Pausa entre procesamiento
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+        } catch (error) {
+          console.error(`❌ Excepción en procesamiento automático ${call.call_id?.substring(0, 8)}:`, error);
+        }
+      }
+      
+      setIsProcessing(false);
+      console.log('✅ TRIGGER INDEPENDIENTE COMPLETADO');
+      
+    } else {
+      console.log('ℹ️ No hay llamadas para procesar o ya está procesando', {
+        pendingCount: trulyPendingCalls.length,
+        isProcessing
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error en trigger independiente:', error);
+  }
+  
+}, 5000); // 5 segundos para asegurar que todo esté cargado
+
 // 🚀 TRIGGER AUTOMÁTICO SIMPLE Y DIRECTO (NUEVA IMPLEMENTACIÓN)
 setTimeout(async () => {
   console.log('🚀 TRIGGER AUTOMÁTICO SIMPLE - Verificando llamadas pendientes...');
