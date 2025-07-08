@@ -69,21 +69,6 @@ interface Call {
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
-
-// ============================================================================
-// 🚨 FUNCIÓN ELIMINADA: deductCallCost (CAUSABA DESCUENTOS DUPLICADOS)
-// ============================================================================
-/*
-❌ ESTA FUNCIÓN FUE ELIMINADA PORQUE:
-- El webhook de Retell ya maneja todos los descuentos automáticamente
-- CallsSimple NO debe descontar, solo mostrar información
-- Causaba descuentos duplicados que robaban dinero al usuario
-
-const deductCallCost = async (callId: string, callCost: number, userId: string) => {
-  // FUNCIÓN ELIMINADA - Webhook maneja descuentos
-};
-*/
-
 // ============================================================================
 // COMPONENTE FILTRO DE AGENTES (SIN CAMBIOS)
 // ============================================================================
@@ -181,7 +166,6 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
     </div>
   );
 };
-
 // ============================================================================
 // 🆕 COMPONENTE DE PAGINACIÓN
 // ============================================================================
@@ -319,7 +303,6 @@ const PaginationControls = ({
     </div>
   );
 };
-
 // ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
@@ -346,7 +329,7 @@ export default function CallsSimple() {
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customDate, setCustomDate] = useState<string>('');
-const [showOnlyPending, setShowOnlyPending] = useState(false); // 🆕 NUEVO ESTADO
+  const [showOnlyPending, setShowOnlyPending] = useState(false); // 🆕 NUEVO ESTADO
   const [stats, setStats] = useState({
     total: 0,
     totalCost: 0,
@@ -382,7 +365,6 @@ const [showOnlyPending, setShowOnlyPending] = useState(false); // 🆕 NUEVO EST
     
     return `Agent ${agentId.substring(0, 8)}...`;
   };
-
   // ============================================================================
   // FUNCIONES AUXILIARES (SIN CAMBIOS EN LÓGICA)
   // ============================================================================
@@ -460,6 +442,59 @@ const [showOnlyPending, setShowOnlyPending] = useState(false); // 🆕 NUEVO EST
     return calculateCallCost(call);
   };
 
+  // ✅ FUNCIÓN: loadAudioDuration (SIN CAMBIOS)
+  const loadAudioDuration = async (call: Call) => {
+    if (!call.recording_url || audioDurations[call.id]) return;
+    
+    try {
+      console.log(`🎵 Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
+      const audio = new Audio(call.recording_url);
+      return new Promise<void>((resolve) => {
+        audio.addEventListener('loadedmetadata', () => {
+          const duration = Math.round(audio.duration);
+          console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
+          setAudioDurations(prev => ({
+            ...prev,
+            [call.id]: duration
+          }));
+          resolve();
+        });
+        
+        audio.addEventListener('error', () => {
+          console.log(`❌ Error cargando audio para ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        });
+
+        // Timeout de seguridad
+        setTimeout(() => {
+          console.log(`⏰ Timeout cargando audio para ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        }, 5000);
+      });
+    } catch (error) {
+      console.log(`❌ Error loading audio duration:`, error);
+    }
+  };
+
+  // 🚀 NUEVA FUNCIÓN: Cargar audio solo para llamadas visibles
+  const loadAudioForVisibleCalls = async (visibleCalls: Call[]) => {
+    const callsWithAudio = visibleCalls.filter(call => 
+      call.recording_url && !audioDurations[call.id]
+    );
+    
+    if (callsWithAudio.length === 0) return;
+    
+    console.log(`🎵 Cargando audio para ${callsWithAudio.length} llamadas visibles...`);
+    
+    // Cargar en pequeños lotes para no bloquear
+    for (let i = 0; i < callsWithAudio.length; i += 2) {
+      const batch = callsWithAudio.slice(i, i + 2);
+      await Promise.all(batch.map(call => loadAudioDuration(call)));
+      if (i + 2 < callsWithAudio.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+  };
   // ============================================================================
   // 🆕 FUNCIÓN: Descuento de balance EXACTO
   // ============================================================================
@@ -610,279 +645,111 @@ const [showOnlyPending, setShowOnlyPending] = useState(false); // 🆕 NUEVO EST
       return { success: false, error: error.message };
     }
   };
-
   // ============================================================================
   // 🆕 FUNCIÓN: Procesar llamadas pendientes con descuentos exactos
   // ============================================================================
 
   const processNewCallsExact = async () => {
-  // 🛡️ PROTECCIÓN TEMPRANA MEJORADA
-  if (isProcessing) {
-    console.log('🛑 Ya está procesando, saltando...');
-    return;
-  }
-  
-  if (!calls.length || !user?.id || loading || backgroundLoading) {
-    console.log('❌ SALIENDO - condiciones no cumplidas para procesamiento exacto');
-    return;
-  }
-  
-  if (!(await shouldProcessCalls())) {
-  console.log('🛑 shouldProcessCalls() retornó false - no hay llamadas realmente pendientes');
-  return;
-}
-  
-  console.log('💰 INICIANDO PROCESAMIENTO EXACTO CON PROTECCIONES...');
-  setIsProcessing(true);
-  
-  try {
-
-    console.log('📊 VERIFICANDO LLAMADAS PARA DESCUENTO EXACTO...');
-
-    // Filtrar llamadas que necesitan procesamiento de costo exacto
-    const callsNeedingExactProcessing = calls.filter(call => {
-      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
-      const actualDuration = getCallDuration(call);
-      const hasValidDuration = actualDuration > 0;
-      const notProcessed = !call.processed_for_cost; // Nuevo campo del webhook v6.0
-      const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
-      
-      const needsProcessing = isCompleted && hasValidDuration && notProcessed && hasRate;
-      
-      if (isCompleted && notProcessed) {
-        console.log(`🔍 ANÁLISIS EXACTO ${call.call_id?.substring(0, 8)}:`, {
-          status: call.call_status,
-          duration_bd: call.duration_sec,
-          audio_duration: audioDurations[call.id] || 'not loaded',
-          actual_duration: actualDuration,
-          current_cost: call.cost_usd,
-          has_rate: hasRate,
-          processed_for_cost: call.processed_for_cost,
-          needs_processing: needsProcessing
-        });
-      }
-      
-      return needsProcessing;
-    });
-
-    if (callsNeedingExactProcessing.length === 0) {
-      console.log('✅ Todas las llamadas han sido procesadas con costos exactos');
+    // 🛡️ PROTECCIÓN TEMPRANA MEJORADA
+    if (isProcessing) {
+      console.log('🛑 Ya está procesando, saltando...');
       return;
     }
-
-    console.log(`💰 PROCESANDO ${callsNeedingExactProcessing.length} llamadas con descuentos exactos`);
+    
+    if (!calls.length || !user?.id || loading || backgroundLoading) {
+      console.log('❌ SALIENDO - condiciones no cumplidas para procesamiento exacto');
+      return;
+    }
+    
+    if (!(await shouldProcessCalls())) {
+      console.log('🛑 shouldProcessCalls() retornó false - no hay llamadas realmente pendientes');
+      return;
+    }
+    
+    console.log('💰 INICIANDO PROCESAMIENTO EXACTO CON PROTECCIONES...');
     setIsProcessing(true);
+    
+    try {
+      console.log('📊 VERIFICANDO LLAMADAS PARA DESCUENTO EXACTO...');
 
-    let processedCount = 0;
-    let errors = 0;
-    let totalDeducted = 0;
-
-    for (const call of callsNeedingExactProcessing) {
-      try {
-        console.log(`\n💳 PROCESANDO DESCUENTO EXACTO: ${call.call_id}`);
+      // Filtrar llamadas que necesitan procesamiento de costo exacto
+      const callsNeedingExactProcessing = calls.filter(call => {
+        const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+        const actualDuration = getCallDuration(call);
+        const hasValidDuration = actualDuration > 0;
+        const notProcessed = !call.processed_for_cost; // Nuevo campo del webhook v6.0
+        const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
         
-        const result = await processCallCostAndDeduct(call);
+        const needsProcessing = isCompleted && hasValidDuration && notProcessed && hasRate;
         
-        if (result.success) {
-          processedCount++;
-          totalDeducted += result.cost || 0;
-          console.log(`✅ DESCUENTO EXACTO EXITOSO: ${call.call_id} - $${(result.cost || 0).toFixed(4)}`);
-        } else {
-          console.error(`❌ Error en descuento exacto ${call.call_id}:`, result.error);
-          errors++;
+        if (isCompleted && notProcessed) {
+          console.log(`🔍 ANÁLISIS EXACTO ${call.call_id?.substring(0, 8)}:`, {
+            status: call.call_status,
+            duration_bd: call.duration_sec,
+            audio_duration: audioDurations[call.id] || 'not loaded',
+            actual_duration: actualDuration,
+            current_cost: call.cost_usd,
+            has_rate: hasRate,
+            processed_for_cost: call.processed_for_cost,
+            needs_processing: needsProcessing
+          });
         }
         
-        // Pausa entre procesamiento
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-      } catch (error) {
-        console.error(`❌ Excepción en descuento exacto ${call.call_id}:`, error);
-        errors++;
-      }
-    }
+        return needsProcessing;
+      });
 
-    console.log(`\n🎯 DESCUENTOS EXACTOS COMPLETADOS:`);
-    console.log(`   ✅ Procesadas: ${processedCount}`);
-    console.log(`   ❌ Errores: ${errors}`);
-    console.log(`   💰 Total descontado: $${totalDeducted.toFixed(4)}`);
-    console.log(`   🎯 Precisión: 100% exacta con duración de audio`);
+      if (callsNeedingExactProcessing.length === 0) {
+        console.log('✅ Todas las llamadas han sido procesadas con costos exactos');
+        return;
+      }
+
+      console.log(`💰 PROCESANDO ${callsNeedingExactProcessing.length} llamadas con descuentos exactos`);
+      setIsProcessing(true);
+
+      let processedCount = 0;
+      let errors = 0;
+      let totalDeducted = 0;
+
+      for (const call of callsNeedingExactProcessing) {
+        try {
+          console.log(`\n💳 PROCESANDO DESCUENTO EXACTO: ${call.call_id}`);
+          
+          const result = await processCallCostAndDeduct(call);
+          
+          if (result.success) {
+            processedCount++;
+            totalDeducted += result.cost || 0;
+            console.log(`✅ DESCUENTO EXACTO EXITOSO: ${call.call_id} - $${(result.cost || 0).toFixed(4)}`);
+          } else {
+            console.error(`❌ Error en descuento exacto ${call.call_id}:`, result.error);
+            errors++;
+          }
+          
+          // Pausa entre procesamiento
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (error) {
+          console.error(`❌ Excepción en descuento exacto ${call.call_id}:`, error);
+          errors++;
+        }
+      }
+
+      console.log(`\n🎯 DESCUENTOS EXACTOS COMPLETADOS:`);
+      console.log(`   ✅ Procesadas: ${processedCount}`);
+      console.log(`   ❌ Errores: ${errors}`);
+      console.log(`   💰 Total descontado: $${totalDeducted.toFixed(4)}`);
+      console.log(`   🎯 Precisión: 100% exacta con duración de audio`);
   
-} catch (error) {
-  console.error(`❌ Error crítico en processNewCallsExact:`, error);
-} finally {
-  setIsProcessing(false); // 🔒 IMPORTANTE: Siempre resetear
-}
+    } catch (error) {
+      console.error(`❌ Error crítico en processNewCallsExact:`, error);
+    } finally {
+      setIsProcessing(false); // 🔒 IMPORTANTE: Siempre resetear
+    }
 
     // Actualizar estadísticas
     if (processedCount > 0) {
       calculateStats();
     }
-  };
-
-  // ✅ FUNCIÓN: loadAudioDuration (SIN CAMBIOS)
-  const loadAudioDuration = async (call: Call) => {
-    if (!call.recording_url || audioDurations[call.id]) return;
-    
-    try {
-      console.log(`🎵 Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
-      const audio = new Audio(call.recording_url);
-      return new Promise<void>((resolve) => {
-        audio.addEventListener('loadedmetadata', () => {
-          const duration = Math.round(audio.duration);
-          console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
-          setAudioDurations(prev => ({
-            ...prev,
-            [call.id]: duration
-          }));
-          resolve();
-        });
-        
-        audio.addEventListener('error', () => {
-          console.log(`❌ Error cargando audio para ${call.call_id?.substring(0, 8)}`);
-          resolve();
-        });
-
-        // Timeout de seguridad
-        setTimeout(() => {
-          console.log(`⏰ Timeout cargando audio para ${call.call_id?.substring(0, 8)}`);
-          resolve();
-        }, 5000);
-      });
-    } catch (error) {
-      console.log(`❌ Error loading audio duration:`, error);
-    }
-  };
-
-  // 🚀 NUEVA FUNCIÓN: Cargar audio solo para llamadas visibles
-  const loadAudioForVisibleCalls = async (visibleCalls: Call[]) => {
-    const callsWithAudio = visibleCalls.filter(call => 
-      call.recording_url && !audioDurations[call.id]
-    );
-    
-    if (callsWithAudio.length === 0) return;
-    
-    console.log(`🎵 Cargando audio para ${callsWithAudio.length} llamadas visibles...`);
-    
-    // Cargar en pequeños lotes para no bloquear
-    for (let i = 0; i < callsWithAudio.length; i += 2) {
-      const batch = callsWithAudio.slice(i, i + 2);
-      await Promise.all(batch.map(call => loadAudioDuration(call)));
-      if (i + 2 < callsWithAudio.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-  };
-
-  // ============================================================================
-  // 🚨 PROCESAMIENTO AUTOMÁTICO CORREGIDO - SOLO VISUAL, SIN DESCUENTOS
-  // ============================================================================
-
-  const processNewCalls = async () => {
-    console.log('🛑 AUTO-PROCESSING MODIFICADO - Solo actualización visual, sin descuentos');
-    console.log('📋 Webhook de Retell maneja TODOS los descuentos automáticamente');
-    
-    if (!calls.length || !user?.id || loading || isProcessing) {
-      console.log('❌ SALIENDO - condiciones no cumplidas para actualización visual');
-      return;
-    }
-
-    console.log('📊 VERIFICANDO LLAMADAS PARA ACTUALIZACIÓN VISUAL...');
-
-    // Filtrar llamadas que necesitan actualización de costo visual
-    const callsNeedingCostUpdate = calls.filter(call => {
-      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
-      const actualDuration = getCallDuration(call);
-      const hasValidDuration = actualDuration > 0;
-      const notVisuallyProcessed = !lastProcessedRef.current.has(call.call_id);
-      
-      // ✅ NUEVA LÓGICA: Solo verificar si necesita actualización visual
-      const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-      const hasRate = agentRate && agentRate > 0;
-      
-      const needsVisualUpdate = isCompleted && hasValidDuration && notVisuallyProcessed && hasRate;
-      
-      if (isCompleted && notVisuallyProcessed) {
-        console.log(`🔍 ANÁLISIS VISUAL ${call.call_id.substring(0, 8)}:`, {
-          status: call.call_status,
-          duration_bd: call.duration_sec,
-          audio_duration: audioDurations[call.id] || 'not loaded',
-          actual_duration: actualDuration,
-          current_cost: call.cost_usd,
-          has_rate: hasRate,
-          rate_value: agentRate,
-          needs_visual_update: needsVisualUpdate
-        });
-      }
-      
-      return needsVisualUpdate;
-    });
-
-    if (callsNeedingCostUpdate.length === 0) {
-      console.log('✅ Todas las llamadas tienen costos visuales actualizados');
-      return;
-    }
-
-    console.log(`📊 ACTUALIZANDO COSTOS VISUALES para ${callsNeedingCostUpdate.length} llamadas`);
-    setIsProcessing(true);
-
-    let updatedCount = 0;
-    let errors = 0;
-
-    for (const call of callsNeedingCostUpdate) {
-      try {
-        console.log(`📊 ACTUALIZANDO COSTO VISUAL: ${call.call_id}`);
-        
-        const calculatedCost = calculateCallCost(call);
-        console.log(`💰 Costo calculado para visualización: $${calculatedCost}`);
-        
-        if (calculatedCost > 0) {
-          // ✅ SOLO ACTUALIZAR COSTO EN BASE DE DATOS PARA VISUALIZACIÓN
-          // ❌ NO DESCONTAR BALANCE (eso lo hace el webhook)
-          const { error: updateError } = await supabase
-  .from('calls')
-  .update({ 
-    cost_usd: calculatedCost,
-    processed_for_cost: true  // ✅ MARCAR COMO PROCESADA
-  })
-  .eq('call_id', call.call_id);
-
-          if (!updateError) {
-            // ✅ ACTUALIZAR ESTADO LOCAL PARA MOSTRAR EN UI
-            setCalls(prevCalls => 
-              prevCalls.map(c => 
-                c.call_id === call.call_id 
-                  ? { ...c, cost_usd: calculatedCost }
-                  : c
-              )
-            );
-            
-            // ✅ MARCAR COMO PROCESADA VISUALMENTE (no financieramente)
-            lastProcessedRef.current.add(call.call_id);
-            
-            console.log(`✅ COSTO VISUAL ACTUALIZADO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
-            console.log(`🔒 BALANCE NO AFECTADO - Webhook ya procesó el descuento`);
-            updatedCount++;
-          } else {
-            console.error(`❌ Error actualizando costo visual:`, updateError);
-            errors++;
-          }
-        } else {
-          console.warn(`⚠️ Costo calculado inválido para visualización ${call.call_id}: $${calculatedCost}`);
-          errors++;
-        }
-        
-        // Pequeña pausa entre procesamiento
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-      } catch (error) {
-        console.error(`❌ Error en actualización visual ${call.call_id}:`, error);
-        errors++;
-      }
-    }
-
-    console.log(`✅ ACTUALIZACIÓN VISUAL COMPLETADA: ${updatedCount} actualizados, ${errors} errores`);
-    console.log(`💰 IMPORTANTE: No se afectó el balance - Webhook maneja descuentos`);
-    setIsProcessing(false);
   };
 
   // ============================================================================
@@ -961,19 +828,19 @@ const [showOnlyPending, setShowOnlyPending] = useState(false); // 🆕 NUEVO EST
       const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
       
       // 🎯 BUILD QUERY CONDITIONALLY BASED ON TOGGLE
-let query = supabase
-  .from('calls')
-  .select('*')
-  .in('agent_id', allAgentIds);
+      let query = supabase
+        .from('calls')
+        .select('*')
+        .in('agent_id', allAgentIds);
 
-// 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
-if (showOnlyPending) {
-  query = query.or('processed_for_cost.is.null,processed_for_cost.eq.false');
-}
+      // 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
+      if (showOnlyPending) {
+        query = query.or('processed_for_cost.is.null,processed_for_cost.eq.false');
+      }
 
-const { data: initialCalls, error: callsError } = await query
-  .order('timestamp', { ascending: false })
-  .limit(INITIAL_BATCH);
+      const { data: initialCalls, error: callsError } = await query
+        .order('timestamp', { ascending: false })
+        .limit(INITIAL_BATCH);
 
       if (callsError) {
         console.error("❌ Error obteniendo llamadas iniciales:", callsError);
@@ -1044,19 +911,19 @@ const { data: initialCalls, error: callsError } = await query
             const lastTimestamp = initialCalls[initialCalls.length - 1]?.timestamp;
             
             // 🎯 BUILD REMAINING CALLS QUERY CONDITIONALLY
-let remainingQuery = supabase
-  .from('calls')
-  .select('*')
-  .in('agent_id', allAgentIds);
+            let remainingQuery = supabase
+              .from('calls')
+              .select('*')
+              .in('agent_id', allAgentIds);
 
-// 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
-if (showOnlyPending) {
-  remainingQuery = remainingQuery.or('processed_for_cost.is.null,processed_for_cost.eq.false');
-}
+            // 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
+            if (showOnlyPending) {
+              remainingQuery = remainingQuery.or('processed_for_cost.is.null,processed_for_cost.eq.false');
+            }
 
-const { data: remainingCalls, error: remainingError } = await remainingQuery
-  .order('timestamp', { ascending: false })
-  .lt('timestamp', lastTimestamp);
+            const { data: remainingCalls, error: remainingError } = await remainingQuery
+              .order('timestamp', { ascending: false })
+              .lt('timestamp', lastTimestamp);
 
             if (!remainingError && remainingCalls) {
               const mappedRemainingCalls = mapCalls(remainingCalls);
@@ -1089,7 +956,6 @@ const { data: remainingCalls, error: remainingError } = await remainingQuery
       setLoading(false);
     }
   };
-
   // ============================================================================
   // 🆕 FUNCIÓN DE PAGINACIÓN
   // ============================================================================
@@ -1116,19 +982,201 @@ const { data: remainingCalls, error: remainingError } = await remainingQuery
     console.log(`📄 Cambio de tamaño de página: ${newPageSize}`);
   };
 
+  // 🛡️ FUNCIÓN SIMPLIFICADA: Verificación robusta sin errores SQL
+  const shouldProcessCalls = async () => {
+    if (loading || backgroundLoading || isProcessing) {
+      console.log(`🛑 No procesar: loading=${loading}, backgroundLoading=${backgroundLoading}, isProcessing=${isProcessing}`);
+      return false;
+    }
+    
+    // Filtrar llamadas que parecen pendientes
+    const potentiallyPendingCalls = calls.filter(call => 
+      ['completed', 'ended'].includes(call.call_status?.toLowerCase()) && 
+      (call.duration_sec > 0 || call.recording_url) &&
+      (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0
+    );
+    
+    if (potentiallyPendingCalls.length === 0) {
+      console.log(`✅ Sin llamadas completadas para verificar`);
+      return false;
+    }
+    
+    console.log(`🔍 Verificando ${potentiallyPendingCalls.length} llamadas contra transacciones...`);
+    
+    // 🔍 VERIFICACIÓN SIMPLIFICADA: Buscar por descripción (más robusta)
+    try {
+      const processedCallIds = new Set();
+      
+      // Verificar cada llamada individualmente
+      for (const call of potentiallyPendingCalls) {
+        const callIdShort = call.call_id.substring(0, 16); // Usar parte del ID
+        
+        const { data: existingTx, error } = await supabase
+          .from('credit_transactions')
+          .select('id, description')
+          .eq('user_id', user.id)
+          .ilike('description', `%${callIdShort}%`)
+          .limit(1);
+        
+        if (error) {
+          console.log(`⚠️ Error verificando ${callIdShort}:`, error.message);
+          continue; // Continuar con siguiente llamada
+        }
+        
+        if (existingTx && existingTx.length > 0) {
+          processedCallIds.add(call.call_id);
+          console.log(`✅ Transacción encontrada para: ${callIdShort}`);
+        } else {
+          console.log(`🔄 Sin transacción para: ${callIdShort} - PENDIENTE`);
+        }
+      }
+      
+      // Llamadas realmente pendientes
+      const trulyPendingCalls = potentiallyPendingCalls.filter(call => 
+        !processedCallIds.has(call.call_id)
+      );
+      
+      if (trulyPendingCalls.length === 0) {
+        console.log(`✅ Todas las llamadas ya tienen transacciones procesadas`);
+        return false;
+      }
+      
+      console.log(`🎯 ${trulyPendingCalls.length} llamadas REALMENTE pendientes:`);
+      trulyPendingCalls.forEach(call => {
+        console.log(`   - ${call.call_id.substring(0, 16)} (sin transacción)`);
+      });
+      
+      return trulyPendingCalls.length > 0;
+      
+    } catch (error) {
+      console.error('❌ Excepción verificando transacciones:', error);
+      // En caso de error, procesar para estar seguros
+      console.log('🔄 Error en verificación - procesando por seguridad');
+      return true;
+    }
+  };
+
+  // 🚨 PROCESAMIENTO AUTOMÁTICO CORREGIDO - SOLO VISUAL, SIN DESCUENTOS
+  const processNewCalls = async () => {
+    console.log('🛑 AUTO-PROCESSING MODIFICADO - Solo actualización visual, sin descuentos');
+    console.log('📋 Webhook de Retell maneja TODOS los descuentos automáticamente');
+    
+    if (!calls.length || !user?.id || loading || isProcessing) {
+      console.log('❌ SALIENDO - condiciones no cumplidas para actualización visual');
+      return;
+    }
+
+    console.log('📊 VERIFICANDO LLAMADAS PARA ACTUALIZACIÓN VISUAL...');
+
+    // Filtrar llamadas que necesitan actualización de costo visual
+    const callsNeedingCostUpdate = calls.filter(call => {
+      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+      const actualDuration = getCallDuration(call);
+      const hasValidDuration = actualDuration > 0;
+      const notVisuallyProcessed = !lastProcessedRef.current.has(call.call_id);
+      
+      // ✅ NUEVA LÓGICA: Solo verificar si necesita actualización visual
+      const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+      const hasRate = agentRate && agentRate > 0;
+      
+      const needsVisualUpdate = isCompleted && hasValidDuration && notVisuallyProcessed && hasRate;
+      
+      if (isCompleted && notVisuallyProcessed) {
+        console.log(`🔍 ANÁLISIS VISUAL ${call.call_id.substring(0, 8)}:`, {
+          status: call.call_status,
+          duration_bd: call.duration_sec,
+          audio_duration: audioDurations[call.id] || 'not loaded',
+          actual_duration: actualDuration,
+          current_cost: call.cost_usd,
+          has_rate: hasRate,
+          rate_value: agentRate,
+          needs_visual_update: needsVisualUpdate
+        });
+      }
+      
+      return needsVisualUpdate;
+    });
+
+    if (callsNeedingCostUpdate.length === 0) {
+      console.log('✅ Todas las llamadas tienen costos visuales actualizados');
+      return;
+    }
+
+    console.log(`📊 ACTUALIZANDO COSTOS VISUALES para ${callsNeedingCostUpdate.length} llamadas`);
+    setIsProcessing(true);
+
+    let updatedCount = 0;
+    let errors = 0;
+
+    for (const call of callsNeedingCostUpdate) {
+      try {
+        console.log(`📊 ACTUALIZANDO COSTO VISUAL: ${call.call_id}`);
+        
+        const calculatedCost = calculateCallCost(call);
+        console.log(`💰 Costo calculado para visualización: $${calculatedCost}`);
+        
+        if (calculatedCost > 0) {
+          // ✅ SOLO ACTUALIZAR COSTO EN BASE DE DATOS PARA VISUALIZACIÓN
+          // ❌ NO DESCONTAR BALANCE (eso lo hace el webhook)
+          const { error: updateError } = await supabase
+            .from('calls')
+            .update({ 
+              cost_usd: calculatedCost,
+              processed_for_cost: true  // ✅ MARCAR COMO PROCESADA
+            })
+            .eq('call_id', call.call_id);
+
+          if (!updateError) {
+            // ✅ ACTUALIZAR ESTADO LOCAL PARA MOSTRAR EN UI
+            setCalls(prevCalls => 
+              prevCalls.map(c => 
+                c.call_id === call.call_id 
+                  ? { ...c, cost_usd: calculatedCost }
+                  : c
+              )
+            );
+            
+            // ✅ MARCAR COMO PROCESADA VISUALMENTE (no financieramente)
+            lastProcessedRef.current.add(call.call_id);
+            
+            console.log(`✅ COSTO VISUAL ACTUALIZADO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
+            console.log(`🔒 BALANCE NO AFECTADO - Webhook ya procesó el descuento`);
+            updatedCount++;
+          } else {
+            console.error(`❌ Error actualizando costo visual:`, updateError);
+            errors++;
+          }
+        } else {
+          console.warn(`⚠️ Costo calculado inválido para visualización ${call.call_id}: $${calculatedCost}`);
+          errors++;
+        }
+        
+        // Pequeña pausa entre procesamiento
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`❌ Error en actualización visual ${call.call_id}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`✅ ACTUALIZACIÓN VISUAL COMPLETADA: ${updatedCount} actualizados, ${errors} errores`);
+    console.log(`💰 IMPORTANTE: No se afectó el balance - Webhook maneja descuentos`);
+    setIsProcessing(false);
+  };
   // ============================================================================
   // useEffects CORREGIDOS
   // ============================================================================
 
   // Efecto principal: Cargar datos cuando el usuario está disponible
   useEffect(() => {
-  if (user?.id) {
-    console.log('🚀 INITIATING CORRECTED SYSTEM for:', user.email);
-    console.log('💡 MODE: Read-only and visualization - Webhook handles deductions');
-    console.log(`🔄 FILTER MODE: ${showOnlyPending ? 'Pending only' : 'Complete history'}`);
-    fetchCalls();
-  }
-}, [user?.id, showOnlyPending]); // 🆕 ADD NEW DEPENDENCY
+    if (user?.id) {
+      console.log('🚀 INITIATING CORRECTED SYSTEM for:', user.email);
+      console.log('💡 MODE: Read-only and visualization - Webhook handles deductions');
+      console.log(`🔄 FILTER MODE: ${showOnlyPending ? 'Pending only' : 'Complete history'}`);
+      fetchCalls();
+    }
+  }, [user?.id, showOnlyPending]); // 🆕 ADD NEW DEPENDENCY
 
   // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
@@ -1158,135 +1206,63 @@ const { data: remainingCalls, error: remainingError } = await remainingQuery
     setCurrentPage(1);
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
-// 🛡️ FUNCIÓN SIMPLIFICADA: Verificación robusta sin errores SQL
-const shouldProcessCalls = async () => {
-  if (loading || backgroundLoading || isProcessing) {
-    console.log(`🛑 No procesar: loading=${loading}, backgroundLoading=${backgroundLoading}, isProcessing=${isProcessing}`);
-    return false;
-  }
-  
-  // Filtrar llamadas que parecen pendientes
-  const potentiallyPendingCalls = calls.filter(call => 
-    ['completed', 'ended'].includes(call.call_status?.toLowerCase()) && 
-    (call.duration_sec > 0 || call.recording_url) &&
-    (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0
-  );
-  
-  if (potentiallyPendingCalls.length === 0) {
-    console.log(`✅ Sin llamadas completadas para verificar`);
-    return false;
-  }
-  
-  console.log(`🔍 Verificando ${potentiallyPendingCalls.length} llamadas contra transacciones...`);
-  
-  // 🔍 VERIFICACIÓN SIMPLIFICADA: Buscar por descripción (más robusta)
-  try {
-    const processedCallIds = new Set();
-    
-    // Verificar cada llamada individualmente
-    for (const call of potentiallyPendingCalls) {
-      const callIdShort = call.call_id.substring(0, 16); // Usar parte del ID
-      
-      const { data: existingTx, error } = await supabase
-        .from('credit_transactions')
-        .select('id, description')
-        .eq('user_id', user.id)
-        .ilike('description', `%${callIdShort}%`)
-        .limit(1);
-      
-      if (error) {
-        console.log(`⚠️ Error verificando ${callIdShort}:`, error.message);
-        continue; // Continuar con siguiente llamada
-      }
-      
-      if (existingTx && existingTx.length > 0) {
-        processedCallIds.add(call.call_id);
-        console.log(`✅ Transacción encontrada para: ${callIdShort}`);
-      } else {
-        console.log(`🔄 Sin transacción para: ${callIdShort} - PENDIENTE`);
-      }
-    }
-    
-    // Llamadas realmente pendientes
-    const trulyPendingCalls = potentiallyPendingCalls.filter(call => 
-      !processedCallIds.has(call.call_id)
-    );
-    
-    if (trulyPendingCalls.length === 0) {
-      console.log(`✅ Todas las llamadas ya tienen transacciones procesadas`);
-      return false;
-    }
-    
-    console.log(`🎯 ${trulyPendingCalls.length} llamadas REALMENTE pendientes:`);
-    trulyPendingCalls.forEach(call => {
-      console.log(`   - ${call.call_id.substring(0, 16)} (sin transacción)`);
+  // ✅ useEffect CON LOGS DETALLADOS para debugging
+  useEffect(() => {
+    console.log(`🔥 useEffect EJECUTADO - Navegación detectada`);
+    console.log(`📊 Estado actual:`, {
+      callsLength: calls.length,
+      loading,
+      backgroundLoading,
+      isProcessing,
+      userId: user?.id
     });
     
-    return trulyPendingCalls.length > 0;
+    if (calls.length > 0) {
+      console.log(`📋 Llamadas actuales:`, calls.map(call => ({
+        id: call.call_id.substring(0, 12),
+        processed: call.processed_for_cost,
+        cost: call.cost_usd,
+        status: call.call_status
+      })));
+    }
     
-  } catch (error) {
-    console.error('❌ Excepción verificando transacciones:', error);
-    // En caso de error, procesar para estar seguros
-    console.log('🔄 Error en verificación - procesando por seguridad');
-    return true;
-  }
-};
-  // ✅ useEffect CON LOGS DETALLADOS para debugging
-useEffect(() => {
-  console.log(`🔥 useEffect EJECUTADO - Navegación detectada`);
-  console.log(`📊 Estado actual:`, {
-    callsLength: calls.length,
-    loading,
-    backgroundLoading,
-    isProcessing,
-    userId: user?.id
-  });
-  
-  if (calls.length > 0) {
-    console.log(`📋 Llamadas actuales:`, calls.map(call => ({
-      id: call.call_id.substring(0, 12),
-      processed: call.processed_for_cost,
-      cost: call.cost_usd,
-      status: call.call_status
-    })));
-  }
-  
-  if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
-    // 🔒 Solo procesar si hay llamadas realmente pendientes
-    setTimeout(async () => {
-      console.log(`⏰ setTimeout EJECUTÁNDOSE después de navegación`);
-      if (!isProcessing && await shouldProcessCalls()) {
-        console.log(`🚀 INICIANDO processNewCallsExact por navegación`);
-        processNewCallsExact();
-      } else {
-        console.log("🛡️ shouldProcessCalls() impidió procesamiento duplicado");
-      }
-    }, 1000);
-    
-    // 🔒 Intervalo con verificaciones adicionales
-    const interval = setInterval(async () => {
-      console.log(`⏰ Intervalo ejecutándose...`);
-      if (!backgroundLoading && !isProcessing && await shouldProcessCalls()) {
-        console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
-        processNewCallsExact();
-      } else {
-        console.log("⏰ Intervalo: No hay llamadas realmente pendientes");
-      }
-    }, 30000);
-    
-    return () => {
-      console.log(`🧹 useEffect cleanup - desmontando componente`);
-      clearInterval(interval);
-    };
-  }
-}, [
-  // ✅ DEPENDENCIAS CORREGIDAS
-  user?.id,           // Usuario cambia → recargar
-  calls.length,       // Nuevas llamadas → verificar
-  loading,            // Estado de carga cambia
-  backgroundLoading   // Carga en background cambia
-  // ❌ NO incluir isProcessing para evitar loops
-]);
+    if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
+      // 🔒 Solo procesar si hay llamadas realmente pendientes
+      setTimeout(async () => {
+        console.log(`⏰ setTimeout EJECUTÁNDOSE después de navegación`);
+        if (!isProcessing && await shouldProcessCalls()) {
+          console.log(`🚀 INICIANDO processNewCallsExact por navegación`);
+          processNewCallsExact();
+        } else {
+          console.log("🛡️ shouldProcessCalls() impidió procesamiento duplicado");
+        }
+      }, 1000);
+      
+      // 🔒 Intervalo con verificaciones adicionales
+      const interval = setInterval(async () => {
+        console.log(`⏰ Intervalo ejecutándose...`);
+        if (!backgroundLoading && !isProcessing && await shouldProcessCalls()) {
+          console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
+          processNewCallsExact();
+        } else {
+          console.log("⏰ Intervalo: No hay llamadas realmente pendientes");
+        }
+      }, 30000);
+      
+      return () => {
+        console.log(`🧹 useEffect cleanup - desmontando componente`);
+        clearInterval(interval);
+      };
+    }
+  }, [
+    // ✅ DEPENDENCIAS CORREGIDAS
+    user?.id,           // Usuario cambia → recargar
+    calls.length,       // Nuevas llamadas → verificar
+    loading,            // Estado de carga cambia
+    backgroundLoading   // Carga en background cambia
+    // ❌ NO incluir isProcessing para evitar loops
+  ]);
+
   // ============================================================================
   // FUNCIONES DE FILTROS Y ESTADÍSTICAS
   // ============================================================================
@@ -1386,7 +1362,6 @@ useEffect(() => {
       completedCalls
     });
   };
-
   // ============================================================================
   // FUNCIONES DE UTILIDAD
   // ============================================================================
@@ -1591,9 +1566,8 @@ useEffect(() => {
       </DashboardLayout>
     );
   }
-
   // ============================================================================
-  // RENDER DEL COMPONENTE PRINCIPAL CON PAGINACIÓN
+  // RENDER DEL COMPONENTE PRINCIPAL CON PAGINACIÓN - 🚨 ERRORES CORREGIDOS
   // ============================================================================
 
   return (
@@ -1764,7 +1738,7 @@ useEffect(() => {
             </Card>
           </div>
 
-          {/* Filters */}
+          {/* 🚨 FILTROS CORREGIDOS - ERROR 1 SOLUCIONADO */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4 items-center">
@@ -1779,41 +1753,40 @@ useEffect(() => {
                 </div>
                 
                 <div className="flex items-center gap-2">
-  <Filter className="h-4 w-4 text-gray-500" />
-  
-  {/* 🆕 PENDING FILTER TOGGLE */}
-  <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-white">
-    <label className="flex items-center gap-2 text-sm cursor-pointer">
-      <input
-        type="checkbox"
-        checked={showOnlyPending}
-        onChange={(e) => setShowOnlyPending(e.target.checked)}
-        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-      />
-      <span className="text-gray-700 font-medium">Only Pending</span>
-    </label>
-    
-    {showOnlyPending && (
-      <Badge className="bg-orange-100 text-orange-800 text-xs ml-1">
-        Active Filter
-      </Badge>
-    )}
-  </div>
-  
-  <select
-    value={statusFilter}
-    onChange={(e) => setStatusFilter(e.target.value)}
-    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-  >
-    <option value="all">All Status</option>
-    {uniqueStatuses.map(status => (
-      <option key={status} value={status}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </option>
-    ))}
-  </select>
-</div>
+                  <Filter className="h-4 w-4 text-gray-500" />
                   
+                  {/* 🆕 PENDING FILTER TOGGLE */}
+                  <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-white">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showOnlyPending}
+                        onChange={(e) => setShowOnlyPending(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-gray-700 font-medium">Only Pending</span>
+                    </label>
+                    
+                    {showOnlyPending && (
+                      <Badge className="bg-orange-100 text-orange-800 text-xs ml-1">
+                        Active Filter
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Status</option>
+                    {uniqueStatuses.map(status => (
+                      <option key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 <AgentFilter
                   agents={uniqueAgents}
@@ -1860,18 +1833,17 @@ useEffect(() => {
               </div>
             </CardContent>
           </Card>
-
           {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl font-semibold text-gray-900">
-  📋 Call History ({filteredCalls.length})
-  {showOnlyPending && (
-    <span className="text-sm font-normal text-orange-600 ml-2">
-      - Pending Only Mode
-    </span>
-  )}
+                  📋 Call History ({filteredCalls.length})
+                  {showOnlyPending && (
+                    <span className="text-sm font-normal text-orange-600 ml-2">
+                      - Pending Only Mode
+                    </span>
+                  )}
                   {totalPages > 1 && (
                     <span className="text-sm font-normal text-gray-500 ml-2">
                       - Página {currentPage} de {totalPages}
@@ -1979,14 +1951,14 @@ useEffect(() => {
                             End Reason
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-  Content
-</th>
-<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-  Process Status
-</th>
-<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-  Actions
-</th>
+                            Content
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Process Status
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -2077,77 +2049,80 @@ useEffect(() => {
                                 <span className="text-xs text-gray-400">No reason</span>
                               )}
                             </td>
+
                             <td className="px-4 py-4">
-  <div className="flex items-center gap-2">
-    {call.transcript && (
-      <div className="flex items-center gap-1 text-xs text-green-600">
-        <FileText className="h-3 w-3" />
-        Transcript
-      </div>
-    )}
-    {call.call_summary && (
-      <div className="flex items-center gap-1 text-xs text-blue-600">
-        <PlayCircle className="h-3 w-3" />
-        Summary
-      </div>
-    )}
-    {call.recording_url && (
-      <div className="flex items-center gap-1 text-xs text-red-600">
-        <Volume2 className="h-3 w-3" />
-        Audio
-      </div>
-    )}
-  </div>
-  {call.call_summary && (
-    <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
-      {call.call_summary}
-    </div>
-  )}
-</td>
+                              <div className="flex items-center gap-2">
+                                {call.transcript && (
+                                  <div className="flex items-center gap-1 text-xs text-green-600">
+                                    <FileText className="h-3 w-3" />
+                                    Transcript
+                                  </div>
+                                )}
+                                {call.call_summary && (
+                                  <div className="flex items-center gap-1 text-xs text-blue-600">
+                                    <PlayCircle className="h-3 w-3" />
+                                    Summary
+                                  </div>
+                                )}
+                                {call.recording_url && (
+                                  <div className="flex items-center gap-1 text-xs text-red-600">
+                                    <Volume2 className="h-3 w-3" />
+                                    Audio
+                                  </div>
+                                )}
+                              </div>
+                              {call.call_summary && (
+                                <div className="text-xs text-gray-600 mt-1 max-w-xs truncate">
+                                  {call.call_summary}
+                                </div>
+                              )}
+                            </td>
 
-{/* 🆕 NEW PROCESS STATUS COLUMN */}
-<td className="px-4 py-4 whitespace-nowrap">
-  <div className="flex flex-col gap-1">
-    {call.processed_for_cost ? (
-      <Badge className="bg-green-100 text-green-800 text-xs border-green-200">
-        ✅ Processed
-      </Badge>
-    ) : (
-      <Badge className="bg-yellow-100 text-yellow-800 text-xs border-yellow-200">
-        ⏳ Pending
-      </Badge>
-    )}
-    <div className="text-xs text-gray-500">
-      {call.processed_for_cost ? 'Cost applied' : 'Awaiting process'}
-    </div>
-  </div>
-</td>
+                            {/* 🆕 NEW PROCESS STATUS COLUMN */}
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="flex flex-col gap-1">
+                                {call.processed_for_cost ? (
+                                  <Badge className="bg-green-100 text-green-800 text-xs border-green-200">
+                                    ✅ Processed
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-yellow-100 text-yellow-800 text-xs border-yellow-200">
+                                    ⏳ Pending
+                                  </Badge>
+                                )}
+                                <div className="text-xs text-gray-500">
+                                  {call.processed_for_cost ? 'Cost applied' : 'Awaiting process'}
+                                </div>
+                              </div>
+                            </td>
 
-<td className="px-4 py-4 whitespace-nowrap">
-  <div className="flex items-center gap-1">
-    <Button 
-      variant="ghost" 
-      size="sm" 
-      className="h-6 w-6 p-0"
-      onClick={(e) => {
-        e.stopPropagation();
-        handleCallClick(call);
-      }}
-    >
-      <Eye className="h-3 w-3" />
-    </Button>
-{call.recording_url && (
-  
-    href={call.recording_url}
-    download={`call-${call.call_id}.mp3`}
-    onClick={(e) => e.stopPropagation()}
-    className="inline-flex items-center justify-center h-6 w-6 p-0 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-  >
-    <Download className="h-3 w-3" />
-  </a>
-    )}
-  </div>
-</td>
+                            {/* 🚨 ACTIONS COLUMN - ERROR 2 CORREGIDO */}
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-6 w-6 p-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCallClick(call);
+                                  }}
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                {/* 🚨 BOTÓN DE DESCARGA CORREGIDO - SOLUCIÓN AL ERROR 2 */}
+                                {call.recording_url && (
+                                  <a
+                                    href={call.recording_url}
+                                    download={`call-${call.call_id}.mp3`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center justify-center h-6 w-6 p-0 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </a>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
