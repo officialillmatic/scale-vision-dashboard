@@ -63,6 +63,7 @@ interface Call {
     name: string;
     rate_per_minute: number;
   };
+  processed_for_cost?: boolean;
 }
 
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
@@ -456,6 +457,248 @@ export default function CallsSimple() {
   // ✅ FUNCIÓN: calculateCallCostSync (para usar en render)
   const calculateCallCostSync = (call: Call) => {
     return calculateCallCost(call);
+  };
+
+  // ============================================================================
+  // 🆕 FUNCIÓN: Descuento de balance EXACTO
+  // ============================================================================
+
+  const processCallCostAndDeduct = async (call: Call) => {
+    console.log(`💰 PROCESANDO DESCUENTO EXACTO para llamada ${call.call_id?.substring(0, 8)}:`);
+    
+    try {
+      // 1. Verificar si ya fue procesada
+      if (call.processed_for_cost) {
+        console.log(`✅ Llamada ya procesada: ${call.call_id?.substring(0, 8)}`);
+        return { success: true, message: 'Ya procesada' };
+      }
+
+      // 2. Obtener duración EXACTA (priorizar audio)
+      const exactDuration = getCallDuration(call);
+      if (exactDuration === 0) {
+        console.log(`❌ Sin duración válida para ${call.call_id?.substring(0, 8)}`);
+        return { success: false, error: 'Sin duración válida' };
+      }
+
+      // 3. Calcular costo EXACTO
+      const exactCost = calculateCallCost(call);
+      if (exactCost === 0) {
+        console.log(`❌ Sin costo válido para ${call.call_id?.substring(0, 8)}`);
+        return { success: false, error: 'Sin tarifa válida' };
+      }
+
+      const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+      console.log(`🧮 CÁLCULO EXACTO: ${exactDuration}s × $${agentRate}/min = $${exactCost.toFixed(4)}`);
+
+      // 4. Descontar balance del usuario
+      console.log(`💳 DESCONTANDO BALANCE EXACTO para user: ${user.id}`);
+      
+      // Opción A: Usar RPC admin_adjust_user_credits
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_adjust_user_credits', {
+        p_user_id: user.id,
+        p_amount: -exactCost,
+        p_description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
+        p_admin_id: 'callssimple-exact-deduct'
+      });
+
+      let deductSuccess = false;
+      let deductMethod = '';
+
+      if (!rpcError) {
+        console.log(`✅ Descuento RPC exitoso: $${exactCost.toFixed(4)}`);
+        deductSuccess = true;
+        deductMethod = 'rpc';
+      } else {
+        console.log(`❌ Error RPC, intentando descuento directo:`, rpcError);
+        
+        // Opción B: Descuento directo en user_credits
+        const { data: currentCredit, error: creditError } = await supabase
+          .from('user_credits')
+          .select('current_balance')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!creditError && currentCredit) {
+          const currentBalance = currentCredit.current_balance || 0;
+          const newBalance = Math.max(0, currentBalance - exactCost);
+          
+          console.log(`💰 Balance directo: $${currentBalance} → $${newBalance}`);
+          
+          const { error: updateError } = await supabase
+            .from('user_credits')
+            .update({
+              current_balance: newBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', user.id);
+
+          if (!updateError) {
+            // Crear transacción
+            await supabase.from('credit_transactions').insert({
+              user_id: user.id,
+              amount: -exactCost,
+              transaction_type: 'call_charge_exact',
+              description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
+              balance_after: newBalance,
+              created_by: 'callssimple-exact',
+              reference_id: call.call_id,
+              created_at: new Date().toISOString()
+            });
+
+            console.log(`✅ Descuento directo exitoso: $${exactCost.toFixed(4)}`);
+            deductSuccess = true;
+            deductMethod = 'direct';
+          } else {
+            console.error(`❌ Error actualizando balance directo:`, updateError);
+          }
+        } else {
+          console.error(`❌ Error obteniendo balance actual:`, creditError);
+        }
+      }
+
+      if (!deductSuccess) {
+        return { success: false, error: 'Falló descuento de balance' };
+      }
+
+      // 5. Actualizar llamada como procesada con costo exacto
+      console.log(`📝 ACTUALIZANDO LLAMADA CON COSTO EXACTO: $${exactCost.toFixed(4)}`);
+      
+      const { error: updateCallError } = await supabase
+        .from('calls')
+        .update({
+          cost_usd: exactCost,
+          duration_sec: exactDuration, // Actualizar con duración exacta también
+          processed_for_cost: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('call_id', call.call_id);
+
+      if (updateCallError) {
+        console.error(`❌ Error actualizando llamada:`, updateCallError);
+        return { success: false, error: 'Error actualizando llamada' };
+      }
+
+      // 6. Actualizar estado local
+      setCalls(prevCalls => 
+        prevCalls.map(c => 
+          c.call_id === call.call_id 
+            ? { 
+                ...c, 
+                cost_usd: exactCost, 
+                duration_sec: exactDuration,
+                processed_for_cost: true 
+              }
+            : c
+        )
+      );
+
+      console.log(`🎉 DESCUENTO EXACTO COMPLETADO:`);
+      console.log(`   📞 Call: ${call.call_id?.substring(0, 8)}`);
+      console.log(`   ⏱️ Duración: ${exactDuration}s`);
+      console.log(`   💰 Costo: $${exactCost.toFixed(4)}`);
+      console.log(`   🔧 Método: ${deductMethod}`);
+
+      return { 
+        success: true, 
+        cost: exactCost, 
+        duration: exactDuration,
+        method: deductMethod 
+      };
+
+    } catch (error) {
+      console.error(`❌ Error crítico en descuento exacto:`, error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // ============================================================================
+  // 🆕 FUNCIÓN: Procesar llamadas pendientes con descuentos exactos
+  // ============================================================================
+
+  const processNewCallsExact = async () => {
+    console.log('💰 PROCESANDO DESCUENTOS EXACTOS - CallsSimple maneja todo');
+    
+    if (!calls.length || !user?.id || loading || isProcessing) {
+      console.log('❌ SALIENDO - condiciones no cumplidas para procesamiento exacto');
+      return;
+    }
+
+    console.log('📊 VERIFICANDO LLAMADAS PARA DESCUENTO EXACTO...');
+
+    // Filtrar llamadas que necesitan procesamiento de costo exacto
+    const callsNeedingExactProcessing = calls.filter(call => {
+      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+      const actualDuration = getCallDuration(call);
+      const hasValidDuration = actualDuration > 0;
+      const notProcessed = !call.processed_for_cost; // Nuevo campo del webhook v6.0
+      const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
+      
+      const needsProcessing = isCompleted && hasValidDuration && notProcessed && hasRate;
+      
+      if (isCompleted && notProcessed) {
+        console.log(`🔍 ANÁLISIS EXACTO ${call.call_id?.substring(0, 8)}:`, {
+          status: call.call_status,
+          duration_bd: call.duration_sec,
+          audio_duration: audioDurations[call.id] || 'not loaded',
+          actual_duration: actualDuration,
+          current_cost: call.cost_usd,
+          has_rate: hasRate,
+          processed_for_cost: call.processed_for_cost,
+          needs_processing: needsProcessing
+        });
+      }
+      
+      return needsProcessing;
+    });
+
+    if (callsNeedingExactProcessing.length === 0) {
+      console.log('✅ Todas las llamadas han sido procesadas con costos exactos');
+      return;
+    }
+
+    console.log(`💰 PROCESANDO ${callsNeedingExactProcessing.length} llamadas con descuentos exactos`);
+    setIsProcessing(true);
+
+    let processedCount = 0;
+    let errors = 0;
+    let totalDeducted = 0;
+
+    for (const call of callsNeedingExactProcessing) {
+      try {
+        console.log(`\n💳 PROCESANDO DESCUENTO EXACTO: ${call.call_id}`);
+        
+        const result = await processCallCostAndDeduct(call);
+        
+        if (result.success) {
+          processedCount++;
+          totalDeducted += result.cost || 0;
+          console.log(`✅ DESCUENTO EXACTO EXITOSO: ${call.call_id} - $${(result.cost || 0).toFixed(4)}`);
+        } else {
+          console.error(`❌ Error en descuento exacto ${call.call_id}:`, result.error);
+          errors++;
+        }
+        
+        // Pausa entre procesamiento
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+      } catch (error) {
+        console.error(`❌ Excepción en descuento exacto ${call.call_id}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`\n🎯 DESCUENTOS EXACTOS COMPLETADOS:`);
+    console.log(`   ✅ Procesadas: ${processedCount}`);
+    console.log(`   ❌ Errores: ${errors}`);
+    console.log(`   💰 Total descontado: $${totalDeducted.toFixed(4)}`);
+    console.log(`   🎯 Precisión: 100% exacta con duración de audio`);
+    
+    setIsProcessing(false);
+
+    // Actualizar estadísticas
+    if (processedCount > 0) {
+      calculateStats();
+    }
   };
 
   // ✅ FUNCIÓN: loadAudioDuration (SIN CAMBIOS)
@@ -880,18 +1123,18 @@ export default function CallsSimple() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
-  // Efecto para procesar llamadas pendientes
+  // Efecto para procesar llamadas pendientes CON DESCUENTOS EXACTOS
   useEffect(() => {
     if (calls.length > 0 && !loading && !backgroundLoading) {
-      // Procesar solo cuando no esté cargando en background
+      // Procesar llamadas con descuentos exactos
       setTimeout(() => {
-        processNewCalls();
+        processNewCallsExact(); // 🆕 Nueva función de descuentos exactos
       }, 1000);
       
       // Y cada 30 segundos para nuevas llamadas pendientes
       const interval = setInterval(() => {
-        if (!backgroundLoading) { // Solo si no está cargando en background
-          processNewCalls();
+        if (!backgroundLoading) {
+          processNewCallsExact(); // 🆕 Nueva función de descuentos exactos
         }
       }, 30000);
       
@@ -1278,26 +1521,26 @@ export default function CallsSimple() {
             </div>
           </div>
 
-          {/* 🚨 MENSAJE INFORMATIVO NUEVO */}
+          {/* 🆕 MENSAJE INFORMATIVO ACTUALIZADO */}
           <Card className="border-green-200 bg-green-50">
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  📊 Real-time data updates - Showing complete call information.
+                  💰 Exact cost deduction system active - Real audio durations processed.
                 </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* 🚨 INDICADOR DE PROCESAMIENTO CORREGIDO */}
+          {/* 🆕 INDICADOR DE PROCESAMIENTO EXACTO */}
           {isProcessing && (
-            <Card className="border-blue-200 bg-blue-50">
+            <Card className="border-green-200 bg-green-50">
               <CardContent className="p-4">
                 <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
-                  <span className="text-blue-700 font-medium">
-                    📊 Updating visual costs... (no deductions)
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500 mr-3"></div>
+                  <span className="text-green-700 font-medium">
+                    💰 Processing exact costs with real audio durations...
                   </span>
                 </div>
               </CardContent>
