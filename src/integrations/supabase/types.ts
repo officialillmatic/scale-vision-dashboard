@@ -134,6 +134,7 @@ export type Database = {
           from_number: string | null
           id: string
           latency_ms: number | null
+          processed_for_cost: boolean | null
           recording_url: string | null
           result_sentiment: Json | null
           revenue_amount: number | null
@@ -165,6 +166,7 @@ export type Database = {
           from_number?: string | null
           id?: string
           latency_ms?: number | null
+          processed_for_cost?: boolean | null
           recording_url?: string | null
           result_sentiment?: Json | null
           revenue_amount?: number | null
@@ -196,6 +198,7 @@ export type Database = {
           from_number?: string | null
           id?: string
           latency_ms?: number | null
+          processed_for_cost?: boolean | null
           recording_url?: string | null
           result_sentiment?: Json | null
           revenue_amount?: number | null

@@ -87,11 +87,11 @@ const Index = () => {
               
               {/* Right Hero Image */}
               <div className="relative lg:order-2">
-                <div className="relative overflow-hidden rounded-2xl shadow-2xl bg-gradient-to-br from-brand-green/10 to-brand-purple/10 p-8">
+                <div className="relative overflow-hidden rounded-2xl shadow-2xl bg-gradient-to-br from-brand-green/10 to-brand-purple/10 p-8 flex items-center justify-center">
                   <img 
-                    src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=600&fit=crop&crop=center" 
-                    alt="Premium business professional making important call with smartphone in modern office environment, representing AI-powered sales automation"
-                    className="w-full h-auto rounded-xl shadow-lg transform hover:scale-105 transition-transform duration-500"
+                    src="/lovable-uploads/3cab64ed-2b97-4974-9c76-8ae4f310234d.png" 
+                    alt="Dr. Scale Logo - AI-powered sales automation platform"
+                    className="w-full max-w-md h-auto rounded-xl shadow-lg transform hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/20 to-transparent rounded-2xl"></div>
                   
