@@ -1527,7 +1527,7 @@ export default function CallsSimple() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  💰 Exact cost deduction system active - Real audio durations processed.
+                  💰 Exact cost deduction system active - Real calls durations processed.
                 </span>
               </div>
             </CardContent>
@@ -1540,7 +1540,7 @@ export default function CallsSimple() {
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500 mr-3"></div>
                   <span className="text-green-700 font-medium">
-                    💰 Processing exact costs with real audio durations...
+                    💰 Processing exact costs with real calls durations...
                   </span>
                 </div>
               </CardContent>
