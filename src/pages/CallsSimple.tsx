@@ -627,10 +627,10 @@ export default function CallsSimple() {
     return;
   }
   
-  if (!shouldProcessCalls()) {
-    console.log('🛑 shouldProcessCalls() retornó false');
-    return;
-  }
+  if (!(await shouldProcessCalls())) {
+  console.log('🛑 shouldProcessCalls() retornó false - no hay llamadas realmente pendientes');
+  return;
+}
   
   console.log('💰 INICIANDO PROCESAMIENTO EXACTO CON PROTECCIONES...');
   setIsProcessing(true);
@@ -1142,26 +1142,69 @@ export default function CallsSimple() {
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
   // 🆕 FUNCIÓN AUXILIAR: Verificar estado antes de procesar
-const shouldProcessCalls = () => {
+// 🆕 FUNCIÓN MEJORADA: Verificar transacciones existentes en BD
+const shouldProcessCalls = async () => {
   if (loading || backgroundLoading || isProcessing) {
     console.log(`🛑 No procesar: loading=${loading}, backgroundLoading=${backgroundLoading}, isProcessing=${isProcessing}`);
     return false;
   }
   
-  const pendingCalls = calls.filter(call => 
+  // Filtrar llamadas que parecen pendientes
+  const potentiallyPendingCalls = calls.filter(call => 
     ['completed', 'ended'].includes(call.call_status?.toLowerCase()) && 
-    !call.processed_for_cost &&
     (call.duration_sec > 0 || call.recording_url) &&
     (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0
   );
   
-  if (pendingCalls.length === 0) {
-    console.log(`✅ Sin llamadas pendientes de procesamiento`);
+  if (potentiallyPendingCalls.length === 0) {
+    console.log(`✅ Sin llamadas completadas para verificar`);
     return false;
   }
   
-  console.log(`🔄 ${pendingCalls.length} llamadas pendientes encontradas`);
-  return true;
+  console.log(`🔍 Verificando ${potentiallyPendingCalls.length} llamadas contra transacciones existentes...`);
+  
+  // 🔍 VERIFICACIÓN EN BD: ¿Ya existen transacciones para estas llamadas?
+  try {
+    const callIds = potentiallyPendingCalls.map(call => call.call_id);
+    
+    const { data: existingTransactions, error } = await supabase
+      .from('credit_transactions')
+      .select('call_id, amount, created_at')
+      .in('call_id', callIds)
+      .in('transaction_type', ['call_charge_auto', 'call_charge_exact']);
+    
+    if (error) {
+      console.error('❌ Error verificando transacciones existentes:', error);
+      return false; // No procesar si hay error
+    }
+    
+    // Crear set de call_ids que ya tienen transacciones
+    const processedCallIds = new Set(
+      existingTransactions?.map(tx => tx.call_id) || []
+    );
+    
+    // Filtrar llamadas que NO tienen transacciones
+    const trulyPendingCalls = potentiallyPendingCalls.filter(call => 
+      !processedCallIds.has(call.call_id)
+    );
+    
+    if (trulyPendingCalls.length === 0) {
+      console.log(`✅ Todas las llamadas ya tienen transacciones procesadas`);
+      console.log(`📊 Transacciones encontradas para:`, Array.from(processedCallIds));
+      return false;
+    }
+    
+    console.log(`🎯 ${trulyPendingCalls.length} llamadas REALMENTE pendientes encontradas:`);
+    trulyPendingCalls.forEach(call => {
+      console.log(`   - ${call.call_id.substring(0, 12)} (sin transacción)`);
+    });
+    
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Excepción verificando transacciones:', error);
+    return false; // No procesar si hay excepción
+  }
 };
 
   // ✅ useEffect CORREGIDO para evitar loops infinitos
@@ -1172,25 +1215,25 @@ useEffect(() => {
       console.log(`🔄 Iniciando procesamiento de llamadas pendientes...`);
       
       // Procesar llamadas con descuentos exactos (CON DELAY)
-      setTimeout(() => {
-  // 🛑 EMERGENCIA: DETENIDO TEMPORALMENTE
-  // if (!isProcessing && shouldProcessCalls()) { // 🔒 DOBLE VERIFICACIÓN
-  //   processNewCallsExact();
-  // }
-  console.log("🛑 EMERGENCIA: processNewCallsExact DETENIDO");
+      setTimeout(async () => {
+  if (!isProcessing && await shouldProcessCalls()) { // 🔒 VERIFICACIÓN ASYNC
+    processNewCallsExact();
+  } else {
+    console.log("🛡️ shouldProcessCalls() impidió procesamiento duplicado");
+  }
 }, 1000);
     } else {
       console.log(`✅ No hay llamadas pendientes de procesamiento`);
     }
     
     // 🔒 Intervalo con verificaciones adicionales
-    const interval = setInterval(() => {
-  // 🛑 EMERGENCIA: INTERVALO DETENIDO
-  // if (!backgroundLoading && !isProcessing && shouldProcessCalls()) {
-  //   console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
-  //   processNewCallsExact();
-  // }
-  console.log("🛑 EMERGENCIA: Intervalo detenido");
+    const interval = setInterval(async () => {
+  if (!backgroundLoading && !isProcessing && await shouldProcessCalls()) {
+    console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
+    processNewCallsExact();
+  } else {
+    console.log("⏰ Intervalo: No hay llamadas realmente pendientes");
+  }
 }, 30000);
     
     return () => clearInterval(interval);
