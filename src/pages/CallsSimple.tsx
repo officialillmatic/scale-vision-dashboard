@@ -839,12 +839,12 @@ export default function CallsSimple() {
           // ✅ SOLO ACTUALIZAR COSTO EN BASE DE DATOS PARA VISUALIZACIÓN
           // ❌ NO DESCONTAR BALANCE (eso lo hace el webhook)
           const { error: updateError } = await supabase
-            .from('calls')
-            .update({ 
-              cost_usd: calculatedCost,
-              updated_at: new Date().toISOString()
-            })
-            .eq('call_id', call.call_id);
+  .from('calls')
+  .update({ 
+    cost_usd: calculatedCost,
+    processed_for_cost: true  // ✅ MARCAR COMO PROCESADA
+  })
+  .eq('call_id', call.call_id);
 
           if (!updateError) {
             // ✅ ACTUALIZAR ESTADO LOCAL PARA MOSTRAR EN UI
