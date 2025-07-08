@@ -1216,36 +1216,53 @@ const shouldProcessCalls = async () => {
     return true;
   }
 };
-  // ✅ useEffect CORREGIDO para evitar loops infinitos
+  // ✅ useEffect CON LOGS DETALLADOS para debugging
 useEffect(() => {
+  console.log(`🔥 useEffect EJECUTADO - Navegación detectada`);
+  console.log(`📊 Estado actual:`, {
+    callsLength: calls.length,
+    loading,
+    backgroundLoading,
+    isProcessing,
+    userId: user?.id
+  });
+  
+  if (calls.length > 0) {
+    console.log(`📋 Llamadas actuales:`, calls.map(call => ({
+      id: call.call_id.substring(0, 12),
+      processed: call.processed_for_cost,
+      cost: call.cost_usd,
+      status: call.call_status
+    })));
+  }
+  
   if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
     // 🔒 Solo procesar si hay llamadas realmente pendientes
-    if (shouldProcessCalls()) {
-      console.log(`🔄 Iniciando procesamiento de llamadas pendientes...`);
-      
-      // Procesar llamadas con descuentos exactos (CON DELAY)
-      setTimeout(async () => {
-  if (!isProcessing && await shouldProcessCalls()) { // 🔒 VERIFICACIÓN ASYNC
-    processNewCallsExact();
-  } else {
-    console.log("🛡️ shouldProcessCalls() impidió procesamiento duplicado");
-  }
-}, 1000);
-    } else {
-      console.log(`✅ No hay llamadas pendientes de procesamiento`);
-    }
+    setTimeout(async () => {
+      console.log(`⏰ setTimeout EJECUTÁNDOSE después de navegación`);
+      if (!isProcessing && await shouldProcessCalls()) {
+        console.log(`🚀 INICIANDO processNewCallsExact por navegación`);
+        processNewCallsExact();
+      } else {
+        console.log("🛡️ shouldProcessCalls() impidió procesamiento duplicado");
+      }
+    }, 1000);
     
     // 🔒 Intervalo con verificaciones adicionales
     const interval = setInterval(async () => {
-  if (!backgroundLoading && !isProcessing && await shouldProcessCalls()) {
-    console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
-    processNewCallsExact();
-  } else {
-    console.log("⏰ Intervalo: No hay llamadas realmente pendientes");
-  }
-}, 30000);
+      console.log(`⏰ Intervalo ejecutándose...`);
+      if (!backgroundLoading && !isProcessing && await shouldProcessCalls()) {
+        console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
+        processNewCallsExact();
+      } else {
+        console.log("⏰ Intervalo: No hay llamadas realmente pendientes");
+      }
+    }, 30000);
     
-    return () => clearInterval(interval);
+    return () => {
+      console.log(`🧹 useEffect cleanup - desmontando componente`);
+      clearInterval(interval);
+    };
   }
 }, [
   // ✅ DEPENDENCIAS CORREGIDAS
@@ -1255,7 +1272,6 @@ useEffect(() => {
   backgroundLoading   // Carga en background cambia
   // ❌ NO incluir isProcessing para evitar loops
 ]);
-
   // ============================================================================
   // FUNCIONES DE FILTROS Y ESTADÍSTICAS
   // ============================================================================
