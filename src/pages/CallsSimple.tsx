@@ -166,6 +166,7 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
     </div>
   );
 };
+
 // ============================================================================
 // 🆕 COMPONENTE DE PAGINACIÓN
 // ============================================================================
@@ -304,7 +305,7 @@ const PaginationControls = ({
   );
 };
 // ============================================================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL CON ESTADOS MEJORADOS
 // ============================================================================
 export default function CallsSimple() {
   const { user } = useAuth();
@@ -329,7 +330,7 @@ export default function CallsSimple() {
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customDate, setCustomDate] = useState<string>('');
-  const [showOnlyPending, setShowOnlyPending] = useState(false); // 🆕 NUEVO ESTADO
+  const [showOnlyPending, setShowOnlyPending] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     totalCost: 0,
@@ -343,8 +344,10 @@ export default function CallsSimple() {
   const [pageSize, setPageSize] = useState(10);
   const [paginatedCalls, setPaginatedCalls] = useState<Call[]>([]);
 
-  // Estados para procesamiento automático (SOLO VISUAL AHORA)
+  // 🚀 NUEVOS ESTADOS PARA TRIGGER AUTOMÁTICO
   const [isProcessing, setIsProcessing] = useState(false);
+  const [justLoadedCalls, setJustLoadedCalls] = useState(false); // 🆕 NUEVO: Para trigger post-carga
+  const [pendingCallsDetected, setPendingCallsDetected] = useState(0); // 🆕 NUEVO: Para monitoreo
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
   // Variables auxiliares
@@ -496,7 +499,109 @@ export default function CallsSimple() {
     }
   };
   // ============================================================================
-  // 🆕 FUNCIÓN: Descuento de balance EXACTO
+  // 🚀 FUNCIÓN MEJORADA: Detectar llamadas pendientes EN MEMORIA (SOLUCIÓN C)
+  // ============================================================================
+  
+  const detectPendingCallsInMemory = () => {
+    if (!calls.length) {
+      console.log('📊 No hay llamadas cargadas para verificar');
+      return [];
+    }
+
+    console.log('🔍 DETECCIÓN EN MEMORIA - Verificando llamadas pendientes...');
+    
+    // Filtrar llamadas que necesitan procesamiento - DIRECTAMENTE EN MEMORIA
+    const pendingCalls = calls.filter(call => {
+      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+      const actualDuration = getCallDuration(call);
+      const hasValidDuration = actualDuration > 0;
+      const notProcessed = !call.processed_for_cost; // ⭐ CLAVE: Campo del webhook v6.0
+      const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
+      
+      const isPending = isCompleted && hasValidDuration && notProcessed && hasRate;
+      
+      if (isPending) {
+        console.log(`🔄 PENDIENTE DETECTADA: ${call.call_id?.substring(0, 8)} - processed_for_cost: ${call.processed_for_cost}`);
+      }
+      
+      return isPending;
+    });
+
+    console.log(`🎯 DETECCIÓN EN MEMORIA COMPLETADA: ${pendingCalls.length} llamadas pendientes encontradas`);
+    
+    // Actualizar contador para el useEffect dedicado
+    setPendingCallsDetected(pendingCalls.length);
+    
+    return pendingCalls;
+  };
+
+  // ============================================================================
+  // 🚀 FUNCIÓN MEJORADA: shouldProcessCalls (SOLUCIÓN B)
+  // ============================================================================
+  
+  const shouldProcessCalls = async () => {
+    if (loading || backgroundLoading || isProcessing) {
+      console.log(`🛑 No procesar: loading=${loading}, backgroundLoading=${backgroundLoading}, isProcessing=${isProcessing}`);
+      return false;
+    }
+    
+    // 🚀 NUEVA LÓGICA: Usar detección en memoria PRIMERO
+    const pendingInMemory = detectPendingCallsInMemory();
+    
+    if (pendingInMemory.length === 0) {
+      console.log('✅ Sin llamadas pendientes detectadas en memoria');
+      return false;
+    }
+    
+    console.log(`🎯 ${pendingInMemory.length} llamadas pendientes detectadas - VERIFICANDO duplicados...`);
+    
+    // Verificación de duplicados solo para las pendientes detectadas
+    try {
+      const reallyPendingCalls = [];
+      
+      for (const call of pendingInMemory) {
+        const callIdShort = call.call_id.substring(0, 16);
+        
+        const { data: existingTx, error } = await supabase
+          .from('credit_transactions')
+          .select('id')
+          .eq('user_id', user.id)
+          .ilike('description', `%${callIdShort}%`)
+          .limit(1);
+        
+        if (error) {
+          console.log(`⚠️ Error verificando ${callIdShort}:`, error.message);
+          // En caso de error, incluir para procesar por seguridad
+          reallyPendingCalls.push(call);
+          continue;
+        }
+        
+        if (!existingTx || existingTx.length === 0) {
+          console.log(`🔄 ${callIdShort} - SIN TRANSACCIÓN - REALMENTE PENDIENTE`);
+          reallyPendingCalls.push(call);
+        } else {
+          console.log(`✅ ${callIdShort} - Ya tiene transacción procesada`);
+        }
+      }
+      
+      if (reallyPendingCalls.length === 0) {
+        console.log('✅ Todas las llamadas ya tienen transacciones procesadas');
+        return false;
+      }
+      
+      console.log(`🚀 ${reallyPendingCalls.length} llamadas REALMENTE PENDIENTES confirmadas`);
+      return reallyPendingCalls.length > 0;
+      
+    } catch (error) {
+      console.error('❌ Excepción verificando transacciones:', error);
+      // En caso de error, procesar las pendientes detectadas en memoria
+      console.log('🔄 Error en verificación - procesando pendientes detectadas por seguridad');
+      return pendingInMemory.length > 0;
+    }
+  };
+
+  // ============================================================================
+  // 🆕 FUNCIÓN: Descuento de balance EXACTO (MEJORADA)
   // ============================================================================
 
   const processCallCostAndDeduct = async (call: Call) => {
@@ -534,7 +639,7 @@ export default function CallsSimple() {
         p_user_id: user.id,
         p_amount: -exactCost,
         p_description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
-        p_admin_id: 'callssimple-exact-deduct'
+        p_admin_id: 'callssimple-exact-auto'
       });
 
       let deductSuccess = false;
@@ -573,10 +678,10 @@ export default function CallsSimple() {
             await supabase.from('credit_transactions').insert({
               user_id: user.id,
               amount: -exactCost,
-              transaction_type: 'call_charge_exact',
-              description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
+              transaction_type: 'call_charge_exact_auto',
+              description: `Auto exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
               balance_after: newBalance,
-              created_by: 'callssimple-exact',
+              created_by: 'callssimple-auto',
               reference_id: call.call_id,
               created_at: new Date().toISOString()
             });
@@ -603,8 +708,8 @@ export default function CallsSimple() {
         .from('calls')
         .update({
           cost_usd: exactCost,
-          duration_sec: exactDuration, // Actualizar con duración exacta también
-          processed_for_cost: true,
+          duration_sec: exactDuration,
+          processed_for_cost: true, // ⭐ MARCAR COMO PROCESADA
         })
         .eq('call_id', call.call_id);
 
@@ -613,7 +718,7 @@ export default function CallsSimple() {
         return { success: false, error: 'Error actualizando llamada' };
       }
 
-      // 6. Actualizar estado local
+      // 6. Actualizar estado local INMEDIATAMENTE
       setCalls(prevCalls => 
         prevCalls.map(c => 
           c.call_id === call.call_id 
@@ -627,11 +732,12 @@ export default function CallsSimple() {
         )
       );
 
-      console.log(`🎉 DESCUENTO EXACTO COMPLETADO:`);
+      console.log(`🎉 DESCUENTO AUTOMÁTICO EXACTO COMPLETADO:`);
       console.log(`   📞 Call: ${call.call_id?.substring(0, 8)}`);
       console.log(`   ⏱️ Duración: ${exactDuration}s`);
       console.log(`   💰 Costo: $${exactCost.toFixed(4)}`);
       console.log(`   🔧 Método: ${deductMethod}`);
+      console.log(`   🤖 Trigger: AUTOMÁTICO`);
 
       return { 
         success: true, 
@@ -641,12 +747,12 @@ export default function CallsSimple() {
       };
 
     } catch (error) {
-      console.error(`❌ Error crítico en descuento exacto:`, error);
+      console.error(`❌ Error crítico en descuento automático exacto:`, error);
       return { success: false, error: error.message };
     }
   };
   // ============================================================================
-  // 🆕 FUNCIÓN: Procesar llamadas pendientes con descuentos exactos
+  // 🚀 FUNCIÓN MEJORADA: Procesar llamadas pendientes con trigger automático
   // ============================================================================
 
   const processNewCallsExact = async () => {
@@ -661,103 +767,72 @@ export default function CallsSimple() {
       return;
     }
     
-    if (!(await shouldProcessCalls())) {
-      console.log('🛑 shouldProcessCalls() retornó false - no hay llamadas realmente pendientes');
-      return;
-    }
-    
-    console.log('💰 INICIANDO PROCESAMIENTO EXACTO CON PROTECCIONES...');
+    console.log('💰 INICIANDO PROCESAMIENTO AUTOMÁTICO EXACTO...');
     setIsProcessing(true);
     
     try {
-      console.log('📊 VERIFICANDO LLAMADAS PARA DESCUENTO EXACTO...');
-
-      // Filtrar llamadas que necesitan procesamiento de costo exacto
-      const callsNeedingExactProcessing = calls.filter(call => {
-        const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
-        const actualDuration = getCallDuration(call);
-        const hasValidDuration = actualDuration > 0;
-        const notProcessed = !call.processed_for_cost; // Nuevo campo del webhook v6.0
-        const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
-        
-        const needsProcessing = isCompleted && hasValidDuration && notProcessed && hasRate;
-        
-        if (isCompleted && notProcessed) {
-          console.log(`🔍 ANÁLISIS EXACTO ${call.call_id?.substring(0, 8)}:`, {
-            status: call.call_status,
-            duration_bd: call.duration_sec,
-            audio_duration: audioDurations[call.id] || 'not loaded',
-            actual_duration: actualDuration,
-            current_cost: call.cost_usd,
-            has_rate: hasRate,
-            processed_for_cost: call.processed_for_cost,
-            needs_processing: needsProcessing
-          });
-        }
-        
-        return needsProcessing;
-      });
-
-      if (callsNeedingExactProcessing.length === 0) {
+      // 🚀 USAR DETECCIÓN EN MEMORIA DIRECTA
+      const pendingCalls = detectPendingCallsInMemory();
+      
+      if (pendingCalls.length === 0) {
         console.log('✅ Todas las llamadas han sido procesadas con costos exactos');
         return;
       }
 
-      console.log(`💰 PROCESANDO ${callsNeedingExactProcessing.length} llamadas con descuentos exactos`);
-      setIsProcessing(true);
+      console.log(`💰 PROCESANDO AUTOMÁTICAMENTE ${pendingCalls.length} llamadas con descuentos exactos`);
 
       let processedCount = 0;
       let errors = 0;
       let totalDeducted = 0;
 
-      for (const call of callsNeedingExactProcessing) {
+      for (const call of pendingCalls) {
         try {
-          console.log(`\n💳 PROCESANDO DESCUENTO EXACTO: ${call.call_id}`);
+          console.log(`\n💳 PROCESANDO AUTOMÁTICAMENTE: ${call.call_id}`);
           
           const result = await processCallCostAndDeduct(call);
           
           if (result.success) {
             processedCount++;
             totalDeducted += result.cost || 0;
-            console.log(`✅ DESCUENTO EXACTO EXITOSO: ${call.call_id} - $${(result.cost || 0).toFixed(4)}`);
+            console.log(`✅ DESCUENTO AUTOMÁTICO EXITOSO: ${call.call_id} - $${(result.cost || 0).toFixed(4)}`);
           } else {
-            console.error(`❌ Error en descuento exacto ${call.call_id}:`, result.error);
+            console.error(`❌ Error en descuento automático ${call.call_id}:`, result.error);
             errors++;
           }
           
           // Pausa entre procesamiento
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 300));
           
         } catch (error) {
-          console.error(`❌ Excepción en descuento exacto ${call.call_id}:`, error);
+          console.error(`❌ Excepción en descuento automático ${call.call_id}:`, error);
           errors++;
         }
       }
 
-      console.log(`\n🎯 DESCUENTOS EXACTOS COMPLETADOS:`);
+      console.log(`\n🎉 DESCUENTOS AUTOMÁTICOS COMPLETADOS:`);
       console.log(`   ✅ Procesadas: ${processedCount}`);
       console.log(`   ❌ Errores: ${errors}`);
       console.log(`   💰 Total descontado: $${totalDeducted.toFixed(4)}`);
+      console.log(`   🤖 Modo: COMPLETAMENTE AUTOMÁTICO`);
       console.log(`   🎯 Precisión: 100% exacta con duración de audio`);
   
     } catch (error) {
-      console.error(`❌ Error crítico en processNewCallsExact:`, error);
+      console.error(`❌ Error crítico en processNewCallsExact automático:`, error);
     } finally {
       setIsProcessing(false); // 🔒 IMPORTANTE: Siempre resetear
+      setPendingCallsDetected(0); // Reset contador
     }
 
     // Actualizar estadísticas
-    if (processedCount > 0) {
-      calculateStats();
-    }
+    calculateStats();
   };
 
   // ============================================================================
-  // FUNCIÓN FETCH CALLS OPTIMIZADA CON CARGA PROGRESIVA
+  // 🚀 FUNCIÓN FETCHCALLS MEJORADA CON TRIGGER POST-CARGA (SOLUCIÓN B)
   // ============================================================================
   
   const fetchCalls = async () => {
-    console.log("🚀 FETCH CALLS OPTIMIZADO - Carga progresiva iniciada");
+    console.log("🚀 FETCH CALLS CON TRIGGER AUTOMÁTICO - Carga progresiva iniciada");
     
     if (!user?.id) {
       setError("User not authenticated");
@@ -896,7 +971,11 @@ export default function CallsSimple() {
       setLoading(false); // ¡YA NO ESTÁ CARGANDO!
       setLoadingProgress('');
 
+      // 🚀 PASO CRÍTICO: MARCAR QUE ACABAMOS DE CARGAR LLAMADAS (TRIGGER)
+      setJustLoadedCalls(true);
+
       console.log("🎉 PRIMERA CARGA COMPLETADA - Mostrando datos iniciales");
+      console.log("🚀 TRIGGER POST-CARGA ACTIVADO - Preparando verificación automática");
 
       // 🔄 PASO 6: CARGAR EL RESTO EN BACKGROUND
       if (initialCalls.length === INITIAL_BATCH) {
@@ -934,6 +1013,12 @@ export default function CallsSimple() {
               
               setCalls(allCalls);
               setHasMoreCalls(false);
+              
+              // 🚀 TRIGGER ADICIONAL: Si cargamos más llamadas, verificar de nuevo
+              if (remainingCalls.length > 0) {
+                console.log("🔄 Llamadas adicionales cargadas - Reactivando trigger");
+                setJustLoadedCalls(true);
+              }
             }
           } catch (err) {
             console.error("❌ Error cargando llamadas adicionales:", err);
@@ -957,7 +1042,7 @@ export default function CallsSimple() {
     }
   };
   // ============================================================================
-  // 🆕 FUNCIÓN DE PAGINACIÓN
+  // 🆕 FUNCIÓN DE PAGINACIÓN (Sin cambios)
   // ============================================================================
   const applyPagination = () => {
     const totalPages = Math.ceil(filteredCalls.length / pageSize);
@@ -982,207 +1067,77 @@ export default function CallsSimple() {
     console.log(`📄 Cambio de tamaño de página: ${newPageSize}`);
   };
 
-  // 🛡️ FUNCIÓN SIMPLIFICADA: Verificación robusta sin errores SQL
-  const shouldProcessCalls = async () => {
-    if (loading || backgroundLoading || isProcessing) {
-      console.log(`🛑 No procesar: loading=${loading}, backgroundLoading=${backgroundLoading}, isProcessing=${isProcessing}`);
-      return false;
-    }
-    
-    // Filtrar llamadas que parecen pendientes
-    const potentiallyPendingCalls = calls.filter(call => 
-      ['completed', 'ended'].includes(call.call_status?.toLowerCase()) && 
-      (call.duration_sec > 0 || call.recording_url) &&
-      (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0
-    );
-    
-    if (potentiallyPendingCalls.length === 0) {
-      console.log(`✅ Sin llamadas completadas para verificar`);
-      return false;
-    }
-    
-    console.log(`🔍 Verificando ${potentiallyPendingCalls.length} llamadas contra transacciones...`);
-    
-    // 🔍 VERIFICACIÓN SIMPLIFICADA: Buscar por descripción (más robusta)
-    try {
-      const processedCallIds = new Set();
-      
-      // Verificar cada llamada individualmente
-      for (const call of potentiallyPendingCalls) {
-        const callIdShort = call.call_id.substring(0, 16); // Usar parte del ID
-        
-        const { data: existingTx, error } = await supabase
-          .from('credit_transactions')
-          .select('id, description')
-          .eq('user_id', user.id)
-          .ilike('description', `%${callIdShort}%`)
-          .limit(1);
-        
-        if (error) {
-          console.log(`⚠️ Error verificando ${callIdShort}:`, error.message);
-          continue; // Continuar con siguiente llamada
-        }
-        
-        if (existingTx && existingTx.length > 0) {
-          processedCallIds.add(call.call_id);
-          console.log(`✅ Transacción encontrada para: ${callIdShort}`);
-        } else {
-          console.log(`🔄 Sin transacción para: ${callIdShort} - PENDIENTE`);
-        }
-      }
-      
-      // Llamadas realmente pendientes
-      const trulyPendingCalls = potentiallyPendingCalls.filter(call => 
-        !processedCallIds.has(call.call_id)
-      );
-      
-      if (trulyPendingCalls.length === 0) {
-        console.log(`✅ Todas las llamadas ya tienen transacciones procesadas`);
-        return false;
-      }
-      
-      console.log(`🎯 ${trulyPendingCalls.length} llamadas REALMENTE pendientes:`);
-      trulyPendingCalls.forEach(call => {
-        console.log(`   - ${call.call_id.substring(0, 16)} (sin transacción)`);
-      });
-      
-      return trulyPendingCalls.length > 0;
-      
-    } catch (error) {
-      console.error('❌ Excepción verificando transacciones:', error);
-      // En caso de error, procesar para estar seguros
-      console.log('🔄 Error en verificación - procesando por seguridad');
-      return true;
-    }
-  };
-
-  // 🚨 PROCESAMIENTO AUTOMÁTICO CORREGIDO - SOLO VISUAL, SIN DESCUENTOS
-  const processNewCalls = async () => {
-    console.log('🛑 AUTO-PROCESSING MODIFICADO - Solo actualización visual, sin descuentos');
-    console.log('📋 Webhook de Retell maneja TODOS los descuentos automáticamente');
-    
-    if (!calls.length || !user?.id || loading || isProcessing) {
-      console.log('❌ SALIENDO - condiciones no cumplidas para actualización visual');
-      return;
-    }
-
-    console.log('📊 VERIFICANDO LLAMADAS PARA ACTUALIZACIÓN VISUAL...');
-
-    // Filtrar llamadas que necesitan actualización de costo visual
-    const callsNeedingCostUpdate = calls.filter(call => {
-      const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
-      const actualDuration = getCallDuration(call);
-      const hasValidDuration = actualDuration > 0;
-      const notVisuallyProcessed = !lastProcessedRef.current.has(call.call_id);
-      
-      // ✅ NUEVA LÓGICA: Solo verificar si necesita actualización visual
-      const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-      const hasRate = agentRate && agentRate > 0;
-      
-      const needsVisualUpdate = isCompleted && hasValidDuration && notVisuallyProcessed && hasRate;
-      
-      if (isCompleted && notVisuallyProcessed) {
-        console.log(`🔍 ANÁLISIS VISUAL ${call.call_id.substring(0, 8)}:`, {
-          status: call.call_status,
-          duration_bd: call.duration_sec,
-          audio_duration: audioDurations[call.id] || 'not loaded',
-          actual_duration: actualDuration,
-          current_cost: call.cost_usd,
-          has_rate: hasRate,
-          rate_value: agentRate,
-          needs_visual_update: needsVisualUpdate
-        });
-      }
-      
-      return needsVisualUpdate;
-    });
-
-    if (callsNeedingCostUpdate.length === 0) {
-      console.log('✅ Todas las llamadas tienen costos visuales actualizados');
-      return;
-    }
-
-    console.log(`📊 ACTUALIZANDO COSTOS VISUALES para ${callsNeedingCostUpdate.length} llamadas`);
-    setIsProcessing(true);
-
-    let updatedCount = 0;
-    let errors = 0;
-
-    for (const call of callsNeedingCostUpdate) {
-      try {
-        console.log(`📊 ACTUALIZANDO COSTO VISUAL: ${call.call_id}`);
-        
-        const calculatedCost = calculateCallCost(call);
-        console.log(`💰 Costo calculado para visualización: $${calculatedCost}`);
-        
-        if (calculatedCost > 0) {
-          // ✅ SOLO ACTUALIZAR COSTO EN BASE DE DATOS PARA VISUALIZACIÓN
-          // ❌ NO DESCONTAR BALANCE (eso lo hace el webhook)
-          const { error: updateError } = await supabase
-            .from('calls')
-            .update({ 
-              cost_usd: calculatedCost,
-              processed_for_cost: true  // ✅ MARCAR COMO PROCESADA
-            })
-            .eq('call_id', call.call_id);
-
-          if (!updateError) {
-            // ✅ ACTUALIZAR ESTADO LOCAL PARA MOSTRAR EN UI
-            setCalls(prevCalls => 
-              prevCalls.map(c => 
-                c.call_id === call.call_id 
-                  ? { ...c, cost_usd: calculatedCost }
-                  : c
-              )
-            );
-            
-            // ✅ MARCAR COMO PROCESADA VISUALMENTE (no financieramente)
-            lastProcessedRef.current.add(call.call_id);
-            
-            console.log(`✅ COSTO VISUAL ACTUALIZADO: ${call.call_id} - $${calculatedCost.toFixed(4)}`);
-            console.log(`🔒 BALANCE NO AFECTADO - Webhook ya procesó el descuento`);
-            updatedCount++;
-          } else {
-            console.error(`❌ Error actualizando costo visual:`, updateError);
-            errors++;
-          }
-        } else {
-          console.warn(`⚠️ Costo calculado inválido para visualización ${call.call_id}: $${calculatedCost}`);
-          errors++;
-        }
-        
-        // Pequeña pausa entre procesamiento
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-      } catch (error) {
-        console.error(`❌ Error en actualización visual ${call.call_id}:`, error);
-        errors++;
-      }
-    }
-
-    console.log(`✅ ACTUALIZACIÓN VISUAL COMPLETADA: ${updatedCount} actualizados, ${errors} errores`);
-    console.log(`💰 IMPORTANTE: No se afectó el balance - Webhook maneja descuentos`);
-    setIsProcessing(false);
-  };
   // ============================================================================
-  // useEffects CORREGIDOS
+  // 🚀 useEffects MEJORADOS CON TRIGGERS AUTOMÁTICOS
   // ============================================================================
 
   // Efecto principal: Cargar datos cuando el usuario está disponible
   useEffect(() => {
     if (user?.id) {
-      console.log('🚀 INITIATING CORRECTED SYSTEM for:', user.email);
-      console.log('💡 MODE: Read-only and visualization - Webhook handles deductions');
+      console.log('🚀 INITIATING AUTOMATIC SYSTEM for:', user.email);
+      console.log('💡 MODE: FULLY AUTOMATIC - Triggers enabled');
       console.log(`🔄 FILTER MODE: ${showOnlyPending ? 'Pending only' : 'Complete history'}`);
       fetchCalls();
     }
   }, [user?.id, showOnlyPending]); // 🆕 ADD NEW DEPENDENCY
+
+  // 🚀 NUEVO: useEffect DEDICADO para TRIGGER POST-CARGA (SOLUCIÓN B)
+  useEffect(() => {
+    if (justLoadedCalls && calls.length > 0 && !loading && !backgroundLoading) {
+      console.log('🚀 TRIGGER POST-CARGA DETECTADO - Iniciando verificación automática');
+      
+      // Reset flag inmediatamente para evitar loops
+      setJustLoadedCalls(false);
+      
+      // Ejecutar verificación automática después de un breve delay
+      const triggerTimeout = setTimeout(async () => {
+        console.log('⚡ EJECUTANDO TRIGGER POST-CARGA');
+        
+        if (!isProcessing && await shouldProcessCalls()) {
+          console.log('🚀 TRIGGER POST-CARGA: Iniciando processNewCallsExact');
+          processNewCallsExact();
+        } else {
+          console.log('🛡️ TRIGGER POST-CARGA: No hay llamadas pendientes');
+        }
+      }, 2000); // 2 segundos de delay para permitir que se cargue el audio
+
+      return () => clearTimeout(triggerTimeout);
+    }
+  }, [justLoadedCalls, calls.length, loading, backgroundLoading]);
+
+  // 🚀 NUEVO: useEffect DEDICADO para MONITOREO CONTINUO (SOLUCIÓN C)
+  useEffect(() => {
+    if (pendingCallsDetected > 0 && !loading && !backgroundLoading && !isProcessing) {
+      console.log(`🔍 MONITOREO CONTINUO: ${pendingCallsDetected} llamadas pendientes detectadas`);
+      
+      const monitoringTimeout = setTimeout(async () => {
+        console.log('⚡ EJECUTANDO MONITOREO CONTINUO');
+        
+        if (!isProcessing && await shouldProcessCalls()) {
+          console.log('🚀 MONITOREO CONTINUO: Iniciando processNewCallsExact');
+          processNewCallsExact();
+        } else {
+          console.log('🛡️ MONITOREO CONTINUO: Ya no hay llamadas pendientes');
+          setPendingCallsDetected(0); // Reset contador
+        }
+      }, 1000);
+
+      return () => clearTimeout(monitoringTimeout);
+    }
+  }, [pendingCallsDetected, loading, backgroundLoading, isProcessing]);
 
   // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
     if (calls.length > 0) {
       applyFiltersAndSort();
       calculateStats();
+      
+      // 🚀 TRIGGER ADICIONAL: Después de aplicar filtros, verificar pendientes
+      if (!loading && !backgroundLoading) {
+        setTimeout(() => {
+          detectPendingCallsInMemory(); // Esto actualiza pendingCallsDetected
+        }, 500);
+      }
     }
   }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
@@ -1206,65 +1161,40 @@ export default function CallsSimple() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
-  // ✅ useEffect CON LOGS DETALLADOS para debugging
+  // 🚀 INTERVALO DE VERIFICACIÓN PERIÓDICA (Respaldo)
   useEffect(() => {
-    console.log(`🔥 useEffect EJECUTADO - Navegación detectada`);
-    console.log(`📊 Estado actual:`, {
-      callsLength: calls.length,
-      loading,
-      backgroundLoading,
-      isProcessing,
-      userId: user?.id
-    });
+    if (!user?.id || loading) return;
+
+    console.log('⏰ CONFIGURANDO INTERVALO DE VERIFICACIÓN PERIÓDICA');
     
-    if (calls.length > 0) {
-      console.log(`📋 Llamadas actuales:`, calls.map(call => ({
-        id: call.call_id.substring(0, 12),
-        processed: call.processed_for_cost,
-        cost: call.cost_usd,
-        status: call.call_status
-      })));
-    }
-    
-    if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
-      // 🔒 Solo procesar si hay llamadas realmente pendientes
-      setTimeout(async () => {
-        console.log(`⏰ setTimeout EJECUTÁNDOSE después de navegación`);
-        if (!isProcessing && await shouldProcessCalls()) {
-          console.log(`🚀 INICIANDO processNewCallsExact por navegación`);
-          processNewCallsExact();
+    const periodicCheck = setInterval(async () => {
+      // Solo verificar si no hay otra actividad en curso
+      if (!loading && !backgroundLoading && !isProcessing && calls.length > 0) {
+        console.log('⏰ VERIFICACIÓN PERIÓDICA - Revisando llamadas pendientes');
+        
+        const pendingCount = detectPendingCallsInMemory().length;
+        
+        if (pendingCount > 0) {
+          console.log(`⏰ VERIFICACIÓN PERIÓDICA: ${pendingCount} llamadas pendientes detectadas`);
+          
+          if (await shouldProcessCalls()) {
+            console.log('⏰ VERIFICACIÓN PERIÓDICA: Iniciando procesamiento');
+            processNewCallsExact();
+          }
         } else {
-          console.log("🛡️ shouldProcessCalls() impidió procesamiento duplicado");
+          console.log('⏰ VERIFICACIÓN PERIÓDICA: Sin llamadas pendientes');
         }
-      }, 1000);
-      
-      // 🔒 Intervalo con verificaciones adicionales
-      const interval = setInterval(async () => {
-        console.log(`⏰ Intervalo ejecutándose...`);
-        if (!backgroundLoading && !isProcessing && await shouldProcessCalls()) {
-          console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
-          processNewCallsExact();
-        } else {
-          console.log("⏰ Intervalo: No hay llamadas realmente pendientes");
-        }
-      }, 30000);
-      
-      return () => {
-        console.log(`🧹 useEffect cleanup - desmontando componente`);
-        clearInterval(interval);
-      };
-    }
-  }, [
-    // ✅ DEPENDENCIAS CORREGIDAS
-    user?.id,           // Usuario cambia → recargar
-    calls.length,       // Nuevas llamadas → verificar
-    loading,            // Estado de carga cambia
-    backgroundLoading   // Carga en background cambia
-    // ❌ NO incluir isProcessing para evitar loops
-  ]);
+      }
+    }, 60000); // Verificar cada 60 segundos
+
+    return () => {
+      console.log('🧹 LIMPIANDO intervalo de verificación periódica');
+      clearInterval(periodicCheck);
+    };
+  }, [user?.id, calls.length, loading]);
 
   // ============================================================================
-  // FUNCIONES DE FILTROS Y ESTADÍSTICAS
+  // FUNCIONES DE FILTROS Y ESTADÍSTICAS (Sin cambios significativos)
   // ============================================================================
 
   const applyFiltersAndSort = () => {
@@ -1567,20 +1497,20 @@ export default function CallsSimple() {
     );
   }
   // ============================================================================
-  // RENDER DEL COMPONENTE PRINCIPAL CON PAGINACIÓN - 🚨 ERRORES CORREGIDOS
+  // RENDER DEL COMPONENTE PRINCIPAL - 🚀 SISTEMA COMPLETAMENTE AUTOMÁTICO
   // ============================================================================
 
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
         <div className="space-y-6">
-          {/* Header CORREGIDO */}
+          {/* Header MEJORADO */}
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-gray-600">
-                  Comprehensive call data for your account
+                  Comprehensive call data with automatic processing
                   {selectedAgentName && (
                     <span className="ml-2 text-blue-600 font-medium">
                       • Filtered by {selectedAgentName}
@@ -1591,8 +1521,17 @@ export default function CallsSimple() {
                 <div className="flex items-center gap-3">
                   {isProcessing && (
                     <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                      <span className="text-xs font-medium text-blue-600">Visual Update</span>
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
+                      <span className="text-xs font-medium text-green-600">Auto Processing</span>
+                    </div>
+                  )}
+                  
+                  {pendingCallsDetected > 0 && !isProcessing && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                      <span className="text-xs font-medium text-orange-600">
+                        {pendingCallsDetected} Pending
+                      </span>
                     </div>
                   )}
                   
@@ -1611,7 +1550,7 @@ export default function CallsSimple() {
               
               <Button
                 onClick={() => {
-                  console.log("🔄 REFRESH MANUAL - Solo lectura");
+                  console.log("🔄 REFRESH MANUAL - Sistema automático");
                   fetchCalls();
                 }}
                 disabled={loading}
@@ -1632,34 +1571,34 @@ export default function CallsSimple() {
                 )}
               </Button>
               
-              {/* 🚨 INDICADOR CORREGIDO */}
+              {/* 🚀 INDICADOR AUTOMÁTICO MEJORADO */}
               <div className="text-right">
-                <div className="text-xs font-medium text-green-600">🟢 System Active</div>
-                <div className="text-xs text-gray-500">Updated</div>
+                <div className="text-xs font-medium text-green-600">🤖 Auto Processing</div>
+                <div className="text-xs text-gray-500">Active</div>
               </div>
             </div>
           </div>
 
-          {/* 🆕 MENSAJE INFORMATIVO ACTUALIZADO */}
+          {/* 🚀 MENSAJE INFORMATIVO ACTUALIZADO PARA SISTEMA AUTOMÁTICO */}
           <Card className="border-green-200 bg-green-50">
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  💰 Exact cost deduction system active - Real calls durations processed.
+                  🤖 Automatic exact cost deduction system active - New calls processed automatically.
                 </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* 🆕 INDICADOR DE PROCESAMIENTO EXACTO */}
+          {/* 🆕 INDICADOR DE PROCESAMIENTO AUTOMÁTICO */}
           {isProcessing && (
             <Card className="border-green-200 bg-green-50">
               <CardContent className="p-4">
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500 mr-3"></div>
                   <span className="text-green-700 font-medium">
-                    💰 Processing exact costs with real calls durations...
+                    🤖 Automatically processing exact costs with real call durations...
                   </span>
                 </div>
               </CardContent>
@@ -1738,7 +1677,7 @@ export default function CallsSimple() {
             </Card>
           </div>
 
-          {/* 🚨 FILTROS CORREGIDOS - ERROR 1 SOLUCIONADO */}
+          {/* Filtros (Sin cambios) */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4 items-center">
@@ -1936,7 +1875,7 @@ export default function CallsSimple() {
                               onClick={() => handleSort('cost_usd')}
                               className="flex items-center gap-1 hover:text-gray-700"
                             >
-                              Cost (Visual) {getSortIcon('cost_usd')}
+                              Cost (Auto) {getSortIcon('cost_usd')}
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -2078,25 +2017,25 @@ export default function CallsSimple() {
                               )}
                             </td>
 
-                            {/* 🆕 NEW PROCESS STATUS COLUMN */}
+                            {/* Process Status Column */}
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="flex flex-col gap-1">
                                 {call.processed_for_cost ? (
                                   <Badge className="bg-green-100 text-green-800 text-xs border-green-200">
-                                    ✅ Processed
+                                    🤖 Auto Processed
                                   </Badge>
                                 ) : (
                                   <Badge className="bg-yellow-100 text-yellow-800 text-xs border-yellow-200">
-                                    ⏳ Pending
+                                    ⏳ Pending Auto
                                   </Badge>
                                 )}
                                 <div className="text-xs text-gray-500">
-                                  {call.processed_for_cost ? 'Cost applied' : 'Awaiting process'}
+                                  {call.processed_for_cost ? 'Cost applied' : 'Awaiting auto process'}
                                 </div>
                               </div>
                             </td>
 
-                            {/* 🚨 ACTIONS COLUMN - ERROR 2 CORREGIDO */}
+                            {/* Actions Column - CORREGIDO */}
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-1">
                                 <Button 
@@ -2110,7 +2049,7 @@ export default function CallsSimple() {
                                 >
                                   <Eye className="h-3 w-3" />
                                 </Button>
-                                {/* 🚨 BOTÓN DE DESCARGA CORREGIDO - SOLUCIÓN AL ERROR 2 */}
+                                {/* Botón de descarga corregido */}
                                 {call.recording_url && (
                                   <a
                                     href={call.recording_url}
@@ -2129,7 +2068,7 @@ export default function CallsSimple() {
                     </table>
                   </div>
 
-                  {/* 🆕 Controles de Paginación */}
+                  {/* Controles de Paginación */}
                   <PaginationControls
                     currentPage={currentPage}
                     totalPages={totalPages}
