@@ -834,25 +834,16 @@ console.log('🔍 QUERY DEBUG - Building query...');
 
 let query = supabase.from('calls').select('*');
 
-// ✅ CORRECCIÓN: Manejar UUIDs y TEXT por separado
-if (agentUUIDs.length > 0 && retellAgentIds.length > 0) {
-  // Si tenemos ambos tipos, usar OR para combinarlos
-  query = query.or(`agent_id.in.(${agentUUIDs.join(',')}),agent_id.in.(${retellAgentIds.join(',')})`);
-  console.log('🔧 QUERY: Using OR for UUID + Retell IDs');
-} else if (agentUUIDs.length > 0) {
-  // Solo UUIDs
-  query = query.in('agent_id', agentUUIDs);
-  console.log('🔧 QUERY: Using UUID IDs only');
-} else if (retellAgentIds.length > 0) {
-  // Solo Retell IDs  
-  query = query.in('agent_id', retellAgentIds);
-  console.log('🔧 QUERY: Using Retell IDs only');
-} else {
+
+if (allAgentIds.length === 0) {
   console.error("❌ No agent IDs found");
   setCalls([]);
   setLoading(false);
   return;
 }
+
+console.log('🔧 QUERY DEBUG - All Agent IDs:', allAgentIds);
+query = query.in('agent_id', allAgentIds);
       console.log('📊 CARGANDO TODAS LAS LLAMADAS - Sin filtros automáticos');
 
 // 🔍 EJECUTAR CONSULTA CON DEBUG DETALLADO
