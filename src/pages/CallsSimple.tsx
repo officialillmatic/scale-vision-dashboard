@@ -837,12 +837,15 @@ let query = supabase
   .select('*')
   .in('agent_id', allAgentIds);
 
-// 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
+// 🚀 SIEMPRE APLICAR FILTRO PENDING PARA PROCESAMIENTO AUTOMÁTICO
+console.log('🎯 APLICANDO FILTRO PENDING AUTOMÁTICO - Solo llamadas no procesadas');
+query = query.or('processed_for_cost.is.null,processed_for_cost.eq.false');
+
+// El toggle "Only Pending" ahora es solo visual - el filtro siempre está activo para trigger automático
 if (showOnlyPending) {
-  console.log('🎯 APLICANDO FILTRO PENDING - Solo llamadas no procesadas');
-  query = query.or('processed_for_cost.is.null,processed_for_cost.eq.false');
+  console.log('👁️ MODO VISUAL: Solo mostrando pendientes en UI');
 } else {
-  console.log('📊 SIN FILTRO PENDING - Cargando todas las llamadas');
+  console.log('👁️ MODO VISUAL: Filtro pending activo en background para trigger automático');
 }
 
 // 🔍 EJECUTAR CONSULTA CON DEBUG DETALLADO
