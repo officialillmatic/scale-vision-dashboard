@@ -329,7 +329,6 @@ export default function CallsSimple() {
   const [audioDurations, setAudioDurations] = useState<{[key: string]: number}>({});
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customDate, setCustomDate] = useState<string>('');
-  const [showOnlyPending, setShowOnlyPending] = useState(false); // 🆕 NUEVO ESTADO
   const [stats, setStats] = useState({
     total: 0,
     totalCost: 0,
@@ -828,10 +827,9 @@ setLoadingProgress('Loading recent calls...');
 const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
 
 // 🎯 BUILD QUERY CONDITIONALLY BASED ON TOGGLE (CORREGIDO)
-console.log(`🔍 DEBUG QUERY - showOnlyPending: ${showOnlyPending}`);
+console.log('📊 LOADING ALL CALLS - Complete history mode');
 console.log(`🔍 AGENT DEBUG - UUIDs:`, agentUUIDs);
 console.log(`🔍 AGENT DEBUG - Retell:`, retellAgentIds);
-      console.log('🔍 QUERY DEBUG - showOnlyPending:', showOnlyPending);
 console.log('🔍 QUERY DEBUG - Building query...');
 
 let query = supabase.from('calls').select('*');
@@ -855,14 +853,7 @@ if (agentUUIDs.length > 0 && retellAgentIds.length > 0) {
   setLoading(false);
   return;
 }
-
-// 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
-if (showOnlyPending) {
-  console.log('🎯 APLICANDO FILTRO PENDING - Solo llamadas no procesadas');
-  query = query.or('processed_for_cost.is.null,processed_for_cost.eq.false');
-} else {
-  console.log('📊 SIN FILTRO PENDING - Cargando todas las llamadas');
-}
+      console.log('📊 CARGANDO TODAS LAS LLAMADAS - Sin filtros automáticos');
 
 // 🔍 EJECUTAR CONSULTA CON DEBUG DETALLADO
 console.log('🚀 EJECUTANDO CONSULTA...');
@@ -900,7 +891,6 @@ if (initialCalls && initialCalls.length > 0) {
 
 // 🔍 DEBUG RESULTADO
 console.log(`📊 RESULTADO CONSULTA:`, {
-  showOnlyPending,
   totalFound: initialCalls?.length || 0,
   hasError: !!callsError,
   errorMessage: callsError?.message || 'No error'
@@ -1035,7 +1025,7 @@ setTimeout(async () => {
       .from('calls')
       .select('*')
       .in('agent_id', allAgentIds)
-      .or('processed_for_cost.is.null,processed_for_cost.eq.false')
+      
       .in('call_status', ['completed', 'ended'])
       .order('timestamp', { ascending: false })
       .limit(20);
@@ -1174,10 +1164,7 @@ setTimeout(async () => {
               .select('*')
               .in('agent_id', allAgentIds);
 
-            // 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
-            if (showOnlyPending) {
-              remainingQuery = remainingQuery.or('processed_for_cost.is.null,processed_for_cost.eq.false');
-            }
+            
 
             const { data: remainingCalls, error: remainingError } = await remainingQuery
               .order('timestamp', { ascending: false })
@@ -1431,10 +1418,9 @@ setTimeout(async () => {
     if (user?.id) {
       console.log('🚀 INITIATING CORRECTED SYSTEM for:', user.email);
       console.log('💡 MODE: Read-only and visualization - Webhook handles deductions');
-      console.log(`🔄 FILTER MODE: ${showOnlyPending ? 'Pending only' : 'Complete history'}`);
       fetchCalls();
     }
-  }, [user?.id, showOnlyPending]); // 🆕 ADD NEW DEPENDENCY
+  }, [user?.id]); // Eliminar showOnlyPending
 
   // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
@@ -2053,24 +2039,7 @@ setTimeout(async () => {
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-gray-500" />
                   
-                  {/* 🆕 PENDING FILTER TOGGLE */}
-                  <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-white">
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showOnlyPending}
-                        onChange={(e) => setShowOnlyPending(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-gray-700 font-medium">Only Pending</span>
-                    </label>
-                    
-                    {showOnlyPending && (
-                      <Badge className="bg-orange-100 text-orange-800 text-xs ml-1">
-                        Active Filter
-                      </Badge>
-                    )}
-                  </div>
+                  
                   
                   <select
                     value={statusFilter}
@@ -2137,11 +2106,7 @@ setTimeout(async () => {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl font-semibold text-gray-900">
                   📋 Call History ({filteredCalls.length})
-                  {showOnlyPending && (
-                    <span className="text-sm font-normal text-orange-600 ml-2">
-                      - Pending Only Mode
-                    </span>
-                  )}
+                  
                   {totalPages > 1 && (
                     <span className="text-sm font-normal text-gray-500 ml-2">
                       - Página {currentPage} de {totalPages}
