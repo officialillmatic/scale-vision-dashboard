@@ -817,25 +817,41 @@ export default function CallsSimple() {
       console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
       setUserAssignedAgents(agentDetails || []);
 
-      // PASO 3: Preparar IDs para búsqueda
-      const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
-      const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
-      const allAgentIds = [...agentUUIDs, ...retellAgentIds].filter(Boolean);
+      // PASO 3: Preparar IDs para búsqueda (CORREGIDO)
+const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
+const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
 
-      setLoadingProgress('Loading recent calls...');
+setLoadingProgress('Loading recent calls...');
 
-      // 🚀 PASO 4: CARGA PROGRESIVA - Primero las más recientes
-      const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
-      
-      // 🎯 BUILD QUERY CONDITIONALLY BASED ON TOGGLE
-      // 🔍 DEBUG MEJORADO: Identificar por qué fallan las consultas
+// 🚀 PASO 4: CARGA PROGRESIVA - Primero las más recientes
+const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
+
+// 🎯 BUILD QUERY CONDITIONALLY BASED ON TOGGLE (CORREGIDO)
 console.log(`🔍 DEBUG QUERY - showOnlyPending: ${showOnlyPending}`);
-console.log(`🔍 DEBUG QUERY - allAgentIds:`, allAgentIds);
+console.log(`🔍 AGENT DEBUG - UUIDs:`, agentUUIDs);
+console.log(`🔍 AGENT DEBUG - Retell:`, retellAgentIds);
 
-let query = supabase
-  .from('calls')
-  .select('*')
-  .in('agent_id', allAgentIds);
+let query = supabase.from('calls').select('*');
+
+// ✅ CORRECCIÓN: Manejar UUIDs y TEXT por separado
+if (agentUUIDs.length > 0 && retellAgentIds.length > 0) {
+  // Si tenemos ambos tipos, usar OR para combinarlos
+  query = query.or(`agent_id.in.(${agentUUIDs.join(',')}),agent_id.in.(${retellAgentIds.join(',')})`);
+  console.log('🔧 QUERY: Using OR for UUID + Retell IDs');
+} else if (agentUUIDs.length > 0) {
+  // Solo UUIDs
+  query = query.in('agent_id', agentUUIDs);
+  console.log('🔧 QUERY: Using UUID IDs only');
+} else if (retellAgentIds.length > 0) {
+  // Solo Retell IDs  
+  query = query.in('agent_id', retellAgentIds);
+  console.log('🔧 QUERY: Using Retell IDs only');
+} else {
+  console.error("❌ No agent IDs found");
+  setCalls([]);
+  setLoading(false);
+  return;
+}
 
 // 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
 if (showOnlyPending) {
