@@ -820,6 +820,7 @@ export default function CallsSimple() {
       // PASO 3: Preparar IDs para búsqueda (CORREGIDO)
 const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
 const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
+      const allAgentIds = [...agentUUIDs, ...retellAgentIds].filter(Boolean);
 
 setLoadingProgress('Loading recent calls...');
 
