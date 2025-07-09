@@ -828,19 +828,78 @@ export default function CallsSimple() {
       const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
       
       // 🎯 BUILD QUERY CONDITIONALLY BASED ON TOGGLE
-      let query = supabase
-        .from('calls')
-        .select('*')
-        .in('agent_id', allAgentIds);
+      // 🔍 DEBUG MEJORADO: Identificar por qué fallan las consultas
+console.log(`🔍 DEBUG QUERY - showOnlyPending: ${showOnlyPending}`);
+console.log(`🔍 DEBUG QUERY - allAgentIds:`, allAgentIds);
 
-      // 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
-      if (showOnlyPending) {
-        query = query.or('processed_for_cost.is.null,processed_for_cost.eq.false');
-      }
+let query = supabase
+  .from('calls')
+  .select('*')
+  .in('agent_id', allAgentIds);
 
-      const { data: initialCalls, error: callsError } = await query
-        .order('timestamp', { ascending: false })
-        .limit(INITIAL_BATCH);
+// 🔄 APPLY PENDING FILTER ONLY IF TOGGLE IS ACTIVE
+if (showOnlyPending) {
+  console.log('🎯 APLICANDO FILTRO PENDING - Solo llamadas no procesadas');
+  query = query.or('processed_for_cost.is.null,processed_for_cost.eq.false');
+} else {
+  console.log('📊 SIN FILTRO PENDING - Cargando todas las llamadas');
+}
+
+// 🔍 EJECUTAR CONSULTA CON DEBUG DETALLADO
+console.log('🚀 EJECUTANDO CONSULTA...');
+const { data: initialCalls, error: callsError } = await query
+  .order('timestamp', { ascending: false })
+  .limit(INITIAL_BATCH);
+
+// 🔍 DEBUG RESULTADO
+console.log(`📊 RESULTADO CONSULTA:`, {
+  showOnlyPending,
+  totalFound: initialCalls?.length || 0,
+  hasError: !!callsError,
+  errorMessage: callsError?.message || 'No error'
+});
+
+if (initialCalls && initialCalls.length > 0) {
+  console.log('✅ PRIMERAS 3 LLAMADAS ENCONTRADAS:');
+  initialCalls.slice(0, 3).forEach((call, index) => {
+    console.log(`   ${index + 1}. ${call.call_id?.substring(0, 12)} - Status: ${call.call_status} - Processed: ${call.processed_for_cost} - Agent: ${call.agent_id?.substring(0, 8)}`);
+  });
+} else {
+  console.log('❌ NO SE ENCONTRARON LLAMADAS');
+  
+  // 🔍 CONSULTA DE DIAGNÓSTICO: Verificar si existen llamadas en general
+  console.log('🔍 VERIFICANDO SI EXISTEN LLAMADAS EN LA BD...');
+  const { data: allCallsTest, error: allCallsError } = await supabase
+    .from('calls')
+    .select('call_id, agent_id, call_status, processed_for_cost, timestamp')
+    .order('timestamp', { ascending: false })
+    .limit(5);
+  
+  console.log(`🔍 TODAS LAS LLAMADAS EN BD: ${allCallsTest?.length || 0}`);
+  if (allCallsTest && allCallsTest.length > 0) {
+    console.log('📋 ÚLTIMAS 5 LLAMADAS EN BD:');
+    allCallsTest.forEach((call, index) => {
+      console.log(`   ${index + 1}. ${call.call_id?.substring(0, 12)} - Agent: ${call.agent_id?.substring(0, 8)} - Status: ${call.call_status}`);
+    });
+  }
+  
+  // 🔍 VERIFICAR SI HAY LLAMADAS CON LOS AGENT_IDS ASIGNADOS
+  console.log('🔍 VERIFICANDO LLAMADAS CON AGENTES ASIGNADOS...');
+  const { data: agentCallsTest, error: agentCallsError } = await supabase
+    .from('calls')
+    .select('call_id, agent_id, call_status, timestamp')
+    .in('agent_id', allAgentIds)
+    .order('timestamp', { ascending: false })
+    .limit(5);
+  
+  console.log(`🔍 LLAMADAS CON AGENTES ASIGNADOS: ${agentCallsTest?.length || 0}`);
+  if (agentCallsTest && agentCallsTest.length > 0) {
+    console.log('📋 LLAMADAS CON AGENTES ASIGNADOS:');
+    agentCallsTest.forEach((call, index) => {
+      console.log(`   ${index + 1}. ${call.call_id?.substring(0, 12)} - Agent: ${call.agent_id?.substring(0, 8)}`);
+    });
+  }
+}
 
       if (callsError) {
         console.error("❌ Error obteniendo llamadas iniciales:", callsError);
