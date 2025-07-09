@@ -830,6 +830,8 @@ const INITIAL_BATCH = 50; // Cargar solo 50 inicialmente
 console.log(`🔍 DEBUG QUERY - showOnlyPending: ${showOnlyPending}`);
 console.log(`🔍 AGENT DEBUG - UUIDs:`, agentUUIDs);
 console.log(`🔍 AGENT DEBUG - Retell:`, retellAgentIds);
+      console.log('🔍 QUERY DEBUG - showOnlyPending:', showOnlyPending);
+console.log('🔍 QUERY DEBUG - Building query...');
 
 let query = supabase.from('calls').select('*');
 
@@ -866,6 +868,34 @@ console.log('🚀 EJECUTANDO CONSULTA...');
 const { data: initialCalls, error: callsError } = await query
   .order('timestamp', { ascending: false })
   .limit(INITIAL_BATCH);
+
+// 🔍 DEBUG RESULTADO
+console.log(`📊 SQL QUERY RESULT:`, {
+  found: initialCalls?.length || 0,
+  hasError: !!callsError,
+  errorMessage: callsError?.message
+});
+
+if (initialCalls && initialCalls.length > 0) {
+  console.log('📋 SQL RESULT - Primera llamada:', {
+    call_id: initialCalls[0].call_id?.substring(0, 16),
+    agent_id: initialCalls[0].agent_id?.substring(0, 12),
+    status: initialCalls[0].call_status,
+    processed: initialCalls[0].processed_for_cost
+  });
+  
+  const testInSQL = initialCalls.find(call => call.call_id?.includes('test_fresh_2025'));
+  if (testInSQL) {
+    console.log('🎯 TEST CALL FOUND IN SQL:', {
+      call_id: testInSQL.call_id,
+      agent_id: testInSQL.agent_id,
+      status: testInSQL.call_status,
+      processed: testInSQL.processed_for_cost
+    });
+  } else {
+    console.log('❌ TEST CALL NOT IN SQL RESULTS');
+  }
+}
 
 // 🔍 DEBUG RESULTADO
 console.log(`📊 RESULTADO CONSULTA:`, {
@@ -965,6 +995,20 @@ if (initialCalls && initialCalls.length > 0) {
       };
 
       const mappedInitialCalls = mapCalls(initialCalls);
+      console.log("🔍 RAW CALLS FROM DB:", initialCalls?.length || 0);
+console.log("🔍 MAPPED CALLS TOTAL:", mappedInitialCalls?.length || 0);
+console.log("🔍 TEST CALL IN RAW:", initialCalls?.find(call => call.call_id?.includes('test_fresh_2025')));
+console.log("🔍 TEST CALL IN MAPPED:", mappedInitialCalls?.find(call => call.call_id?.includes('test_fresh_2025')));
+
+// ✅ Verificar si hay llamadas en general
+if (initialCalls && initialCalls.length > 0) {
+  console.log("📋 PRIMERAS 5 LLAMADAS RAW:");
+  initialCalls.slice(0, 5).forEach((call, index) => {
+    console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Agent: ${call.agent_id?.substring(0, 12)} - Status: ${call.call_status}`);
+  });
+} else {
+  console.log("❌ NO HAY LLAMADAS EN RAW - Problema en consulta SQL o webhook");
+}
 
       // ✅ AGREGAR ESTE DEBUG:
 console.log("🔍 RAW CALLS FROM DB:", initialCalls?.length || 0);
@@ -1481,75 +1525,115 @@ setTimeout(async () => {
   // ============================================================================
 
   const applyFiltersAndSort = () => {
-    let filtered = [...calls];
+  // 🔍 DEBUG INICIAL
+  console.log("🔍 BEFORE FILTERS - Total calls:", calls.length);
+  console.log("🔍 BEFORE FILTERS - Test call exists:", calls.find(c => c.call_id?.includes('test_fresh_2025')));
+  
+  let filtered = [...calls];
 
-    // Filtro por búsqueda
-    if (searchTerm) {
-      filtered = filtered.filter(call => 
-        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.from_number.includes(searchTerm) ||
-        call.to_number.includes(searchTerm) ||
-        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  // Filtro por búsqueda
+  if (searchTerm) {
+    const beforeSearch = filtered.length;
+    filtered = filtered.filter(call => 
+      call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      call.from_number.includes(searchTerm) ||
+      call.to_number.includes(searchTerm) ||
+      call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    console.log(`🔍 SEARCH FILTER: ${beforeSearch} → ${filtered.length} (term: "${searchTerm}")`);
+    if (searchTerm && !filtered.find(c => c.call_id?.includes('test_fresh_2025'))) {
+      console.log("⚠️ Test call filtered out by SEARCH");
     }
+  }
 
-    // Filtro por estado
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(call => call.call_status === statusFilter);
+  // Filtro por estado
+  if (statusFilter !== "all") {
+    const beforeStatus = filtered.length;
+    filtered = filtered.filter(call => call.call_status === statusFilter);
+    console.log(`🔍 STATUS FILTER: ${beforeStatus} → ${filtered.length} (status: "${statusFilter}")`);
+    if (statusFilter !== "all" && !filtered.find(c => c.call_id?.includes('test_fresh_2025'))) {
+      console.log("⚠️ Test call filtered out by STATUS");
     }
+  }
 
-    // ✅ FILTRO POR AGENTE CORREGIDO
-    if (agentFilter !== null) {
-      const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
-      if (selectedAgent) {
-        console.log(`🔍 Filtrando por agente: ${selectedAgent.name} (${selectedAgent.id})`);
-        
-        filtered = filtered.filter(call => {
-          const matchesId = call.agent_id === selectedAgent.id;
-          const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
-          const matchesCallAgent = call.call_agent?.id === selectedAgent.id;
-          
-          const isMatch = matchesId || matchesRetell || matchesCallAgent;
-          
-          if (isMatch) {
-            console.log(`✅ Llamada incluida en filtro: ${call.call_id}`);
-          }
-          
-          return isMatch;
-        });
-        
-        console.log(`📊 Llamadas después del filtro de agente: ${filtered.length}`);
-      } else {
-        console.log(`❌ Agente seleccionado no encontrado: ${agentFilter}`);
-        filtered = [];
-      }
-    }
-
-    // Filtro por fecha
-    filtered = filtered.filter(call => isDateInRange(call.timestamp));
-
-    // Ordenamiento
-    filtered.sort((a, b) => {
-      let aValue: any = a[sortField];
-      let bValue: any = b[sortField];
-
-      if (sortField === 'timestamp') {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
+  // ✅ FILTRO POR AGENTE CON DEBUG DETALLADO
+  if (agentFilter !== null) {
+    const beforeAgent = filtered.length;
+    const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
+    
+    console.log(`🔍 AGENT FILTER DEBUG:`, {
+      agentFilter,
+      selectedAgent: selectedAgent ? {
+        id: selectedAgent.id,
+        name: selectedAgent.name,
+        retell_agent_id: selectedAgent.retell_agent_id
+      } : null
     });
+    
+    if (selectedAgent) {
+      console.log(`🔍 Filtrando por agente: ${selectedAgent.name}`);
+      
+      // 🔍 DEBUG: Test call específicamente
+      const testCall = filtered.find(c => c.call_id?.includes('test_fresh_2025'));
+      if (testCall) {
+        console.log(`🎯 TEST CALL AGENT DEBUG:`, {
+          call_id: testCall.call_id,
+          call_agent_id: testCall.agent_id,
+          selected_agent_id: selectedAgent.id,
+          selected_retell_id: selectedAgent.retell_agent_id,
+          call_agent_object: testCall.call_agent
+        });
+      }
+      
+      filtered = filtered.filter(call => {
+        const matchesId = call.agent_id === selectedAgent.id;
+        const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
+        const matchesCallAgent = call.call_agent?.id === selectedAgent.id;
+        
+        return matchesId || matchesRetell || matchesCallAgent;
+      });
+    } else {
+      filtered = [];
+    }
+    
+    console.log(`🔍 AGENT FILTER: ${beforeAgent} → ${filtered.length}`);
+    if (agentFilter && !filtered.find(c => c.call_id?.includes('test_fresh_2025'))) {
+      console.log("⚠️ Test call filtered out by AGENT");
+    }
+  }
 
-    console.log(`🎯 Llamadas después de todos los filtros: ${filtered.length}`);
-    setFilteredCalls(filtered);
-  };
+  // Filtro por fecha
+  const beforeDate = filtered.length;
+  filtered = filtered.filter(call => isDateInRange(call.timestamp));
+  console.log(`🔍 DATE FILTER: ${beforeDate} → ${filtered.length} (filter: "${dateFilter}")`);
+  if (dateFilter !== 'all' && !filtered.find(c => c.call_id?.includes('test_fresh_2025'))) {
+    console.log("⚠️ Test call filtered out by DATE");
+  }
 
+  // Ordenamiento
+  filtered.sort((a, b) => {
+    let aValue: any = a[sortField];
+    let bValue: any = b[sortField];
+
+    if (sortField === 'timestamp') {
+      aValue = new Date(aValue).getTime();
+      bValue = new Date(bValue).getTime();
+    }
+
+    if (sortOrder === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
+    }
+  });
+
+  // 🔍 DEBUG FINAL
+  console.log("🔍 AFTER ALL FILTERS - Total:", filtered.length);
+  console.log("🔍 AFTER ALL FILTERS - Test call exists:", filtered.find(c => c.call_id?.includes('test_fresh_2025')));
+  
+  setFilteredCalls(filtered);
+};
   const calculateStats = () => {
     let totalCost = 0;
     let totalDuration = 0;
