@@ -248,9 +248,11 @@ const Index = () => {
                 </div>
                 <p className="text-muted-foreground mb-6 italic text-lg">"Reduced our cost per lead by 75% while increasing quality. The AI never gets tired and handles objections better than our junior reps."</p>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-brand-purple to-brand-navy rounded-full flex items-center justify-center">
-                    <span className="text-white font-semibold">SR</span>
-                  </div>
+                  <img 
+                    src="/lovable-uploads/1324861e-c0cc-441f-be79-541f8093e1f7.png" 
+                    alt="Sarah Rodriguez, VP Sales of RoofTech"
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
                   <div>
                     <div className="font-semibold">Sarah Rodriguez</div>
                     <div className="text-sm text-muted-foreground">VP Sales, RoofTech</div>
