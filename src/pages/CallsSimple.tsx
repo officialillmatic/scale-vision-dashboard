@@ -965,6 +965,13 @@ if (initialCalls && initialCalls.length > 0) {
       };
 
       const mappedInitialCalls = mapCalls(initialCalls);
+
+      // ✅ AGREGAR ESTE DEBUG:
+console.log("🔍 RAW CALLS FROM DB:", initialCalls?.length || 0);
+console.log("🔍 MAPPED CALLS:", mappedInitialCalls?.length || 0);
+console.log("🔍 FRESH TEST CALL:", mappedInitialCalls?.find(call => call.call_id.includes('test_fresh_2025')));
+
+setCalls(mappedInitialCalls);
       
       // ✅ MOSTRAR DATOS INICIALES RÁPIDAMENTE
       setCalls(mappedInitialCalls);
