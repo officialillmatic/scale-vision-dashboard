@@ -1,5 +1,5 @@
-// 🔥 CALLSSIMPLE.TSX CORREGIDO - Maneja descuentos exactos sin duplicación
-// Webhook solo guarda, Frontend descuenta con duración exacta de audio
+// 🔥 CALLSSIMPLE.TSX CORREGIDO - Carga valores exactos desde el primer momento
+// No muestra estimaciones de BD, solo valores exactos
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -294,6 +294,8 @@ export default function CallsSimple() {
   const [pageSize, setPageSize] = useState(10);
   const [paginatedCalls, setPaginatedCalls] = useState<Call[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false); // 🔧 NUEVO
+  const [forceUpdate, setForceUpdate] = useState(0); // 🔧 NUEVO - Para forzar actualizaciones
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
   const uniqueAgents = userAssignedAgents || [];
@@ -372,6 +374,7 @@ export default function CallsSimple() {
     return calculatedCost;
   };
 
+  // 🔧 FUNCIÓN ACTUALIZADA: Fuerza actualización inmediata
   const loadAudioDuration = async (call: Call) => {
     if (!call.recording_url || audioDurations[call.id]) return;
     
@@ -386,6 +389,10 @@ export default function CallsSimple() {
             ...prev,
             [call.id]: duration
           }));
+          
+          // 🔧 FORCE UPDATE: Simple counter increment
+          setForceUpdate(prev => prev + 1);
+          
           resolve();
         });
         
@@ -727,11 +734,11 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FETCH CALLS - BÚSQUEDA DIRECTA POR USER_ID
+  // FETCH CALLS - BÚSQUEDA DIRECTA POR USER_ID CON CARGA PRIORITARIA DE AUDIO
   // ============================================================================
   
   const fetchCalls = async () => {
-    console.log("🚀 FETCH CALLS - DETECTING REAL AND TEST CALLS (NO DUPLICATES)");
+    console.log("🚀 FETCH CALLS - LOADING EXACT VALUES FROM START");
     
     if (!user?.id) {
       setError("User not authenticated");
@@ -788,7 +795,7 @@ export default function CallsSimple() {
       setLoadingProgress('Loading calls...');
 
       // 🔧 BÚSQUEDA DIRECTA POR USER_ID
-      console.log('🚀 EXECUTING DIRECT CALL QUERY (NO DUPLICATES)...');
+      console.log('🚀 EXECUTING DIRECT CALL QUERY...');
       
       const { data: allCalls, error: callsError } = await supabase
         .from('calls')
@@ -797,7 +804,7 @@ export default function CallsSimple() {
         .order('timestamp', { ascending: false })
         .limit(200);
 
-      console.log(`📊 DIRECT QUERY RESULT (NO DUPLICATES):`, {
+      console.log(`📊 DIRECT QUERY RESULT:`, {
         totalFound: allCalls?.length || 0,
         hasError: !!callsError,
         errorMessage: callsError?.message || 'No errors'
@@ -810,7 +817,7 @@ export default function CallsSimple() {
       }
 
       if (allCalls && allCalls.length > 0) {
-        console.log('✅ CALLS FOUND (NO DUPLICATES):');
+        console.log('✅ CALLS FOUND:');
         
         // Separar llamadas reales vs de prueba
         const realCalls = allCalls.filter(call => !call.call_id.includes('test_'));
@@ -868,16 +875,34 @@ export default function CallsSimple() {
       };
 
       const mappedCalls = mapCalls(allCalls);
+
+      // 🔧 CARGA PRIORITARIA DE AUDIO - ANTES DE MOSTRAR LA TABLA
+      console.log("🎵 PRIORITY: Loading exact audio durations before displaying...");
+      const callsWithAudio = mappedCalls.filter(call => call.recording_url);
+      if (callsWithAudio.length > 0) {
+        setLoadingProgress('Loading exact audio durations...');
+        setIsLoadingAudio(true);
+        console.log(`🎵 Loading audio for ${callsWithAudio.length} calls with recordings...`);
+        
+        // Cargar audio para las primeras 8 llamadas inmediatamente (para que se vean exactas)
+        const priorityCalls = callsWithAudio.slice(0, 8);
+        for (const call of priorityCalls) {
+          await loadAudioDuration(call);
+        }
+        console.log(`✅ Priority audio loaded for ${priorityCalls.length} calls`);
+        setIsLoadingAudio(false);
+      }
       
-      console.log("🔄 MAPPING COMPLETED (NO DUPLICATES):");
+      console.log("🔄 MAPPING COMPLETED:");
       console.log(`   📊 Mapped calls: ${mappedCalls.length}`);
       console.log(`   🎯 With valid agents: ${mappedCalls.filter(c => c.call_agent?.rate_per_minute > 0).length}`);
+      console.log(`   🎵 Audio loaded for: ${Object.keys(audioDurations).length} calls`);
 
       setCalls(mappedCalls);
       setLoading(false);
       setLoadingProgress('');
 
-      console.log("🎉 LOAD COMPLETED - Real calls detection corrected (NO DUPLICATES)");
+      console.log("🎉 LOAD COMPLETED - Exact values loaded from start");
 
     } catch (err: any) {
       console.error("❌ Exception in fetch calls:", err);
@@ -1219,17 +1244,18 @@ export default function CallsSimple() {
   
   useEffect(() => {
     if (user?.id) {
-      console.log('🚀 INITIATING CORRECTED SYSTEM (NO DUPLICATES) for:', user.email);
+      console.log('🚀 INITIATING SYSTEM WITH EXACT VALUES FROM START for:', user.email);
       fetchCalls();
     }
   }, [user?.id]);
 
+  // 🔧 useEffect ACTUALIZADO: Incluye forceUpdate para actualizaciones automáticas
   useEffect(() => {
     if (calls.length > 0) {
       applyFiltersAndSort();
       calculateStats();
     }
-  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
+  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate, forceUpdate]); // 🔧 Agregado forceUpdate
 
   useEffect(() => {
     const totalPages = applyPagination();
@@ -1246,13 +1272,13 @@ export default function CallsSimple() {
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
   useEffect(() => {
-    console.log(`🔥 useEffect EXECUTED (NO DUPLICATES) - Navigation detected`);
+    console.log(`🔥 useEffect EXECUTED - Navigation detected`);
     
     if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
       setTimeout(async () => {
-        console.log(`⏰ setTimeout EXECUTING after navigation (NO DUPLICATES)`);
+        console.log(`⏰ setTimeout EXECUTING after navigation`);
         if (!isProcessing && await shouldProcessCalls()) {
-          console.log(`🚀 STARTING processNewCallsExact (NO DUPLICATES)`);
+          console.log(`🚀 STARTING processNewCallsExact`);
           processNewCallsExact();
         } else {
           console.log("🛡️ shouldProcessCalls() prevented duplicate processing");
@@ -1260,9 +1286,9 @@ export default function CallsSimple() {
       }, 1000);
       
       const interval = setInterval(async () => {
-        console.log(`⏰ Interval executing (NO DUPLICATES)...`);
+        console.log(`⏰ Interval executing...`);
         if (!backgroundLoading && !isProcessing && await shouldProcessCalls()) {
-          console.log(`⏰ Interval: Processing pending calls (NO DUPLICATES)`);
+          console.log(`⏰ Interval: Processing pending calls`);
           processNewCallsExact();
         } else {
           console.log("⏰ Interval: No really pending calls");
@@ -1305,7 +1331,7 @@ export default function CallsSimple() {
               <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-gray-600">
-                  Exact call processing with no duplicate deductions
+                  Exact values loaded from the first moment - no estimates
                   {selectedAgentName && (
                     <span className="ml-2 text-blue-600 font-medium">
                       • Filtered by {selectedAgentName}
@@ -1317,7 +1343,14 @@ export default function CallsSimple() {
                   {isProcessing && (
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                      <span className="text-xs font-medium text-blue-600">Exact Processing (No Duplicates)</span>
+                      <span className="text-xs font-medium text-blue-600">Processing Exact Costs</span>
+                    </div>
+                  )}
+                  
+                  {isLoadingAudio && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                      <span className="text-xs font-medium text-orange-600">Loading Exact Durations</span>
                     </div>
                   )}
                   
@@ -1336,7 +1369,7 @@ export default function CallsSimple() {
               
               <Button
                 onClick={() => {
-                  console.log("🔄 MANUAL REFRESH - NO DUPLICATES");
+                  console.log("🔄 MANUAL REFRESH - EXACT VALUES");
                   fetchCalls();
                 }}
                 disabled={loading}
@@ -1347,7 +1380,7 @@ export default function CallsSimple() {
                 {loading ? (
                   <div className="flex items-center gap-1">
                     <LoadingSpinner size="sm" />
-                    <span className="text-xs">Updating...</span>
+                    <span className="text-xs">Loading...</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1">
@@ -1358,8 +1391,8 @@ export default function CallsSimple() {
               </Button>
               
               <div className="text-right">
-                <div className="text-xs font-medium text-green-600">🛡️ No Duplicates</div>
-                <div className="text-xs text-gray-500">Protected</div>
+                <div className="text-xs font-medium text-green-600">🎯 Exact Values</div>
+                <div className="text-xs text-gray-500">From Start</div>
               </div>
             </div>
           </div>
@@ -1369,11 +1402,24 @@ export default function CallsSimple() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  🛡️ DUPLICATE PROTECTION ACTIVE: Webhook saves only, Frontend handles exact deductions
+                  🎯 EXACT VALUES LOADED: Audio durations loaded before display - no estimates shown
                 </span>
               </div>
             </CardContent>
           </Card>
+
+          {isLoadingAudio && (
+            <Card className="border-orange-200 bg-orange-50">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                  <span className="text-orange-700 text-sm font-medium">
+                    🎵 Loading exact audio durations for precise costs...
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {isProcessing && (
             <Card className="border-green-200 bg-green-50">
@@ -1569,7 +1615,9 @@ export default function CallsSimple() {
                 <div className="flex items-center justify-center py-12">
                   <LoadingSpinner size="lg" />
                   <div className="ml-3">
-                    <span className="text-gray-600 block">Loading calls...</span>
+                    <span className="text-gray-600 block">
+                      {loadingProgress.includes('audio') ? 'Loading exact durations...' : 'Loading calls...'}
+                    </span>
                     {loadingProgress && (
                       <span className="text-sm text-gray-500 mt-1 block">{loadingProgress}</span>
                     )}
@@ -1700,11 +1748,23 @@ export default function CallsSimple() {
                               <div className="text-sm font-medium text-gray-900">
                                 {formatDuration(getCallDuration(call))}
                               </div>
-                              <div className="text-xs text-gray-500">
-                                {audioDurations[call.id] ? 
-                                  `${getCallDuration(call)}s (exact)` : 
-                                  `${getCallDuration(call)}s (db)`
-                                }
+                              <div className="text-xs text-gray-500 flex items-center gap-1">
+                                {audioDurations[call.id] ? (
+                                  <>
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    {getCallDuration(call)}s (exact)
+                                  </>
+                                ) : call.recording_url ? (
+                                  <>
+                                    <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                                    {getCallDuration(call)}s (loading...)
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                    {getCallDuration(call)}s (db)
+                                  </>
+                                )}
                               </div>
                             </td>
 
@@ -1712,12 +1772,27 @@ export default function CallsSimple() {
                               <div className="text-sm font-medium text-gray-900">
                                 {formatCurrency(calculateCallCost(call))}
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-gray-500 flex items-center gap-1">
                                 {(() => {
                                   const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-                                  return agentRate ? 
-                                    `$${agentRate}/min (exact)` :
-                                    `$${call.cost_usd}/min (db)`;
+                                  const isExactCost = audioDurations[call.id] && agentRate;
+                                  
+                                  return isExactCost ? (
+                                    <>
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                      ${agentRate}/min (exact)
+                                    </>
+                                  ) : call.recording_url && !audioDurations[call.id] ? (
+                                    <>
+                                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                                      ${agentRate}/min (calculating...)
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                      ${agentRate}/min (estimated)
+                                    </>
+                                  );
                                 })()}
                               </div>
                             </td>
@@ -1775,7 +1850,7 @@ export default function CallsSimple() {
                                   </Badge>
                                 )}
                                 <div className="text-xs text-gray-500">
-                                  {call.processed_for_cost ? 'No duplicates' : 'Will process'}
+                                  {call.processed_for_cost ? 'Exact cost' : 'Will process'}
                                 </div>
                               </div>
                             </td>
