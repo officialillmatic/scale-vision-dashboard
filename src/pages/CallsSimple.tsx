@@ -1476,10 +1476,10 @@ export default function CallsSimple() {
           {/* Header HÍBRIDO */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">💎 Call Management HÍBRIDO</h1>
+              <h1 className="text-3xl font-bold text-gray-900">💎 Call Management </h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-gray-600">
-                  UI perfecta + Descuentos reales para tu cuenta
+                  DrScaleai Complete system calls
                   {selectedAgentName && (
                     <span className="ml-2 text-blue-600 font-medium">
                       • Filtered by {selectedAgentName}
@@ -1491,7 +1491,7 @@ export default function CallsSimple() {
                   {isProcessing && (
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
-                      <span className="text-xs font-medium text-green-600">Procesando descuentos reales</span>
+                      <span className="text-xs font-medium text-green-600">Processing real discounts</span>
                     </div>
                   )}
                   
@@ -1505,7 +1505,7 @@ export default function CallsSimple() {
             <div className="flex items-center gap-3">
               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                 <User className="w-3 h-3 mr-1" />
-                HÍBRIDO Active
+                System User Active
               </Badge>
               
               <Button
@@ -1532,8 +1532,8 @@ export default function CallsSimple() {
               </Button>
               
               <div className="text-right">
-                <div className="text-xs font-medium text-green-600">🟢 HÍBRIDO Active</div>
-                <div className="text-xs text-gray-500">UI + Descuentos</div>
+                <div className="text-xs font-medium text-green-600">🟢 System Active</div>
+                <div className="text-xs text-gray-500">Connected</div>
               </div>
             </div>
           </div>
@@ -1544,7 +1544,7 @@ export default function CallsSimple() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  💎 Sistema HÍBRIDO activo: UI perfecta + Descuentos de balance reales automáticos
+                  💎 Automatic Real Balance Discounts
                 </span>
               </div>
             </CardContent>
@@ -1557,7 +1557,7 @@ export default function CallsSimple() {
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500 mr-3"></div>
                   <span className="text-green-700 font-medium">
-                    💎 Procesando descuentos REALES con duraciones exactas - Sistema híbrido trabajando...
+                    💎 Processing REAL discounts with exact durations - Hybrid system working...
                   </span>
                 </div>
               </CardContent>
