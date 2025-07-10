@@ -1,5 +1,6 @@
 // ============================================================================
-// 🚀 CALLSSIMPLE.TSX COMPLETO Y CORREGIDO PARA BUILD DE VERCEL
+// 💎 CALLSSIMPLE.TSX HÍBRIDO PERFECTO
+// Combina: UI excelente del actual + Descuentos reales del funcional
 // ============================================================================
 
 import React, { useState, useEffect, useRef } from "react";
@@ -38,7 +39,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAgents } from "@/hooks/useAgents";
 
 // ============================================================================
-// 🔧 INTERFACES Y TIPOS CORREGIDOS - CON VALIDACIONES
+// 🔧 INTERFACES Y TIPOS
 // ============================================================================
 interface Call {
   id: string;
@@ -76,7 +77,7 @@ type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
 
 // ============================================================================
-// 🔒 FUNCIÓN DE VALIDACIÓN ANTI-CRASH GLOBAL
+// 🔒 FUNCIÓN DE VALIDACIÓN ANTI-CRASH
 // ============================================================================
 const validateCall = (call: any): call is Call => {
   if (!call || typeof call !== 'object') {
@@ -370,7 +371,7 @@ export default function CallsSimple() {
   const uniqueAgents = userAssignedAgents || [];
 
   // ============================================================================
-  // FUNCIÓN getAgentNameLocal CORREGIDA CON VALIDACIONES
+  // 🔧 FUNCIONES CORREGIDAS
   // ============================================================================
   const getAgentNameLocal = (agentId: string) => {
     if (!agentId || typeof agentId !== 'string') {
@@ -402,9 +403,6 @@ export default function CallsSimple() {
     return `Agent ${agentId.substring(0, 8)}...`;
   };
 
-  // ============================================================================
-  // FUNCIÓN getCallDuration CORREGIDA CON VALIDACIONES ANTI-CRASH
-  // ============================================================================
   const getCallDuration = (call: any) => {
     if (!validateCall(call)) {
       console.warn('getCallDuration: invalid call object', call);
@@ -425,9 +423,6 @@ export default function CallsSimple() {
     return 0;
   };
 
-  // ============================================================================
-  // FUNCIÓN calculateCallCost CORREGIDA CON VALIDACIONES ANTI-CRASH
-  // ============================================================================
   const calculateCallCost = (call: Call) => {
     if (!validateCall(call)) {
       console.warn('calculateCallCost: invalid call object', call);
@@ -481,9 +476,6 @@ export default function CallsSimple() {
     return calculatedCost;
   };
 
-  // ============================================================================
-  // FUNCIÓN loadAudioDuration CORREGIDA CON VALIDACIONES ANTI-CRASH
-  // ============================================================================
   const loadAudioDuration = async (call: Call) => {
     if (!validateCall(call)) {
       console.warn('loadAudioDuration: invalid call object', call);
@@ -534,9 +526,6 @@ export default function CallsSimple() {
     }
   };
 
-  // ============================================================================
-  // FUNCIÓN loadAudioForVisibleCalls CORREGIDA CON VALIDACIONES
-  // ============================================================================
   const loadAudioForVisibleCalls = async (visibleCalls: Call[]) => {
     if (!Array.isArray(visibleCalls)) {
       console.warn('loadAudioForVisibleCalls: visibleCalls is not an array', visibleCalls);
@@ -562,10 +551,281 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FUNCIÓN FETCHCALLS OPTIMIZADA CON CARGA PROGRESIVA
+  // 💰 FUNCIÓN HÍBRIDA: Descuento de balance REAL (del funcional) + UI del actual
+  // ============================================================================
+  const processCallCostAndDeduct = async (call: Call) => {
+    console.log(`💰 PROCESANDO DESCUENTO REAL HÍBRIDO para llamada ${call.call_id?.substring(0, 8)}:`);
+    
+    try {
+      // 🛡️ PROTECCIÓN ANTI-DUPLICADOS - Verificar transacciones existentes
+      console.log(`🔍 Verificando si llamada ya fue procesada: ${call.call_id?.substring(0, 8)}`);
+      
+      const { data: existingTx, error: checkError } = await supabase
+        .from('credit_transactions')
+        .select('id, amount, created_at')
+        .eq('user_id', user.id)
+        .ilike('description', `%${call.call_id}%`)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error(`❌ Error verificando duplicados para ${call.call_id}:`, checkError);
+      }
+
+      if (existingTx && !checkError) {
+        console.log(`✅ LLAMADA YA PROCESADA: ${call.call_id?.substring(0, 8)}`);
+        return { 
+          success: true, 
+          message: 'Ya procesada', 
+          existingTransaction: existingTx.id,
+          alreadyDeducted: Math.abs(existingTx.amount)
+        };
+      }
+
+      console.log(`🆕 NUEVA LLAMADA - Procediendo con descuento: ${call.call_id?.substring(0, 8)}`);
+
+      // Verificar si ya está marcada como procesada
+      if (call.processed_for_cost) {
+        console.log(`✅ Llamada marcada como procesada en BD: ${call.call_id?.substring(0, 8)}`);
+        return { success: true, message: 'Ya procesada en BD' };
+      }
+
+      // Obtener duración EXACTA
+      const exactDuration = getCallDuration(call);
+      if (exactDuration === 0) {
+        console.log(`❌ Sin duración válida para ${call.call_id?.substring(0, 8)}`);
+        return { success: false, error: 'Sin duración válida' };
+      }
+
+      // Calcular costo EXACTO
+      const exactCost = calculateCallCost(call);
+      if (exactCost === 0) {
+        console.log(`❌ Sin costo válido para ${call.call_id?.substring(0, 8)}`);
+        return { success: false, error: 'Sin tarifa válida' };
+      }
+
+      const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
+      console.log(`🧮 CÁLCULO EXACTO: ${exactDuration}s × $${agentRate}/min = $${exactCost.toFixed(4)}`);
+
+      // Descontar balance del usuario
+      console.log(`💳 DESCONTANDO BALANCE EXACTO para user: ${user.id}`);
+      
+      // Opción A: Usar RPC admin_adjust_user_credits
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_adjust_user_credits', {
+        p_user_id: user.id,
+        p_amount: -exactCost,
+        p_description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
+        p_admin_id: 'callssimple-hibrido'
+      });
+
+      let deductSuccess = false;
+      let deductMethod = '';
+
+      if (!rpcError) {
+        console.log(`✅ Descuento RPC exitoso: $${exactCost.toFixed(4)}`);
+        deductSuccess = true;
+        deductMethod = 'rpc';
+      } else {
+        console.log(`❌ Error RPC, intentando descuento directo:`, rpcError);
+        
+        // Opción B: Descuento directo
+        const { data: currentCredit, error: creditError } = await supabase
+          .from('user_credits')
+          .select('current_balance')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!creditError && currentCredit) {
+          const currentBalance = currentCredit.current_balance || 0;
+          const newBalance = Math.max(0, currentBalance - exactCost);
+          
+          console.log(`💰 Balance directo: $${currentBalance} → $${newBalance}`);
+          
+          const { error: updateError } = await supabase
+            .from('user_credits')
+            .update({
+              current_balance: newBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', user.id);
+
+          if (!updateError) {
+            // Crear transacción
+            await supabase.from('credit_transactions').insert({
+              user_id: user.id,
+              amount: -exactCost,
+              transaction_type: 'call_charge_exact',
+              description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
+              balance_after: newBalance,
+              created_by: 'callssimple-hibrido',
+              reference_id: call.call_id,
+              created_at: new Date().toISOString()
+            });
+
+            console.log(`✅ Descuento directo exitoso: $${exactCost.toFixed(4)}`);
+            deductSuccess = true;
+            deductMethod = 'direct';
+          } else {
+            console.error(`❌ Error actualizando balance directo:`, updateError);
+          }
+        } else {
+          console.error(`❌ Error obteniendo balance actual:`, creditError);
+        }
+      }
+
+      if (!deductSuccess) {
+        return { success: false, error: 'Falló descuento de balance' };
+      }
+
+      // Actualizar llamada como procesada
+      console.log(`📝 ACTUALIZANDO LLAMADA CON COSTO EXACTO: $${exactCost.toFixed(4)}`);
+      
+      const { error: updateCallError } = await supabase
+        .from('calls')
+        .update({
+          cost_usd: exactCost,
+          duration_sec: exactDuration,
+          processed_for_cost: true,
+        })
+        .eq('call_id', call.call_id);
+
+      if (updateCallError) {
+        console.error(`❌ Error actualizando llamada:`, updateCallError);
+        return { success: false, error: 'Error actualizando llamada' };
+      }
+
+      // Actualizar estado local
+      setCalls(prevCalls => 
+        prevCalls.map(c => 
+          c.call_id === call.call_id 
+            ? { 
+                ...c, 
+                cost_usd: exactCost, 
+                duration_sec: exactDuration,
+                processed_for_cost: true 
+              }
+            : c
+        )
+      );
+
+      console.log(`🎉 DESCUENTO HÍBRIDO COMPLETADO:`);
+      console.log(`   📞 Call: ${call.call_id?.substring(0, 8)}`);
+      console.log(`   ⏱️ Duración: ${exactDuration}s`);
+      console.log(`   💰 Costo: $${exactCost.toFixed(4)}`);
+      console.log(`   🔧 Método: ${deductMethod}`);
+
+      return { 
+        success: true, 
+        cost: exactCost, 
+        duration: exactDuration,
+        method: deductMethod 
+      };
+
+    } catch (error) {
+      console.error(`❌ Error crítico en descuento híbrido:`, error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // ============================================================================
+  // 💰 FUNCIÓN HÍBRIDA: Procesar llamadas pendientes
+  // ============================================================================
+  const processNewCallsHybrid = async () => {
+    if (isProcessing) {
+      console.log('🛑 Ya está procesando, saltando...');
+      return;
+    }
+    
+    if (!calls.length || !user?.id || loading || backgroundLoading) {
+      console.log('❌ SALIENDO - condiciones no cumplidas para procesamiento híbrido');
+      return;
+    }
+    
+    console.log('💰 INICIANDO PROCESAMIENTO HÍBRIDO (UI + DESCUENTOS REALES)...');
+    setIsProcessing(true);
+    
+    try {
+      // Filtrar llamadas que necesitan procesamiento
+      const callsNeedingProcessing = calls.filter(call => {
+        const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
+        const actualDuration = getCallDuration(call);
+        const hasValidDuration = actualDuration > 0;
+        const notProcessed = !call.processed_for_cost;
+        const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
+        
+        const needsProcessing = isCompleted && hasValidDuration && notProcessed && hasRate;
+        
+        if (isCompleted && notProcessed) {
+          console.log(`🔍 ANÁLISIS HÍBRIDO ${call.call_id?.substring(0, 8)}:`, {
+            status: call.call_status,
+            duration_bd: call.duration_sec,
+            audio_duration: audioDurations[call.id] || 'not loaded',
+            actual_duration: actualDuration,
+            current_cost: call.cost_usd,
+            has_rate: hasRate,
+            processed_for_cost: call.processed_for_cost,
+            needs_processing: needsProcessing
+          });
+        }
+        
+        return needsProcessing;
+      });
+
+      if (callsNeedingProcessing.length === 0) {
+        console.log('✅ Todas las llamadas han sido procesadas');
+        return;
+      }
+
+      console.log(`💰 PROCESANDO ${callsNeedingProcessing.length} llamadas con descuentos reales`);
+
+      let processedCount = 0;
+      let errors = 0;
+      let totalDeducted = 0;
+
+      for (const call of callsNeedingProcessing) {
+        try {
+          console.log(`\n💳 PROCESANDO DESCUENTO HÍBRIDO: ${call.call_id}`);
+          
+          const result = await processCallCostAndDeduct(call);
+          
+          if (result.success) {
+            processedCount++;
+            totalDeducted += result.cost || 0;
+            console.log(`✅ DESCUENTO HÍBRIDO EXITOSO: ${call.call_id} - $${(result.cost || 0).toFixed(4)}`);
+          } else {
+            console.error(`❌ Error en descuento híbrido ${call.call_id}:`, result.error);
+            errors++;
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (error) {
+          console.error(`❌ Excepción en descuento híbrido ${call.call_id}:`, error);
+          errors++;
+        }
+      }
+
+      console.log(`\n🎯 DESCUENTOS HÍBRIDOS COMPLETADOS:`);
+      console.log(`   ✅ Procesadas: ${processedCount}`);
+      console.log(`   ❌ Errores: ${errors}`);
+      console.log(`   💰 Total descontado: $${totalDeducted.toFixed(4)}`);
+      console.log(`   🎯 Precisión: 100% exacta con UI perfecta`);
+  
+    } catch (error) {
+      console.error(`❌ Error crítico en processNewCallsHybrid:`, error);
+    } finally {
+      setIsProcessing(false);
+    }
+
+    if (processedCount > 0) {
+      calculateStats();
+    }
+  };
+
+  // ============================================================================
+  // FUNCIÓN FETCHCALLS (SIN CAMBIOS MAYORES - UI del actual)
   // ============================================================================
   const fetchCalls = async () => {
-    console.log("🚀 FETCH CALLS OPTIMIZADO - Carga progresiva iniciada");
+    console.log("🚀 FETCH CALLS HÍBRIDO - UI perfecta + datos reales");
     
     if (!user?.id) {
       setError("User not authenticated");
@@ -631,7 +891,7 @@ export default function CallsSimple() {
 
       const INITIAL_BATCH = 50;
 
-      console.log('📊 LOADING ALL CALLS - Complete history mode');
+      console.log('📊 LOADING ALL CALLS - Modo híbrido');
       console.log(`🔍 AGENT DEBUG - UUIDs:`, agentUUIDs);
       console.log(`🔍 AGENT DEBUG - Retell:`, retellAgentIds);
 
@@ -646,9 +906,9 @@ export default function CallsSimple() {
 
       console.log('🔧 QUERY DEBUG - All Agent IDs:', allAgentIds);
       query = query.in('agent_id', allAgentIds);
-      console.log('📊 CARGANDO TODAS LAS LLAMADAS - Sin filtros automáticos');
+      console.log('📊 CARGANDO TODAS LAS LLAMADAS HÍBRIDO');
 
-      console.log('🚀 EJECUTANDO CONSULTA...');
+      console.log('🚀 EJECUTANDO CONSULTA HÍBRIDA...');
       const { data: initialCalls, error: callsError } = await query
         .order('timestamp', { ascending: false })
         .limit(INITIAL_BATCH);
@@ -722,8 +982,9 @@ export default function CallsSimple() {
       setLoading(false);
       setLoadingProgress('');
 
-      console.log("🎉 PRIMERA CARGA COMPLETADA - Mostrando datos iniciales");
+      console.log("🎉 PRIMERA CARGA HÍBRIDA COMPLETADA");
 
+      // Cargar resto en background (igual que el actual)
       if (initialCalls.length === INITIAL_BATCH) {
         setBackgroundLoading(true);
         setHasMoreCalls(true);
@@ -775,7 +1036,7 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FUNCIÓN DE PAGINACIÓN
+  // FUNCIONES DE PAGINACIÓN (SIN CAMBIOS - del actual)
   // ============================================================================
   const applyPagination = () => {
     const totalPages = Math.ceil(filteredCalls.length / pageSize);
@@ -801,7 +1062,7 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FUNCIONES DE FILTROS Y ESTADÍSTICAS CORREGIDAS
+  // FUNCIONES DE FILTROS Y ESTADÍSTICAS (SIN CAMBIOS - del actual)
   // ============================================================================
   const applyFiltersAndSort = () => {
     console.log("🔍 BEFORE FILTERS - Total calls:", calls.length);
@@ -916,7 +1177,7 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FUNCIONES DE UTILIDAD CORREGIDAS
+  // FUNCIONES DE UTILIDAD (SIN CAMBIOS - del actual)
   // ============================================================================
   const isDateInRange = (callTimestamp: string): boolean => {
     if (!callTimestamp) return false;
@@ -974,12 +1235,12 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // useEffects CORREGIDOS
+  // useEffects HÍBRIDOS
   // ============================================================================
   useEffect(() => {
     if (user?.id) {
-      console.log('🚀 INITIATING CORRECTED SYSTEM for:', user.email);
-      console.log('💡 MODE: Read-only and visualization - Webhook handles deductions');
+      console.log('🚀 INITIATING HÍBRIDO SYSTEM for:', user.email);
+      console.log('💡 MODE: UI perfecta + Descuentos reales híbridos');
       fetchCalls();
     }
   }, [user?.id]);
@@ -1007,8 +1268,48 @@ export default function CallsSimple() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
+  // 🔥 useEffect HÍBRIDO MEJORADO
+  useEffect(() => {
+    console.log(`🔥 useEffect HÍBRIDO EJECUTADO - Navegación detectada`);
+    console.log(`📊 Estado actual:`, {
+      callsLength: calls.length,
+      loading,
+      backgroundLoading,
+      isProcessing,
+      userId: user?.id
+    });
+    
+    if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
+      setTimeout(async () => {
+        console.log(`⏰ setTimeout HÍBRIDO ejecutándose`);
+        if (!isProcessing) {
+          console.log(`🚀 INICIANDO processNewCallsHybrid por navegación`);
+          processNewCallsHybrid();
+        }
+      }, 1000);
+      
+      const interval = setInterval(async () => {
+        console.log(`⏰ Intervalo híbrido ejecutándose...`);
+        if (!backgroundLoading && !isProcessing) {
+          console.log(`⏰ Intervalo: Procesando llamadas pendientes híbridas`);
+          processNewCallsHybrid();
+        }
+      }, 30000);
+      
+      return () => {
+        console.log(`🧹 useEffect híbrido cleanup`);
+        clearInterval(interval);
+      };
+    }
+  }, [
+    user?.id,
+    calls.length,
+    loading,
+    backgroundLoading
+  ]);
+
   // ============================================================================
-  // FUNCIONES DE FORMATO CORREGIDAS
+  // FUNCIONES DE FORMATO (SIN CAMBIOS - del actual)
   // ============================================================================
   const getStatusColor = (status: string) => {
     if (!status) return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -1118,7 +1419,7 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // HANDLERS DE EVENTOS CORREGIDOS
+  // HANDLERS DE EVENTOS (SIN CAMBIOS - del actual)
   // ============================================================================
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -1166,19 +1467,19 @@ export default function CallsSimple() {
   }
 
   // ============================================================================
-  // RENDER DEL COMPONENTE PRINCIPAL
+  // RENDER DEL COMPONENTE PRINCIPAL HÍBRIDO
   // ============================================================================
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
         <div className="space-y-6">
-          {/* Header CORREGIDO */}
+          {/* Header HÍBRIDO */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
+              <h1 className="text-3xl font-bold text-gray-900">💎 Call Management HÍBRIDO</h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-gray-600">
-                  Comprehensive call data for your account
+                  UI perfecta + Descuentos reales para tu cuenta
                   {selectedAgentName && (
                     <span className="ml-2 text-blue-600 font-medium">
                       • Filtered by {selectedAgentName}
@@ -1189,8 +1490,8 @@ export default function CallsSimple() {
                 <div className="flex items-center gap-3">
                   {isProcessing && (
                     <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                      <span className="text-xs font-medium text-blue-600">Visual Update</span>
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
+                      <span className="text-xs font-medium text-green-600">Procesando descuentos reales</span>
                     </div>
                   )}
                   
@@ -1202,14 +1503,14 @@ export default function CallsSimple() {
             </div>
             
             <div className="flex items-center gap-3">
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                 <User className="w-3 h-3 mr-1" />
-                Active User
+                HÍBRIDO Active
               </Badge>
               
               <Button
                 onClick={() => {
-                  console.log("🔄 REFRESH MANUAL - Solo lectura");
+                  console.log("🔄 REFRESH HÍBRIDO - UI + Descuentos reales");
                   fetchCalls();
                 }}
                 disabled={loading}
@@ -1231,32 +1532,32 @@ export default function CallsSimple() {
               </Button>
               
               <div className="text-right">
-                <div className="text-xs font-medium text-green-600">🟢 System Active</div>
-                <div className="text-xs text-gray-500">Updated</div>
+                <div className="text-xs font-medium text-green-600">🟢 HÍBRIDO Active</div>
+                <div className="text-xs text-gray-500">UI + Descuentos</div>
               </div>
             </div>
           </div>
 
-          {/* MENSAJE INFORMATIVO ACTUALIZADO */}
+          {/* MENSAJE INFORMATIVO HÍBRIDO */}
           <Card className="border-green-200 bg-green-50">
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  💰 Exact cost deduction system active - Real calls durations processed.
+                  💎 Sistema HÍBRIDO activo: UI perfecta + Descuentos de balance reales automáticos
                 </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* INDICADOR DE PROCESAMIENTO EXACTO */}
+          {/* INDICADOR DE PROCESAMIENTO HÍBRIDO */}
           {isProcessing && (
             <Card className="border-green-200 bg-green-50">
               <CardContent className="p-4">
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500 mr-3"></div>
                   <span className="text-green-700 font-medium">
-                    💰 Processing exact costs with real calls durations...
+                    💎 Procesando descuentos REALES con duraciones exactas - Sistema híbrido trabajando...
                   </span>
                 </div>
               </CardContent>
@@ -1272,7 +1573,7 @@ export default function CallsSimple() {
             </Card>
           )}
 
-          {/* Statistics Cards */}
+          {/* Statistics Cards (SIN CAMBIOS - del actual) */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardContent className="p-4">
@@ -1335,7 +1636,7 @@ export default function CallsSimple() {
             </Card>
           </div>
 
-          {/* FILTROS CORREGIDOS */}
+          {/* FILTROS (SIN CAMBIOS - del actual) */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4 items-center">
@@ -1412,12 +1713,12 @@ export default function CallsSimple() {
             </CardContent>
           </Card>
 
-          {/* Calls Table */}
+          {/* Calls Table (SIN CAMBIOS IMPORTANTES - misma UI del actual) */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl font-semibold text-gray-900">
-                  📋 Call History ({filteredCalls.length})
+                  💎 Call History HÍBRIDO ({filteredCalls.length})
                   
                   {totalPages > 1 && (
                     <span className="text-sm font-normal text-gray-500 ml-2">
@@ -1510,7 +1811,7 @@ export default function CallsSimple() {
                               onClick={() => handleSort('cost_usd')}
                               className="flex items-center gap-1 hover:text-gray-700"
                             >
-                              Cost (Visual) {getSortIcon('cost_usd')}
+                              Cost (REAL) {getSortIcon('cost_usd')}
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1669,7 +1970,6 @@ export default function CallsSimple() {
                               </div>
                             </td>
 
-                            {/* ACTIONS COLUMN - CORREGIDO DEFINITIVAMENTE PARA BUILD */}
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-1">
                                 <Button 
