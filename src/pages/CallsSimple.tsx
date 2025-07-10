@@ -1,5 +1,5 @@
 // ============================================================================
-// 🚀 INICIO PARTE 1: IMPORTS Y INTERFACES - CALLSSIMPLE.TSX CORREGIDO
+// 🚀 CALLSSIMPLE.TSX COMPLETO Y CORREGIDO PARA BUILD DE VERCEL
 // ============================================================================
 
 import React, { useState, useEffect, useRef } from "react";
@@ -68,7 +68,7 @@ interface Call {
     rate_per_minute: number;
   };
   processed_for_cost?: boolean;
-  audioDuration?: number; // 🆕 Para duración de audio cargada
+  audioDuration?: number;
 }
 
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
@@ -93,14 +93,7 @@ const validateCall = (call: any): call is Call => {
 };
 
 // ============================================================================
-// 🔚 FINAL PARTE 1: IMPORTS Y INTERFACES
-// ============================================================================
-// ============================================================================
-// 🚀 INICIO PARTE 2: COMPONENTES AUXILIARES - SIN CAMBIOS MAYORES
-// ============================================================================
-
-// ============================================================================
-// COMPONENTE FILTRO DE AGENTES (SIN CAMBIOS)
+// COMPONENTE FILTRO DE AGENTES
 // ============================================================================
 const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -198,7 +191,7 @@ const AgentFilter = ({ agents, selectedAgent, onAgentChange, isLoading }) => {
 };
 
 // ============================================================================
-// 🆕 COMPONENTE DE PAGINACIÓN (SIN CAMBIOS)
+// COMPONENTE DE PAGINACIÓN
 // ============================================================================
 const PaginationControls = ({ 
   currentPage, 
@@ -331,19 +324,13 @@ const PaginationControls = ({
 };
 
 // ============================================================================
-// 🔚 FINAL PARTE 2: COMPONENTES AUXILIARES
+// COMPONENTE PRINCIPAL
 // ============================================================================
-// ============================================================================
-// 🚀 INICIO PARTE 3: COMPONENTE PRINCIPAL Y ESTADOS
-// ============================================================================
-
 export default function CallsSimple() {
   const { user } = useAuth();
   const { getAgentName, isLoadingAgents } = useAgents();
   
-  // ============================================================================
-  // 🔧 ESTADOS BÁSICOS DEL COMPONENTE - CORREGIDOS
-  // ============================================================================
+  // Estados básicos del componente
   const [calls, setCalls] = useState<Call[]>([]);
   const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -370,12 +357,12 @@ export default function CallsSimple() {
     completedCalls: 0
   });
 
-  // 🆕 Estados de paginación
+  // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [paginatedCalls, setPaginatedCalls] = useState<Call[]>([]);
 
-  // 🔒 Estados para procesamiento automático (SOLO VISUAL AHORA)
+  // Estados para procesamiento automático
   const [isProcessing, setIsProcessing] = useState(false);
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
@@ -383,16 +370,14 @@ export default function CallsSimple() {
   const uniqueAgents = userAssignedAgents || [];
 
   // ============================================================================
-  // 🔧 FUNCIÓN getAgentNameLocal CORREGIDA CON VALIDACIONES
+  // FUNCIÓN getAgentNameLocal CORREGIDA CON VALIDACIONES
   // ============================================================================
   const getAgentNameLocal = (agentId: string) => {
-    // 🛡️ VALIDACIÓN CRÍTICA
     if (!agentId || typeof agentId !== 'string') {
       console.warn('getAgentNameLocal: invalid agentId', agentId);
       return 'Unknown Agent';
     }
 
-    // Buscar en userAssignedAgents
     if (Array.isArray(userAssignedAgents)) {
       const agent = userAssignedAgents.find(a => 
         a && (a.id === agentId || a.retell_agent_id === agentId)
@@ -403,7 +388,6 @@ export default function CallsSimple() {
       }
     }
     
-    // Fallback a getAgentName si está disponible
     if (getAgentName && typeof getAgentName === 'function') {
       try {
         const agentName = getAgentName(agentId);
@@ -415,34 +399,23 @@ export default function CallsSimple() {
       }
     }
     
-    // Fallback final
     return `Agent ${agentId.substring(0, 8)}...`;
   };
 
-// ============================================================================
-// 🔚 FINAL PARTE 3: COMPONENTE PRINCIPAL Y ESTADOS
-// ============================================================================
-// ============================================================================
-// 🚀 INICIO PARTE 4: FUNCIONES AUXILIARES CORREGIDAS - CRÍTICAS
-// ============================================================================
-
   // ============================================================================
-  // ✅ FUNCIÓN getCallDuration CORREGIDA CON VALIDACIONES ANTI-CRASH
+  // FUNCIÓN getCallDuration CORREGIDA CON VALIDACIONES ANTI-CRASH
   // ============================================================================
   const getCallDuration = (call: any) => {
-    // 🛡️ VALIDACIÓN CRÍTICA
     if (!validateCall(call)) {
       console.warn('getCallDuration: invalid call object', call);
       return 0;
     }
 
-    // ✅ PRIORIZAR duración del audio (más precisa)
     if (call.id && audioDurations[call.id] && audioDurations[call.id] > 0) {
       console.log(`🎵 Usando duración de audio: ${audioDurations[call.id]}s para ${call.call_id?.substring(0, 8)}`);
       return audioDurations[call.id];
     }
     
-    // Fallback a duration_sec de la BD
     if (call.duration_sec && call.duration_sec > 0) {
       console.log(`📊 Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
       return call.duration_sec;
@@ -453,10 +426,9 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // ✅ FUNCIÓN calculateCallCost CORREGIDA CON VALIDACIONES ANTI-CRASH
+  // FUNCIÓN calculateCallCost CORREGIDA CON VALIDACIONES ANTI-CRASH
   // ============================================================================
   const calculateCallCost = (call: Call) => {
-    // 🛡️ VALIDACIÓN CRÍTICA
     if (!validateCall(call)) {
       console.warn('calculateCallCost: invalid call object', call);
       return 0;
@@ -470,7 +442,6 @@ export default function CallsSimple() {
       agents_rate: call.agents?.rate_per_minute
     });
     
-    // 1. Obtener duración
     const duration = getCallDuration(call);
     if (duration === 0) {
       console.log(`⚠️ Sin duración, costo = $0`);
@@ -479,7 +450,6 @@ export default function CallsSimple() {
     
     const durationMinutes = duration / 60;
     
-    // 2. Buscar tarifa del agente (priorizar call_agent, luego agents)
     let agentRate = 0;
     
     if (call.call_agent?.rate_per_minute) {
@@ -489,7 +459,6 @@ export default function CallsSimple() {
       agentRate = call.agents.rate_per_minute;
       console.log(`✅ Usando tarifa de agents: $${agentRate}/min`);
     } else {
-      // Buscar en userAssignedAgents como fallback
       const userAgent = userAssignedAgents.find(agent => 
         agent && (
           agent.id === call.agent_id || 
@@ -506,7 +475,6 @@ export default function CallsSimple() {
       }
     }
     
-    // 3. Calcular costo
     const calculatedCost = Math.round(((duration / 60.0) * agentRate) * 10000) / 10000;
     console.log(`🧮 Costo calculado: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${calculatedCost.toFixed(4)}`);
     
@@ -514,10 +482,9 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // ✅ FUNCIÓN loadAudioDuration CORREGIDA CON VALIDACIONES ANTI-CRASH
+  // FUNCIÓN loadAudioDuration CORREGIDA CON VALIDACIONES ANTI-CRASH
   // ============================================================================
   const loadAudioDuration = async (call: Call) => {
-    // 🛡️ VALIDACIÓN CRÍTICA
     if (!validateCall(call)) {
       console.warn('loadAudioDuration: invalid call object', call);
       return;
@@ -539,7 +506,6 @@ export default function CallsSimple() {
       
       return new Promise<void>((resolve) => {
         audio.addEventListener('loadedmetadata', () => {
-          // ✅ VALIDACIÓN ANTES DE UPDATE
           if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
             const duration = Math.round(audio.duration);
             console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
@@ -558,7 +524,6 @@ export default function CallsSimple() {
           resolve();
         });
 
-        // Timeout de seguridad
         setTimeout(() => {
           console.log(`⏰ Timeout cargando audio para ${call.call_id?.substring(0, 8)}`);
           resolve();
@@ -570,10 +535,9 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // ✅ FUNCIÓN loadAudioForVisibleCalls CORREGIDA CON VALIDACIONES
+  // FUNCIÓN loadAudioForVisibleCalls CORREGIDA CON VALIDACIONES
   // ============================================================================
   const loadAudioForVisibleCalls = async (visibleCalls: Call[]) => {
-    // 🛡️ VALIDACIÓN CRÍTICA
     if (!Array.isArray(visibleCalls)) {
       console.warn('loadAudioForVisibleCalls: visibleCalls is not an array', visibleCalls);
       return;
@@ -588,7 +552,6 @@ export default function CallsSimple() {
     
     console.log(`🎵 Cargando audio para ${callsWithAudio.length} llamadas visibles...`);
     
-    // Cargar en pequeños lotes para no bloquear
     for (let i = 0; i < callsWithAudio.length; i += 2) {
       const batch = callsWithAudio.slice(i, i + 2);
       await Promise.all(batch.map(call => loadAudioDuration(call)));
@@ -598,273 +561,9 @@ export default function CallsSimple() {
     }
   };
 
-// ============================================================================
-// 🔚 FINAL PARTE 4: FUNCIONES AUXILIARES CORREGIDAS
-// ============================================================================
-// ============================================================================
-// 🚀 INICIO PARTE 5: FUNCIONES DE PROCESAMIENTO - CORREGIDAS
-// ============================================================================
-
   // ============================================================================
-  // 🆕 FUNCIÓN: Descuento de balance EXACTO (CORREGIDA)
+  // FUNCIÓN FETCHCALLS OPTIMIZADA CON CARGA PROGRESIVA
   // ============================================================================
-  const processCallCostAndDeduct = async (call: Call) => {
-    console.log(`💰 PROCESANDO DESCUENTO EXACTO para llamada ${call.call_id?.substring(0, 8)}:`);
-    
-    try {
-      // 🛡️ VALIDACIÓN CRÍTICA
-      if (!validateCall(call)) {
-        console.error('processCallCostAndDeduct: invalid call object', call);
-        return { success: false, error: 'Invalid call object' };
-      }
-
-      // 🛡️ NUEVA PROTECCIÓN ANTI-DUPLICADOS - VERIFICAR TRANSACCIONES EXISTENTES
-      console.log(`🔍 Verificando si llamada ya fue procesada: ${call.call_id?.substring(0, 8)}`);
-      
-      const { data: existingTx, error: checkError } = await supabase
-        .from('credit_transactions')
-        .select('id, description, amount, created_at')
-        .eq('user_id', user.id)
-        .ilike('description', `%${call.call_id}%`)
-        .single();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error(`❌ Error verificando duplicados para ${call.call_id}:`, checkError);
-      }
-
-      if (existingTx && !checkError) {
-        console.log(`✅ LLAMADA YA PROCESADA: ${call.call_id?.substring(0, 8)}`);
-        return { 
-          success: true, 
-          message: 'Ya procesada', 
-          existingTransaction: existingTx.id,
-          alreadyDeducted: Math.abs(existingTx.amount),
-          processedAt: existingTx.created_at
-        };
-      }
-
-      console.log(`🆕 NUEVA LLAMADA - Procediendo con descuento: ${call.call_id?.substring(0, 8)}`);
-
-      // 🛡️ VERIFICACIÓN ADICIONAL: Campo processed_for_cost en BD
-      if (call.processed_for_cost) {
-        console.log(`✅ Llamada marcada como procesada en BD: ${call.call_id?.substring(0, 8)}`);
-        return { success: true, message: 'Ya procesada en BD' };
-      }
-
-      // 2. Obtener duración EXACTA (priorizar audio)
-      const exactDuration = getCallDuration(call);
-      if (exactDuration === 0) {
-        console.log(`❌ Sin duración válida para ${call.call_id?.substring(0, 8)}`);
-        return { success: false, error: 'Sin duración válida' };
-      }
-
-      // 3. Calcular costo EXACTO
-      const exactCost = calculateCallCost(call);
-      if (exactCost === 0) {
-        console.log(`❌ Sin costo válido para ${call.call_id?.substring(0, 8)}`);
-        return { success: false, error: 'Sin tarifa válida' };
-      }
-
-      const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
-      console.log(`🧮 CÁLCULO EXACTO: ${exactDuration}s × $${agentRate}/min = $${exactCost.toFixed(4)}`);
-
-      // 4. Descontar balance del usuario
-      console.log(`💳 DESCONTANDO BALANCE EXACTO para user: ${user.id}`);
-      
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_adjust_user_credits', {
-        p_user_id: user.id,
-        p_amount: -exactCost,
-        p_description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
-        p_admin_id: 'callssimple-exact-deduct'
-      });
-
-      let deductSuccess = false;
-      let deductMethod = '';
-
-      if (!rpcError) {
-        console.log(`✅ Descuento RPC exitoso: $${exactCost.toFixed(4)}`);
-        deductSuccess = true;
-        deductMethod = 'rpc';
-      } else {
-        console.log(`❌ Error RPC, intentando descuento directo:`, rpcError);
-        
-        const { data: currentCredit, error: creditError } = await supabase
-          .from('user_credits')
-          .select('current_balance')
-          .eq('user_id', user.id)
-          .single();
-
-        if (!creditError && currentCredit) {
-          const currentBalance = currentCredit.current_balance || 0;
-          const newBalance = Math.max(0, currentBalance - exactCost);
-          
-          console.log(`💰 Balance directo: $${currentBalance} → $${newBalance}`);
-          
-          const { error: updateError } = await supabase
-            .from('user_credits')
-            .update({
-              current_balance: newBalance,
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', user.id);
-
-          if (!updateError) {
-            await supabase.from('credit_transactions').insert({
-              user_id: user.id,
-              amount: -exactCost,
-              transaction_type: 'call_charge_exact',
-              description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
-              balance_after: newBalance,
-              created_by: 'callssimple-exact',
-              reference_id: call.call_id,
-              created_at: new Date().toISOString()
-            });
-
-            console.log(`✅ Descuento directo exitoso: $${exactCost.toFixed(4)}`);
-            deductSuccess = true;
-            deductMethod = 'direct';
-          } else {
-            console.error(`❌ Error actualizando balance directo:`, updateError);
-          }
-        } else {
-          console.error(`❌ Error obteniendo balance actual:`, creditError);
-        }
-      }
-
-      if (!deductSuccess) {
-        return { success: false, error: 'Falló descuento de balance' };
-      }
-
-      // 5. Actualizar llamada como procesada con costo exacto
-      console.log(`📝 ACTUALIZANDO LLAMADA CON COSTO EXACTO: $${exactCost.toFixed(4)}`);
-      
-      const { error: updateCallError } = await supabase
-        .from('calls')
-        .update({
-          cost_usd: exactCost,
-          duration_sec: exactDuration,
-          processed_for_cost: true,
-        })
-        .eq('call_id', call.call_id);
-
-      if (updateCallError) {
-        console.error(`❌ Error actualizando llamada:`, updateCallError);
-        return { success: false, error: 'Error actualizando llamada' };
-      }
-
-      // 6. Actualizar estado local
-      setCalls(prevCalls => 
-        prevCalls.map(c => 
-          c.call_id === call.call_id 
-            ? { 
-                ...c, 
-                cost_usd: exactCost, 
-                duration_sec: exactDuration,
-                processed_for_cost: true 
-              }
-            : c
-        )
-      );
-
-      console.log(`🎉 DESCUENTO EXACTO COMPLETADO:`);
-      console.log(`   📞 Call: ${call.call_id?.substring(0, 8)}`);
-      console.log(`   ⏱️ Duración: ${exactDuration}s`);
-      console.log(`   💰 Costo: $${exactCost.toFixed(4)}`);
-      console.log(`   🔧 Método: ${deductMethod}`);
-
-      return { 
-        success: true, 
-        cost: exactCost, 
-        duration: exactDuration,
-        method: deductMethod 
-      };
-
-    } catch (error) {
-      console.error(`❌ Error crítico en descuento exacto:`, error);
-      return { success: false, error: error.message };
-    }
-  };
-
-  // ============================================================================
-  // 🛡️ FUNCIÓN: Verificación robusta sin errores SQL
-  // ============================================================================
-  const shouldProcessCalls = async () => {
-    if (loading || backgroundLoading || isProcessing) {
-      console.log(`🛑 No procesar: loading=${loading}, backgroundLoading=${backgroundLoading}, isProcessing=${isProcessing}`);
-      return false;
-    }
-    
-    // Filtrar llamadas que parecen pendientes
-    const potentiallyPendingCalls = calls.filter(call => 
-      validateCall(call) &&
-      ['completed', 'ended'].includes(call.call_status?.toLowerCase()) && 
-      (call.duration_sec > 0 || call.recording_url) &&
-      (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0
-    );
-    
-    if (potentiallyPendingCalls.length === 0) {
-      console.log(`✅ Sin llamadas completadas para verificar`);
-      return false;
-    }
-    
-    console.log(`🔍 Verificando ${potentiallyPendingCalls.length} llamadas contra transacciones...`);
-    
-    try {
-      const processedCallIds = new Set();
-      
-      for (const call of potentiallyPendingCalls) {
-        const callIdShort = call.call_id.substring(0, 16);
-        
-        const { data: existingTx, error } = await supabase
-          .from('credit_transactions')
-          .select('id, description')
-          .eq('user_id', user.id)
-          .ilike('description', `%${callIdShort}%`)
-          .limit(1);
-        
-        if (error) {
-          console.log(`⚠️ Error verificando ${callIdShort}:`, error.message);
-          continue;
-        }
-        
-        if (existingTx && existingTx.length > 0) {
-          processedCallIds.add(call.call_id);
-          console.log(`✅ Transacción encontrada para: ${callIdShort}`);
-        } else {
-          console.log(`🔄 Sin transacción para: ${callIdShort} - PENDIENTE`);
-        }
-      }
-      
-      const trulyPendingCalls = potentiallyPendingCalls.filter(call => 
-        !processedCallIds.has(call.call_id)
-      );
-      
-      if (trulyPendingCalls.length === 0) {
-        console.log(`✅ Todas las llamadas ya tienen transacciones procesadas`);
-        return false;
-      }
-      
-      console.log(`🎯 ${trulyPendingCalls.length} llamadas REALMENTE pendientes:`);
-      trulyPendingCalls.forEach(call => {
-        console.log(`   - ${call.call_id.substring(0, 16)} (sin transacción)`);
-      });
-      
-      return trulyPendingCalls.length > 0;
-      
-    } catch (error) {
-      console.error('❌ Excepción verificando transacciones:', error);
-      console.log('🔄 Error en verificación - procesando por seguridad');
-      return true;
-    }
-  };
-
-// ============================================================================
-// 🔚 FINAL PARTE 5: FUNCIONES DE PROCESAMIENTO
-// ============================================================================
-// ============================================================================
-// 🚀 INICIO PARTE 6: FUNCIÓN FETCHCALLS OPTIMIZADA CON CARGA PROGRESIVA
-// ============================================================================
-
   const fetchCalls = async () => {
     console.log("🚀 FETCH CALLS OPTIMIZADO - Carga progresiva iniciada");
     
@@ -879,7 +578,6 @@ export default function CallsSimple() {
       setError(null);
       setLoadingProgress('Getting agent configuration...');
 
-      // PASO 1: Obtener agentes asignados al usuario
       const { data: assignments, error: assignmentsError } = await supabase
         .from('user_agent_assignments')
         .select('agent_id')
@@ -911,7 +609,6 @@ export default function CallsSimple() {
 
       setLoadingProgress('Loading agent information...');
 
-      // PASO 2: Obtener detalles de los agentes asignados
       const { data: agentDetails, error: agentsError } = await supabase
         .from('agents')
         .select('id, name, rate_per_minute, retell_agent_id')
@@ -926,14 +623,12 @@ export default function CallsSimple() {
       console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
       setUserAssignedAgents(agentDetails || []);
 
-      // PASO 3: Preparar IDs para búsqueda
       const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
       const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
       const allAgentIds = [...agentUUIDs, ...retellAgentIds].filter(Boolean);
 
       setLoadingProgress('Loading recent calls...');
 
-      // 🚀 PASO 4: CARGA PROGRESIVA - Primero las más recientes
       const INITIAL_BATCH = 50;
 
       console.log('📊 LOADING ALL CALLS - Complete history mode');
@@ -953,13 +648,11 @@ export default function CallsSimple() {
       query = query.in('agent_id', allAgentIds);
       console.log('📊 CARGANDO TODAS LAS LLAMADAS - Sin filtros automáticos');
 
-      // 🔍 EJECUTAR CONSULTA CON DEBUG DETALLADO
       console.log('🚀 EJECUTANDO CONSULTA...');
       const { data: initialCalls, error: callsError } = await query
         .order('timestamp', { ascending: false })
         .limit(INITIAL_BATCH);
 
-      // 🔍 DEBUG RESULTADO
       console.log(`📊 SQL QUERY RESULT:`, {
         found: initialCalls?.length || 0,
         hasError: !!callsError,
@@ -983,7 +676,6 @@ export default function CallsSimple() {
 
       console.log(`📞 Llamadas iniciales cargadas: ${initialCalls?.length || 0}`);
 
-      // PASO 5: Mapear llamadas iniciales con información del agente
       const userAgents = agentDetails?.map(agent => ({
         agent_id: agent.id,
         agents: agent
@@ -1026,14 +718,12 @@ export default function CallsSimple() {
       console.log("🔍 RAW CALLS FROM DB:", initialCalls?.length || 0);
       console.log("🔍 MAPPED CALLS TOTAL:", mappedInitialCalls?.length || 0);
 
-      // ✅ MOSTRAR DATOS INICIALES RÁPIDAMENTE
       setCalls(mappedInitialCalls);
       setLoading(false);
       setLoadingProgress('');
 
       console.log("🎉 PRIMERA CARGA COMPLETADA - Mostrando datos iniciales");
 
-      // 🔄 PASO 6: CARGAR EL RESTO EN BACKGROUND
       if (initialCalls.length === INITIAL_BATCH) {
         setBackgroundLoading(true);
         setHasMoreCalls(true);
@@ -1073,7 +763,6 @@ export default function CallsSimple() {
         setHasMoreCalls(false);
       }
 
-      // 🎵 PASO 7: CARGAR AUDIO SOLO DE LAS PRIMERAS LLAMADAS VISIBLES
       setTimeout(() => {
         loadAudioForVisibleCalls(mappedInitialCalls.slice(0, 10));
       }, 500);
@@ -1085,15 +774,8 @@ export default function CallsSimple() {
     }
   };
 
-// ============================================================================
-// 🔚 FINAL PARTE 6: FUNCIÓN FETCHCALLS OPTIMIZADA
-// ============================================================================
-// ============================================================================
-// 🚀 INICIO PARTE 7: FUNCIONES DE FILTROS Y PAGINACIÓN
-// ============================================================================
-
   // ============================================================================
-  // 🆕 FUNCIÓN DE PAGINACIÓN
+  // FUNCIÓN DE PAGINACIÓN
   // ============================================================================
   const applyPagination = () => {
     const totalPages = Math.ceil(filteredCalls.length / pageSize);
@@ -1126,7 +808,6 @@ export default function CallsSimple() {
     
     let filtered = [...calls];
 
-    // Filtro por búsqueda
     if (searchTerm) {
       const beforeSearch = filtered.length;
       filtered = filtered.filter(call => 
@@ -1141,14 +822,12 @@ export default function CallsSimple() {
       console.log(`🔍 SEARCH FILTER: ${beforeSearch} → ${filtered.length} (term: "${searchTerm}")`);
     }
 
-    // Filtro por estado
     if (statusFilter !== "all") {
       const beforeStatus = filtered.length;
       filtered = filtered.filter(call => validateCall(call) && call.call_status === statusFilter);
       console.log(`🔍 STATUS FILTER: ${beforeStatus} → ${filtered.length} (status: "${statusFilter}")`);
     }
 
-    // ✅ FILTRO POR AGENTE CON DEBUG DETALLADO
     if (agentFilter !== null) {
       const beforeAgent = filtered.length;
       const selectedAgent = userAssignedAgents.find(agent => agent && agent.id === agentFilter);
@@ -1181,12 +860,10 @@ export default function CallsSimple() {
       console.log(`🔍 AGENT FILTER: ${beforeAgent} → ${filtered.length}`);
     }
 
-    // Filtro por fecha
     const beforeDate = filtered.length;
     filtered = filtered.filter(call => validateCall(call) && isDateInRange(call.timestamp));
     console.log(`🔍 DATE FILTER: ${beforeDate} → ${filtered.length} (filter: "${dateFilter}")`);
 
-    // Ordenamiento
     filtered.sort((a, b) => {
       if (!validateCall(a) || !validateCall(b)) return 0;
       
@@ -1296,18 +973,9 @@ export default function CallsSimple() {
     }
   };
 
-// ============================================================================
-// 🔚 FINAL PARTE 7: FUNCIONES DE FILTROS Y PAGINACIÓN
-// ============================================================================
-// ============================================================================
-// 🚀 INICIO PARTE 8: USEEFFECTS CORREGIDOS
-// ============================================================================
-
   // ============================================================================
   // useEffects CORREGIDOS
   // ============================================================================
-
-  // Efecto principal: Cargar datos cuando el usuario está disponible
   useEffect(() => {
     if (user?.id) {
       console.log('🚀 INITIATING CORRECTED SYSTEM for:', user.email);
@@ -1316,7 +984,6 @@ export default function CallsSimple() {
     }
   }, [user?.id]);
 
-  // Efecto para aplicar filtros y ordenamiento
   useEffect(() => {
     if (calls.length > 0) {
       applyFiltersAndSort();
@@ -1324,7 +991,6 @@ export default function CallsSimple() {
     }
   }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
-  // 🆕 Efecto para aplicar paginación y cargar audio de página actual
   useEffect(() => {
     const totalPages = applyPagination();
     
@@ -1332,76 +998,14 @@ export default function CallsSimple() {
       setCurrentPage(1);
     }
 
-    // 🎵 Cargar audio solo para las llamadas de la página actual
     if (paginatedCalls.length > 0) {
       loadAudioForVisibleCalls(paginatedCalls);
     }
   }, [filteredCalls, currentPage, pageSize]);
 
-  // 🆕 Efecto para resetear página cuando cambien filtros
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
-
-  // ✅ useEffect CON LOGS DETALLADOS para debugging
-  useEffect(() => {
-    console.log(`🔥 useEffect EJECUTADO - Navegación detectada`);
-    console.log(`📊 Estado actual:`, {
-      callsLength: calls.length,
-      loading,
-      backgroundLoading,
-      isProcessing,
-      userId: user?.id
-    });
-    
-    if (calls.length > 0) {
-      console.log(`📋 Llamadas actuales:`, calls.map(call => ({
-        id: call.call_id?.substring(0, 12),
-        processed: call.processed_for_cost,
-        cost: call.cost_usd,
-        status: call.call_status
-      })));
-    }
-    
-    if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
-      setTimeout(async () => {
-        console.log(`⏰ setTimeout EJECUTÁNDOSE después de navegación`);
-        if (!isProcessing && await shouldProcessCalls()) {
-          console.log(`🚀 INICIANDO processCallCostAndDeduct por navegación`);
-          // Aquí iría la función de procesamiento si fuera necesaria
-        } else {
-          console.log("🛡️ shouldProcessCalls() impidió procesamiento duplicado");
-        }
-      }, 1000);
-      
-      const interval = setInterval(async () => {
-        console.log(`⏰ Intervalo ejecutándose...`);
-        if (!backgroundLoading && !isProcessing && await shouldProcessCalls()) {
-          console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
-          // Aquí iría la función de procesamiento si fuera necesaria
-        } else {
-          console.log("⏰ Intervalo: No hay llamadas realmente pendientes");
-        }
-      }, 30000);
-      
-      return () => {
-        console.log(`🧹 useEffect cleanup - desmontando componente`);
-        clearInterval(interval);
-      };
-    }
-  }, [
-    user?.id,
-    calls.length,
-    loading,
-    backgroundLoading
-  ]);
-
-// ============================================================================
-// 🔚 FINAL PARTE 8: USEEFFECTS CORREGIDOS
-// ============================================================================
-// ============================================================================
-// 🚀 INICIO PARTE 9: FUNCIONES DE FORMATO Y HANDLERS
-// ============================================================================
 
   // ============================================================================
   // FUNCIONES DE FORMATO CORREGIDAS
@@ -1561,13 +1165,9 @@ export default function CallsSimple() {
     );
   }
 
-// ============================================================================
-// 🔚 FINAL PARTE 9: FUNCIONES DE FORMATO Y HANDLERS
-// ============================================================================
-// ============================================================================
-// 🚀 INICIO PARTE 10: RENDER DEL COMPONENTE PRINCIPAL - FINAL
-// ============================================================================
-
+  // ============================================================================
+  // RENDER DEL COMPONENTE PRINCIPAL
+  // ============================================================================
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
@@ -1637,7 +1237,7 @@ export default function CallsSimple() {
             </div>
           </div>
 
-          {/* 🆕 MENSAJE INFORMATIVO ACTUALIZADO */}
+          {/* MENSAJE INFORMATIVO ACTUALIZADO */}
           <Card className="border-green-200 bg-green-50">
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
@@ -1649,7 +1249,7 @@ export default function CallsSimple() {
             </CardContent>
           </Card>
 
-          {/* 🆕 INDICADOR DE PROCESAMIENTO EXACTO */}
+          {/* INDICADOR DE PROCESAMIENTO EXACTO */}
           {isProcessing && (
             <Card className="border-green-200 bg-green-50">
               <CardContent className="p-4">
@@ -1735,7 +1335,7 @@ export default function CallsSimple() {
             </Card>
           </div>
 
-          {/* 🚨 FILTROS CORREGIDOS */}
+          {/* FILTROS CORREGIDOS */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4 items-center">
@@ -2069,7 +1669,7 @@ export default function CallsSimple() {
                               </div>
                             </td>
 
-                            {/* 🚨 ACTIONS COLUMN - CORREGIDO */}
+                            {/* ACTIONS COLUMN - CORREGIDO DEFINITIVAMENTE PARA BUILD */}
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-1">
                                 <Button 
@@ -2083,18 +1683,16 @@ export default function CallsSimple() {
                                 >
                                   <Eye className="h-3 w-3" />
                                 </Button>
-                                // ✅ CÓDIGO CORREGIDO 
-// ✅ CÓDIGO CORREGIDO DEFINITIVO
-{call.recording_url && (
-  
-    href={call.recording_url}
-    download={`call-${call.call_id}.mp3`}
-    onClick={(e) => e.stopPropagation()}
-    className="inline-flex items-center justify-center h-6 w-6 p-0 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-  >
-    <Download className="h-3 w-3" />
-  </a>
-)}
+                                {call.recording_url && (
+                                  <a
+                                    href={call.recording_url}
+                                    download={`call-${call.call_id}.mp3`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center justify-center h-6 w-6 p-0 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </a>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -2103,7 +1701,7 @@ export default function CallsSimple() {
                     </table>
                   </div>
 
-                  {/* 🆕 Controles de Paginación */}
+                  {/* Controles de Paginación */}
                   <PaginationControls
                     currentPage={currentPage}
                     totalPages={totalPages}
@@ -2131,7 +1729,3 @@ export default function CallsSimple() {
     </DashboardLayout>
   );
 }
-
-// ============================================================================
-// 🔚 FINAL PARTE 10: RENDER DEL COMPONENTE PRINCIPAL - FINAL
-// ============================================================================
