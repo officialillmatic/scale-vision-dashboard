@@ -295,6 +295,7 @@ export default function CallsSimple() {
   const [paginatedCalls, setPaginatedCalls] = useState<Call[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState(0);
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
   const uniqueAgents = userAssignedAgents || [];
@@ -374,46 +375,40 @@ export default function CallsSimple() {
   };
 
   const loadAudioDuration = async (call: Call) => {
-    if (!call.recording_url || audioDurations[call.id]) return;
-    
-    try {
-      console.log(`🎵 Loading EXACT audio duration for ${call.call_id?.substring(0, 8)}...`);
-      const audio = new Audio(call.recording_url);
-      return new Promise<void>((resolve) => {
-        audio.addEventListener('loadedmetadata', () => {
-          const duration = Math.round(audio.duration);
-          console.log(`✅ EXACT audio loaded: ${duration}s for ${call.call_id?.substring(0, 8)}`);
-          setAudioDurations(prev => {
-            const newDurations = {
-              ...prev,
-              [call.id]: duration
-            };
-            
-            // 🔧 TRIGGER IMMEDIATE RECALCULATION when audio loads
-            setTimeout(() => {
-              console.log(`🔄 Auto-recalculating stats after audio load for ${call.call_id?.substring(0, 8)}`);
-              calculateStats();
-            }, 100);
-            
-            return newDurations;
-          });
-          resolve();
-        });
+  if (!call.recording_url || audioDurations[call.id]) return;
+  
+  try {
+    console.log(`🎵 Loading EXACT audio duration for ${call.call_id?.substring(0, 8)}...`);
+    const audio = new Audio(call.recording_url);
+    return new Promise<void>((resolve) => {
+      audio.addEventListener('loadedmetadata', () => {
+        const duration = Math.round(audio.duration);
+        console.log(`✅ EXACT audio loaded: ${duration}s for ${call.call_id?.substring(0, 8)}`);
+        setAudioDurations(prev => ({
+          ...prev,
+          [call.id]: duration
+        }));
         
-        audio.addEventListener('error', () => {
-          console.log(`❌ Error loading audio for ${call.call_id?.substring(0, 8)}`);
-          resolve();
-        });
-
-        setTimeout(() => {
-          console.log(`⏰ Timeout loading audio for ${call.call_id?.substring(0, 8)}`);
-          resolve();
-        }, 5000);
+        // 🔧 FORCE UPDATE: Simple counter increment
+        setForceUpdate(prev => prev + 1);
+        
+        resolve();
       });
-    } catch (error) {
-      console.log(`❌ Error loading audio duration:`, error);
-    }
-  };
+      
+      audio.addEventListener('error', () => {
+        console.log(`❌ Error loading audio for ${call.call_id?.substring(0, 8)}`);
+        resolve();
+      });
+
+      setTimeout(() => {
+        console.log(`⏰ Timeout loading audio for ${call.call_id?.substring(0, 8)}`);
+        resolve();
+      }, 5000);
+    });
+  } catch (error) {
+    console.log(`❌ Error loading audio duration:`, error);
+  }
+};
 
   const loadAudioForVisibleCalls = async (visibleCalls: Call[]) => {
     const callsWithAudio = visibleCalls.filter(call => 
@@ -1256,7 +1251,7 @@ export default function CallsSimple() {
       applyFiltersAndSort();
       calculateStats();
     }
-  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate, audioDurations]); // 🔧 Added audioDurations
+ }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate, forceUpdate]); // 🔧 Added forceUpdate
 
   useEffect(() => {
     const totalPages = applyPagination();
