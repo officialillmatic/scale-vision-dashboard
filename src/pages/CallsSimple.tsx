@@ -1331,7 +1331,7 @@ export default function CallsSimple() {
               <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-gray-600">
-                  Exact values loaded from the first moment - no estimates
+                  Comprehensive call data for your account
                   {selectedAgentName && (
                     <span className="ml-2 text-blue-600 font-medium">
                       • Filtered by {selectedAgentName}
@@ -1391,7 +1391,7 @@ export default function CallsSimple() {
               </Button>
               
               <div className="text-right">
-                <div className="text-xs font-medium text-green-600">🎯 Exact Values</div>
+                <div className="text-xs font-medium text-green-600">🟢 Real-Time</div>
                 <div className="text-xs text-gray-500">From Start</div>
               </div>
             </div>
@@ -1402,7 +1402,7 @@ export default function CallsSimple() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  🎯 EXACT VALUES LOADED: Audio durations loaded before display - no estimates shown
+                  🟢💰 Exact cost deduction system active - Real calls processed.
                 </span>
               </div>
             </CardContent>
