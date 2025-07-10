@@ -1718,7 +1718,7 @@ export default function CallsSimple() {
             <CardHeader className="border-b border-gray-100 pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl font-semibold text-gray-900">
-                  💎 Call History HÍBRIDO ({filteredCalls.length})
+                  💎 Call History ({filteredCalls.length})
                   
                   {totalPages > 1 && (
                     <span className="text-sm font-normal text-gray-500 ml-2">
