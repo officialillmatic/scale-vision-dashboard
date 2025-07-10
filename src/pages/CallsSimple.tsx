@@ -2084,6 +2084,7 @@ export default function CallsSimple() {
                                   <Eye className="h-3 w-3" />
                                 </Button>
                                 // ✅ CÓDIGO CORREGIDO 
+// ✅ CÓDIGO CORREGIDO DEFINITIVO
 {call.recording_url && (
   
     href={call.recording_url}
