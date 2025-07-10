@@ -294,8 +294,6 @@ export default function CallsSimple() {
   const [pageSize, setPageSize] = useState(10);
   const [paginatedCalls, setPaginatedCalls] = useState<Call[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
-  const [forceUpdate, setForceUpdate] = useState(0);
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
   const uniqueAgents = userAssignedAgents || [];
@@ -375,40 +373,36 @@ export default function CallsSimple() {
   };
 
   const loadAudioDuration = async (call: Call) => {
-  if (!call.recording_url || audioDurations[call.id]) return;
-  
-  try {
-    console.log(`🎵 Loading EXACT audio duration for ${call.call_id?.substring(0, 8)}...`);
-    const audio = new Audio(call.recording_url);
-    return new Promise<void>((resolve) => {
-      audio.addEventListener('loadedmetadata', () => {
-        const duration = Math.round(audio.duration);
-        console.log(`✅ EXACT audio loaded: ${duration}s for ${call.call_id?.substring(0, 8)}`);
-        setAudioDurations(prev => ({
-          ...prev,
-          [call.id]: duration
-        }));
+    if (!call.recording_url || audioDurations[call.id]) return;
+    
+    try {
+      console.log(`🎵 Loading EXACT audio duration for ${call.call_id?.substring(0, 8)}...`);
+      const audio = new Audio(call.recording_url);
+      return new Promise<void>((resolve) => {
+        audio.addEventListener('loadedmetadata', () => {
+          const duration = Math.round(audio.duration);
+          console.log(`✅ EXACT audio loaded: ${duration}s for ${call.call_id?.substring(0, 8)}`);
+          setAudioDurations(prev => ({
+            ...prev,
+            [call.id]: duration
+          }));
+          resolve();
+        });
         
-        // 🔧 FORCE UPDATE: Simple counter increment
-        setForceUpdate(prev => prev + 1);
-        
-        resolve();
-      });
-      
-      audio.addEventListener('error', () => {
-        console.log(`❌ Error loading audio for ${call.call_id?.substring(0, 8)}`);
-        resolve();
-      });
+        audio.addEventListener('error', () => {
+          console.log(`❌ Error loading audio for ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        });
 
-      setTimeout(() => {
-        console.log(`⏰ Timeout loading audio for ${call.call_id?.substring(0, 8)}`);
-        resolve();
-      }, 5000);
-    });
-  } catch (error) {
-    console.log(`❌ Error loading audio duration:`, error);
-  }
-};
+        setTimeout(() => {
+          console.log(`⏰ Timeout loading audio for ${call.call_id?.substring(0, 8)}`);
+          resolve();
+        }, 5000);
+      });
+    } catch (error) {
+      console.log(`❌ Error loading audio duration:`, error);
+    }
+  };
 
   const loadAudioForVisibleCalls = async (visibleCalls: Call[]) => {
     const callsWithAudio = visibleCalls.filter(call => 
@@ -419,28 +413,12 @@ export default function CallsSimple() {
     
     console.log(`🎵 Loading EXACT audio for ${callsWithAudio.length} visible calls...`);
     
-    let loadedCount = 0;
-    
     for (let i = 0; i < callsWithAudio.length; i += 2) {
       const batch = callsWithAudio.slice(i, i + 2);
-      await Promise.all(batch.map(async (call) => {
-        await loadAudioDuration(call);
-        loadedCount++;
-      }));
-      
+      await Promise.all(batch.map(call => loadAudioDuration(call)));
       if (i + 2 < callsWithAudio.length) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-    }
-    
-    console.log(`✅ AUDIO LOADING COMPLETED: ${loadedCount}/${callsWithAudio.length} calls loaded with exact durations`);
-    
-    // 🔧 Final recalculation after all audio is loaded
-    if (loadedCount > 0) {
-      setTimeout(() => {
-        console.log(`🔄 Final recalculation after all audio loaded`);
-        calculateStats();
-      }, 200);
     }
   };
 
@@ -1251,7 +1229,7 @@ export default function CallsSimple() {
       applyFiltersAndSort();
       calculateStats();
     }
- }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate, forceUpdate]); // 🔧 Added forceUpdate
+  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
 
   useEffect(() => {
     const totalPages = applyPagination();
@@ -1266,16 +1244,6 @@ export default function CallsSimple() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
-
-  // 🔧 NEW: Force re-render when audio durations change
-  useEffect(() => {
-    if (Object.keys(audioDurations).length > 0) {
-      console.log(`🎵 Audio durations updated, recalculating costs for ${Object.keys(audioDurations).length} calls`);
-      calculateStats();
-      // Force re-render by triggering a small state update
-      setFilteredCalls(prev => [...prev]);
-    }
-  }, [audioDurations]);
 
   useEffect(() => {
     console.log(`🔥 useEffect EXECUTED (NO DUPLICATES) - Navigation detected`);
@@ -1353,13 +1321,6 @@ export default function CallsSimple() {
                     </div>
                   )}
                   
-                  {isLoadingAudio && (
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                      <span className="text-xs font-medium text-orange-600">Loading Exact Durations</span>
-                    </div>
-                  )}
-                  
                   <span className="text-xs text-gray-400">
                     Last update: {new Date().toLocaleTimeString()}
                   </span>
@@ -1413,19 +1374,6 @@ export default function CallsSimple() {
               </div>
             </CardContent>
           </Card>
-
-          {isLoadingAudio && (
-            <Card className="border-orange-200 bg-orange-50">
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                  <span className="text-orange-700 text-sm font-medium">
-                    🎵 Loading exact audio durations - costs will update automatically
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {isProcessing && (
             <Card className="border-green-200 bg-green-50">
