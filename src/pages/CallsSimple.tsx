@@ -1,8 +1,3 @@
-// ============================================================================
-// 💎 CALLSSIMPLE.TSX HÍBRIDO PERFECTO
-// Combina: UI excelente del actual + Descuentos reales del funcional
-// ============================================================================
-
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -39,7 +34,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAgents } from "@/hooks/useAgents";
 
 // ============================================================================
-// 🔧 INTERFACES Y TIPOS
+// INTERFACES Y TIPOS
 // ============================================================================
 interface Call {
   id: string;
@@ -69,29 +64,11 @@ interface Call {
     rate_per_minute: number;
   };
   processed_for_cost?: boolean;
-  audioDuration?: number;
 }
 
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
-
-// ============================================================================
-// 🔒 FUNCIÓN DE VALIDACIÓN ANTI-CRASH
-// ============================================================================
-const validateCall = (call: any): call is Call => {
-  if (!call || typeof call !== 'object') {
-    console.warn('validateCall: call is not an object', call);
-    return false;
-  }
-  
-  if (!call.call_id || typeof call.call_id !== 'string') {
-    console.warn('validateCall: invalid call_id', call);
-    return false;
-  }
-  
-  return true;
-};
 
 // ============================================================================
 // COMPONENTE FILTRO DE AGENTES
@@ -242,7 +219,7 @@ const PaginationControls = ({
     <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2 text-sm text-gray-700">
-          <span>Show</span>
+          <span>Mostrar</span>
           <select
             value={pageSize}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
@@ -252,11 +229,11 @@ const PaginationControls = ({
               <option key={size} value={size}>{size}</option>
             ))}
           </select>
-          <span>per page</span>
+          <span>por página</span>
         </div>
         
         <div className="text-sm text-gray-700">
-          Showing {startItem} to {endItem} of {totalItems} calls
+          Mostrando {startItem} a {endItem} de {totalItems} llamadas
         </div>
       </div>
 
@@ -370,50 +347,34 @@ export default function CallsSimple() {
   // Variables auxiliares
   const uniqueAgents = userAssignedAgents || [];
 
-  // ============================================================================
-  // 🔧 FUNCIONES CORREGIDAS
-  // ============================================================================
-  const getAgentNameLocal = (agentId: string) => {
-    if (!agentId || typeof agentId !== 'string') {
-      console.warn('getAgentNameLocal: invalid agentId', agentId);
-      return 'Unknown Agent';
-    }
-
-    if (Array.isArray(userAssignedAgents)) {
-      const agent = userAssignedAgents.find(a => 
-        a && (a.id === agentId || a.retell_agent_id === agentId)
-      );
-      
-      if (agent && agent.name) {
-        return agent.name;
-      }
+  const getAgentNameLocal = (agentId) => {
+    const agent = userAssignedAgents.find(a => 
+      a.id === agentId || a.retell_agent_id === agentId
+    );
+    
+    if (agent) {
+      return agent.name;
     }
     
-    if (getAgentName && typeof getAgentName === 'function') {
-      try {
-        const agentName = getAgentName(agentId);
-        if (agentName && agentName !== agentId) {
-          return agentName;
-        }
-      } catch (error) {
-        console.warn('Error calling getAgentName:', error);
-      }
+    if (getAgentName) {
+      return getAgentName(agentId);
     }
     
     return `Agent ${agentId.substring(0, 8)}...`;
   };
 
+  // ============================================================================
+  // FUNCIONES AUXILIARES
+  // ============================================================================
+  
   const getCallDuration = (call: any) => {
-    if (!validateCall(call)) {
-      console.warn('getCallDuration: invalid call object', call);
-      return 0;
-    }
-
-    if (call.id && audioDurations[call.id] && audioDurations[call.id] > 0) {
+    // Priorizar duración del audio (más precisa)
+    if (audioDurations[call.id] && audioDurations[call.id] > 0) {
       console.log(`🎵 Usando duración de audio: ${audioDurations[call.id]}s para ${call.call_id?.substring(0, 8)}`);
       return audioDurations[call.id];
     }
     
+    // Fallback a duration_sec de la BD
     if (call.duration_sec && call.duration_sec > 0) {
       console.log(`📊 Usando duración de BD: ${call.duration_sec}s para ${call.call_id?.substring(0, 8)}`);
       return call.duration_sec;
@@ -423,12 +384,8 @@ export default function CallsSimple() {
     return 0;
   };
 
+  // FUNCIÓN: calculateCallCost
   const calculateCallCost = (call: Call) => {
-    if (!validateCall(call)) {
-      console.warn('calculateCallCost: invalid call object', call);
-      return 0;
-    }
-
     console.log(`💰 Calculando costo para llamada ${call.call_id?.substring(0, 8)}:`, {
       existing_cost: call.cost_usd,
       duration_sec: call.duration_sec,
@@ -437,6 +394,7 @@ export default function CallsSimple() {
       agents_rate: call.agents?.rate_per_minute
     });
     
+    // 1. Obtener duración
     const duration = getCallDuration(call);
     if (duration === 0) {
       console.log(`⚠️ Sin duración, costo = $0`);
@@ -445,6 +403,7 @@ export default function CallsSimple() {
     
     const durationMinutes = duration / 60;
     
+    // 2. Buscar tarifa del agente (priorizar call_agent, luego agents)
     let agentRate = 0;
     
     if (call.call_agent?.rate_per_minute) {
@@ -454,11 +413,10 @@ export default function CallsSimple() {
       agentRate = call.agents.rate_per_minute;
       console.log(`✅ Usando tarifa de agents: $${agentRate}/min`);
     } else {
+      // Buscar en userAssignedAgents como fallback
       const userAgent = userAssignedAgents.find(agent => 
-        agent && (
-          agent.id === call.agent_id || 
-          agent.retell_agent_id === call.agent_id
-        )
+        agent.id === call.agent_id || 
+        agent.retell_agent_id === call.agent_id
       );
       
       if (userAgent?.rate_per_minute) {
@@ -470,52 +428,42 @@ export default function CallsSimple() {
       }
     }
     
+    // 3. Calcular costo
     const calculatedCost = Math.round(((duration / 60.0) * agentRate) * 10000) / 10000;
     console.log(`🧮 Costo calculado: ${durationMinutes.toFixed(2)}min × $${agentRate}/min = $${calculatedCost.toFixed(4)}`);
     
     return calculatedCost;
   };
 
+  // FUNCIÓN: calculateCallCostSync (para usar en render)
+  const calculateCallCostSync = (call: Call) => {
+    return calculateCallCost(call);
+  };
+
+  // FUNCIÓN: loadAudioDuration
   const loadAudioDuration = async (call: Call) => {
-    if (!validateCall(call)) {
-      console.warn('loadAudioDuration: invalid call object', call);
-      return;
-    }
-
-    if (!call.recording_url || !call.id) {
-      console.warn('loadAudioDuration: missing recording_url or id', call);
-      return;
-    }
-
-    if (audioDurations[call.id]) {
-      console.log(`loadAudioDuration: audio already loaded for ${call.call_id?.substring(0, 8)}`);
-      return;
-    }
+    if (!call.recording_url || audioDurations[call.id]) return;
     
     try {
       console.log(`🎵 Cargando duración de audio para ${call.call_id?.substring(0, 8)}...`);
       const audio = new Audio(call.recording_url);
-      
       return new Promise<void>((resolve) => {
         audio.addEventListener('loadedmetadata', () => {
-          if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
-            const duration = Math.round(audio.duration);
-            console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
-            setAudioDurations(prev => ({
-              ...prev,
-              [call.id]: duration
-            }));
-          } else {
-            console.warn(`⚠️ Duración de audio inválida para ${call.call_id?.substring(0, 8)}: ${audio.duration}`);
-          }
+          const duration = Math.round(audio.duration);
+          console.log(`✅ Audio cargado: ${duration}s para ${call.call_id?.substring(0, 8)}`);
+          setAudioDurations(prev => ({
+            ...prev,
+            [call.id]: duration
+          }));
           resolve();
         });
         
-        audio.addEventListener('error', (e) => {
-          console.log(`❌ Error cargando audio para ${call.call_id?.substring(0, 8)}:`, e);
+        audio.addEventListener('error', () => {
+          console.log(`❌ Error cargando audio para ${call.call_id?.substring(0, 8)}`);
           resolve();
         });
 
+        // Timeout de seguridad
         setTimeout(() => {
           console.log(`⏰ Timeout cargando audio para ${call.call_id?.substring(0, 8)}`);
           resolve();
@@ -526,21 +474,17 @@ export default function CallsSimple() {
     }
   };
 
+  // Cargar audio solo para llamadas visibles
   const loadAudioForVisibleCalls = async (visibleCalls: Call[]) => {
-    if (!Array.isArray(visibleCalls)) {
-      console.warn('loadAudioForVisibleCalls: visibleCalls is not an array', visibleCalls);
-      return;
-    }
-
-    const validCalls = visibleCalls.filter(call => validateCall(call));
-    const callsWithAudio = validCalls.filter(call => 
-      call.recording_url && call.id && !audioDurations[call.id]
+    const callsWithAudio = visibleCalls.filter(call => 
+      call.recording_url && !audioDurations[call.id]
     );
     
     if (callsWithAudio.length === 0) return;
     
     console.log(`🎵 Cargando audio para ${callsWithAudio.length} llamadas visibles...`);
     
+    // Cargar en pequeños lotes para no bloquear
     for (let i = 0; i < callsWithAudio.length; i += 2) {
       const batch = callsWithAudio.slice(i, i + 2);
       await Promise.all(batch.map(call => loadAudioDuration(call)));
@@ -551,52 +495,61 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // 💰 FUNCIÓN HÍBRIDA: Descuento de balance REAL (del funcional) + UI del actual
+  // FUNCIÓN: Descuento de balance EXACTO
   // ============================================================================
+
   const processCallCostAndDeduct = async (call: Call) => {
-    console.log(`💰 PROCESANDO DESCUENTO REAL HÍBRIDO para llamada ${call.call_id?.substring(0, 8)}:`);
+    console.log(`💰 PROCESANDO DESCUENTO EXACTO para llamada ${call.call_id?.substring(0, 8)}:`);
     
     try {
-      // 🛡️ PROTECCIÓN ANTI-DUPLICADOS - Verificar transacciones existentes
+      // NUEVA PROTECCIÓN ANTI-DUPLICADOS - VERIFICAR TRANSACCIONES EXISTENTES
       console.log(`🔍 Verificando si llamada ya fue procesada: ${call.call_id?.substring(0, 8)}`);
       
       const { data: existingTx, error: checkError } = await supabase
         .from('credit_transactions')
-        .select('id, amount, created_at')
+        .select('id, description, amount, created_at')
         .eq('user_id', user.id)
         .ilike('description', `%${call.call_id}%`)
         .single();
 
       if (checkError && checkError.code !== 'PGRST116') {
+        // PGRST116 = no rows found, que es lo que queremos para nuevas llamadas
         console.error(`❌ Error verificando duplicados para ${call.call_id}:`, checkError);
+        // Continuar por seguridad, pero registrar el error
       }
 
       if (existingTx && !checkError) {
         console.log(`✅ LLAMADA YA PROCESADA: ${call.call_id?.substring(0, 8)}`);
+        console.log(`   📄 Transacción existente: ID ${existingTx.id}`);
+        console.log(`   💰 Monto ya descontado: $${Math.abs(existingTx.amount).toFixed(4)}`);
+        console.log(`   📝 Descripción: ${existingTx.description}`);
+        console.log(`   📅 Fecha: ${existingTx.created_at}`);
+        
         return { 
           success: true, 
           message: 'Ya procesada', 
           existingTransaction: existingTx.id,
-          alreadyDeducted: Math.abs(existingTx.amount)
+          alreadyDeducted: Math.abs(existingTx.amount),
+          processedAt: existingTx.created_at
         };
       }
 
       console.log(`🆕 NUEVA LLAMADA - Procediendo con descuento: ${call.call_id?.substring(0, 8)}`);
 
-      // Verificar si ya está marcada como procesada
+      // VERIFICACIÓN ADICIONAL: Campo processed_for_cost en BD
       if (call.processed_for_cost) {
         console.log(`✅ Llamada marcada como procesada en BD: ${call.call_id?.substring(0, 8)}`);
         return { success: true, message: 'Ya procesada en BD' };
       }
 
-      // Obtener duración EXACTA
+      // 2. Obtener duración EXACTA (priorizar audio)
       const exactDuration = getCallDuration(call);
       if (exactDuration === 0) {
         console.log(`❌ Sin duración válida para ${call.call_id?.substring(0, 8)}`);
         return { success: false, error: 'Sin duración válida' };
       }
 
-      // Calcular costo EXACTO
+      // 3. Calcular costo EXACTO
       const exactCost = calculateCallCost(call);
       if (exactCost === 0) {
         console.log(`❌ Sin costo válido para ${call.call_id?.substring(0, 8)}`);
@@ -606,7 +559,7 @@ export default function CallsSimple() {
       const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
       console.log(`🧮 CÁLCULO EXACTO: ${exactDuration}s × $${agentRate}/min = $${exactCost.toFixed(4)}`);
 
-      // Descontar balance del usuario
+      // 4. Descontar balance del usuario
       console.log(`💳 DESCONTANDO BALANCE EXACTO para user: ${user.id}`);
       
       // Opción A: Usar RPC admin_adjust_user_credits
@@ -614,7 +567,7 @@ export default function CallsSimple() {
         p_user_id: user.id,
         p_amount: -exactCost,
         p_description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
-        p_admin_id: 'callssimple-hibrido'
+        p_admin_id: 'callssimple-exact-deduct'
       });
 
       let deductSuccess = false;
@@ -627,7 +580,7 @@ export default function CallsSimple() {
       } else {
         console.log(`❌ Error RPC, intentando descuento directo:`, rpcError);
         
-        // Opción B: Descuento directo
+        // Opción B: Descuento directo en user_credits
         const { data: currentCredit, error: creditError } = await supabase
           .from('user_credits')
           .select('current_balance')
@@ -656,7 +609,7 @@ export default function CallsSimple() {
               transaction_type: 'call_charge_exact',
               description: `Exact call cost: ${call.call_id} (${(exactDuration/60).toFixed(2)}min @ $${agentRate}/min)`,
               balance_after: newBalance,
-              created_by: 'callssimple-hibrido',
+              created_by: 'callssimple-exact',
               reference_id: call.call_id,
               created_at: new Date().toISOString()
             });
@@ -676,14 +629,14 @@ export default function CallsSimple() {
         return { success: false, error: 'Falló descuento de balance' };
       }
 
-      // Actualizar llamada como procesada
+      // 5. Actualizar llamada como procesada con costo exacto
       console.log(`📝 ACTUALIZANDO LLAMADA CON COSTO EXACTO: $${exactCost.toFixed(4)}`);
       
       const { error: updateCallError } = await supabase
         .from('calls')
         .update({
           cost_usd: exactCost,
-          duration_sec: exactDuration,
+          duration_sec: exactDuration, // Actualizar con duración exacta también
           processed_for_cost: true,
         })
         .eq('call_id', call.call_id);
@@ -693,7 +646,7 @@ export default function CallsSimple() {
         return { success: false, error: 'Error actualizando llamada' };
       }
 
-      // Actualizar estado local
+      // 6. Actualizar estado local
       setCalls(prevCalls => 
         prevCalls.map(c => 
           c.call_id === call.call_id 
@@ -707,7 +660,7 @@ export default function CallsSimple() {
         )
       );
 
-      console.log(`🎉 DESCUENTO HÍBRIDO COMPLETADO:`);
+      console.log(`🎉 DESCUENTO EXACTO COMPLETADO:`);
       console.log(`   📞 Call: ${call.call_id?.substring(0, 8)}`);
       console.log(`   ⏱️ Duración: ${exactDuration}s`);
       console.log(`   💰 Costo: $${exactCost.toFixed(4)}`);
@@ -721,41 +674,50 @@ export default function CallsSimple() {
       };
 
     } catch (error) {
-      console.error(`❌ Error crítico en descuento híbrido:`, error);
+      console.error(`❌ Error crítico en descuento exacto:`, error);
       return { success: false, error: error.message };
     }
   };
 
   // ============================================================================
-  // 💰 FUNCIÓN HÍBRIDA: Procesar llamadas pendientes
+  // FUNCIÓN: Procesar llamadas pendientes con descuentos exactos
   // ============================================================================
-  const processNewCallsHybrid = async () => {
+
+  const processNewCallsExact = async () => {
+    // PROTECCIÓN TEMPRANA MEJORADA
     if (isProcessing) {
       console.log('🛑 Ya está procesando, saltando...');
       return;
     }
     
     if (!calls.length || !user?.id || loading || backgroundLoading) {
-      console.log('❌ SALIENDO - condiciones no cumplidas para procesamiento híbrido');
+      console.log('❌ SALIENDO - condiciones no cumplidas para procesamiento exacto');
       return;
     }
     
-    console.log('💰 INICIANDO PROCESAMIENTO HÍBRIDO (UI + DESCUENTOS REALES)...');
+    if (!(await shouldProcessCalls())) {
+      console.log('🛑 shouldProcessCalls() retornó false - no hay llamadas realmente pendientes');
+      return;
+    }
+    
+    console.log('💰 INICIANDO PROCESAMIENTO EXACTO CON PROTECCIONES...');
     setIsProcessing(true);
     
     try {
-      // Filtrar llamadas que necesitan procesamiento
-      const callsNeedingProcessing = calls.filter(call => {
+      console.log('📊 VERIFICANDO LLAMADAS PARA DESCUENTO EXACTO...');
+
+      // Filtrar llamadas que necesitan procesamiento de costo exacto
+      const callsNeedingExactProcessing = calls.filter(call => {
         const isCompleted = ['completed', 'ended'].includes(call.call_status?.toLowerCase());
         const actualDuration = getCallDuration(call);
         const hasValidDuration = actualDuration > 0;
-        const notProcessed = !call.processed_for_cost;
+        const notProcessed = !call.processed_for_cost; // Campo del webhook v6.0
         const hasRate = (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0;
         
         const needsProcessing = isCompleted && hasValidDuration && notProcessed && hasRate;
         
         if (isCompleted && notProcessed) {
-          console.log(`🔍 ANÁLISIS HÍBRIDO ${call.call_id?.substring(0, 8)}:`, {
+          console.log(`🔍 ANÁLISIS EXACTO ${call.call_id?.substring(0, 8)}:`, {
             status: call.call_status,
             duration_bd: call.duration_sec,
             audio_duration: audioDurations[call.id] || 'not loaded',
@@ -770,62 +732,66 @@ export default function CallsSimple() {
         return needsProcessing;
       });
 
-      if (callsNeedingProcessing.length === 0) {
-        console.log('✅ Todas las llamadas han sido procesadas');
+      if (callsNeedingExactProcessing.length === 0) {
+        console.log('✅ Todas las llamadas han sido procesadas con costos exactos');
         return;
       }
 
-      console.log(`💰 PROCESANDO ${callsNeedingProcessing.length} llamadas con descuentos reales`);
+      console.log(`💰 PROCESANDO ${callsNeedingExactProcessing.length} llamadas con descuentos exactos`);
+      setIsProcessing(true);
 
       let processedCount = 0;
       let errors = 0;
       let totalDeducted = 0;
 
-      for (const call of callsNeedingProcessing) {
+      for (const call of callsNeedingExactProcessing) {
         try {
-          console.log(`\n💳 PROCESANDO DESCUENTO HÍBRIDO: ${call.call_id}`);
+          console.log(`\n💳 PROCESANDO DESCUENTO EXACTO: ${call.call_id}`);
           
           const result = await processCallCostAndDeduct(call);
           
           if (result.success) {
             processedCount++;
             totalDeducted += result.cost || 0;
-            console.log(`✅ DESCUENTO HÍBRIDO EXITOSO: ${call.call_id} - $${(result.cost || 0).toFixed(4)}`);
+            console.log(`✅ DESCUENTO EXACTO EXITOSO: ${call.call_id} - $${(result.cost || 0).toFixed(4)}`);
           } else {
-            console.error(`❌ Error en descuento híbrido ${call.call_id}:`, result.error);
+            console.error(`❌ Error en descuento exacto ${call.call_id}:`, result.error);
             errors++;
           }
           
+          // Pausa entre procesamiento
           await new Promise(resolve => setTimeout(resolve, 500));
           
         } catch (error) {
-          console.error(`❌ Excepción en descuento híbrido ${call.call_id}:`, error);
+          console.error(`❌ Excepción en descuento exacto ${call.call_id}:`, error);
           errors++;
         }
       }
 
-      console.log(`\n🎯 DESCUENTOS HÍBRIDOS COMPLETADOS:`);
+      console.log(`\n🎯 DESCUENTOS EXACTOS COMPLETADOS:`);
       console.log(`   ✅ Procesadas: ${processedCount}`);
       console.log(`   ❌ Errores: ${errors}`);
       console.log(`   💰 Total descontado: $${totalDeducted.toFixed(4)}`);
-      console.log(`   🎯 Precisión: 100% exacta con UI perfecta`);
+      console.log(`   🎯 Precisión: 100% exacta con duración de audio`);
   
     } catch (error) {
-      console.error(`❌ Error crítico en processNewCallsHybrid:`, error);
+      console.error(`❌ Error crítico en processNewCallsExact:`, error);
     } finally {
-      setIsProcessing(false);
+      setIsProcessing(false); // IMPORTANTE: Siempre resetear
     }
 
+    // Actualizar estadísticas
     if (processedCount > 0) {
       calculateStats();
     }
   };
 
   // ============================================================================
-  // FUNCIÓN FETCHCALLS (SIN CAMBIOS MAYORES - UI del actual)
+  // 🔧 FUNCIÓN FETCH CALLS CORREGIDA - DETECTA LLAMADAS REALES
   // ============================================================================
+  
   const fetchCalls = async () => {
-    console.log("🚀 FETCH CALLS HÍBRIDO - UI perfecta + datos reales");
+    console.log("🚀 FETCH CALLS - Detectando llamadas reales y de prueba");
     
     if (!user?.id) {
       setError("User not authenticated");
@@ -838,6 +804,7 @@ export default function CallsSimple() {
       setError(null);
       setLoadingProgress('Getting agent configuration...');
 
+      // PASO 1: Obtener agentes asignados al usuario
       const { data: assignments, error: assignmentsError } = await supabase
         .from('user_agent_assignments')
         .select('agent_id')
@@ -853,13 +820,7 @@ export default function CallsSimple() {
         console.log("⚠️ Usuario sin asignaciones de agentes");
         setCalls([]);
         setUserAssignedAgents([]);
-        setStats({
-          total: 0,
-          totalCost: 0,
-          totalDuration: 0,
-          avgDuration: 0,
-          completedCalls: 0
-        });
+        setStats({ total: 0, totalCost: 0, totalDuration: 0, avgDuration: 0, completedCalls: 0 });
         setLoading(false);
         return;
       }
@@ -869,6 +830,7 @@ export default function CallsSimple() {
 
       setLoadingProgress('Loading agent information...');
 
+      // PASO 2: Obtener detalles de los agentes asignados
       const { data: agentDetails, error: agentsError } = await supabase
         .from('agents')
         .select('id, name, rate_per_minute, retell_agent_id')
@@ -883,59 +845,86 @@ export default function CallsSimple() {
       console.log("🤖 Detalles de agentes obtenidos:", agentDetails);
       setUserAssignedAgents(agentDetails || []);
 
+      // 🔧 PASO 3: PREPARAR IDS PARA BÚSQUEDA - CORRECCIÓN CRÍTICA
       const agentUUIDs = agentDetails.map(agent => agent.id).filter(Boolean);
       const retellAgentIds = agentDetails.map(agent => agent.retell_agent_id).filter(Boolean);
       const allAgentIds = [...agentUUIDs, ...retellAgentIds].filter(Boolean);
 
-      setLoadingProgress('Loading recent calls...');
+      console.log('🔍 BÚSQUEDA DE LLAMADAS - CONFIGURACIÓN:');
+      console.log(`   🆔 Agent UUIDs (internos):`, agentUUIDs);
+      console.log(`   🎯 Retell Agent IDs (externos):`, retellAgentIds);
+      console.log(`   📊 Todos los IDs de búsqueda:`, allAgentIds);
 
-      const INITIAL_BATCH = 50;
+      setLoadingProgress('Loading calls...');
 
-      console.log('📊 LOADING ALL CALLS - Modo híbrido');
-      console.log(`🔍 AGENT DEBUG - UUIDs:`, agentUUIDs);
-      console.log(`🔍 AGENT DEBUG - Retell:`, retellAgentIds);
-
-      let query = supabase.from('calls').select('*');
-
-      if (allAgentIds.length === 0) {
-        console.error("❌ No agent IDs found");
-        setCalls([]);
-        setLoading(false);
-        return;
-      }
-
-      console.log('🔧 QUERY DEBUG - All Agent IDs:', allAgentIds);
-      query = query.in('agent_id', allAgentIds);
-      console.log('📊 CARGANDO TODAS LAS LLAMADAS HÍBRIDO');
-
-      console.log('🚀 EJECUTANDO CONSULTA HÍBRIDA...');
-      const { data: initialCalls, error: callsError } = await query
+      // 🔧 PASO 4: CONSULTA CORREGIDA - Buscar TODAS las llamadas sin filtros restrictivos
+      console.log('🚀 EJECUTANDO CONSULTA DE LLAMADAS...');
+      
+      const { data: initialCalls, error: callsError } = await supabase
+        .from('calls')
+        .select('*')
+        .in('agent_id', allAgentIds) // Buscar por TODOS los agent_ids posibles
         .order('timestamp', { ascending: false })
-        .limit(INITIAL_BATCH);
+        .limit(100); // Cargar más llamadas inicialmente
 
-      console.log(`📊 SQL QUERY RESULT:`, {
-        found: initialCalls?.length || 0,
+      // 🔍 DEBUG DETALLADO
+      console.log(`📊 RESULTADO CONSULTA:`, {
+        totalFound: initialCalls?.length || 0,
         hasError: !!callsError,
-        errorMessage: callsError?.message
+        errorMessage: callsError?.message || 'Sin errores'
       });
 
-      if (initialCalls && initialCalls.length > 0) {
-        console.log('📋 SQL RESULT - Primera llamada:', {
-          call_id: initialCalls[0].call_id?.substring(0, 16),
-          agent_id: initialCalls[0].agent_id?.substring(0, 12),
-          status: initialCalls[0].call_status,
-          processed: initialCalls[0].processed_for_cost
-        });
-      }
-
       if (callsError) {
-        console.error("❌ Error obteniendo llamadas iniciales:", callsError);
+        console.error("❌ Error obteniendo llamadas:", callsError);
         setError(`Error obteniendo llamadas: ${callsError.message}`);
         return;
       }
 
-      console.log(`📞 Llamadas iniciales cargadas: ${initialCalls?.length || 0}`);
+      if (initialCalls && initialCalls.length > 0) {
+        console.log('✅ LLAMADAS ENCONTRADAS:');
+        
+        // Separar llamadas reales vs de prueba
+        const realCalls = initialCalls.filter(call => !call.call_id.includes('test_'));
+        const testCalls = initialCalls.filter(call => call.call_id.includes('test_'));
+        
+        console.log(`   📞 Llamadas REALES: ${realCalls.length}`);
+        console.log(`   🧪 Llamadas de PRUEBA: ${testCalls.length}`);
+        
+        // Mostrar ejemplos de cada tipo
+        if (realCalls.length > 0) {
+          console.log('📞 PRIMERAS 3 LLAMADAS REALES:');
+          realCalls.slice(0, 3).forEach((call, index) => {
+            console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Agent: ${call.agent_id?.substring(0, 12)} - Status: ${call.call_status} - Cost: $${call.cost_usd}`);
+          });
+        }
+        
+        if (testCalls.length > 0) {
+          console.log('🧪 PRIMERAS 3 LLAMADAS DE PRUEBA:');
+          testCalls.slice(0, 3).forEach((call, index) => {
+            console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Agent: ${call.agent_id?.substring(0, 12)} - Status: ${call.call_status} - Cost: $${call.cost_usd}`);
+          });
+        }
+        
+      } else {
+        console.log('❌ NO SE ENCONTRARON LLAMADAS - Verificando configuración...');
+        
+        // Diagnóstico: Verificar si hay llamadas en general
+        const { data: allCallsTest } = await supabase
+          .from('calls')
+          .select('call_id, agent_id, call_status, timestamp, from_number, to_number')
+          .order('timestamp', { ascending: false })
+          .limit(5);
+        
+        console.log(`🔍 DIAGNÓSTICO - Total de llamadas en BD: ${allCallsTest?.length || 0}`);
+        if (allCallsTest && allCallsTest.length > 0) {
+          console.log('📋 ÚLTIMAS 5 LLAMADAS EN BD:');
+          allCallsTest.forEach((call, index) => {
+            console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Agent: ${call.agent_id?.substring(0, 12)} - ${call.from_number} → ${call.to_number}`);
+          });
+        }
+      }
 
+      // PASO 5: Mapear llamadas con información del agente
       const userAgents = agentDetails?.map(agent => ({
         agent_id: agent.id,
         agents: agent
@@ -945,10 +934,10 @@ export default function CallsSimple() {
         return (calls || []).map(call => {
           let matchedAgent = null;
 
+          // 🔧 MAPEO MEJORADO - Buscar por retell_agent_id Y por UUID
           const userAgentAssignment = userAgents.find(assignment => 
-            assignment.agents.id === call.agent_id ||
-            assignment.agents.retell_agent_id === call.agent_id ||
-            `agent_${assignment.agents.id}` === call.agent_id
+            assignment.agents.id === call.agent_id ||           // UUID interno
+            assignment.agents.retell_agent_id === call.agent_id // Retell ID externo
           );
 
           if (userAgentAssignment) {
@@ -958,75 +947,33 @@ export default function CallsSimple() {
               rate_per_minute: userAgentAssignment.agents.rate_per_minute
             };
           } else {
+            // Fallback para agentes no encontrados
             matchedAgent = {
               id: call.agent_id,
-              name: `Unknown Agent (${call.agent_id.substring(0, 8)}...)`,
-              rate_per_minute: 0.02
+              name: `Agent ${call.agent_id.substring(0, 8)}...`,
+              rate_per_minute: 0.02 // Tarifa por defecto
             };
           }
 
           return {
             ...call,
-            end_reason: call.disconnection_reason || null,
             call_agent: matchedAgent,
             agents: matchedAgent
           };
         });
       };
 
-      const mappedInitialCalls = mapCalls(initialCalls);
-      console.log("🔍 RAW CALLS FROM DB:", initialCalls?.length || 0);
-      console.log("🔍 MAPPED CALLS TOTAL:", mappedInitialCalls?.length || 0);
+      const mappedCalls = mapCalls(initialCalls);
+      
+      console.log("🔄 MAPEO COMPLETADO:");
+      console.log(`   📊 Llamadas mapeadas: ${mappedCalls.length}`);
+      console.log(`   🎯 Con agentes válidos: ${mappedCalls.filter(c => c.call_agent?.rate_per_minute > 0).length}`);
 
-      setCalls(mappedInitialCalls);
+      setCalls(mappedCalls);
       setLoading(false);
       setLoadingProgress('');
 
-      console.log("🎉 PRIMERA CARGA HÍBRIDA COMPLETADA");
-
-      // Cargar resto en background (igual que el actual)
-      if (initialCalls.length === INITIAL_BATCH) {
-        setBackgroundLoading(true);
-        setHasMoreCalls(true);
-        
-        setTimeout(async () => {
-          try {
-            console.log("📦 Cargando llamadas adicionales en background...");
-            
-            const lastTimestamp = initialCalls[initialCalls.length - 1]?.timestamp;
-            
-            let remainingQuery = supabase
-              .from('calls')
-              .select('*')
-              .in('agent_id', allAgentIds);
-
-            const { data: remainingCalls, error: remainingError } = await remainingQuery
-              .order('timestamp', { ascending: false })
-              .lt('timestamp', lastTimestamp);
-
-            if (!remainingError && remainingCalls) {
-              const mappedRemainingCalls = mapCalls(remainingCalls);
-              const allCalls = [...mappedInitialCalls, ...mappedRemainingCalls];
-              
-              console.log(`📞 Llamadas adicionales cargadas: ${remainingCalls.length}`);
-              console.log(`📊 Total de llamadas: ${allCalls.length}`);
-              
-              setCalls(allCalls);
-              setHasMoreCalls(false);
-            }
-          } catch (err) {
-            console.error("❌ Error cargando llamadas adicionales:", err);
-          } finally {
-            setBackgroundLoading(false);
-          }
-        }, 1000);
-      } else {
-        setHasMoreCalls(false);
-      }
-
-      setTimeout(() => {
-        loadAudioForVisibleCalls(mappedInitialCalls.slice(0, 10));
-      }, 500);
+      console.log("🎉 CARGA COMPLETADA - Llamadas reales detectadas correctamente");
 
     } catch (err: any) {
       console.error("❌ Excepción en fetch calls:", err);
@@ -1036,7 +983,7 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FUNCIONES DE PAGINACIÓN (SIN CAMBIOS - del actual)
+  // FUNCIÓN DE PAGINACIÓN
   // ============================================================================
   const applyPagination = () => {
     const totalPages = Math.ceil(filteredCalls.length / pageSize);
@@ -1057,41 +1004,213 @@ export default function CallsSimple() {
 
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset a la primera página
     console.log(`📄 Cambio de tamaño de página: ${newPageSize}`);
   };
 
+  // FUNCIÓN SIMPLIFICADA: Verificación robusta sin errores SQL
+  const shouldProcessCalls = async () => {
+    if (loading || backgroundLoading || isProcessing) {
+      console.log(`🛑 No procesar: loading=${loading}, backgroundLoading=${backgroundLoading}, isProcessing=${isProcessing}`);
+      return false;
+    }
+    
+    // Filtrar llamadas que parecen pendientes
+    const potentiallyPendingCalls = calls.filter(call => 
+      ['completed', 'ended'].includes(call.call_status?.toLowerCase()) && 
+      (call.duration_sec > 0 || call.recording_url) &&
+      (call.call_agent?.rate_per_minute || call.agents?.rate_per_minute) > 0
+    );
+    
+    if (potentiallyPendingCalls.length === 0) {
+      console.log(`✅ Sin llamadas completadas para verificar`);
+      return false;
+    }
+    
+    console.log(`🔍 Verificando ${potentiallyPendingCalls.length} llamadas contra transacciones...`);
+    
+    // VERIFICACIÓN SIMPLIFICADA: Buscar por descripción (más robusta)
+    try {
+      const processedCallIds = new Set();
+      
+      // Verificar cada llamada individualmente
+      for (const call of potentiallyPendingCalls) {
+        const callIdShort = call.call_id.substring(0, 16); // Usar parte del ID
+        
+        const { data: existingTx, error } = await supabase
+          .from('credit_transactions')
+          .select('id, description')
+          .eq('user_id', user.id)
+          .ilike('description', `%${callIdShort}%`)
+          .limit(1);
+        
+        if (error) {
+          console.log(`⚠️ Error verificando ${callIdShort}:`, error.message);
+          continue; // Continuar con siguiente llamada
+        }
+        
+        if (existingTx && existingTx.length > 0) {
+          processedCallIds.add(call.call_id);
+          console.log(`✅ Transacción encontrada para: ${callIdShort}`);
+        } else {
+          console.log(`🔄 Sin transacción para: ${callIdShort} - PENDIENTE`);
+        }
+      }
+      
+      // Llamadas realmente pendientes
+      const trulyPendingCalls = potentiallyPendingCalls.filter(call => 
+        !processedCallIds.has(call.call_id)
+      );
+      
+      if (trulyPendingCalls.length === 0) {
+        console.log(`✅ Todas las llamadas ya tienen transacciones procesadas`);
+        return false;
+      }
+      
+      console.log(`🎯 ${trulyPendingCalls.length} llamadas REALMENTE pendientes:`);
+      trulyPendingCalls.forEach(call => {
+        console.log(`   - ${call.call_id.substring(0, 16)} (sin transacción)`);
+      });
+      
+      return trulyPendingCalls.length > 0;
+      
+    } catch (error) {
+      console.error('❌ Excepción verificando transacciones:', error);
+      // En caso de error, procesar para estar seguros
+      console.log('🔄 Error en verificación - procesando por seguridad');
+      return true;
+    }
+  };
+
   // ============================================================================
-  // FUNCIONES DE FILTROS Y ESTADÍSTICAS (SIN CAMBIOS - del actual)
+  // useEffects
   // ============================================================================
+
+  // Efecto principal: Cargar datos cuando el usuario está disponible
+  useEffect(() => {
+    if (user?.id) {
+      console.log('🚀 INITIATING CORRECTED SYSTEM for:', user.email);
+      console.log('💡 MODE: Exact cost system with real calls detection');
+      fetchCalls();
+    }
+  }, [user?.id]);
+
+  // Efecto para aplicar filtros y ordenamiento
+  useEffect(() => {
+    if (calls.length > 0) {
+      applyFiltersAndSort();
+      calculateStats();
+    }
+  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
+
+  // Efecto para aplicar paginación y cargar audio de página actual
+  useEffect(() => {
+    const totalPages = applyPagination();
+    
+    // Si la página actual es mayor que el total de páginas, resetear a la primera
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+
+    // Cargar audio solo para las llamadas de la página actual
+    if (paginatedCalls.length > 0) {
+      loadAudioForVisibleCalls(paginatedCalls);
+    }
+  }, [filteredCalls, currentPage, pageSize]);
+
+  // Efecto para resetear página cuando cambien filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
+
+  // useEffect CON LOGS DETALLADOS para debugging
+  useEffect(() => {
+    console.log(`🔥 useEffect EJECUTADO - Navegación detectada`);
+    console.log(`📊 Estado actual:`, {
+      callsLength: calls.length,
+      loading,
+      backgroundLoading,
+      isProcessing,
+      userId: user?.id
+    });
+    
+    if (calls.length > 0) {
+      console.log(`📋 Llamadas actuales:`, calls.map(call => ({
+        id: call.call_id.substring(0, 12),
+        processed: call.processed_for_cost,
+        cost: call.cost_usd,
+        status: call.call_status
+      })));
+    }
+    
+    if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
+      // Solo procesar si hay llamadas realmente pendientes
+      setTimeout(async () => {
+        console.log(`⏰ setTimeout EJECUTÁNDOSE después de navegación`);
+        if (!isProcessing && await shouldProcessCalls()) {
+          console.log(`🚀 INICIANDO processNewCallsExact por navegación`);
+          processNewCallsExact();
+        } else {
+          console.log("🛡️ shouldProcessCalls() impidió procesamiento duplicado");
+        }
+      }, 1000);
+      
+      // Intervalo con verificaciones adicionales
+      const interval = setInterval(async () => {
+        console.log(`⏰ Intervalo ejecutándose...`);
+        if (!backgroundLoading && !isProcessing && await shouldProcessCalls()) {
+          console.log(`⏰ Intervalo: Procesando llamadas pendientes`);
+          processNewCallsExact();
+        } else {
+          console.log("⏰ Intervalo: No hay llamadas realmente pendientes");
+        }
+      }, 30000);
+      
+      return () => {
+        console.log(`🧹 useEffect cleanup - desmontando componente`);
+        clearInterval(interval);
+      };
+    }
+  }, [
+    user?.id,           // Usuario cambia → recargar
+    calls.length,       // Nuevas llamadas → verificar
+    loading,            // Estado de carga cambia
+    backgroundLoading   // Carga en background cambia
+  ]);
+
+  // ============================================================================
+  // FUNCIONES DE FILTROS Y ESTADÍSTICAS
+  // ============================================================================
+
   const applyFiltersAndSort = () => {
     console.log("🔍 BEFORE FILTERS - Total calls:", calls.length);
     
     let filtered = [...calls];
 
+    // Filtro por búsqueda
     if (searchTerm) {
       const beforeSearch = filtered.length;
       filtered = filtered.filter(call => 
-        validateCall(call) && (
-          call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          call.from_number.includes(searchTerm) ||
-          call.to_number.includes(searchTerm) ||
-          call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-        )
+        call.call_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        call.from_number.includes(searchTerm) ||
+        call.to_number.includes(searchTerm) ||
+        call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
       console.log(`🔍 SEARCH FILTER: ${beforeSearch} → ${filtered.length} (term: "${searchTerm}")`);
     }
 
+    // Filtro por estado
     if (statusFilter !== "all") {
       const beforeStatus = filtered.length;
-      filtered = filtered.filter(call => validateCall(call) && call.call_status === statusFilter);
+      filtered = filtered.filter(call => call.call_status === statusFilter);
       console.log(`🔍 STATUS FILTER: ${beforeStatus} → ${filtered.length} (status: "${statusFilter}")`);
     }
 
+    // FILTRO POR AGENTE CON DEBUG DETALLADO
     if (agentFilter !== null) {
       const beforeAgent = filtered.length;
-      const selectedAgent = userAssignedAgents.find(agent => agent && agent.id === agentFilter);
+      const selectedAgent = userAssignedAgents.find(agent => agent.id === agentFilter);
       
       console.log(`🔍 AGENT FILTER DEBUG:`, {
         agentFilter,
@@ -1106,8 +1225,6 @@ export default function CallsSimple() {
         console.log(`🔍 Filtrando por agente: ${selectedAgent.name}`);
         
         filtered = filtered.filter(call => {
-          if (!validateCall(call)) return false;
-          
           const matchesId = call.agent_id === selectedAgent.id;
           const matchesRetell = call.agent_id === selectedAgent.retell_agent_id;
           const matchesCallAgent = call.call_agent?.id === selectedAgent.id;
@@ -1121,13 +1238,13 @@ export default function CallsSimple() {
       console.log(`🔍 AGENT FILTER: ${beforeAgent} → ${filtered.length}`);
     }
 
+    // Filtro por fecha
     const beforeDate = filtered.length;
-    filtered = filtered.filter(call => validateCall(call) && isDateInRange(call.timestamp));
+    filtered = filtered.filter(call => isDateInRange(call.timestamp));
     console.log(`🔍 DATE FILTER: ${beforeDate} → ${filtered.length} (filter: "${dateFilter}")`);
 
+    // Ordenamiento
     filtered.sort((a, b) => {
-      if (!validateCall(a) || !validateCall(b)) return 0;
-      
       let aValue: any = a[sortField];
       let bValue: any = b[sortField];
 
@@ -1154,8 +1271,6 @@ export default function CallsSimple() {
     let completedCalls = 0;
 
     calls.forEach((call) => {
-      if (!validateCall(call)) return;
-      
       const duration = getCallDuration(call);
       totalDuration += duration;
       const callCost = calculateCallCost(call);
@@ -1177,11 +1292,10 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FUNCIONES DE UTILIDAD (SIN CAMBIOS - del actual)
+  // FUNCIONES DE UTILIDAD
   // ============================================================================
+
   const isDateInRange = (callTimestamp: string): boolean => {
-    if (!callTimestamp) return false;
-    
     const callDate = new Date(callTimestamp);
     const today = new Date();
     const yesterday = new Date(today);
@@ -1222,98 +1336,23 @@ export default function CallsSimple() {
   const getDateFilterText = () => {
     switch (dateFilter) {
       case 'today':
-        return 'Today';
+        return 'Hoy';
       case 'yesterday':
-        return 'Yesterday';
+        return 'Ayer';
       case 'last7days':
-        return 'Last 7 days';
+        return 'Últimos 7 días';
       case 'custom':
-        return customDate ? new Date(customDate).toLocaleDateString() : 'Custom date';
+        return customDate ? new Date(customDate).toLocaleDateString() : 'Fecha personalizada';
       default:
-        return 'All dates';
+        return 'Todas las fechas';
     }
   };
 
   // ============================================================================
-  // useEffects HÍBRIDOS
+  // FUNCIONES DE FORMATO
   // ============================================================================
-  useEffect(() => {
-    if (user?.id) {
-      console.log('🚀 INITIATING HÍBRIDO SYSTEM for:', user.email);
-      console.log('💡 MODE: UI perfecta + Descuentos reales híbridos');
-      fetchCalls();
-    }
-  }, [user?.id]);
 
-  useEffect(() => {
-    if (calls.length > 0) {
-      applyFiltersAndSort();
-      calculateStats();
-    }
-  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
-
-  useEffect(() => {
-    const totalPages = applyPagination();
-    
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1);
-    }
-
-    if (paginatedCalls.length > 0) {
-      loadAudioForVisibleCalls(paginatedCalls);
-    }
-  }, [filteredCalls, currentPage, pageSize]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
-
-  // 🔥 useEffect HÍBRIDO MEJORADO
-  useEffect(() => {
-    console.log(`🔥 useEffect HÍBRIDO EJECUTADO - Navegación detectada`);
-    console.log(`📊 Estado actual:`, {
-      callsLength: calls.length,
-      loading,
-      backgroundLoading,
-      isProcessing,
-      userId: user?.id
-    });
-    
-    if (calls.length > 0 && !loading && !backgroundLoading && !isProcessing) {
-      setTimeout(async () => {
-        console.log(`⏰ setTimeout HÍBRIDO ejecutándose`);
-        if (!isProcessing) {
-          console.log(`🚀 INICIANDO processNewCallsHybrid por navegación`);
-          processNewCallsHybrid();
-        }
-      }, 1000);
-      
-      const interval = setInterval(async () => {
-        console.log(`⏰ Intervalo híbrido ejecutándose...`);
-        if (!backgroundLoading && !isProcessing) {
-          console.log(`⏰ Intervalo: Procesando llamadas pendientes híbridas`);
-          processNewCallsHybrid();
-        }
-      }, 30000);
-      
-      return () => {
-        console.log(`🧹 useEffect híbrido cleanup`);
-        clearInterval(interval);
-      };
-    }
-  }, [
-    user?.id,
-    calls.length,
-    loading,
-    backgroundLoading
-  ]);
-
-  // ============================================================================
-  // FUNCIONES DE FORMATO (SIN CAMBIOS - del actual)
-  // ============================================================================
   const getStatusColor = (status: string) => {
-    if (!status) return 'bg-gray-100 text-gray-800 border-gray-200';
-    
     switch (status?.toLowerCase()) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
       case 'error': return 'bg-red-100 text-red-800 border-red-200';
@@ -1324,8 +1363,6 @@ export default function CallsSimple() {
   };
 
   const getSentimentColor = (sentiment: string) => {
-    if (!sentiment) return 'bg-gray-50 text-gray-600 border-gray-200';
-    
     switch (sentiment?.toLowerCase()) {
       case 'positive': return 'bg-green-100 text-green-700 border-green-200';
       case 'negative': return 'bg-red-100 text-red-700 border-red-200';
@@ -1386,9 +1423,7 @@ export default function CallsSimple() {
   };
 
   const formatDate = (timestamp: string) => {
-    if (!timestamp) return 'Invalid Date';
-    
-    return new Date(timestamp).toLocaleString('en-US', {
+    return new Date(timestamp).toLocaleString('es-ES', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -1399,9 +1434,7 @@ export default function CallsSimple() {
   };
 
   const formatTime = (timestamp: string) => {
-    if (!timestamp) return 'Invalid Time';
-    
-    return new Date(timestamp).toLocaleTimeString('en-US', {
+    return new Date(timestamp).toLocaleTimeString('es-ES', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
@@ -1409,7 +1442,7 @@ export default function CallsSimple() {
   };
 
   const formatPhoneNumber = (phone: string) => {
-    if (!phone || phone === 'unknown') return 'Unknown';
+    if (!phone || phone === 'unknown') return 'Desconocido';
     return phone;
   };
 
@@ -1419,8 +1452,9 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // HANDLERS DE EVENTOS (SIN CAMBIOS - del actual)
+  // HANDLERS DE EVENTOS
   // ============================================================================
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -1431,11 +1465,6 @@ export default function CallsSimple() {
   };
 
   const handleCallClick = (call: Call) => {
-    if (!validateCall(call)) {
-      console.warn('handleCallClick: invalid call', call);
-      return;
-    }
-    
     const originalCall = calls.find(c => c.id === call.id) || call;
     setSelectedCall(originalCall);
     setIsModalOpen(true);
@@ -1447,19 +1476,20 @@ export default function CallsSimple() {
   };
 
   // Variables auxiliares para la UI
-  const uniqueStatuses = [...new Set(calls.filter(validateCall).map(call => call.call_status))];
+  const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
   const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
   const totalPages = Math.ceil(filteredCalls.length / pageSize);
 
   // ============================================================================
   // VERIFICACIÓN DE USUARIO
   // ============================================================================
+
   if (!user) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
-            <p className="text-red-600 font-medium">Please log in to view your calls</p>
+            <p className="text-red-600 font-medium">Por favor inicia sesión para ver tus llamadas</p>
           </div>
         </div>
       </DashboardLayout>
@@ -1467,22 +1497,23 @@ export default function CallsSimple() {
   }
 
   // ============================================================================
-  // RENDER DEL COMPONENTE PRINCIPAL HÍBRIDO
+  // RENDER DEL COMPONENTE PRINCIPAL CON PAGINACIÓN
   // ============================================================================
+
   return (
     <DashboardLayout>
       <div className="container mx-auto py-4">
         <div className="space-y-6">
-          {/* Header HÍBRIDO */}
+          {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">💎 Call Management </h1>
+              <h1 className="text-3xl font-bold text-gray-900">📞 Gestión de Llamadas</h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-gray-600">
-                  DrScaleai Complete system calls
+                  Datos completos de llamadas para tu cuenta
                   {selectedAgentName && (
                     <span className="ml-2 text-blue-600 font-medium">
-                      • Filtered by {selectedAgentName}
+                      • Filtrado por {selectedAgentName}
                     </span>
                   )}
                 </p>
@@ -1490,27 +1521,27 @@ export default function CallsSimple() {
                 <div className="flex items-center gap-3">
                   {isProcessing && (
                     <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
-                      <span className="text-xs font-medium text-green-600">Processing real discounts</span>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                      <span className="text-xs font-medium text-blue-600">Procesando Exacto</span>
                     </div>
                   )}
                   
                   <span className="text-xs text-gray-400">
-                    Last update: {new Date().toLocaleTimeString()}
+                    Última actualización: {new Date().toLocaleTimeString()}
                   </span>
                 </div>
               </div>
             </div>
             
             <div className="flex items-center gap-3">
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                 <User className="w-3 h-3 mr-1" />
-                System User Active
+                Usuario Activo
               </Badge>
               
               <Button
                 onClick={() => {
-                  console.log("🔄 REFRESH HÍBRIDO - UI + Descuentos reales");
+                  console.log("🔄 REFRESH MANUAL - Sistema exacto");
                   fetchCalls();
                 }}
                 disabled={loading}
@@ -1521,43 +1552,44 @@ export default function CallsSimple() {
                 {loading ? (
                   <div className="flex items-center gap-1">
                     <LoadingSpinner size="sm" />
-                    <span className="text-xs">Updating...</span>
+                    <span className="text-xs">Actualizando...</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 border border-gray-400 rounded-full"></div>
-                    <span className="text-xs">Refresh</span>
+                    <span className="text-xs">Actualizar</span>
                   </div>
                 )}
               </Button>
               
+              {/* INDICADOR CORREGIDO */}
               <div className="text-right">
-                <div className="text-xs font-medium text-green-600">🟢 System Active</div>
-                <div className="text-xs text-gray-500">Connected</div>
+                <div className="text-xs font-medium text-green-600">🟢 Sistema Activo</div>
+                <div className="text-xs text-gray-500">Actualizado</div>
               </div>
             </div>
           </div>
 
-          {/* MENSAJE INFORMATIVO HÍBRIDO */}
+          {/* MENSAJE INFORMATIVO ACTUALIZADO */}
           <Card className="border-green-200 bg-green-50">
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  💎 Automatic Real Balance Discounts
+                  💰 Sistema de descuento exacto activo - Procesa duraciones reales de llamadas.
                 </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* INDICADOR DE PROCESAMIENTO HÍBRIDO */}
+          {/* INDICADOR DE PROCESAMIENTO EXACTO */}
           {isProcessing && (
             <Card className="border-green-200 bg-green-50">
               <CardContent className="p-4">
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500 mr-3"></div>
                   <span className="text-green-700 font-medium">
-                    💎 Processing REAL discounts with exact durations - Hybrid system working...
+                    💰 Procesando costos exactos con duraciones reales de llamadas...
                   </span>
                 </div>
               </CardContent>
@@ -1573,13 +1605,13 @@ export default function CallsSimple() {
             </Card>
           )}
 
-          {/* Statistics Cards (SIN CAMBIOS - del actual) */}
+          {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-600 font-medium">Total Calls</p>
+                    <p className="text-xs text-gray-600 font-medium">Total de Llamadas</p>
                     <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
                   </div>
                   <Phone className="h-8 w-8 text-blue-600" />
@@ -1591,7 +1623,7 @@ export default function CallsSimple() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-600 font-medium">Completed</p>
+                    <p className="text-xs text-gray-600 font-medium">Completadas</p>
                     <p className="text-2xl font-bold text-gray-900">{stats.completedCalls}</p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-green-600" />
@@ -1603,7 +1635,7 @@ export default function CallsSimple() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-600 font-medium">Total Cost</p>
+                    <p className="text-xs text-gray-600 font-medium">Costo Total</p>
                     <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.totalCost)}</p>
                   </div>
                   <DollarSign className="h-8 w-8 text-purple-600" />
@@ -1615,7 +1647,7 @@ export default function CallsSimple() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-600 font-medium">Total Duration</p>
+                    <p className="text-xs text-gray-600 font-medium">Duración Total</p>
                     <p className="text-xl font-bold text-gray-900">{formatDuration(stats.totalDuration)}</p>
                   </div>
                   <Clock className="h-8 w-8 text-orange-600" />
@@ -1627,7 +1659,7 @@ export default function CallsSimple() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-600 font-medium">Avg Duration</p>
+                    <p className="text-xs text-gray-600 font-medium">Duración Promedio</p>
                     <p className="text-xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
                   </div>
                   <Clock className="h-8 w-8 text-pink-600" />
@@ -1636,14 +1668,14 @@ export default function CallsSimple() {
             </Card>
           </div>
 
-          {/* FILTROS (SIN CAMBIOS - del actual) */}
+          {/* FILTROS */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4 items-center">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Search calls by ID, phone, agent, or summary..."
+                    placeholder="Buscar llamadas por ID, teléfono, agente o resumen..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -1658,7 +1690,7 @@ export default function CallsSimple() {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="all">All Status</option>
+                    <option value="all">Todos los Estados</option>
                     {uniqueStatuses.map(status => (
                       <option key={status} value={status}>
                         {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -1681,11 +1713,11 @@ export default function CallsSimple() {
                     onChange={(e) => handleDateFilterChange(e.target.value as DateFilter)}
                     className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="all">All Dates</option>
-                    <option value="today">Today</option>
-                    <option value="yesterday">Yesterday</option>
-                    <option value="last7days">Last 7 Days</option>
-                    <option value="custom">Custom Date</option>
+                    <option value="all">Todas las Fechas</option>
+                    <option value="today">Hoy</option>
+                    <option value="yesterday">Ayer</option>
+                    <option value="last7days">Últimos 7 Días</option>
+                    <option value="custom">Fecha Personalizada</option>
                   </select>
                 </div>
 
@@ -1704,21 +1736,21 @@ export default function CallsSimple() {
                       📅 {getDateFilterText()}
                     </Badge>
                   )}
-                  Showing {paginatedCalls.length} of {filteredCalls.length} calls
+                  Mostrando {paginatedCalls.length} de {filteredCalls.length} llamadas
                   {filteredCalls.length !== calls.length && (
-                    <span className="text-gray-400"> (filtered from {calls.length})</span>
+                    <span className="text-gray-400"> (filtrado de {calls.length})</span>
                   )}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Calls Table (SIN CAMBIOS IMPORTANTES - misma UI del actual) */}
+          {/* Calls Table */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="border-b border-gray-100 pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl font-semibold text-gray-900">
-                  💎 Call History ({filteredCalls.length})
+                  📋 Historial de Llamadas ({filteredCalls.length})
                   
                   {totalPages > 1 && (
                     <span className="text-sm font-normal text-gray-500 ml-2">
@@ -1727,10 +1759,11 @@ export default function CallsSimple() {
                   )}
                 </CardTitle>
                 
+                {/* Indicador de carga en background */}
                 {backgroundLoading && (
                   <div className="flex items-center gap-2 text-blue-600">
                     <div className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-sm font-medium">Loading more calls...</span>
+                    <span className="text-sm font-medium">Cargando más llamadas...</span>
                   </div>
                 )}
                 
@@ -1746,7 +1779,7 @@ export default function CallsSimple() {
                 <div className="flex items-center justify-center py-12">
                   <LoadingSpinner size="lg" />
                   <div className="ml-3">
-                    <span className="text-gray-600 block">Loading calls...</span>
+                    <span className="text-gray-600 block">Cargando llamadas...</span>
                     {loadingProgress && (
                       <span className="text-sm text-gray-500 mt-1 block">{loadingProgress}</span>
                     )}
@@ -1755,11 +1788,11 @@ export default function CallsSimple() {
               ) : filteredCalls.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                   <Phone className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-lg font-medium mb-2">No calls found</p>
+                  <p className="text-lg font-medium mb-2">No se encontraron llamadas</p>
                   <p className="text-sm">
                     {dateFilter !== 'all' 
-                      ? `No calls found for ${getDateFilterText().toLowerCase()}`
-                      : 'No calls match your current filters'
+                      ? `No se encontraron llamadas para ${getDateFilterText().toLowerCase()}`
+                      : 'No hay llamadas que coincidan con tus filtros actuales'
                     }
                   </p>
                   {dateFilter !== 'all' && (
@@ -1773,7 +1806,7 @@ export default function CallsSimple() {
                         }}
                         className="text-blue-600 border-blue-200 hover:bg-blue-50"
                       >
-                        📅 Show All Dates
+                        📅 Mostrar Todas las Fechas
                       </Button>
                     </div>
                   )}
@@ -1789,21 +1822,21 @@ export default function CallsSimple() {
                               onClick={() => handleSort('timestamp')}
                               className="flex items-center gap-1 hover:text-gray-700"
                             >
-                              Date & Time {getSortIcon('timestamp')}
+                              Fecha y Hora {getSortIcon('timestamp')}
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Call Details
+                            Detalles de Llamada
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Agent
+                            Agente
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             <button
                               onClick={() => handleSort('duration_sec')}
                               className="flex items-center gap-1 hover:text-gray-700"
                             >
-                              Duration {getSortIcon('duration_sec')}
+                              Duración {getSortIcon('duration_sec')}
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1811,7 +1844,7 @@ export default function CallsSimple() {
                               onClick={() => handleSort('cost_usd')}
                               className="flex items-center gap-1 hover:text-gray-700"
                             >
-                              Cost (REAL) {getSortIcon('cost_usd')}
+                              Costo {getSortIcon('cost_usd')}
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1819,25 +1852,25 @@ export default function CallsSimple() {
                               onClick={() => handleSort('call_status')}
                               className="flex items-center gap-1 hover:text-gray-700"
                             >
-                              Status {getSortIcon('call_status')}
+                              Estado {getSortIcon('call_status')}
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            End Reason
+                            Razón de Finalización
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Content
+                            Contenido
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Process Status
+                            Estado de Proceso
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
+                            Acciones
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {paginatedCalls.filter(validateCall).map((call, index) => (
+                        {paginatedCalls.map((call, index) => (
                           <tr 
                             key={call.id} 
                             className="hover:bg-gray-50 transition-colors cursor-pointer"
@@ -1883,7 +1916,7 @@ export default function CallsSimple() {
                               <div className="text-xs text-gray-500">
                                 {audioDurations[call.id] ? 
                                   `${getCallDuration(call)}s (audio)` : 
-                                  `${getCallDuration(call)}s (db)`
+                                  `${getCallDuration(call)}s (bd)`
                                 }
                               </div>
                             </td>
@@ -1897,7 +1930,7 @@ export default function CallsSimple() {
                                   const agentRate = call.call_agent?.rate_per_minute || call.agents?.rate_per_minute;
                                   return agentRate ? 
                                     `$${agentRate}/min` :
-                                    `DB: ${formatCurrency(call.cost_usd)}`;
+                                    `BD: ${formatCurrency(call.cost_usd)}`;
                                 })()}
                               </div>
                             </td>
@@ -1921,7 +1954,7 @@ export default function CallsSimple() {
                                   {call.end_reason.replace(/_/g, ' ')}
                                 </Badge>
                               ) : (
-                                <span className="text-xs text-gray-400">No reason</span>
+                                <span className="text-xs text-gray-400">Sin razón</span>
                               )}
                             </td>
 
@@ -1930,13 +1963,13 @@ export default function CallsSimple() {
                                 {call.transcript && (
                                   <div className="flex items-center gap-1 text-xs text-green-600">
                                     <FileText className="h-3 w-3" />
-                                    Transcript
+                                    Transcripción
                                   </div>
                                 )}
                                 {call.call_summary && (
                                   <div className="flex items-center gap-1 text-xs text-blue-600">
                                     <PlayCircle className="h-3 w-3" />
-                                    Summary
+                                    Resumen
                                   </div>
                                 )}
                                 {call.recording_url && (
@@ -1953,23 +1986,25 @@ export default function CallsSimple() {
                               )}
                             </td>
 
+                            {/* COLUMNA DE ESTADO DE PROCESO */}
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="flex flex-col gap-1">
                                 {call.processed_for_cost ? (
                                   <Badge className="bg-green-100 text-green-800 text-xs border-green-200">
-                                    ✅ Processed
+                                    ✅ Procesada
                                   </Badge>
                                 ) : (
                                   <Badge className="bg-yellow-100 text-yellow-800 text-xs border-yellow-200">
-                                    ⏳ Pending
+                                    ⏳ Pendiente
                                   </Badge>
                                 )}
                                 <div className="text-xs text-gray-500">
-                                  {call.processed_for_cost ? 'Cost applied' : 'Awaiting process'}
+                                  {call.processed_for_cost ? 'Costo aplicado' : 'Esperando proceso'}
                                 </div>
                               </div>
                             </td>
 
+                            {/* COLUMNA DE ACCIONES */}
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-1">
                                 <Button 
