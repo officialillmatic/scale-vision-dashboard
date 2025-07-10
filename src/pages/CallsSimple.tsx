@@ -1402,7 +1402,7 @@ export default function CallsSimple() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  🟢💰 Exact cost deduction system active - Real calls processed.
+                  💰 Exact cost deduction system active - Real calls processed.
                 </span>
               </div>
             </CardContent>
