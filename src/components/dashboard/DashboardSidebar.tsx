@@ -219,19 +219,18 @@ export function DashboardSidebar() {
         <div className="mt-6 px-3 sm:px-4 bg-white">
           <Button
             variant="outline"
-            size="sm"
             className={cn(
-              "w-full border-2 border-brand-green/30 bg-brand-green/5 hover:bg-brand-green/10 hover:border-brand-green/50 transition-all duration-200 justify-start",
-              "py-3 px-4 text-base sm:py-2 sm:px-3 sm:text-sm",
-              "text-brand-green font-medium shadow-sm",
-              collapsed && "px-2"
+              "w-full border-2 border-red-400/40 bg-red-50/80 hover:bg-red-100/90 hover:border-red-500/60 transition-all duration-200 justify-start",
+              "py-3 px-4 text-red-600 font-medium shadow-sm",
+              "min-h-[44px] h-auto whitespace-normal text-left",
+              collapsed && "px-2 min-h-[40px]"
             )}
             asChild
           >
-            <Link to="/comprehensive-support" onClick={handleMobileNavClick} className="flex items-center">
-              <BookOpen className="h-6 w-6 sm:h-4 sm:w-4 flex-shrink-0" />
+            <Link to="/comprehensive-support" onClick={handleMobileNavClick} className="flex items-start gap-3">
+              <BookOpen className="h-5 w-5 flex-shrink-0 mt-0.5" />
               {!collapsed && (
-                <span className="ml-3 sm:ml-2">
+                <span className="text-sm leading-tight break-words">
                   Dr. Scale Comprehensive Support
                 </span>
               )}
