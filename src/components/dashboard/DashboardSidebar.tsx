@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, CreditCard } from "lucide-react";
+import { Phone, CreditCard, BookOpen } from "lucide-react";
 import { useRole } from "@/hooks/useRole.ts";
 
 const navigationItems = [
@@ -214,6 +214,30 @@ export function DashboardSidebar() {
             ))}
           </SidebarMenu>
         </SidebarGroup>
+
+        {/* Dr. Scale Comprehensive Support Button */}
+        <div className="mt-6 px-3 sm:px-4 bg-white">
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "w-full border-2 border-brand-green/30 bg-brand-green/5 hover:bg-brand-green/10 hover:border-brand-green/50 transition-all duration-200 justify-start",
+              "py-3 px-4 text-base sm:py-2 sm:px-3 sm:text-sm",
+              "text-brand-green font-medium shadow-sm",
+              collapsed && "px-2"
+            )}
+            asChild
+          >
+            <Link to="/comprehensive-support" onClick={handleMobileNavClick} className="flex items-center">
+              <BookOpen className="h-6 w-6 sm:h-4 sm:w-4 flex-shrink-0" />
+              {!collapsed && (
+                <span className="ml-3 sm:ml-2">
+                  Dr. Scale Comprehensive Support
+                </span>
+              )}
+            </Link>
+          </Button>
+        </div>
 
         <div className="mt-auto border-t border-gray-200 pt-4 sm:pt-6 bg-white">
           <Button
