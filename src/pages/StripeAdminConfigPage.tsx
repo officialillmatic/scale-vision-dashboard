@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { useRole } from '@/hooks/useRole';
 import { supabase } from '@/integrations/supabase/client';
 
 interface StripeConfig {
@@ -39,9 +40,10 @@ interface StripeConfig {
 
 const StripeAdminConfigPage: React.FC = () => {
   const { user } = useAuth();
+  const { can } = useRole();
   
-  // Verificar si es super admin
-  const isSuperAdmin = user?.user_metadata?.role === 'super_admin';
+  // Verificar si es super admin usando el hook useRole
+  const isSuperAdmin = can.superAdminAccess;
   
   // Estados
   const [loading, setLoading] = useState(true);
