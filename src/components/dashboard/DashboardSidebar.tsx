@@ -227,7 +227,7 @@ export function DashboardSidebar() {
             )}
             asChild
           >
-            <Link to="/comprehensive-support" onClick={handleMobileNavClick} className="flex items-start gap-3">
+            <Link to="/pricing" onClick={handleMobileNavClick} className="flex items-start gap-3">
               <BookOpen className="h-5 w-5 flex-shrink-0 mt-0.5" />
               {!collapsed && (
                 <span className="text-sm leading-tight break-words">
