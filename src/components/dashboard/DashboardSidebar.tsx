@@ -215,14 +215,14 @@ export function DashboardSidebar() {
           </SidebarMenu>
         </SidebarGroup>
 
-        {/* 🎨 BOTÓN PROFESIONAL PLANS & PRICING */}
+        {/* 🎨 BOTÓN LIMPIO PLANS & PRICING */}
         <div className="mt-6 px-3 sm:px-4 bg-white">
           <Link 
             to="/pricing" 
             onClick={handleMobileNavClick}
             className={cn(
               // Diseño base del botón
-              "group relative flex items-center w-full rounded-xl overflow-hidden",
+              "group relative flex flex-col items-center justify-center w-full rounded-xl overflow-hidden",
               "transition-all duration-500 ease-out",
               // Colores y gradiente profesional
               "bg-gradient-to-r from-purple-600 to-pink-600",
@@ -230,8 +230,8 @@ export function DashboardSidebar() {
               // Sombra y efectos
               "shadow-lg hover:shadow-xl",
               // Padding y altura
-              "py-4 px-4 min-h-[56px]",
-              collapsed && "px-3 min-h-[48px] justify-center",
+              "py-4 px-4 min-h-[64px]",
+              collapsed && "px-3 min-h-[48px]",
               // Animaciones de transform
               "hover:scale-[1.02] active:scale-[0.98]",
               // Cursor
@@ -244,34 +244,25 @@ export function DashboardSidebar() {
                           transform -translate-x-full group-hover:translate-x-full 
                           skew-x-12 animation-duration-1000" />
 
-            {/* Icono principal */}
+            {/* Icono centrado arriba */}
             <div className={cn(
-              "flex-shrink-0 transition-all duration-300",
+              "transition-all duration-300 mb-2",
               "group-hover:scale-110 group-hover:rotate-3",
-              collapsed ? "mx-auto" : "mr-3"
+              collapsed && "mb-0"
             )}>
-              <Crown className="h-5 w-5 text-yellow-300 drop-shadow-sm" />
+              <Crown className="h-6 w-6 text-yellow-300 drop-shadow-sm" />
             </div>
 
-            {/* Texto */}
+            {/* Texto centrado abajo */}
             {!collapsed && (
-              <div className="flex-1 text-left">
-                <div className="text-sm font-bold text-white leading-tight">
+              <div className="text-center">
+                <div className={cn(
+                  "text-white font-bold leading-tight",
+                  "text-base tracking-wide",
+                  "drop-shadow-sm"
+                )}>
                   Plans & Pricing
                 </div>
-                <div className="text-xs text-purple-100 opacity-90 mt-0.5">
-                  Upgrade now!
-                </div>
-              </div>
-            )}
-
-            {/* Badge "New" pequeño y discreto */}
-            {!collapsed && (
-              <div className="flex-shrink-0">
-                <Badge className="bg-yellow-400 text-purple-900 text-xs font-bold px-2 py-0.5 
-                               animate-pulse shadow-sm">
-                  NEW
-                </Badge>
               </div>
             )}
 
