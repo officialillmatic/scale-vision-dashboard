@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, CreditCard, BookOpen } from "lucide-react";
+import { Phone, CreditCard, BookOpen, Crown, Sparkles, Zap } from "lucide-react";
 import { useRole } from "@/hooks/useRole.ts";
 
 const navigationItems = [
@@ -215,27 +215,93 @@ export function DashboardSidebar() {
           </SidebarMenu>
         </SidebarGroup>
 
-        {/* Dr. Scale Comprehensive Support Button */}
+        {/* 🎨 NUEVO BOTÓN PLANS & PRICING CON DISEÑO ATRACTIVO */}
         <div className="mt-6 px-3 sm:px-4 bg-white">
-          <Button
-            variant="outline"
-            className={cn(
-              "w-full border-2 border-red-400/40 bg-red-50/80 hover:bg-red-100/90 hover:border-red-500/60 transition-all duration-200 justify-start",
-              "py-3 px-4 text-red-600 font-medium shadow-sm",
-              "min-h-[44px] h-auto whitespace-normal text-left",
-              collapsed && "px-2 min-h-[40px]"
+          <div className="relative group">
+            {/* Badge "Most Popular" flotante */}
+            {!collapsed && (
+              <div className="absolute -top-2 -right-2 z-10">
+                <Badge 
+                  className={cn(
+                    "bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold",
+                    "px-3 py-1 rounded-full shadow-lg animate-pulse",
+                    "border-2 border-white"
+                  )}
+                >
+                  <Crown className="h-3 w-3 mr-1" />
+                  Most Popular
+                </Badge>
+              </div>
             )}
-            asChild
-          >
-            <Link to="/pricing" onClick={handleMobileNavClick} className="flex items-start gap-3">
-              <BookOpen className="h-5 w-5 flex-shrink-0 mt-0.5" />
-              {!collapsed && (
-                <span className="text-sm leading-tight break-words">
-                  Dr. Scale Comprehensive Support
-                </span>
+            
+            {/* Botón principal con animaciones */}
+            <Button
+              variant="outline"
+              className={cn(
+                "w-full relative overflow-hidden transition-all duration-300 group",
+                // Gradiente de fondo atractivo
+                "bg-gradient-to-r from-purple-600 via-purple-700 to-pink-600",
+                "hover:from-purple-700 hover:via-purple-800 hover:to-pink-700",
+                // Borde y sombra
+                "border-0 shadow-lg hover:shadow-xl",
+                // Transform y scale effects
+                "hover:scale-[1.02] active:scale-[0.98]",
+                // Altura y padding
+                "py-4 px-4 min-h-[56px] h-auto",
+                collapsed && "px-3 min-h-[48px] justify-center"
               )}
-            </Link>
-          </Button>
+              asChild
+            >
+              <Link 
+                to="/pricing" 
+                onClick={handleMobileNavClick} 
+                className={cn(
+                  "flex items-center justify-start text-white font-bold relative z-10",
+                  collapsed && "justify-center"
+                )}
+              >
+                {/* Efecto de brillo animado */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform -skew-x-12 group-hover:animate-pulse" />
+                
+                {/* Icono principal */}
+                <div className={cn(
+                  "relative z-20 flex-shrink-0 transition-all duration-300",
+                  "group-hover:rotate-12 group-hover:scale-110"
+                )}>
+                  <div className="relative">
+                    <Crown className="h-5 w-5 text-yellow-300 drop-shadow-sm" />
+                    {/* Sparkles alrededor del icono */}
+                    <Sparkles className="absolute -top-1 -right-1 h-3 w-3 text-yellow-200 animate-pulse" />
+                  </div>
+                </div>
+                
+                {/* Texto */}
+                {!collapsed && (
+                  <div className="ml-3 relative z-20">
+                    <span className="text-sm font-bold leading-tight text-white drop-shadow-sm">
+                      Plans & Pricing
+                    </span>
+                    <div className="text-xs text-purple-100 opacity-90 mt-0.5">
+                      Upgrade now!
+                    </div>
+                  </div>
+                )}
+                
+                {/* Icono de flecha animada */}
+                {!collapsed && (
+                  <div className="ml-auto relative z-20 transition-transform duration-300 group-hover:translate-x-1">
+                    <Zap className="h-4 w-4 text-yellow-300 animate-pulse" />
+                  </div>
+                )}
+                
+                {/* Efecto de pulso en el fondo */}
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-400/30 to-pink-400/30 rounded-lg animate-pulse opacity-50" />
+              </Link>
+            </Button>
+            
+            {/* Efecto de glow alrededor del botón */}
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg blur-xl opacity-20 group-hover:opacity-40 transition-opacity duration-300 -z-10" />
+          </div>
         </div>
 
         <div className="mt-auto border-t border-gray-200 pt-4 sm:pt-6 bg-white">
