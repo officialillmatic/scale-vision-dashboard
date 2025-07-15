@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, CreditCard, BookOpen, Crown, Sparkles, Zap } from "lucide-react";
+import { Phone, CreditCard, BookOpen, Crown, Sparkles, Zap, Settings } from "lucide-react"; // ✅ AGREGADO Settings
 import { useRole } from "@/hooks/useRole.ts";
 
 const navigationItems = [
@@ -75,6 +75,12 @@ const superAdminNavigationItems = [
     href: "/admin/credits",
     icon: () => <CreditCard className="h-6 w-6" />,
     label: "Admin Credits",
+  },
+  // ✅ NUEVA ENTRADA AGREGADA PARA STRIPE CONFIG
+  {
+    href: "/admin/stripe-config",
+    icon: () => <Settings className="h-6 w-6" />,
+    label: "Stripe Config",
   }
 ];
 
