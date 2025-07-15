@@ -215,93 +215,70 @@ export function DashboardSidebar() {
           </SidebarMenu>
         </SidebarGroup>
 
-        {/* 🎨 NUEVO BOTÓN PLANS & PRICING CON DISEÑO ATRACTIVO */}
+        {/* 🎨 BOTÓN PROFESIONAL PLANS & PRICING */}
         <div className="mt-6 px-3 sm:px-4 bg-white">
-          <div className="relative group">
-            {/* Badge "Most Popular" flotante */}
+          <Link 
+            to="/pricing" 
+            onClick={handleMobileNavClick}
+            className={cn(
+              // Diseño base del botón
+              "group relative flex items-center w-full rounded-xl overflow-hidden",
+              "transition-all duration-500 ease-out",
+              // Colores y gradiente profesional
+              "bg-gradient-to-r from-purple-600 to-pink-600",
+              "hover:from-purple-700 hover:to-pink-700",
+              // Sombra y efectos
+              "shadow-lg hover:shadow-xl",
+              // Padding y altura
+              "py-4 px-4 min-h-[56px]",
+              collapsed && "px-3 min-h-[48px] justify-center",
+              // Animaciones de transform
+              "hover:scale-[1.02] active:scale-[0.98]",
+              // Cursor
+              "cursor-pointer"
+            )}
+          >
+            {/* Efecto de shimmer animado */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
+                          opacity-0 group-hover:opacity-100 transition-opacity duration-700 
+                          transform -translate-x-full group-hover:translate-x-full 
+                          skew-x-12 animation-duration-1000" />
+
+            {/* Icono principal */}
+            <div className={cn(
+              "flex-shrink-0 transition-all duration-300",
+              "group-hover:scale-110 group-hover:rotate-3",
+              collapsed ? "mx-auto" : "mr-3"
+            )}>
+              <Crown className="h-5 w-5 text-yellow-300 drop-shadow-sm" />
+            </div>
+
+            {/* Texto */}
             {!collapsed && (
-              <div className="absolute -top-2 -right-2 z-10">
-                <Badge 
-                  className={cn(
-                    "bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold",
-                    "px-3 py-1 rounded-full shadow-lg animate-pulse",
-                    "border-2 border-white"
-                  )}
-                >
-                  <Crown className="h-3 w-3 mr-1" />
-                  Most Popular
+              <div className="flex-1 text-left">
+                <div className="text-sm font-bold text-white leading-tight">
+                  Plans & Pricing
+                </div>
+                <div className="text-xs text-purple-100 opacity-90 mt-0.5">
+                  Upgrade now!
+                </div>
+              </div>
+            )}
+
+            {/* Badge "New" pequeño y discreto */}
+            {!collapsed && (
+              <div className="flex-shrink-0">
+                <Badge className="bg-yellow-400 text-purple-900 text-xs font-bold px-2 py-0.5 
+                               animate-pulse shadow-sm">
+                  NEW
                 </Badge>
               </div>
             )}
-            
-            {/* Botón principal con animaciones */}
-            <Button
-              variant="outline"
-              className={cn(
-                "w-full relative overflow-hidden transition-all duration-300 group",
-                // Gradiente de fondo atractivo
-                "bg-gradient-to-r from-purple-600 via-purple-700 to-pink-600",
-                "hover:from-purple-700 hover:via-purple-800 hover:to-pink-700",
-                // Borde y sombra
-                "border-0 shadow-lg hover:shadow-xl",
-                // Transform y scale effects
-                "hover:scale-[1.02] active:scale-[0.98]",
-                // Altura y padding
-                "py-4 px-4 min-h-[56px] h-auto",
-                collapsed && "px-3 min-h-[48px] justify-center"
-              )}
-              asChild
-            >
-              <Link 
-                to="/pricing" 
-                onClick={handleMobileNavClick} 
-                className={cn(
-                  "flex items-center justify-start text-white font-bold relative z-10",
-                  collapsed && "justify-center"
-                )}
-              >
-                {/* Efecto de brillo animado */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform -skew-x-12 group-hover:animate-pulse" />
-                
-                {/* Icono principal */}
-                <div className={cn(
-                  "relative z-20 flex-shrink-0 transition-all duration-300",
-                  "group-hover:rotate-12 group-hover:scale-110"
-                )}>
-                  <div className="relative">
-                    <Crown className="h-5 w-5 text-yellow-300 drop-shadow-sm" />
-                    {/* Sparkles alrededor del icono */}
-                    <Sparkles className="absolute -top-1 -right-1 h-3 w-3 text-yellow-200 animate-pulse" />
-                  </div>
-                </div>
-                
-                {/* Texto */}
-                {!collapsed && (
-                  <div className="ml-3 relative z-20">
-                    <span className="text-sm font-bold leading-tight text-white drop-shadow-sm">
-                      Plans & Pricing
-                    </span>
-                    <div className="text-xs text-purple-100 opacity-90 mt-0.5">
-                      Upgrade now!
-                    </div>
-                  </div>
-                )}
-                
-                {/* Icono de flecha animada */}
-                {!collapsed && (
-                  <div className="ml-auto relative z-20 transition-transform duration-300 group-hover:translate-x-1">
-                    <Zap className="h-4 w-4 text-yellow-300 animate-pulse" />
-                  </div>
-                )}
-                
-                {/* Efecto de pulso en el fondo */}
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-400/30 to-pink-400/30 rounded-lg animate-pulse opacity-50" />
-              </Link>
-            </Button>
-            
-            {/* Efecto de glow alrededor del botón */}
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg blur-xl opacity-20 group-hover:opacity-40 transition-opacity duration-300 -z-10" />
-          </div>
+
+            {/* Resplandor sutil de fondo */}
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-400/10 to-pink-400/10 
+                          opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          </Link>
         </div>
 
         <div className="mt-auto border-t border-gray-200 pt-4 sm:pt-6 bg-white">
