@@ -26,6 +26,7 @@ import SupportPage from '@/pages/SupportPage';
 import AcceptInvitationPage from '@/pages/AcceptInvitationPage';
 import SuperAdminTeamNew from '@/pages/SuperAdminTeamNew';
 import SuperAdminCreditsNew from '@/pages/SuperAdminCreditsNew';
+import PricingPage from '@/pages/PricingPage'; // ✅ AGREGADO
 
 const queryClient = new QueryClient();
 
@@ -73,6 +74,16 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <SettingsPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* ✅ NUEVA RUTA AGREGADA - Pricing Page */}
+        <Route 
+          path="/pricing" 
+          element={
+            <ProtectedRoute>
+              <PricingPage />
             </ProtectedRoute>
           } 
         />
