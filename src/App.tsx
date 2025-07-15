@@ -27,6 +27,7 @@ import AcceptInvitationPage from '@/pages/AcceptInvitationPage';
 import SuperAdminTeamNew from '@/pages/SuperAdminTeamNew';
 import SuperAdminCreditsNew from '@/pages/SuperAdminCreditsNew';
 import PricingPage from '@/pages/PricingPage'; // ✅ AGREGADO
+import StripeAdminConfigPage from '@/pages/StripeAdminConfigPage';
 
 const queryClient = new QueryClient();
 
@@ -87,6 +88,15 @@ function AppRoutes() {
             </ProtectedRoute>
           } 
         />
+        {/* ✅ NUEVA RUTA PARA CONFIGURACIÓN STRIPE ADMIN */}
+<Route 
+  path="/admin/stripe-config" 
+  element={
+    <ProtectedRoute>
+      <StripeAdminConfigPage />
+    </ProtectedRoute>
+  } 
+/>
         
         {/* 🚨 SOLUCIÓN: Rutas super admin SIMPLIFICADAS - sin SuperAdminRoute wrapper */}
         <Route 
