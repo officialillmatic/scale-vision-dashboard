@@ -53,7 +53,7 @@ const plans: Plan[] = [
     price: 800,
     period: 'month',
     description: 'Perfect for small teams getting started with AI voice agents',
-    stripePriceId: 'price_essential_monthly',
+    stripePriceId: 'price_1RlKU8PtUQ6CvAqeAqhpUwno', // ✅ Price ID real de Stripe
     popular: false,
     gradient: 'from-blue-50 via-blue-50 to-blue-100',
     icon: <Zap className="h-6 w-6 text-blue-600" />,
@@ -77,7 +77,7 @@ const plans: Plan[] = [
     price: 1500,
     period: 'month',
     description: 'Ideal for growing businesses that need advanced features and priority support',
-    stripePriceId: 'price_professional_monthly',
+    stripePriceId: 'price_1RlKVnPtUQ6CvAqeobo403iN', // ✅ Price ID real de Stripe
     popular: true,
     gradient: 'from-purple-50 via-purple-50 to-purple-100',
     icon: <Crown className="h-6 w-6 text-purple-600" />,
@@ -174,7 +174,7 @@ const PricingPage: React.FC = () => {
     setError(null);
 
     try {
-      // Create checkout session
+      // Create checkout session using the intelligent Edge Function
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
           priceId: plan.stripePriceId,
