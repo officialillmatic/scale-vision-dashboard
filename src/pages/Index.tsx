@@ -1,13 +1,78 @@
-
-import React from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { Check, Star, ArrowDown, Users, Shield, Clock, Headphones } from "lucide-react";
+import { Check, Star, ArrowDown, Users, Shield, Clock, Headphones, Play, Pause, Volume2 } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
+
+  // Audio player refs and state
+  const audioRefs = useRef([]);
+  const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
+  const [playingStates, setPlayingStates] = useState(Array(6).fill(false));
+
+  const audioFiles = [
+    {
+      title: "Solar Sales Consultation",
+      description: "AI agent qualifying solar leads and booking appointments",
+      url: "/path/to/solar-consultation.mp3" // Reemplaza con tu URL de GitHub
+    },
+    {
+      title: "Insurance Lead Qualification", 
+      description: "Automated insurance lead screening and transfer",
+      url: "/path/to/insurance-qualification.mp3"
+    },
+    {
+      title: "Real Estate Follow-up",
+      description: "AI nurturing real estate prospects and scheduling viewings", 
+      url: "/path/to/real-estate-followup.mp3"
+    },
+    {
+      title: "SaaS Demo Booking",
+      description: "Technology sales agent qualifying and booking demos",
+      url: "/path/to/saas-demo-booking.mp3"
+    },
+    {
+      title: "Customer Support Ticket",
+      description: "AI handling customer inquiries and routing tickets",
+      url: "/path/to/customer-support.mp3"
+    },
+    {
+      title: "Appointment Confirmation",
+      description: "Automated appointment confirmations and rescheduling",
+      url: "/path/to/appointment-confirmation.mp3"
+    }
+  ];
+
+  const handlePlayPause = (index) => {
+    const audio = audioRefs.current[index];
+    
+    if (currentlyPlaying === index) {
+      // Pause current audio
+      audio.pause();
+      setCurrentlyPlaying(null);
+      setPlayingStates(prev => prev.map((_, i) => i === index ? false : prev[i]));
+    } else {
+      // Pause all other audios
+      audioRefs.current.forEach((audioRef, i) => {
+        if (audioRef && i !== index) {
+          audioRef.pause();
+        }
+      });
+      
+      // Play selected audio
+      audio.play();
+      setCurrentlyPlaying(index);
+      setPlayingStates(prev => prev.map((_, i) => i === index ? true : false));
+    }
+  };
+
+  const handleAudioEnd = (index) => {
+    setCurrentlyPlaying(null);
+    setPlayingStates(prev => prev.map((_, i) => i === index ? false : prev[i]));
+  };
 
   const handleLoginClick = () => {
     navigate("/login");
@@ -192,6 +257,68 @@ const Index = () => {
                 <h3 className="text-xl font-semibold mb-3">24/7 Customer Service</h3>
                 <p className="text-muted-foreground">AI answers FAQs, raises tickets, and routes urgent callers—boost CSAT without extra headcount.</p>
               </div>
+            </div>
+          </div>
+
+          {/* Voice Agents Cases Section */}
+          <div className="mt-32 max-w-6xl mx-auto py-16 md:py-24">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Voice Agents Cases</h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">Listen to real conversations with our AI agents in action</p>
+            </div>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {audioFiles.map((audio, index) => (
+                <div key={index} className="group bg-card rounded-xl p-6 shadow-sm border border-muted hover:shadow-lg hover:border-brand-green/30 transition-all duration-300">
+                  <div className="flex items-center gap-4 mb-4">
+                    <button
+                      onClick={() => handlePlayPause(index)}
+                      className={`flex-shrink-0 w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
+                        playingStates[index] 
+                          ? 'bg-brand-green border-brand-green text-white shadow-lg' 
+                          : 'border-brand-green text-brand-green hover:bg-brand-green hover:text-white group-hover:shadow-md'
+                      }`}
+                    >
+                      {playingStates[index] ? (
+                        <Pause className="h-5 w-5" />
+                      ) : (
+                        <Play className="h-5 w-5 ml-0.5" />
+                      )}
+                    </button>
+                    <Volume2 className="h-5 w-5 text-brand-green/70" />
+                  </div>
+                  
+                  <h3 className="text-lg font-semibold mb-2 group-hover:text-brand-green transition-colors">
+                    {audio.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                    {audio.description}
+                  </p>
+                  
+                  {/* Progress bar */}
+                  <div className="w-full bg-muted rounded-full h-1.5 mb-2">
+                    <div 
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        playingStates[index] ? 'bg-brand-green' : 'bg-brand-green/30'
+                      }`}
+                      style={{ width: '0%' }}
+                    ></div>
+                  </div>
+                  
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>0:00</span>
+                    <span>2:45</span>
+                  </div>
+                  
+                  {/* Hidden audio element */}
+                  <audio
+                    ref={el => audioRefs.current[index] = el}
+                    src={audio.url}
+                    onEnded={() => handleAudioEnd(index)}
+                    preload="metadata"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
