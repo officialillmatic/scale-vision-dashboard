@@ -1,8 +1,8 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { Check, Star, ArrowDown, Users, Shield, Clock, Headphones, Play, Pause, Volume2 } from "lucide-react";
+import { Check, Star, ArrowDown, Users, Shield, Clock, Headphones, Play, Pause, Volume2, Loader2 } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -12,12 +12,16 @@ const Index = () => {
   const audioRefs = useRef([]);
   const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
   const [playingStates, setPlayingStates] = useState(Array(6).fill(false));
+  const [loadingStates, setLoadingStates] = useState(Array(6).fill(false));
+  const [progressStates, setProgressStates] = useState(Array(6).fill(0));
+  const [durationStates, setDurationStates] = useState(Array(6).fill(0));
+  const [currentTimeStates, setCurrentTimeStates] = useState(Array(6).fill(0));
 
   const audioFiles = [
     {
       title: "Solar Sales Consultation",
       description: "AI agent qualifying solar leads and booking appointments",
-      url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio1.mp3" // Reemplaza con tu URL de GitHub
+      url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio1.mp3"
     },
     {
       title: "Insurance Lead Qualification", 
@@ -46,6 +50,58 @@ const Index = () => {
     }
   ];
 
+  // Componente de ecualizador visual
+  const AudioEqualizer = ({ isPlaying }) => {
+    if (!isPlaying) return null;
+    
+    return (
+      <div className="flex items-center gap-1 ml-2">
+        {[...Array(4)].map((_, i) => (
+          <div
+            key={i}
+            className="w-1 bg-brand-green rounded-full animate-pulse"
+            style={{
+              height: '12px',
+              animationDelay: `${i * 0.1}s`,
+              animationDuration: `${0.5 + (i * 0.1)}s`
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  const formatTime = (time) => {
+    if (isNaN(time)) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleLoadStart = (index) => {
+    setLoadingStates(prev => prev.map((_, i) => i === index ? true : prev[i]));
+  };
+
+  const handleCanPlay = (index) => {
+    setLoadingStates(prev => prev.map((_, i) => i === index ? false : prev[i]));
+  };
+
+  const handleLoadedMetadata = (index) => {
+    const audio = audioRefs.current[index];
+    if (audio) {
+      setDurationStates(prev => prev.map((_, i) => i === index ? audio.duration : prev[i]));
+    }
+  };
+
+  const handleTimeUpdate = (index) => {
+    const audio = audioRefs.current[index];
+    if (audio) {
+      const progress = (audio.currentTime / audio.duration) * 100;
+      setProgressStates(prev => prev.map((_, i) => i === index ? progress : prev[i]));
+      setCurrentTimeStates(prev => prev.map((_, i) => i === index ? audio.currentTime : prev[i]));
+    }
+  };
+
   const handlePlayPause = (index) => {
     const audio = audioRefs.current[index];
     
@@ -63,7 +119,13 @@ const Index = () => {
       });
       
       // Play selected audio
-      audio.play();
+      setLoadingStates(prev => prev.map((_, i) => i === index ? true : prev[i]));
+      audio.play().then(() => {
+        setLoadingStates(prev => prev.map((_, i) => i === index ? false : prev[i]));
+      }).catch(() => {
+        setLoadingStates(prev => prev.map((_, i) => i === index ? false : prev[i]));
+      });
+      
       setCurrentlyPlaying(index);
       setPlayingStates(prev => prev.map((_, i) => i === index ? true : false));
     }
@@ -72,6 +134,18 @@ const Index = () => {
   const handleAudioEnd = (index) => {
     setCurrentlyPlaying(null);
     setPlayingStates(prev => prev.map((_, i) => i === index ? false : prev[i]));
+    setProgressStates(prev => prev.map((_, i) => i === index ? 0 : prev[i]));
+    setCurrentTimeStates(prev => prev.map((_, i) => i === index ? 0 : prev[i]));
+  };
+
+  const handleProgressClick = (index, event) => {
+    const audio = audioRefs.current[index];
+    const progressBar = event.currentTarget;
+    const clickX = event.nativeEvent.offsetX;
+    const width = progressBar.offsetWidth;
+    const clickTime = (clickX / width) * audio.duration;
+    
+    audio.currentTime = clickTime;
   };
 
   const handleLoginClick = () => {
@@ -273,19 +347,23 @@ const Index = () => {
                   <div className="flex items-center gap-4 mb-4">
                     <button
                       onClick={() => handlePlayPause(index)}
+                      disabled={loadingStates[index]}
                       className={`flex-shrink-0 w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
                         playingStates[index] 
                           ? 'bg-brand-green border-brand-green text-white shadow-lg' 
                           : 'border-brand-green text-brand-green hover:bg-brand-green hover:text-white group-hover:shadow-md'
-                      }`}
+                      } ${loadingStates[index] ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      {playingStates[index] ? (
+                      {loadingStates[index] ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : playingStates[index] ? (
                         <Pause className="h-5 w-5" />
                       ) : (
                         <Play className="h-5 w-5 ml-0.5" />
                       )}
                     </button>
                     <Volume2 className="h-5 w-5 text-brand-green/70" />
+                    <AudioEqualizer isPlaying={playingStates[index]} />
                   </div>
                   
                   <h3 className="text-lg font-semibold mb-2 group-hover:text-brand-green transition-colors">
@@ -296,24 +374,31 @@ const Index = () => {
                   </p>
                   
                   {/* Progress bar */}
-                  <div className="w-full bg-muted rounded-full h-1.5 mb-2">
+                  <div 
+                    className="w-full bg-muted rounded-full h-2 mb-2 cursor-pointer hover:h-2.5 transition-all duration-200"
+                    onClick={(e) => handleProgressClick(index, e)}
+                  >
                     <div 
-                      className={`h-1.5 rounded-full transition-all duration-300 ${
-                        playingStates[index] ? 'bg-brand-green' : 'bg-brand-green/30'
+                      className={`h-full rounded-full transition-all duration-200 ${
+                        playingStates[index] ? 'bg-brand-green shadow-sm' : 'bg-brand-green/40'
                       }`}
-                      style={{ width: '0%' }}
+                      style={{ width: `${progressStates[index] || 0}%` }}
                     ></div>
                   </div>
                   
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>0:00</span>
-                    <span>2:45</span>
+                    <span>{formatTime(currentTimeStates[index])}</span>
+                    <span>{formatTime(durationStates[index])}</span>
                   </div>
                   
                   {/* Hidden audio element */}
                   <audio
                     ref={el => audioRefs.current[index] = el}
                     src={audio.url}
+                    onLoadStart={() => handleLoadStart(index)}
+                    onCanPlay={() => handleCanPlay(index)}
+                    onLoadedMetadata={() => handleLoadedMetadata(index)}
+                    onTimeUpdate={() => handleTimeUpdate(index)}
                     onEnded={() => handleAudioEnd(index)}
                     preload="metadata"
                   />
