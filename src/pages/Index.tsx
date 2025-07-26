@@ -17,7 +17,7 @@ const Index = () => {
     {
       title: "Solar Sales Consultation",
       description: "AI agent qualifying solar leads and booking appointments",
-      url: "/path/to/solar-consultation.mp3" // Reemplaza con tu URL de GitHub
+      url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio1.mp3" // Reemplaza con tu URL de GitHub
     },
     {
       title: "Insurance Lead Qualification", 
