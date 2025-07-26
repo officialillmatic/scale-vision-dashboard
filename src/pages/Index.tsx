@@ -22,27 +22,27 @@ const Index = () => {
     {
       title: "Insurance Lead Qualification", 
       description: "Automated insurance lead screening and transfer",
-      url: "/path/to/insurance-qualification.mp3"
+      url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio2.mp3"
     },
     {
       title: "Real Estate Follow-up",
       description: "AI nurturing real estate prospects and scheduling viewings", 
-      url: "/path/to/real-estate-followup.mp3"
+      url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio3.mp3"
     },
     {
       title: "SaaS Demo Booking",
       description: "Technology sales agent qualifying and booking demos",
-      url: "/path/to/saas-demo-booking.mp3"
+      url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio4.mp3"
     },
     {
       title: "Customer Support Ticket",
       description: "AI handling customer inquiries and routing tickets",
-      url: "/path/to/customer-support.mp3"
+      url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio5.mp3"
     },
     {
       title: "Appointment Confirmation",
       description: "Automated appointment confirmations and rescheduling",
-      url: "/path/to/appointment-confirmation.mp3"
+      url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio6.mp3"
     }
   ];
 
