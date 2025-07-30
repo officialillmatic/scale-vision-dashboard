@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { 
   Phone, Clock, DollarSign, User, Calendar, Search, FileText, PlayCircle, TrendingUp,
   Filter, Eye, ArrowUpDown, Volume2, Download, CalendarDays, ChevronDown, Users,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, AlertTriangle
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,9 +50,23 @@ interface Call {
   processed_for_cost?: boolean;
 }
 
-type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status';
+type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status' | 'end_reason';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
+type CostFilter = 'all' | 'with_cost' | 'without_cost';
+
+// Estados disponibles en RetellAI
+const RETELL_CALL_STATUSES = [
+  'registered',
+  'ongoing', 
+  'in_progress',
+  'completed',
+  'ended',
+  'error',
+  'failed',
+  'cancelled',
+  'timeout'
+];
 
 // ============================================================================
 // COMPONENTE FILTRO DE AGENTES
@@ -276,6 +290,7 @@ export default function CallsSimple() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
+  const [costFilter, setCostFilter] = useState<CostFilter>("all"); // 🆕 NUEVO FILTRO
   const [sortField, setSortField] = useState<SortField>('timestamp');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
@@ -294,8 +309,8 @@ export default function CallsSimple() {
   const [pageSize, setPageSize] = useState(10);
   const [paginatedCalls, setPaginatedCalls] = useState<Call[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isLoadingAudio, setIsLoadingAudio] = useState(false); // 🔧 NUEVO
-  const [forceUpdate, setForceUpdate] = useState(0); // 🔧 NUEVO - Para forzar actualizaciones
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState(0);
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
   const uniqueAgents = userAssignedAgents || [];
@@ -1004,6 +1019,7 @@ export default function CallsSimple() {
     setCurrentPage(1);
   };
 
+  // 🆕 FUNCIÓN ACTUALIZADA: Incluye filtro de costo
   const applyFiltersAndSort = () => {
     let filtered = [...calls];
 
@@ -1013,6 +1029,7 @@ export default function CallsSimple() {
         call.from_number.includes(searchTerm) ||
         call.to_number.includes(searchTerm) ||
         call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        call.end_reason?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -1033,6 +1050,19 @@ export default function CallsSimple() {
       } else {
         filtered = [];
       }
+    }
+
+    // 🆕 FILTRO DE COSTO
+    if (costFilter !== "all") {
+      filtered = filtered.filter(call => {
+        const callCost = calculateCallCost(call);
+        if (costFilter === "with_cost") {
+          return callCost > 0;
+        } else if (costFilter === "without_cost") {
+          return callCost === 0;
+        }
+        return true;
+      });
     }
 
     filtered = filtered.filter(call => isDateInRange(call.timestamp));
@@ -1130,7 +1160,12 @@ export default function CallsSimple() {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
       case 'error': return 'bg-red-100 text-red-800 border-red-200';
       case 'ended': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'in_progress': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'in_progress': 
+      case 'ongoing': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'registered': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'failed': 
+      case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
+      case 'timeout': return 'bg-orange-100 text-orange-800 border-orange-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -1160,8 +1195,19 @@ export default function CallsSimple() {
       case 'call completed':
       case 'call_completed':
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'timeout': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'cancelled': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-600 border-gray-200';
     }
+  };
+
+  // 🆕 FUNCIÓN PARA FORMATEAR END REASON
+  const formatEndReason = (endReason: string) => {
+    if (!endReason) return 'Unknown';
+    
+    return endReason
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const formatDuration = (seconds: number) => {
@@ -1249,13 +1295,13 @@ export default function CallsSimple() {
     }
   }, [user?.id]);
 
-  // 🔧 useEffect ACTUALIZADO: Incluye forceUpdate para actualizaciones automáticas
+  // 🔧 useEffect ACTUALIZADO: Incluye forceUpdate y costFilter para actualizaciones automáticas
   useEffect(() => {
     if (calls.length > 0) {
       applyFiltersAndSort();
       calculateStats();
     }
-  }, [calls, searchTerm, statusFilter, agentFilter, dateFilter, customDate, forceUpdate]); // 🔧 Agregado forceUpdate
+  }, [calls, searchTerm, statusFilter, agentFilter, costFilter, dateFilter, customDate, forceUpdate]); // 🔧 Agregado costFilter y forceUpdate
 
   useEffect(() => {
     const totalPages = applyPagination();
@@ -1269,7 +1315,7 @@ export default function CallsSimple() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, agentFilter, dateFilter, customDate]);
+  }, [searchTerm, statusFilter, agentFilter, costFilter, dateFilter, customDate]); // 🔧 Agregado costFilter
 
   useEffect(() => {
     console.log(`🔥 useEffect EXECUTED - Navigation detected`);
@@ -1306,7 +1352,8 @@ export default function CallsSimple() {
   // RENDER
   // ============================================================================
 
-  const uniqueStatuses = [...new Set(calls.map(call => call.call_status))];
+  // 🆕 ACTUALIZADO: Usar RETELL_CALL_STATUSES en lugar de uniqueStatuses solo de las llamadas actuales
+  const availableStatuses = [...new Set([...RETELL_CALL_STATUSES, ...calls.map(call => call.call_status)])].sort();
   const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
   const totalPages = Math.ceil(filteredCalls.length / pageSize);
 
@@ -1512,7 +1559,7 @@ export default function CallsSimple() {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Search calls by ID, phone, agent, or summary..."
+                    placeholder="Search calls by ID, phone, agent, summary, or end reason..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -1522,13 +1569,14 @@ export default function CallsSimple() {
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-gray-500" />
                   
+                  {/* 🆕 FILTRO DE ESTADOS ACTUALIZADO */}
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="all">All Status</option>
-                    {uniqueStatuses.map(status => (
+                    {availableStatuses.map(status => (
                       <option key={status} value={status}>
                         {status.charAt(0).toUpperCase() + status.slice(1)}
                       </option>
@@ -1542,6 +1590,20 @@ export default function CallsSimple() {
                   onAgentChange={setAgentFilter}
                   isLoading={isLoadingAgents}
                 />
+
+                {/* 🆕 NUEVO FILTRO DE COSTO */}
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={costFilter}
+                    onChange={(e) => setCostFilter(e.target.value as CostFilter)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Calls</option>
+                    <option value="with_cost">With Cost</option>
+                    <option value="without_cost">Without Cost</option>
+                  </select>
+                </div>
 
                 <div className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4 text-gray-500" />
@@ -1571,6 +1633,11 @@ export default function CallsSimple() {
                   {dateFilter !== 'all' && (
                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 mr-2">
                       📅 {getDateFilterText()}
+                    </Badge>
+                  )}
+                  {costFilter !== 'all' && (
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 mr-2">
+                      💰 {costFilter === 'with_cost' ? 'With Cost' : 'Without Cost'}
                     </Badge>
                   )}
                   Showing {paginatedCalls.length} of {filteredCalls.length} calls
@@ -1633,19 +1700,31 @@ export default function CallsSimple() {
                       : 'No calls match your current filters'
                     }
                   </p>
-                  {dateFilter !== 'all' && (
-                    <div className="mt-4">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          setDateFilter('all');
-                          setCustomDate('');
-                        }}
-                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                      >
-                        📅 Show All Dates
-                      </Button>
+                  {(dateFilter !== 'all' || costFilter !== 'all') && (
+                    <div className="mt-4 space-x-2">
+                      {dateFilter !== 'all' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setDateFilter('all');
+                            setCustomDate('');
+                          }}
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                        >
+                          📅 Show All Dates
+                        </Button>
+                      )}
+                      {costFilter !== 'all' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setCostFilter('all')}
+                          className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                        >
+                          💰 Show All Costs
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1691,6 +1770,15 @@ export default function CallsSimple() {
                               className="flex items-center gap-1 hover:text-gray-700"
                             >
                               Status {getSortIcon('call_status')}
+                            </button>
+                          </th>
+                          {/* 🆕 NUEVA COLUMNA END REASON */}
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <button
+                              onClick={() => handleSort('end_reason')}
+                              className="flex items-center gap-1 hover:text-gray-700"
+                            >
+                              End Reason {getSortIcon('end_reason')}
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1806,6 +1894,22 @@ export default function CallsSimple() {
                                   <Badge className={`text-xs ${getSentimentColor(call.sentiment)}`}>
                                     {call.sentiment}
                                   </Badge>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* 🆕 NUEVA COLUMNA END REASON */}
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="flex flex-col gap-1">
+                                {call.end_reason ? (
+                                  <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
+                                    <div className="flex items-center gap-1">
+                                      <AlertTriangle className="h-3 w-3" />
+                                      {formatEndReason(call.end_reason)}
+                                    </div>
+                                  </Badge>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Unknown</span>
                                 )}
                               </div>
                             </td>
