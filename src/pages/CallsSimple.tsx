@@ -290,7 +290,7 @@ export default function CallsSimple() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
-  const [costFilter, setCostFilter] = useState<CostFilter>("all"); // 🆕 NUEVO FILTRO
+  const [costFilter, setCostFilter] = useState<CostFilter>("all");
   const [sortField, setSortField] = useState<SortField>('timestamp');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
@@ -749,11 +749,11 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FETCH CALLS - BÚSQUEDA DIRECTA POR USER_ID CON CARGA PRIORITARIA DE AUDIO
+  // FETCH CALLS - 🔧 SINCRONIZADO CON END_REASON DE RETELLAI
   // ============================================================================
   
   const fetchCalls = async () => {
-    console.log("🚀 FETCH CALLS - LOADING EXACT VALUES FROM START");
+    console.log("🚀 FETCH CALLS - LOADING EXACT VALUES FROM START WITH RETELLAI END_REASON SYNC");
     
     if (!user?.id) {
       setError("User not authenticated");
@@ -807,19 +807,37 @@ export default function CallsSimple() {
       console.log("🤖 Agent details obtained:", agentDetails);
       setUserAssignedAgents(agentDetails || []);
 
-      setLoadingProgress('Loading calls...');
+      setLoadingProgress('Loading calls with RetellAI end_reason sync...');
 
-      // 🔧 BÚSQUEDA DIRECTA POR USER_ID
-      console.log('🚀 EXECUTING DIRECT CALL QUERY...');
+      // 🔧 BÚSQUEDA DIRECTA POR USER_ID CON TODOS LOS CAMPOS INCLUYENDO END_REASON
+      console.log('🚀 EXECUTING DIRECT CALL QUERY WITH END_REASON SYNC...');
       
       const { data: allCalls, error: callsError } = await supabase
         .from('calls')
-        .select('*')
+        .select(`
+          id,
+          call_id,
+          user_id,
+          agent_id,
+          company_id,
+          timestamp,
+          duration_sec,
+          cost_usd,
+          call_status,
+          from_number,
+          to_number,
+          transcript,
+          call_summary,
+          sentiment,
+          recording_url,
+          end_reason,
+          processed_for_cost
+        `)
         .eq('user_id', user.id) // 🎯 BÚSQUEDA DIRECTA
         .order('timestamp', { ascending: false })
         .limit(200);
 
-      console.log(`📊 DIRECT QUERY RESULT:`, {
+      console.log(`📊 DIRECT QUERY RESULT WITH END_REASON:`, {
         totalFound: allCalls?.length || 0,
         hasError: !!callsError,
         errorMessage: callsError?.message || 'No errors'
@@ -832,7 +850,7 @@ export default function CallsSimple() {
       }
 
       if (allCalls && allCalls.length > 0) {
-        console.log('✅ CALLS FOUND:');
+        console.log('✅ CALLS FOUND WITH END_REASON SYNC:');
         
         // Separar llamadas reales vs de prueba
         const realCalls = allCalls.filter(call => !call.call_id.includes('test_'));
@@ -842,9 +860,9 @@ export default function CallsSimple() {
         console.log(`   🧪 TEST calls: ${testCalls.length}`);
         
         if (realCalls.length > 0) {
-          console.log('📞 FIRST 3 REAL CALLS:');
+          console.log('📞 FIRST 3 REAL CALLS WITH END_REASON:');
           realCalls.slice(0, 3).forEach((call, index) => {
-            console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Status: ${call.call_status} - Cost: $${call.cost_usd} - Processed: ${call.processed_for_cost}`);
+            console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Status: ${call.call_status} - End Reason: ${call.end_reason || 'NULL'} - Cost: $${call.cost_usd} - Processed: ${call.processed_for_cost}`);
           });
         }
         
@@ -881,10 +899,14 @@ export default function CallsSimple() {
             };
           }
 
+          // 🔧 ASEGURAR QUE END_REASON ESTÉ SINCRONIZADO
+          console.log(`🔗 END_REASON SYNC for ${call.call_id?.substring(0, 8)}: "${call.end_reason || 'NULL'}"`);
+
           return {
             ...call,
             call_agent: matchedAgent,
-            agents: matchedAgent
+            agents: matchedAgent,
+            end_reason: call.end_reason // 🔧 EXPLÍCITAMENTE ASEGURAR SINCRONIZACIÓN
           };
         });
       };
@@ -908,16 +930,17 @@ export default function CallsSimple() {
         setIsLoadingAudio(false);
       }
       
-      console.log("🔄 MAPPING COMPLETED:");
+      console.log("🔄 MAPPING COMPLETED WITH END_REASON SYNC:");
       console.log(`   📊 Mapped calls: ${mappedCalls.length}`);
       console.log(`   🎯 With valid agents: ${mappedCalls.filter(c => c.call_agent?.rate_per_minute > 0).length}`);
       console.log(`   🎵 Audio loaded for: ${Object.keys(audioDurations).length} calls`);
+      console.log(`   🔗 With end_reason: ${mappedCalls.filter(c => c.end_reason).length} calls`);
 
       setCalls(mappedCalls);
       setLoading(false);
       setLoadingProgress('');
 
-      console.log("🎉 LOAD COMPLETED - Exact values loaded from start");
+      console.log("🎉 LOAD COMPLETED - Exact values loaded from start with RetellAI end_reason sync");
 
     } catch (err: any) {
       console.error("❌ Exception in fetch calls:", err);
@@ -1019,7 +1042,7 @@ export default function CallsSimple() {
     setCurrentPage(1);
   };
 
-  // 🆕 FUNCIÓN ACTUALIZADA: Incluye filtro de costo
+  // FUNCIÓN ACTUALIZADA: Incluye filtro de costo
   const applyFiltersAndSort = () => {
     let filtered = [...calls];
 
@@ -1052,7 +1075,7 @@ export default function CallsSimple() {
       }
     }
 
-    // 🆕 FILTRO DE COSTO
+    // FILTRO DE COSTO
     if (costFilter !== "all") {
       filtered = filtered.filter(call => {
         const callCost = calculateCallCost(call);
@@ -1179,31 +1202,72 @@ export default function CallsSimple() {
     }
   };
 
+  // 🔧 FUNCIÓN ACTUALIZADA PARA END_REASON CON MÁS CASOS DE RETELLAI
   const getEndReasonColor = (endReason: string) => {
     if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
     
     switch (endReason.toLowerCase()) {
       case 'user hangup':
-      case 'user_hangup': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'user_hangup':
+      case 'customer_hangup': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'agent hangup':
-      case 'agent_hangup': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'agent_hangup':
+      case 'assistant_hangup': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'dial no answer':
-      case 'dial_no_answer': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'dial_no_answer':
+      case 'no_answer': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'error llm websocket open':
       case 'error_llm_websocket_open':
-      case 'technical_error': return 'bg-red-100 text-red-800 border-red-200';
+      case 'technical_error':
+      case 'llm_error':
+      case 'websocket_error': return 'bg-red-100 text-red-800 border-red-200';
       case 'call completed':
       case 'call_completed':
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'timeout': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'cancelled': return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'completed':
+      case 'success': return 'bg-green-100 text-green-800 border-green-200';
+      case 'timeout':
+      case 'call_timeout': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'cancelled':
+      case 'canceled':
+      case 'call_cancelled': return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'busy':
+      case 'line_busy': return 'bg-red-100 text-red-600 border-red-200';
+      case 'invalid_number':
+      case 'invalid_phone_number': return 'bg-red-100 text-red-700 border-red-200';
+      case 'voicemail':
+      case 'reached_voicemail': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
       default: return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
 
-  // 🆕 FUNCIÓN PARA FORMATEAR END REASON
+  // 🔧 FUNCIÓN ACTUALIZADA PARA FORMATEAR END REASON DE RETELLAI
   const formatEndReason = (endReason: string) => {
     if (!endReason) return 'Unknown';
+    
+    // Mapear valores específicos de RetellAI a nombres legibles
+    const endReasonMap = {
+      'user_hangup': 'User Hangup',
+      'customer_hangup': 'Customer Hangup',
+      'agent_hangup': 'Agent Hangup',
+      'assistant_hangup': 'Assistant Hangup',
+      'dial_no_answer': 'Dial No Answer',
+      'no_answer': 'No Answer',
+      'error_llm_websocket_open': 'LLM WebSocket Error',
+      'technical_error': 'Technical Error',
+      'llm_error': 'LLM Error',
+      'websocket_error': 'WebSocket Error',
+      'call_completed': 'Call Completed',
+      'call_timeout': 'Call Timeout',
+      'call_cancelled': 'Call Cancelled',
+      'line_busy': 'Line Busy',
+      'invalid_phone_number': 'Invalid Phone Number',
+      'reached_voicemail': 'Reached Voicemail'
+    };
+    
+    // Usar mapeo específico si existe, si no, formatear genéricamente
+    if (endReasonMap[endReason.toLowerCase()]) {
+      return endReasonMap[endReason.toLowerCase()];
+    }
     
     return endReason
       .replace(/_/g, ' ')
@@ -1290,18 +1354,18 @@ export default function CallsSimple() {
   
   useEffect(() => {
     if (user?.id) {
-      console.log('🚀 INITIATING SYSTEM WITH EXACT VALUES FROM START for:', user.email);
+      console.log('🚀 INITIATING SYSTEM WITH EXACT VALUES FROM START AND RETELLAI END_REASON SYNC for:', user.email);
       fetchCalls();
     }
   }, [user?.id]);
 
-  // 🔧 useEffect ACTUALIZADO: Incluye forceUpdate y costFilter para actualizaciones automáticas
+  // useEffect ACTUALIZADO: Incluye forceUpdate y costFilter para actualizaciones automáticas
   useEffect(() => {
     if (calls.length > 0) {
       applyFiltersAndSort();
       calculateStats();
     }
-  }, [calls, searchTerm, statusFilter, agentFilter, costFilter, dateFilter, customDate, forceUpdate]); // 🔧 Agregado costFilter y forceUpdate
+  }, [calls, searchTerm, statusFilter, agentFilter, costFilter, dateFilter, customDate, forceUpdate]);
 
   useEffect(() => {
     const totalPages = applyPagination();
@@ -1315,7 +1379,7 @@ export default function CallsSimple() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, agentFilter, costFilter, dateFilter, customDate]); // 🔧 Agregado costFilter
+  }, [searchTerm, statusFilter, agentFilter, costFilter, dateFilter, customDate]);
 
   useEffect(() => {
     console.log(`🔥 useEffect EXECUTED - Navigation detected`);
@@ -1352,7 +1416,7 @@ export default function CallsSimple() {
   // RENDER
   // ============================================================================
 
-  // 🆕 ACTUALIZADO: Usar RETELL_CALL_STATUSES en lugar de uniqueStatuses solo de las llamadas actuales
+  // ACTUALIZADO: Usar RETELL_CALL_STATUSES en lugar de uniqueStatuses solo de las llamadas actuales
   const availableStatuses = [...new Set([...RETELL_CALL_STATUSES, ...calls.map(call => call.call_status)])].sort();
   const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
   const totalPages = Math.ceil(filteredCalls.length / pageSize);
@@ -1378,7 +1442,7 @@ export default function CallsSimple() {
               <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-gray-600">
-                  Comprehensive call data for your account
+                  Comprehensive call data for your account with RetellAI end_reason sync
                   {selectedAgentName && (
                     <span className="ml-2 text-blue-600 font-medium">
                       • Filtered by {selectedAgentName}
@@ -1416,7 +1480,7 @@ export default function CallsSimple() {
               
               <Button
                 onClick={() => {
-                  console.log("🔄 MANUAL REFRESH - EXACT VALUES");
+                  console.log("🔄 MANUAL REFRESH - EXACT VALUES WITH RETELLAI END_REASON SYNC");
                   fetchCalls();
                 }}
                 disabled={loading}
@@ -1439,7 +1503,7 @@ export default function CallsSimple() {
               
               <div className="text-right">
                 <div className="text-xs font-medium text-green-600">🟢 Real-Time</div>
-                <div className="text-xs text-gray-500">From Start</div>
+                <div className="text-xs text-gray-500">RetellAI Sync</div>
               </div>
             </div>
           </div>
@@ -1449,7 +1513,7 @@ export default function CallsSimple() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  💰 Exact cost deduction system active - Real calls processed.
+                  💰 Exact cost deduction system active - Real calls processed with RetellAI end_reason sync.
                 </span>
               </div>
             </CardContent>
@@ -1569,7 +1633,7 @@ export default function CallsSimple() {
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-gray-500" />
                   
-                  {/* 🆕 FILTRO DE ESTADOS ACTUALIZADO */}
+                  {/* FILTRO DE ESTADOS ACTUALIZADO */}
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
@@ -1591,7 +1655,7 @@ export default function CallsSimple() {
                   isLoading={isLoadingAgents}
                 />
 
-                {/* 🆕 NUEVO FILTRO DE COSTO */}
+                {/* NUEVO FILTRO DE COSTO */}
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-gray-500" />
                   <select
@@ -1654,7 +1718,7 @@ export default function CallsSimple() {
             <CardHeader className="border-b border-gray-100 pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl font-semibold text-gray-900">
-                  📋 Call History ({filteredCalls.length})
+                  📋 Call History ({filteredCalls.length}) - RetellAI Synced
                   
                   {totalPages > 1 && (
                     <span className="text-sm font-normal text-gray-500 ml-2">
@@ -1683,7 +1747,7 @@ export default function CallsSimple() {
                   <LoadingSpinner size="lg" />
                   <div className="ml-3">
                     <span className="text-gray-600 block">
-                      {loadingProgress.includes('audio') ? 'Loading exact durations...' : 'Loading calls...'}
+                      {loadingProgress.includes('audio') ? 'Loading exact durations...' : 'Loading calls with RetellAI sync...'}
                     </span>
                     {loadingProgress && (
                       <span className="text-sm text-gray-500 mt-1 block">{loadingProgress}</span>
@@ -1772,7 +1836,7 @@ export default function CallsSimple() {
                               Status {getSortIcon('call_status')}
                             </button>
                           </th>
-                          {/* 🆕 NUEVA COLUMNA END REASON */}
+                          {/* 🔧 COLUMNA END REASON CON RETELLAI SYNC */}
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             <button
                               onClick={() => handleSort('end_reason')}
@@ -1898,7 +1962,7 @@ export default function CallsSimple() {
                               </div>
                             </td>
 
-                            {/* 🆕 NUEVA COLUMNA END REASON */}
+                            {/* 🔧 COLUMNA END REASON SINCRONIZADA CON RETELLAI */}
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="flex flex-col gap-1">
                                 {call.end_reason ? (
