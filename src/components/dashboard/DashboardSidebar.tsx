@@ -232,4 +232,4 @@ const DashboardSidebar: React.FC = () => {
   );
 };
 
-export default DashboardSidebar;
+export { DashboardSidebar };
