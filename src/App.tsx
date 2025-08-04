@@ -27,7 +27,7 @@ import AcceptInvitationPage from '@/pages/AcceptInvitationPage';
 import SuperAdminTeamNew from '@/pages/SuperAdminTeamNew';
 import SuperAdminCreditsNew from '@/pages/SuperAdminCreditsNew';
 import PricingPage from '@/pages/PricingPage'; // ✅ YA ESTABA
-import StripeAdminConfigPage from '@/pages/StripeAdminConfigPage'; // ✅ AGREGADO
+import PaymentAdminConfigPage from '@/pages/PaymentAdminConfigPage'; // ✅ ACTUALIZADO: Stripe → Payment
 
 const queryClient = new QueryClient();
 
@@ -89,12 +89,12 @@ function AppRoutes() {
           } 
         />
         
-        {/* ✅ NUEVA RUTA AGREGADA - Stripe Admin Config */}
+        {/* ✅ ACTUALIZADO: Stripe Config → Payment Config */}
         <Route 
-          path="/admin/stripe-config" 
+          path="/admin/payment-config" 
           element={
             <ProtectedRoute>
-              <StripeAdminConfigPage />
+              <PaymentAdminConfigPage />
             </ProtectedRoute>
           } 
         />
