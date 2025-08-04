@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, CreditCard, Settings } from "lucide-react";
+import { Phone, CreditCard, BookOpen, Crown, Sparkles, Zap, Settings } from "lucide-react"; // ✅ AGREGADO Settings
 import { useRole } from "@/hooks/useRole.ts";
 
 const navigationItems = [
@@ -72,14 +72,15 @@ const superAdminNavigationItems = [
     label: "Team",
   },
   {
-    href: "/admin/payment-config",
-    icon: () => <Settings className="h-6 w-6" />,
-    label: "Payment Config",
-  },
-  {
     href: "/admin/credits",
     icon: () => <CreditCard className="h-6 w-6" />,
     label: "Admin Credits",
+  },
+  // ✅ CAMBIOS MÍNIMOS: Stripe Config → Payment Config
+  {
+    href: "/admin/payment-config",
+    icon: () => <Settings className="h-6 w-6" />,
+    label: "Payment Config",
   }
 ];
 
@@ -219,6 +220,63 @@ export function DashboardSidebar() {
             ))}
           </SidebarMenu>
         </SidebarGroup>
+
+        {/* 🎨 BOTÓN LIMPIO PLANS & PRICING */}
+        <div className="mt-6 px-3 sm:px-4 bg-white">
+          <Link 
+            to="/pricing" 
+            onClick={handleMobileNavClick}
+            className={cn(
+              // Diseño base del botón
+              "group relative flex flex-col items-center justify-center w-full rounded-xl overflow-hidden",
+              "transition-all duration-500 ease-out",
+              // Colores y gradiente profesional
+              "bg-gradient-to-r from-purple-600 to-pink-600",
+              "hover:from-purple-700 hover:to-pink-700",
+              // Sombra y efectos
+              "shadow-lg hover:shadow-xl",
+              // Padding y altura
+              "py-4 px-4 min-h-[64px]",
+              collapsed && "px-3 min-h-[48px]",
+              // Animaciones de transform
+              "hover:scale-[1.02] active:scale-[0.98]",
+              // Cursor
+              "cursor-pointer"
+            )}
+          >
+            {/* Efecto de shimmer animado */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
+                          opacity-0 group-hover:opacity-100 transition-opacity duration-700 
+                          transform -translate-x-full group-hover:translate-x-full 
+                          skew-x-12 animation-duration-1000" />
+
+            {/* Icono centrado arriba */}
+            <div className={cn(
+              "transition-all duration-300 mb-2",
+              "group-hover:scale-110 group-hover:rotate-3",
+              collapsed && "mb-0"
+            )}>
+              <Crown className="h-6 w-6 text-yellow-300 drop-shadow-sm" />
+            </div>
+
+            {/* Texto centrado abajo */}
+            {!collapsed && (
+              <div className="text-center">
+                <div className={cn(
+                  "text-white font-bold leading-tight",
+                  "text-base tracking-wide",
+                  "drop-shadow-sm"
+                )}>
+                  Plans & Pricing
+                </div>
+              </div>
+            )}
+
+            {/* Resplandor sutil de fondo */}
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-400/10 to-pink-400/10 
+                          opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          </Link>
+        </div>
 
         <div className="mt-auto border-t border-gray-200 pt-4 sm:pt-6 bg-white">
           <Button
