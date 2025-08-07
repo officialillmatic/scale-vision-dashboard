@@ -36,7 +36,7 @@ interface Call {
   call_summary?: string;
   sentiment?: string;
   recording_url?: string;
-  end_reason?: string;
+  disconnection_reason?: string;
   call_agent?: {
     id: string;
     name: string;
@@ -50,7 +50,7 @@ interface Call {
   processed_for_cost?: boolean;
 }
 
-type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status' | 'end_reason';
+type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status' | 'disconnection_reason';
 type SortOrder = 'asc' | 'desc';
 type DateFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'custom';
 type CostFilter = 'all' | 'with_cost' | 'without_cost';
@@ -749,7 +749,7 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FETCH CALLS - 🔧 CORREGIDO PARA MANEJAR END_REASON OPCIONAL
+  // FETCH CALLS - CON COLUMNA disconnection_reason
   // ============================================================================
   
   const fetchCalls = async () => {
@@ -809,7 +809,7 @@ export default function CallsSimple() {
 
       setLoadingProgress('Loading calls...');
 
-      // 🔧 BÚSQUEDA DIRECTA POR USER_ID CON MANEJO SEGURO DE END_REASON
+      // 🔧 BÚSQUEDA DIRECTA POR USER_ID
       console.log('🚀 EXECUTING DIRECT CALL QUERY...');
       
       const { data: allCalls, error: callsError } = await supabase
@@ -844,7 +844,7 @@ export default function CallsSimple() {
         if (realCalls.length > 0) {
           console.log('📞 FIRST 3 REAL CALLS:');
           realCalls.slice(0, 3).forEach((call, index) => {
-            console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Status: ${call.call_status} - End Reason: ${call.end_reason || 'NULL'} - Cost: $${call.cost_usd} - Processed: ${call.processed_for_cost}`);
+            console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Status: ${call.call_status} - Disconnection Reason: ${call.disconnection_reason || 'NULL'} - Cost: $${call.cost_usd} - Processed: ${call.processed_for_cost}`);
           });
         }
         
@@ -881,15 +881,10 @@ export default function CallsSimple() {
             };
           }
 
-          // 🔧 MANEJAR END_REASON DE FORMA SEGURA
-          const endReason = call.end_reason || null;
-          console.log(`🔗 End reason for ${call.call_id?.substring(0, 8)}: "${endReason || 'NULL'}"`);
-
           return {
             ...call,
             call_agent: matchedAgent,
-            agents: matchedAgent,
-            end_reason: endReason
+            agents: matchedAgent
           };
         });
       };
@@ -917,7 +912,7 @@ export default function CallsSimple() {
       console.log(`   📊 Mapped calls: ${mappedCalls.length}`);
       console.log(`   🎯 With valid agents: ${mappedCalls.filter(c => c.call_agent?.rate_per_minute > 0).length}`);
       console.log(`   🎵 Audio loaded for: ${Object.keys(audioDurations).length} calls`);
-      console.log(`   🔗 With end_reason: ${mappedCalls.filter(c => c.end_reason).length} calls`);
+      console.log(`   🔗 With disconnection_reason: ${mappedCalls.filter(c => c.disconnection_reason).length} calls`);
 
       setCalls(mappedCalls);
       setLoading(false);
@@ -1035,7 +1030,7 @@ export default function CallsSimple() {
         call.from_number.includes(searchTerm) ||
         call.to_number.includes(searchTerm) ||
         call.call_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        call.end_reason?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        call.disconnection_reason?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (call.call_agent?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -1185,11 +1180,11 @@ export default function CallsSimple() {
     }
   };
 
-  // 🔧 FUNCIÓN PARA END_REASON CON CASOS COMUNES
-  const getEndReasonColor = (endReason: string) => {
-    if (!endReason) return 'bg-gray-100 text-gray-600 border-gray-200';
+  // 🔧 FUNCIÓN PARA disconnection_reason CON CASOS COMUNES
+  const getEndReasonColor = (disconnectionReason: string) => {
+    if (!disconnectionReason) return 'bg-gray-100 text-gray-600 border-gray-200';
     
-    switch (endReason.toLowerCase()) {
+    switch (disconnectionReason.toLowerCase()) {
       case 'user hangup':
       case 'user_hangup':
       case 'customer_hangup': return 'bg-blue-100 text-blue-800 border-blue-200';
@@ -1219,13 +1214,14 @@ export default function CallsSimple() {
       case 'invalid_phone_number': return 'bg-red-100 text-red-700 border-red-200';
       case 'voicemail':
       case 'reached_voicemail': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      case 'inactivity': return 'bg-orange-100 text-orange-700 border-orange-200';
       default: return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
 
-  // 🔧 FUNCIÓN PARA FORMATEAR END REASON
-  const formatEndReason = (endReason: string) => {
-    if (!endReason) return 'Unknown';
+  // 🔧 FUNCIÓN PARA FORMATEAR disconnection_reason
+  const formatEndReason = (disconnectionReason: string) => {
+    if (!disconnectionReason) return 'Unknown';
     
     // Mapear valores específicos a nombres legibles
     const endReasonMap = {
@@ -1244,15 +1240,17 @@ export default function CallsSimple() {
       'call_cancelled': 'Call Cancelled',
       'line_busy': 'Line Busy',
       'invalid_phone_number': 'Invalid Phone Number',
-      'reached_voicemail': 'Reached Voicemail'
+      'reached_voicemail': 'Reached Voicemail',
+      'voicemail': 'Voicemail',
+      'inactivity': 'Inactivity'
     };
     
     // Usar mapeo específico si existe, si no, formatear genéricamente
-    if (endReasonMap[endReason.toLowerCase()]) {
-      return endReasonMap[endReason.toLowerCase()];
+    if (endReasonMap[disconnectionReason.toLowerCase()]) {
+      return endReasonMap[disconnectionReason.toLowerCase()];
     }
     
-    return endReason
+    return disconnectionReason
       .replace(/_/g, ' ')
       .replace(/\b\w/g, l => l.toUpperCase());
   };
@@ -1822,10 +1820,10 @@ export default function CallsSimple() {
                           {/* COLUMNA END REASON */}
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             <button
-                              onClick={() => handleSort('end_reason')}
+                              onClick={() => handleSort('disconnection_reason')}
                               className="flex items-center gap-1 hover:text-gray-700"
                             >
-                              End Reason {getSortIcon('end_reason')}
+                              End Reason {getSortIcon('disconnection_reason')}
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1945,14 +1943,14 @@ export default function CallsSimple() {
                               </div>
                             </td>
 
-                            {/* COLUMNA END REASON */}
+                            {/* COLUMNA END REASON - SINCRONIZADA CON disconnection_reason */}
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="flex flex-col gap-1">
-                                {call.end_reason ? (
-                                  <Badge className={`text-xs ${getEndReasonColor(call.end_reason)}`}>
+                                {call.disconnection_reason ? (
+                                  <Badge className={`text-xs ${getEndReasonColor(call.disconnection_reason)}`}>
                                     <div className="flex items-center gap-1">
                                       <AlertTriangle className="h-3 w-3" />
-                                      {formatEndReason(call.end_reason)}
+                                      {formatEndReason(call.disconnection_reason)}
                                     </div>
                                   </Badge>
                                 ) : (
