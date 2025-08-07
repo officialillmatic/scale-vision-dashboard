@@ -1,5 +1,5 @@
 // 🔥 CALLSSIMPLE.TSX CORREGIDO - Carga valores exactos desde el primer momento
-// No muestra estimaciones de BD, solo valores exactos + Sincronización REAL end_reason
+// No muestra estimaciones de BD, solo valores exactos
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { 
   Phone, Clock, DollarSign, User, Calendar, Search, FileText, PlayCircle, TrendingUp,
   Filter, Eye, ArrowUpDown, Volume2, Download, CalendarDays, ChevronDown, Users,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, AlertTriangle, RefreshCw
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, AlertTriangle
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -48,22 +48,6 @@ interface Call {
     rate_per_minute: number;
   };
   processed_for_cost?: boolean;
-  end_reason_synced?: boolean; // 🆕 Para tracking de sincronización
-}
-
-interface RetellCallData {
-  call_id: string;
-  call_status: string;
-  end_reason: string;
-  call_type: string;
-  agent_id: string;
-  from_number: string;
-  to_number: string;
-  start_timestamp: number;
-  end_timestamp: number;
-  transcript: string;
-  recording_url: string;
-  public_log_url: string;
 }
 
 type SortField = 'timestamp' | 'duration_sec' | 'cost_usd' | 'call_status' | 'end_reason';
@@ -327,7 +311,6 @@ export default function CallsSimple() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [forceUpdate, setForceUpdate] = useState(0);
-  const [isSyncingEndReasons, setIsSyncingEndReasons] = useState(false); // 🆕 Estado para sincronización
   const lastProcessedRef = useRef<Set<string>>(new Set());
 
   const uniqueAgents = userAssignedAgents || [];
@@ -346,177 +329,6 @@ export default function CallsSimple() {
     }
     
     return `Agent ${agentId.substring(0, 8)}...`;
-  };
-
-  // ============================================================================
-  // 🆕 FUNCIONES DE SINCRONIZACIÓN CON API EXTERNA
-  // ============================================================================
-
-  const getAPIKey = async () => {
-    try {
-      // Obtener la API key desde la configuración del usuario
-      const { data: configData, error: configError } = await supabase
-        .from('user_configurations')
-        .select('retell_api_key')
-        .eq('user_id', user.id)
-        .single();
-
-      if (configError) {
-        console.error('❌ Error getting API key:', configError);
-        return null;
-      }
-
-      return configData?.retell_api_key;
-    } catch (error) {
-      console.error('❌ Exception getting API key:', error);
-      return null;
-    }
-  };
-
-  const fetchCallDataFromAPI = async (callId: string): Promise<RetellCallData | null> => {
-    const apiKey = await getAPIKey();
-    if (!apiKey) {
-      console.log(`⚠️ No API key available for call ${callId}`);
-      return null;
-    }
-
-    try {
-      console.log(`🔗 Fetching REAL data for call ${callId}...`);
-      
-      const response = await fetch(`https://api.retellai.com/v2/get-call/${callId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        console.log(`❌ API Error for ${callId}: ${response.status} ${response.statusText}`);
-        return null;
-      }
-
-      const data: RetellCallData = await response.json();
-      console.log(`✅ REAL data fetched for ${callId}:`, {
-        call_status: data.call_status,
-        end_reason: data.end_reason,
-        has_transcript: !!data.transcript,
-        has_recording: !!data.recording_url
-      });
-
-      return data;
-    } catch (error) {
-      console.error(`❌ Exception fetching data for ${callId}:`, error);
-      return null;
-    }
-  };
-
-  const syncEndReasonForCall = async (call: Call): Promise<boolean> => {
-    if (call.end_reason_synced) {
-      console.log(`✅ End reason already synced for ${call.call_id}`);
-      return true;
-    }
-
-    const realData = await fetchCallDataFromAPI(call.call_id);
-    if (!realData) {
-      console.log(`❌ Could not fetch real data for ${call.call_id}`);
-      return false;
-    }
-
-    try {
-      // Actualizar en la base de datos
-      const updateData: any = {
-        end_reason: realData.end_reason || null,
-        end_reason_synced: true
-      };
-
-      // También actualizar otros campos si están disponibles
-      if (realData.call_status && realData.call_status !== call.call_status) {
-        updateData.call_status = realData.call_status;
-      }
-
-      if (realData.transcript && !call.transcript) {
-        updateData.transcript = realData.transcript;
-      }
-
-      if (realData.recording_url && !call.recording_url) {
-        updateData.recording_url = realData.recording_url;
-      }
-
-      const { error: updateError } = await supabase
-        .from('calls')
-        .update(updateData)
-        .eq('call_id', call.call_id)
-        .eq('user_id', user.id);
-
-      if (updateError) {
-        console.error(`❌ Error updating call ${call.call_id}:`, updateError);
-        return false;
-      }
-
-      // Actualizar en el estado local
-      setCalls(prevCalls => 
-        prevCalls.map(c => 
-          c.call_id === call.call_id 
-            ? { 
-                ...c, 
-                ...updateData
-              }
-            : c
-        )
-      );
-
-      console.log(`✅ REAL end_reason synced for ${call.call_id}: "${realData.end_reason || 'NULL'}"`);
-      return true;
-
-    } catch (error) {
-      console.error(`❌ Exception syncing ${call.call_id}:`, error);
-      return false;
-    }
-  };
-
-  const syncEndReasonsForAllCalls = async () => {
-    if (isSyncingEndReasons || calls.length === 0) return;
-
-    const callsToSync = calls.filter(call => 
-      !call.end_reason_synced && 
-      ['completed', 'ended', 'error', 'failed', 'cancelled'].includes(call.call_status?.toLowerCase())
-    );
-
-    if (callsToSync.length === 0) {
-      console.log('✅ All applicable calls already have end_reason synced');
-      return;
-    }
-
-    console.log(`🔄 Starting REAL end_reason sync for ${callsToSync.length} calls...`);
-    setIsSyncingEndReasons(true);
-
-    let syncedCount = 0;
-    let errorCount = 0;
-
-    for (const call of callsToSync) {
-      try {
-        const success = await syncEndReasonForCall(call);
-        if (success) {
-          syncedCount++;
-        } else {
-          errorCount++;
-        }
-        
-        // Pequeña pausa para no sobrecargar la API
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-      } catch (error) {
-        console.error(`❌ Exception syncing call ${call.call_id}:`, error);
-        errorCount++;
-      }
-    }
-
-    console.log(`🎯 REAL end_reason sync completed:`);
-    console.log(`   ✅ Synced: ${syncedCount}`);
-    console.log(`   ❌ Errors: ${errorCount}`);
-
-    setIsSyncingEndReasons(false);
   };
 
   // ============================================================================
@@ -937,11 +749,11 @@ export default function CallsSimple() {
   };
 
   // ============================================================================
-  // FETCH CALLS - CON SINCRONIZACIÓN AUTOMÁTICA DE END_REASON
+  // FETCH CALLS - 🔧 CORREGIDO PARA MANEJAR END_REASON OPCIONAL
   // ============================================================================
   
   const fetchCalls = async () => {
-    console.log("🚀 FETCH CALLS - LOADING EXACT VALUES FROM START + REAL END_REASON SYNC");
+    console.log("🚀 FETCH CALLS - LOADING EXACT VALUES FROM START");
     
     if (!user?.id) {
       setError("User not authenticated");
@@ -997,7 +809,7 @@ export default function CallsSimple() {
 
       setLoadingProgress('Loading calls...');
 
-      // 🔧 BÚSQUEDA DIRECTA POR USER_ID
+      // 🔧 BÚSQUEDA DIRECTA POR USER_ID CON MANEJO SEGURO DE END_REASON
       console.log('🚀 EXECUTING DIRECT CALL QUERY...');
       
       const { data: allCalls, error: callsError } = await supabase
@@ -1032,7 +844,7 @@ export default function CallsSimple() {
         if (realCalls.length > 0) {
           console.log('📞 FIRST 3 REAL CALLS:');
           realCalls.slice(0, 3).forEach((call, index) => {
-            console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Status: ${call.call_status} - End Reason: ${call.end_reason || 'NULL'} - Synced: ${call.end_reason_synced || false} - Cost: $${call.cost_usd} - Processed: ${call.processed_for_cost}`);
+            console.log(`   ${index + 1}. ${call.call_id?.substring(0, 16)} - Status: ${call.call_status} - End Reason: ${call.end_reason || 'NULL'} - Cost: $${call.cost_usd} - Processed: ${call.processed_for_cost}`);
           });
         }
         
@@ -1071,15 +883,13 @@ export default function CallsSimple() {
 
           // 🔧 MANEJAR END_REASON DE FORMA SEGURA
           const endReason = call.end_reason || null;
-          const endReasonSynced = call.end_reason_synced || false;
-          console.log(`🔗 End reason for ${call.call_id?.substring(0, 8)}: "${endReason || 'NULL'}" (synced: ${endReasonSynced})`);
+          console.log(`🔗 End reason for ${call.call_id?.substring(0, 8)}: "${endReason || 'NULL'}"`);
 
           return {
             ...call,
             call_agent: matchedAgent,
             agents: matchedAgent,
-            end_reason: endReason,
-            end_reason_synced: endReasonSynced
+            end_reason: endReason
           };
         });
       };
@@ -1108,18 +918,12 @@ export default function CallsSimple() {
       console.log(`   🎯 With valid agents: ${mappedCalls.filter(c => c.call_agent?.rate_per_minute > 0).length}`);
       console.log(`   🎵 Audio loaded for: ${Object.keys(audioDurations).length} calls`);
       console.log(`   🔗 With end_reason: ${mappedCalls.filter(c => c.end_reason).length} calls`);
-      console.log(`   ✅ End_reason synced: ${mappedCalls.filter(c => c.end_reason_synced).length} calls`);
 
       setCalls(mappedCalls);
       setLoading(false);
       setLoadingProgress('');
 
       console.log("🎉 LOAD COMPLETED - Exact values loaded from start");
-
-      // 🆕 INICIAR SINCRONIZACIÓN DE END_REASONS DE FORMA AUTOMÁTICA
-      setTimeout(() => {
-        syncEndReasonsForAllCalls();
-      }, 2000);
 
     } catch (err: any) {
       console.error("❌ Exception in fetch calls:", err);
@@ -1533,7 +1337,7 @@ export default function CallsSimple() {
   
   useEffect(() => {
     if (user?.id) {
-      console.log('🚀 INITIATING SYSTEM WITH EXACT VALUES + REAL END_REASON SYNC for:', user.email);
+      console.log('🚀 INITIATING SYSTEM WITH EXACT VALUES FROM START for:', user.email);
       fetchCalls();
     }
   }, [user?.id]);
@@ -1599,7 +1403,6 @@ export default function CallsSimple() {
   const availableStatuses = [...new Set([...CALL_STATUSES, ...calls.map(call => call.call_status)])].sort();
   const selectedAgentName = agentFilter ? getAgentNameLocal(agentFilter) : null;
   const totalPages = Math.ceil(filteredCalls.length / pageSize);
-  const unsyncedEndReasons = calls.filter(call => !call.end_reason_synced && ['completed', 'ended', 'error', 'failed', 'cancelled'].includes(call.call_status?.toLowerCase())).length;
 
   if (!user) {
     return (
@@ -1622,7 +1425,7 @@ export default function CallsSimple() {
               <h1 className="text-3xl font-bold text-gray-900">📞 Call Management</h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-gray-600">
-                  Comprehensive call data for your account with REAL end reasons
+                  Comprehensive call data for your account
                   {selectedAgentName && (
                     <span className="ml-2 text-blue-600 font-medium">
                       • Filtered by {selectedAgentName}
@@ -1635,13 +1438,6 @@ export default function CallsSimple() {
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
                       <span className="text-xs font-medium text-blue-600">Processing Exact Costs</span>
-                    </div>
-                  )}
-                  
-                  {isSyncingEndReasons && (
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-spin"></div>
-                      <span className="text-xs font-medium text-purple-600">Syncing End Reasons</span>
                     </div>
                   )}
                   
@@ -1665,32 +1461,9 @@ export default function CallsSimple() {
                 Active User
               </Badge>
               
-              {/* 🆕 BOTÓN PARA SINCRONIZAR END_REASONS MANUALMENTE */}
-              {unsyncedEndReasons > 0 && (
-                <Button
-                  onClick={() => syncEndReasonsForAllCalls()}
-                  disabled={isSyncingEndReasons}
-                  variant="outline"
-                  size="sm"
-                  className="text-purple-600 border-purple-300 hover:bg-purple-50"
-                >
-                  {isSyncingEndReasons ? (
-                    <div className="flex items-center gap-1">
-                      <RefreshCw className="w-3 h-3 animate-spin" />
-                      <span className="text-xs">Syncing...</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <RefreshCw className="w-3 h-3" />
-                      <span className="text-xs">Sync End Reasons ({unsyncedEndReasons})</span>
-                    </div>
-                  )}
-                </Button>
-              )}
-              
               <Button
                 onClick={() => {
-                  console.log("🔄 MANUAL REFRESH - EXACT VALUES + REAL END_REASON SYNC");
+                  console.log("🔄 MANUAL REFRESH - EXACT VALUES");
                   fetchCalls();
                 }}
                 disabled={loading}
@@ -1723,37 +1496,11 @@ export default function CallsSimple() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-green-700 text-sm font-medium">
-                  💰 Exact cost deduction system active - Real calls processed with REAL end reasons.
+                  💰 Exact cost deduction system active - Real calls processed.
                 </span>
               </div>
             </CardContent>
           </Card>
-
-          {/* 🆕 CARD DE ESTADO DE SINCRONIZACIÓN */}
-          {unsyncedEndReasons > 0 && (
-            <Card className="border-purple-200 bg-purple-50">
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <span className="text-purple-700 text-sm font-medium">
-                      🔄 {unsyncedEndReasons} calls pending REAL end reason sync from external API
-                    </span>
-                  </div>
-                  {!isSyncingEndReasons && (
-                    <Button
-                      onClick={() => syncEndReasonsForAllCalls()}
-                      size="sm"
-                      variant="outline"
-                      className="text-purple-600 border-purple-300 hover:bg-purple-100"
-                    >
-                      Sync Now
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {isLoadingAudio && (
             <Card className="border-orange-200 bg-orange-50">
@@ -1954,7 +1701,7 @@ export default function CallsSimple() {
             <CardHeader className="border-b border-gray-100 pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl font-semibold text-gray-900">
-                  📋 Call History ({filteredCalls.length}) - REAL End Reasons
+                  📋 Call History ({filteredCalls.length})
                   
                   {totalPages > 1 && (
                     <span className="text-sm font-normal text-gray-500 ml-2">
@@ -1983,7 +1730,7 @@ export default function CallsSimple() {
                   <LoadingSpinner size="lg" />
                   <div className="ml-3">
                     <span className="text-gray-600 block">
-                      {loadingProgress.includes('audio') ? 'Loading exact durations...' : 'Loading calls with REAL end reasons...'}
+                      {loadingProgress.includes('audio') ? 'Loading exact durations...' : 'Loading calls...'}
                     </span>
                     {loadingProgress && (
                       <span className="text-sm text-gray-500 mt-1 block">{loadingProgress}</span>
@@ -2072,13 +1819,13 @@ export default function CallsSimple() {
                               Status {getSortIcon('call_status')}
                             </button>
                           </th>
-                          {/* 🔧 COLUMNA END REASON REAL */}
+                          {/* COLUMNA END REASON */}
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             <button
                               onClick={() => handleSort('end_reason')}
                               className="flex items-center gap-1 hover:text-gray-700"
                             >
-                              End Reason (REAL) {getSortIcon('end_reason')}
+                              End Reason {getSortIcon('end_reason')}
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -2198,7 +1945,7 @@ export default function CallsSimple() {
                               </div>
                             </td>
 
-                            {/* 🔧 COLUMNA END REASON REAL CON INDICADORES DE SINCRONIZACIÓN */}
+                            {/* COLUMNA END REASON */}
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="flex flex-col gap-1">
                                 {call.end_reason ? (
@@ -2211,26 +1958,6 @@ export default function CallsSimple() {
                                 ) : (
                                   <span className="text-xs text-gray-400">Unknown</span>
                                 )}
-                                
-                                {/* 🆕 INDICADOR DE SINCRONIZACIÓN */}
-                                <div className="text-xs flex items-center gap-1">
-                                  {call.end_reason_synced ? (
-                                    <>
-                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                      <span className="text-green-600">REAL data</span>
-                                    </>
-                                  ) : ['completed', 'ended', 'error', 'failed', 'cancelled'].includes(call.call_status?.toLowerCase()) ? (
-                                    <>
-                                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                                      <span className="text-orange-600">Pending sync</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                                      <span className="text-gray-500">In progress</span>
-                                    </>
-                                  )}
-                                </div>
                               </div>
                             </td>
 
@@ -2301,23 +2028,6 @@ export default function CallsSimple() {
                                   >
                                     <Download className="h-3 w-3" />
                                   </a>
-                                )}
-                                
-                                {/* 🆕 BOTÓN PARA SINCRONIZAR END_REASON INDIVIDUAL */}
-                                {!call.end_reason_synced && ['completed', 'ended', 'error', 'failed', 'cancelled'].includes(call.call_status?.toLowerCase()) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await syncEndReasonForCall(call);
-                                    }}
-                                    disabled={isSyncingEndReasons}
-                                    title="Sync REAL end reason"
-                                  >
-                                    <RefreshCw className="h-3 w-3" />
-                                  </Button>
                                 )}
                               </div>
                             </td>
