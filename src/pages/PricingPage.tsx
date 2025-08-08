@@ -150,9 +150,17 @@ const PricingPage: React.FC = () => {
   const loadActivePaymentConfig = async () => {
     try {
       // Determinar el environment basado en el dominio actual
-      const environment = window.location.hostname.includes('localhost') || 
-                         window.location.hostname.includes('staging') || 
-                         window.location.hostname.includes('dev') ? 'test' : 'production';
+      // TEMPORAL: Usar variable para debug fácil
+      const isProduction = window.location.hostname === 'www.drscaleai.com' || 
+                          window.location.hostname === 'drscaleai.com';
+      const environment = isProduction ? 'production' : 'test';
+      
+      console.log('🌍 Current hostname:', window.location.hostname);
+      console.log('🔍 Is production?', isProduction);
+      console.log('🎯 Environment selected:', environment);
+
+      console.log('🌍 Current hostname:', window.location.hostname);
+      console.log('🎯 Detected environment:', environment);
 
       const { data: config, error } = await supabase
         .from('payment_configurations')
@@ -172,6 +180,7 @@ const PricingPage: React.FC = () => {
         return;
       }
 
+      console.log('💳 Payment config loaded:', config);
       setActivePaymentConfig({ ...config, environment }); // Store environment in config
       setPaymentConfigLoaded(true);
       
@@ -229,10 +238,12 @@ const PricingPage: React.FC = () => {
         userId: user.id,
         planName: plan.name,
         paymentMethod: activePaymentConfig.payment_method,
-        environment: activePaymentConfig.environment, // Send environment explicitly
+        environment: activePaymentConfig.environment, // Use environment from active config
         successUrl: `${window.location.origin}/pricing?success=true&plan=${plan.id}`,
         cancelUrl: `${window.location.origin}/pricing?canceled=true`
       };
+
+      console.log('🌍 Using environment from active config:', activePaymentConfig.environment);
 
       // Preparar datos según el método de pago activo
       switch (activePaymentConfig.payment_method) {
@@ -261,14 +272,14 @@ const PricingPage: React.FC = () => {
           break;
       }
 
-      console.log('Payment data being sent:', paymentData);
+      console.log('💰 Payment data being sent:', paymentData);
 
       // Crear sesión de pago
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: paymentData
       });
 
-      console.log('Function response:', { data, error });
+      console.log('📞 Function response:', { data, error });
 
       if (error) {
         console.error('Supabase function error:', error);
@@ -383,13 +394,20 @@ const PricingPage: React.FC = () => {
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).icon}
-                  <div>
+                  <div className="flex-1">
                     <p className="text-green-800 font-medium">
                       Método de pago disponible: {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).name}
                     </p>
                     <p className="text-green-600 text-sm">
                       {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).description}
                     </p>
+                  </div>
+                  <div className={`px-3 py-1 rounded text-xs font-bold ${
+                    activePaymentConfig.environment === 'production' 
+                      ? 'bg-red-100 text-red-800' 
+                      : 'bg-green-100 text-green-800'
+                  }`}>
+                    {activePaymentConfig.environment === 'production' ? '🔴 LIVE' : '🟢 TEST'}
                   </div>
                 </div>
               </CardContent>
