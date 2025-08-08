@@ -191,31 +191,31 @@ const PricingPage: React.FC = () => {
         return {
           name: 'PayPal',
           icon: <Mail className="h-5 w-5 text-yellow-600" />,
-          description: 'Pago mediante tu cuenta de PayPal'
+          description: 'Payment via your PayPal account'
         };
       case 'paypal_business':
         return {
           name: 'PayPal Business',
           icon: <Briefcase className="h-5 w-5 text-green-600" />,
-          description: 'Pago empresarial mediante PayPal'
+          description: 'Business payment via PayPal'
         };
       default:
         return {
           name: 'Método de Pago',
           icon: <CreditCard className="h-5 w-5" />,
-          description: 'Método de pago configurado'
+          description: 'Payment method configured'
         };
     }
   };
 
   const handleSubscribe = async (plan: Plan) => {
     if (!user) {
-      setError('Por favor inicia sesión para suscribirte a un plan');
+      setError('Please log in to subscribe to a plan');
       return;
     }
 
     if (!activePaymentConfig) {
-      setError('No hay configuración de pago disponible. Por favor contacta soporte.');
+      setError('No payment options available. Please contact support.');
       return;
     }
 
@@ -382,7 +382,7 @@ const PricingPage: React.FC = () => {
                   {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).icon}
                   <div>
                     <p className="text-green-800 font-medium">
-                      Método de pago disponible: {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).name}
+                      Available payment method: {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).name}
                     </p>
                     <p className="text-green-600 text-sm">
                       {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).description}
