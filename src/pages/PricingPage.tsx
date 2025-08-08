@@ -166,7 +166,7 @@ const PricingPage: React.FC = () => {
       }
 
       if (!config) {
-        setError('No payment method is configured. Please contact the administrator.');
+        setError('No hay método de pago configurado. Por favor contacta al administrador.');
         return;
       }
 
@@ -191,31 +191,31 @@ const PricingPage: React.FC = () => {
         return {
           name: 'PayPal',
           icon: <Mail className="h-5 w-5 text-yellow-600" />,
-          description: 'Payment via your PayPal account'
+          description: 'Pago mediante tu cuenta de PayPal'
         };
       case 'paypal_business':
         return {
           name: 'PayPal Business',
           icon: <Briefcase className="h-5 w-5 text-green-600" />,
-          description: 'Business payment via PayPal'
+          description: 'Pago empresarial mediante PayPal'
         };
       default:
         return {
           name: 'Método de Pago',
           icon: <CreditCard className="h-5 w-5" />,
-          description: 'Payment method configured'
+          description: 'Método de pago configurado'
         };
     }
   };
 
   const handleSubscribe = async (plan: Plan) => {
     if (!user) {
-      setError('Please log in to subscribe to a plan');
+      setError('Por favor inicia sesión para suscribirte a un plan');
       return;
     }
 
     if (!activePaymentConfig) {
-      setError('No payment options available. Please contact support..');
+      setError('No hay configuración de pago disponible. Por favor contacta soporte.');
       return;
     }
 
@@ -245,10 +245,15 @@ const PricingPage: React.FC = () => {
           
         case 'paypal_standard':
         case 'paypal_business':
+          // Para PayPal, necesitamos manejar diferente
+          if (typeof plan.price !== 'number') {
+            throw new Error('Los planes personalizados no están disponibles con PayPal. Por favor contacta ventas.');
+          }
           paymentData = {
             ...paymentData,
             amount: plan.price,
-            currency: 'USD'
+            currency: 'USD',
+            planId: plan.id
           };
           break;
       }
@@ -270,7 +275,15 @@ const PricingPage: React.FC = () => {
 
     } catch (err: any) {
       console.error('Subscription error:', err);
-      setError(`Error de suscripción: ${err.message}`);
+      let errorMessage = 'Error de suscripción: ';
+      
+      if (err.message.includes('Edge Function')) {
+        errorMessage += 'La función de pago necesita ser actualizada para soportar el método de pago configurado. Por favor contacta al administrador.';
+      } else {
+        errorMessage += err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setProcessingPlan(null);
     }
