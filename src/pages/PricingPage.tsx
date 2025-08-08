@@ -149,8 +149,10 @@ const PricingPage: React.FC = () => {
 
   const loadActivePaymentConfig = async () => {
     try {
-      // Determinar el environment (podrías hacer esto configurable)
-      const environment = 'test'; // En producción esto debería venir de una configuración
+      // Determinar el environment basado en el dominio actual
+      const environment = window.location.hostname.includes('localhost') || 
+                         window.location.hostname.includes('staging') || 
+                         window.location.hostname.includes('dev') ? 'test' : 'production';
 
       const { data: config, error } = await supabase
         .from('payment_configurations')
@@ -166,11 +168,11 @@ const PricingPage: React.FC = () => {
       }
 
       if (!config) {
-        setError('No hay método de pago configurado. Por favor contacta al administrador.');
+        setError(`No hay método de pago configurado para el environment ${environment}. Por favor contacta al administrador.`);
         return;
       }
 
-      setActivePaymentConfig(config);
+      setActivePaymentConfig({ ...config, environment }); // Store environment in config
       setPaymentConfigLoaded(true);
       
     } catch (err) {
@@ -191,31 +193,31 @@ const PricingPage: React.FC = () => {
         return {
           name: 'PayPal',
           icon: <Mail className="h-5 w-5 text-yellow-600" />,
-          description: 'Payment via your PayPal account'
+          description: 'Pago mediante tu cuenta de PayPal'
         };
       case 'paypal_business':
         return {
           name: 'PayPal Business',
           icon: <Briefcase className="h-5 w-5 text-green-600" />,
-          description: 'Business payment via PayPal'
+          description: 'Pago empresarial mediante PayPal'
         };
       default:
         return {
           name: 'Método de Pago',
           icon: <CreditCard className="h-5 w-5" />,
-          description: 'Payment method configured'
+          description: 'Método de pago configurado'
         };
     }
   };
 
   const handleSubscribe = async (plan: Plan) => {
     if (!user) {
-      setError('Please log in to subscribe to a plan');
+      setError('Por favor inicia sesión para suscribirte a un plan');
       return;
     }
 
     if (!activePaymentConfig) {
-      setError('No payment options available. Please contact support.');
+      setError('No hay configuración de pago disponible. Por favor contacta soporte.');
       return;
     }
 
@@ -227,6 +229,7 @@ const PricingPage: React.FC = () => {
         userId: user.id,
         planName: plan.name,
         paymentMethod: activePaymentConfig.payment_method,
+        environment: activePaymentConfig.environment, // Send environment explicitly
         successUrl: `${window.location.origin}/pricing?success=true&plan=${plan.id}`,
         cancelUrl: `${window.location.origin}/pricing?canceled=true`
       };
@@ -382,7 +385,7 @@ const PricingPage: React.FC = () => {
                   {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).icon}
                   <div>
                     <p className="text-green-800 font-medium">
-                      Available payment method: {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).name}
+                      Método de pago disponible: {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).name}
                     </p>
                     <p className="text-green-600 text-sm">
                       {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).description}
