@@ -166,7 +166,7 @@ const PricingPage: React.FC = () => {
       }
 
       if (!config) {
-        setError('No hay método de pago configurado. Por favor contacta al administrador.');
+        setError('No payment method is configured. Please contact the administrator.');
         return;
       }
 
@@ -191,31 +191,31 @@ const PricingPage: React.FC = () => {
         return {
           name: 'PayPal',
           icon: <Mail className="h-5 w-5 text-yellow-600" />,
-          description: 'Pago mediante tu cuenta de PayPal'
+          description: 'Payment via your PayPal account'
         };
       case 'paypal_business':
         return {
           name: 'PayPal Business',
           icon: <Briefcase className="h-5 w-5 text-green-600" />,
-          description: 'Pago empresarial mediante PayPal'
+          description: 'Business payment via PayPal'
         };
       default:
         return {
           name: 'Método de Pago',
           icon: <CreditCard className="h-5 w-5" />,
-          description: 'Método de pago configurado'
+          description: 'Payment method configured'
         };
     }
   };
 
   const handleSubscribe = async (plan: Plan) => {
     if (!user) {
-      setError('Por favor inicia sesión para suscribirte a un plan');
+      setError('Please log in to subscribe to a plan');
       return;
     }
 
     if (!activePaymentConfig) {
-      setError('No hay configuración de pago disponible. Por favor contacta soporte.');
+      setError('No payment options available. Please contact support..');
       return;
     }
 
