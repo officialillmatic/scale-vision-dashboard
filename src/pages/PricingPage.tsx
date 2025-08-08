@@ -15,16 +15,30 @@ import {
   Users,
   BarChart3,
   Settings,
-  Sparkles
+  Sparkles,
+  CreditCard,
+  Briefcase
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { supabase } from '@/integrations/supabase/client';
 
-// Stripe configuration (these should be loaded from your Supabase stripe_configurations table)
-const STRIPE_CONFIG = {
-  publicKey: 'pk_test_...' // This will be loaded from Supabase
-};
+type PaymentMethod = 'stripe' | 'paypal_standard' | 'paypal_business';
+
+interface PaymentConfig {
+  id: string;
+  payment_method: PaymentMethod;
+  environment: string;
+  public_key?: string;
+  secret_key?: string;
+  webhook_secret?: string;
+  webhook_endpoint?: string;
+  paypal_email?: string;
+  client_id?: string;
+  client_secret?: string;
+  webhook_url?: string;
+  is_active: boolean;
+}
 
 interface PlanFeature {
   text: string;
@@ -53,7 +67,7 @@ const plans: Plan[] = [
     price: 800,
     period: 'month',
     description: 'Perfect for small teams getting started with AI voice agents',
-    stripePriceId: 'price_1RlKU8PtUQ6CvAqeAqhpUwno', // ✅ Price ID real de Stripe
+    stripePriceId: 'price_1RlKU8PtUQ6CvAqeAqhpUwno',
     popular: false,
     gradient: 'from-blue-50 via-blue-50 to-blue-100',
     icon: <Zap className="h-6 w-6 text-blue-600" />,
@@ -77,7 +91,7 @@ const plans: Plan[] = [
     price: 1500,
     period: 'month',
     description: 'Ideal for growing businesses that need advanced features and priority support',
-    stripePriceId: 'price_1RlKVnPtUQ6CvAqeobo403iN', // ✅ Price ID real de Stripe
+    stripePriceId: 'price_1RlKVnPtUQ6CvAqeobo403iN',
     popular: true,
     gradient: 'from-purple-50 via-purple-50 to-purple-100',
     icon: <Crown className="h-6 w-6 text-purple-600" />,
@@ -123,50 +137,85 @@ const plans: Plan[] = [
 const PricingPage: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [stripeLoaded, setStripeLoaded] = useState(false);
+  const [paymentConfigLoaded, setPaymentConfigLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
+  const [activePaymentConfig, setActivePaymentConfig] = useState<PaymentConfig | null>(null);
 
-  // Load Stripe configuration from Supabase
+  // Load active payment configuration
   useEffect(() => {
-    loadStripeConfig();
+    loadActivePaymentConfig();
   }, []);
 
-  const loadStripeConfig = async () => {
+  const loadActivePaymentConfig = async () => {
     try {
+      // Determinar el environment (podrías hacer esto configurable)
+      const environment = 'test'; // En producción esto debería venir de una configuración
+
       const { data: config, error } = await supabase
-        .from('stripe_configurations')
-        .select('public_key, is_active')
-        .eq('environment', 'test') // Use 'production' in production
+        .from('payment_configurations')
+        .select('*')
+        .eq('environment', environment)
         .eq('is_active', true)
         .single();
 
-      if (error) {
-        console.error('Error loading Stripe config:', error);
-        setError('Payment system configuration error. Please contact support.');
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+        console.error('Error loading payment config:', error);
+        setError('Error al cargar la configuración de pago. Por favor contacta soporte.');
         return;
       }
 
-      if (config?.public_key) {
-        // Initialize Stripe with the loaded public key
-        // In a real implementation, you'd load the Stripe script and initialize it here
-        console.log('Stripe configured with key:', config.public_key.substring(0, 12) + '...');
-        setStripeLoaded(true);
+      if (!config) {
+        setError('No hay método de pago configurado. Por favor contacta al administrador.');
+        return;
       }
+
+      setActivePaymentConfig(config);
+      setPaymentConfigLoaded(true);
+      
     } catch (err) {
-      console.error('Exception loading Stripe config:', err);
-      setError('Failed to load payment configuration');
+      console.error('Exception loading payment config:', err);
+      setError('Error al cargar la configuración de pago');
+    }
+  };
+
+  const getPaymentMethodDisplay = (method: PaymentMethod) => {
+    switch (method) {
+      case 'stripe':
+        return {
+          name: 'Tarjeta de Crédito/Débito (Stripe)',
+          icon: <CreditCard className="h-5 w-5 text-blue-600" />,
+          description: 'Pago seguro con tarjeta de crédito o débito'
+        };
+      case 'paypal_standard':
+        return {
+          name: 'PayPal',
+          icon: <Mail className="h-5 w-5 text-yellow-600" />,
+          description: 'Pago mediante tu cuenta de PayPal'
+        };
+      case 'paypal_business':
+        return {
+          name: 'PayPal Business',
+          icon: <Briefcase className="h-5 w-5 text-green-600" />,
+          description: 'Pago empresarial mediante PayPal'
+        };
+      default:
+        return {
+          name: 'Método de Pago',
+          icon: <CreditCard className="h-5 w-5" />,
+          description: 'Método de pago configurado'
+        };
     }
   };
 
   const handleSubscribe = async (plan: Plan) => {
     if (!user) {
-      setError('Please log in to subscribe to a plan');
+      setError('Por favor inicia sesión para suscribirte a un plan');
       return;
     }
 
-    if (!stripeLoaded) {
-      setError('Payment system not ready. Please try again in a moment.');
+    if (!activePaymentConfig) {
+      setError('No hay configuración de pago disponible. Por favor contacta soporte.');
       return;
     }
 
@@ -174,15 +223,39 @@ const PricingPage: React.FC = () => {
     setError(null);
 
     try {
-      // Create checkout session using the intelligent Edge Function
+      let paymentData: any = {
+        userId: user.id,
+        planName: plan.name,
+        paymentMethod: activePaymentConfig.payment_method,
+        successUrl: `${window.location.origin}/pricing?success=true&plan=${plan.id}`,
+        cancelUrl: `${window.location.origin}/pricing?canceled=true`
+      };
+
+      // Preparar datos según el método de pago activo
+      switch (activePaymentConfig.payment_method) {
+        case 'stripe':
+          if (!plan.stripePriceId) {
+            throw new Error('Price ID no configurado para este plan');
+          }
+          paymentData = {
+            ...paymentData,
+            priceId: plan.stripePriceId
+          };
+          break;
+          
+        case 'paypal_standard':
+        case 'paypal_business':
+          paymentData = {
+            ...paymentData,
+            amount: plan.price,
+            currency: 'USD'
+          };
+          break;
+      }
+
+      // Crear sesión de pago
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: {
-          priceId: plan.stripePriceId,
-          userId: user.id,
-          planName: plan.name,
-          successUrl: `${window.location.origin}/pricing?success=true&plan=${plan.id}`,
-          cancelUrl: `${window.location.origin}/pricing?canceled=true`
-        }
+        body: paymentData
       });
 
       if (error) {
@@ -190,15 +263,14 @@ const PricingPage: React.FC = () => {
       }
 
       if (data?.url) {
-        // Redirect to Stripe Checkout
         window.location.href = data.url;
       } else {
-        throw new Error('Failed to create checkout session');
+        throw new Error('Error al crear la sesión de pago');
       }
 
     } catch (err: any) {
       console.error('Subscription error:', err);
-      setError(`Subscription error: ${err.message}`);
+      setError(`Error de suscripción: ${err.message}`);
     } finally {
       setProcessingPlan(null);
     }
@@ -228,15 +300,10 @@ const PricingPage: React.FC = () => {
 
     if (success === 'true') {
       setError(null);
-      // Show success message
       alert(`🎉 Subscription successful! Welcome to the ${planId} plan. You'll receive a confirmation email shortly.`);
-      
-      // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (canceled === 'true') {
       setError('Payment was canceled. You can try again anytime.');
-      
-      // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
@@ -266,6 +333,25 @@ const PricingPage: React.FC = () => {
             </p>
           </div>
 
+          {/* Payment Method Info */}
+          {paymentConfigLoaded && activePaymentConfig && (
+            <Card className="border-green-200 bg-green-50 max-w-2xl mx-auto mb-8">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).icon}
+                  <div>
+                    <p className="text-green-800 font-medium">
+                      Método de pago disponible: {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).name}
+                    </p>
+                    <p className="text-green-600 text-sm">
+                      {getPaymentMethodDisplay(activePaymentConfig.payment_method as PaymentMethod).description}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Error Alert */}
           {error && (
             <Card className="border-red-200 bg-red-50 max-w-2xl mx-auto mb-8">
@@ -276,6 +362,16 @@ const PricingPage: React.FC = () => {
                   </div>
                   <p className="text-red-800 font-medium">{error}</p>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loading State */}
+          {!paymentConfigLoaded && !error && (
+            <Card className="max-w-2xl mx-auto mb-8">
+              <CardContent className="p-6 text-center">
+                <LoadingSpinner size="lg" />
+                <p className="text-gray-600 mt-4">Cargando configuración de pago...</p>
               </CardContent>
             </Card>
           )}
@@ -361,7 +457,7 @@ const PricingPage: React.FC = () => {
                   {/* Action Button */}
                   <Button
                     onClick={() => plan.id === 'enterprise' ? handleContactSales() : handleSubscribe(plan)}
-                    disabled={processingPlan === plan.id || (plan.stripePriceId && !stripeLoaded)}
+                    disabled={processingPlan === plan.id || (!activePaymentConfig && plan.id !== 'enterprise')}
                     variant={plan.buttonVariant}
                     className={`
                       w-full py-3 font-semibold text-lg transition-all duration-300
