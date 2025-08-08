@@ -150,47 +150,87 @@ const PaymentAdminConfigPage: React.FC = () => {
           .neq('payment_method', method);
       }
 
-      // Preparar datos específicos del método de pago
-      let upsertData: any = {
-        payment_method: method,
-        environment,
-        is_active: config.is_active,
-        updated_at: new Date().toISOString()
-      };
+      // Verificar si la configuración ya existe
+      const { data: existingConfig, error: checkError } = await supabase
+        .from('payment_configurations')
+        .select('*')
+        .eq('payment_method', method)
+        .eq('environment', environment)
+        .single();
 
-      // Añadir solo los campos necesarios según el método
-      switch (method) {
-        case 'stripe':
-          upsertData = {
-            ...upsertData,
-            public_key: config.public_key,
-            secret_key: config.secret_key,
-            webhook_secret: config.webhook_secret || null,
-            webhook_endpoint: config.webhook_endpoint || null
-          };
-          break;
-        case 'paypal_standard':
-          upsertData = {
-            ...upsertData,
-            paypal_email: config.paypal_email
-          };
-          break;
-        case 'paypal_business':
-          upsertData = {
-            ...upsertData,
-            client_id: config.client_id,
-            client_secret: config.client_secret,
-            webhook_url: config.webhook_url || null
-          };
-          break;
+      let result;
+      if (existingConfig) {
+        // Actualizar configuración existente - solo campos específicos
+        let updateData: any = {
+          is_active: config.is_active,
+          updated_at: new Date().toISOString()
+        };
+
+        switch (method) {
+          case 'stripe':
+            updateData.public_key = config.public_key;
+            updateData.secret_key = config.secret_key;
+            updateData.webhook_secret = config.webhook_secret || null;
+            updateData.webhook_endpoint = config.webhook_endpoint || null;
+            break;
+          case 'paypal_standard':
+            updateData.paypal_email = config.paypal_email;
+            break;
+          case 'paypal_business':
+            updateData.client_id = config.client_id;
+            updateData.client_secret = config.client_secret;
+            updateData.webhook_url = config.webhook_url || null;
+            break;
+        }
+
+        result = await supabase
+          .from('payment_configurations')
+          .update(updateData)
+          .eq('payment_method', method)
+          .eq('environment', environment);
+      } else {
+        // Crear nueva configuración con valores por defecto para campos obligatorios
+        let insertData: any = {
+          payment_method: method,
+          environment,
+          is_active: config.is_active,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          // Valores por defecto para evitar errores NOT NULL
+          public_key: '',
+          secret_key: '',
+          webhook_secret: null,
+          webhook_endpoint: null,
+          paypal_email: null,
+          client_id: null,
+          client_secret: null,
+          webhook_url: null
+        };
+
+        // Sobrescribir con valores específicos del método
+        switch (method) {
+          case 'stripe':
+            insertData.public_key = config.public_key || '';
+            insertData.secret_key = config.secret_key || '';
+            insertData.webhook_secret = config.webhook_secret || null;
+            insertData.webhook_endpoint = config.webhook_endpoint || null;
+            break;
+          case 'paypal_standard':
+            insertData.paypal_email = config.paypal_email || '';
+            break;
+          case 'paypal_business':
+            insertData.client_id = config.client_id || '';
+            insertData.client_secret = config.client_secret || '';
+            insertData.webhook_url = config.webhook_url || null;
+            break;
+        }
+
+        result = await supabase
+          .from('payment_configurations')
+          .insert(insertData);
       }
 
-      // Guardar o actualizar configuración
-      const { data, error } = await supabase
-        .from('payment_configurations')
-        .upsert(upsertData, {
-          onConflict: 'payment_method,environment'
-        });
+      const { error } = result;
 
       if (error) {
         throw error;
