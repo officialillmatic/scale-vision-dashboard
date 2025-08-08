@@ -17,7 +17,9 @@ import {
   Save,
   Eye,
   EyeOff,
-  Settings
+  Settings,
+  Users,
+  Info
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -166,7 +168,7 @@ const PaymentAdminConfigPage: React.FC = () => {
 
       setMessage({ 
         type: 'success', 
-        text: `${method.replace('_', ' ').toUpperCase()} configuration saved successfully!` 
+        text: `${method.replace('_', ' ').toUpperCase()} configuration saved successfully! ${config.is_active ? 'This is now the default payment method for users.' : ''}` 
       });
       
       // Recargar configuraciones
@@ -236,6 +238,19 @@ const PaymentAdminConfigPage: React.FC = () => {
     return currentActiveMethod === method;
   };
 
+  const getMethodDisplayName = (method: PaymentMethod) => {
+    switch (method) {
+      case 'stripe':
+        return 'Credit/Debit Cards (Stripe)';
+      case 'paypal_standard':
+        return 'PayPal Standard';
+      case 'paypal_business':
+        return 'PayPal Business';
+      default:
+        return method;
+    }
+  };
+
   const renderSecretField = (
     label: string,
     value: string,
@@ -288,14 +303,14 @@ const PaymentAdminConfigPage: React.FC = () => {
                   Payment Configuration
                 </CardTitle>
                 <p className="text-gray-600 mt-1">
-                  Configure your payment methods. Only one method can be active per environment.
+                  Configure the default payment method for all users. Only one method can be active per environment.
                 </p>
               </div>
             </div>
           </CardHeader>
         </Card>
 
-        {/* Environment Selector */}
+        {/* Environment Selector and Active Method Info */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -313,24 +328,50 @@ const PaymentAdminConfigPage: React.FC = () => {
               </div>
               
               {/* Active Method Indicator */}
-              {currentActiveMethod && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Currently Active:</span>
-                  <Badge 
-                    variant="outline" 
-                    className={`text-${getMethodColor(currentActiveMethod)}-700 border-${getMethodColor(currentActiveMethod)}-200 bg-${getMethodColor(currentActiveMethod)}-50`}
-                  >
-                    <div className="flex items-center gap-1">
-                      {getMethodIcon(currentActiveMethod)}
-                      {currentActiveMethod.replace('_', ' ').toUpperCase()}
-                      <Check className="h-3 w-3" />
-                    </div>
-                  </Badge>
-                </div>
-              )}
+              <div className="flex items-center gap-4">
+                {currentActiveMethod ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Users will pay with:</span>
+                    <Badge 
+                      variant="outline" 
+                      className={`text-${getMethodColor(currentActiveMethod)}-700 border-${getMethodColor(currentActiveMethod)}-200 bg-${getMethodColor(currentActiveMethod)}-50`}
+                    >
+                      <div className="flex items-center gap-1">
+                        {getMethodIcon(currentActiveMethod)}
+                        {getMethodDisplayName(currentActiveMethod)}
+                        <Check className="h-3 w-3" />
+                      </div>
+                    </Badge>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    <span className="text-sm text-amber-700">No payment method configured</span>
+                  </div>
+                )}
+              </div>
             </div>
           </CardHeader>
         </Card>
+
+        {/* User Impact Info */}
+        {currentActiveMethod && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-blue-900 mb-1">User Experience Impact</h4>
+                  <p className="text-sm text-blue-800">
+                    When users select a plan, they will be automatically redirected to pay using{' '}
+                    <strong>{getMethodDisplayName(currentActiveMethod)}</strong>. 
+                    They won't be able to choose a different payment method.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Messages */}
         {message && (
@@ -379,7 +420,7 @@ const PaymentAdminConfigPage: React.FC = () => {
                     Stripe Configuration
                   </CardTitle>
                   <p className="text-gray-600 text-sm">
-                    Configure your Stripe payment gateway with API keys
+                    Configure your Stripe payment gateway with API keys. Users will pay with credit/debit cards.
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -436,7 +477,7 @@ const PaymentAdminConfigPage: React.FC = () => {
                         className="rounded border-gray-300"
                       />
                       <Label htmlFor="stripe-active" className="text-sm font-medium">
-                        Activate Stripe for {environment}
+                        Set as default payment method for {environment}
                       </Label>
                     </div>
 
@@ -471,7 +512,7 @@ const PaymentAdminConfigPage: React.FC = () => {
                     PayPal Standard Configuration
                   </CardTitle>
                   <p className="text-gray-600 text-sm">
-                    Simple PayPal integration using your PayPal account email (no API required)
+                    Simple PayPal integration using your PayPal account email (no API required). Users will be redirected to PayPal.
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -500,7 +541,7 @@ const PaymentAdminConfigPage: React.FC = () => {
                         className="rounded border-gray-300"
                       />
                       <Label htmlFor="paypal-standard-active" className="text-sm font-medium">
-                        Activate PayPal Standard for {environment}
+                        Set as default payment method for {environment}
                       </Label>
                     </div>
 
@@ -535,7 +576,7 @@ const PaymentAdminConfigPage: React.FC = () => {
                     PayPal Business Configuration
                   </CardTitle>
                   <p className="text-gray-600 text-sm">
-                    Advanced PayPal integration with API credentials for business accounts
+                    Advanced PayPal integration with API credentials for business accounts. Better for professional use.
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -581,7 +622,7 @@ const PaymentAdminConfigPage: React.FC = () => {
                         className="rounded border-gray-300"
                       />
                       <Label htmlFor="paypal-business-active" className="text-sm font-medium">
-                        Activate PayPal Business for {environment}
+                        Set as default payment method for {environment}
                       </Label>
                     </div>
 
@@ -614,17 +655,19 @@ const PaymentAdminConfigPage: React.FC = () => {
           <CardContent className="p-6">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
-                <AlertTriangle className="h-5 w-5 text-blue-600" />
+                <Info className="h-5 w-5 text-blue-600" />
               </div>
               <div>
                 <h3 className="font-semibold text-blue-900 mb-2">Important Notes:</h3>
                 <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Only one payment method can be active per environment at a time</li>
+                  <li>• <strong>Only one payment method can be active per environment</strong> at a time</li>
+                  <li>• Users will automatically use the active payment method - they cannot choose a different one</li>
                   <li>• Test environment uses sandbox/test credentials</li>
                   <li>• Production environment uses live credentials</li>
                   <li>• PayPal Standard requires no API setup - just your PayPal email</li>
                   <li>• PayPal Business requires API credentials from PayPal Developer Console</li>
                   <li>• Always test in the test environment before going live</li>
+                  <li>• Changes take effect immediately for new subscriptions</li>
                 </ul>
               </div>
             </div>
