@@ -258,19 +258,47 @@ const PricingPage: React.FC = () => {
           break;
       }
 
+      console.log('Payment data being sent:', paymentData);
+
       // Crear sesión de pago
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: paymentData
       });
 
+      console.log('Function response:', { data, error });
+
       if (error) {
-        throw new Error(error.message);
+        console.error('Supabase function error:', error);
+        throw new Error(error.message || 'Error en la función de pago');
       }
 
-      if (data?.url) {
+      if (data?.error) {
+        console.error('Function returned error:', data.error);
+        throw new Error(data.error);
+      }
+
+      // Para PayPal Standard, data podría contener HTML directamente
+      if (activePaymentConfig.payment_method === 'paypal_standard') {
+        // Si es HTML, abrir en nueva ventana/tab
+        if (typeof data === 'string' && data.includes('<html>')) {
+          const newWindow = window.open('', '_blank');
+          if (newWindow) {
+            newWindow.document.write(data);
+            newWindow.document.close();
+          } else {
+            throw new Error('Por favor permite ventanas emergentes para completar el pago con PayPal');
+          }
+        } else if (data?.url) {
+          window.location.href = data.url;
+        } else {
+          throw new Error('Respuesta inesperada del sistema de pago');
+        }
+      } else if (data?.url) {
+        // Para Stripe
         window.location.href = data.url;
       } else {
-        throw new Error('Error al crear la sesión de pago');
+        console.error('Unexpected response format:', data);
+        throw new Error('Respuesta inesperada del sistema de pago');
       }
 
     } catch (err: any) {
