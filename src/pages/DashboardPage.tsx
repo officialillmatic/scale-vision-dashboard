@@ -21,12 +21,17 @@ import {
   CreditCard,
   PieChart,
   Settings,
-  ArrowRight
+  ArrowRight,
+  Bell
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 import { CreditBalance } from "@/components/credits/CreditBalance";
+
+// 🔔 NUEVOS IMPORTS para notificaciones
+import { BalanceAlerts } from '@/components/notifications/BalanceAlerts';
+import { useNotifications } from '@/hooks/useNotifications';
 
 // ============================================================================
 // FUNCIÓN UNIVERSAL DE DESCUENTO DE BALANCE
@@ -437,6 +442,13 @@ export default function DashboardPage() {
   });
   const [chartData, setChartData] = useState<any[]>([]);
   const [userDistribution, setUserDistribution] = useState<any[]>([]);
+
+  // 🔔 NUEVO: Hook de notificaciones para super admins
+  const { 
+    lowBalanceUsers, 
+    config: notificationConfig,
+    stats: notificationStats 
+  } = useNotifications();
 
   // ============================================================================
   // 🔄 FUNCIONES SINCRONIZADAS CON CALLSSIMPLE
@@ -1196,6 +1208,14 @@ export default function DashboardPage() {
             />
           </div>
 
+          {/* 🔔 NUEVO: Alertas de Balance Bajo para Super Admin */}
+          <BalanceAlerts 
+            compact={true}
+            showAdminControls={true}
+            maxUsers={3}
+            onConfigureClick={() => window.location.href = '/admin/credits'}
+          />
+
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
             <div>
@@ -1211,6 +1231,13 @@ export default function DashboardPage() {
                 <Activity className="w-3 h-3 mr-1" />
                 Super Admin
               </Badge>
+              {/* 🔔 NUEVO: Badge de notificaciones si hay alertas */}
+              {notificationStats.totalAlerted > 0 && (
+                <Badge variant="destructive" className="text-xs sm:text-sm animate-pulse">
+                  <Bell className="w-3 h-3 mr-1" />
+                  {notificationStats.totalAlerted} Alertas
+                </Badge>
+              )}
               <Button
                 onClick={fetchAdminStats}
                 disabled={loading}
@@ -1234,7 +1261,7 @@ export default function DashboardPage() {
 
           {/* Main Statistics Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {/* Total Users */}
+            {/* Total Users - ACTUALIZAR para mostrar alertas */}
             <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
@@ -1244,6 +1271,15 @@ export default function DashboardPage() {
                     <div className="flex items-center mt-1 sm:mt-2">
                       <UserCheck className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 mr-1" />
                       <span className="text-xs text-green-600 font-medium">{adminStats.activeUsers} active</span>
+                      {/* 🔔 NUEVO: Mostrar alertas de balance */}
+                      {notificationStats.totalAlerted > 0 && (
+                        <>
+                          <span className="mx-1 text-gray-400">•</span>
+                          <span className="text-xs text-red-600 font-medium">
+                            {notificationStats.totalAlerted} low balance
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                   <Users className="h-8 w-8 sm:h-12 sm:w-12 text-blue-600" />
