@@ -26,10 +26,17 @@ import {
   Download,
   Minus,
   User,
-  Activity
+  Activity,
+  CreditCard
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+
+// 🔔 NUEVOS IMPORTS para notificaciones
+import { NotificationConfigPanel } from '@/components/notifications/NotificationConfigPanel';
+import { BalanceAlerts } from '@/components/notifications/BalanceAlerts';
+import { useNotifications } from '@/hooks/useNotifications';
+import { Bell, Settings as SettingsIcon } from 'lucide-react';
 
 interface UserCredit {
   user_id: string;
@@ -77,6 +84,10 @@ export default function SuperAdminCreditPage() {
     open: boolean;
     userId?: string;
   }>({ open: false });
+
+  // 🔔 NUEVOS ESTADOS para notificaciones (agregar después de los existentes)
+  const [showNotifications, setShowNotifications] = useState(false);
+  const { lowBalanceUsers, stats: notificationStats } = useNotifications();
 
   const { user } = useAuth();
 
@@ -345,7 +356,7 @@ export default function SuperAdminCreditPage() {
   return (
     <DashboardLayout>
       <div className="w-full space-y-4 sm:space-y-6">
-        {/* Banner identificador */}
+        {/* Banner identificador EXISTENTE - MANTENER IGUAL */}
         <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
           <div className="flex items-center space-x-3">
             <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
@@ -363,268 +374,347 @@ export default function SuperAdminCreditPage() {
           </div>
         </div>
 
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-          <div className="flex items-center space-x-3">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">🚀 Gestión de Créditos</h1>
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-              <Shield className="w-3 h-3 mr-1" />
-              Super Admin
-            </Badge>
-            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-              <Eye className="w-3 h-3 mr-1" />
-              Datos en Tiempo Real
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Button onClick={exportData} variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              Exportar CSV
+        {/* 🔄 NUEVO: Toggle entre vistas SIN pestañas */}
+        <div className="flex items-center justify-center mb-6">
+          <div className="bg-gray-100 p-1 rounded-lg inline-flex">
+            <Button
+              onClick={() => setShowNotifications(false)}
+              variant={!showNotifications ? "default" : "ghost"}
+              size="sm"
+              className="px-6"
+            >
+              <CreditCard className="w-4 h-4 mr-2" />
+              Gestión de Créditos
+              {users.length > 0 && (
+                <Badge variant="outline" className="ml-2">
+                  {users.length}
+                </Badge>
+              )}
             </Button>
-            <Button onClick={fetchUsers} disabled={loading} variant="outline" size="sm">
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Actualizar
+            <Button
+              onClick={() => setShowNotifications(true)}
+              variant={showNotifications ? "default" : "ghost"}
+              size="sm"
+              className="px-6"
+            >
+              <Bell className="w-4 h-4 mr-2" />
+              Notificaciones
+              {notificationStats.totalAlerted > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  {notificationStats.totalAlerted}
+                </Badge>
+              )}
             </Button>
           </div>
         </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-4">
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Users className="h-4 w-4 text-blue-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Total Usuarios</p>
-                  <p className="text-xl font-bold">{stats.total}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* 🔄 MOSTRAR CONTENIDO SEGÚN VISTA SELECCIONADA */}
+        {!showNotifications ? (
+          // VISTA DE CRÉDITOS (contenido existente)
+          <>
+            {/* 🚨 NUEVO: Alertas de Balance Bajo - SIEMPRE VISIBLE */}
+            <BalanceAlerts 
+              compact={false}
+              showAdminControls={true}
+              maxUsers={10}
+              onConfigureClick={() => setShowNotifications(true)}
+            />
 
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 rounded bg-green-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Normal</p>
-                  <p className="text-xl font-bold text-green-600">{stats.normal}</p>
-                </div>
+            {/* Header EXISTENTE - MANTENER IGUAL */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+              <div className="flex items-center space-x-3">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">🚀 Gestión de Créditos</h1>
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  <Shield className="w-3 h-3 mr-1" />
+                  Super Admin
+                </Badge>
+                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                  <Eye className="w-3 h-3 mr-1" />
+                  Datos en Tiempo Real
+                </Badge>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-yellow-50 to-yellow-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 rounded bg-yellow-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Advertencia</p>
-                  <p className="text-xl font-bold text-yellow-600">{stats.warning}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 rounded bg-red-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Crítico</p>
-                  <p className="text-xl font-bold text-red-600">{stats.critical}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-gray-50 to-gray-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Bloqueados</p>
-                  <p className="text-xl font-bold text-red-600">{stats.blocked}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <DollarSign className="h-4 w-4 text-green-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Balance Total</p>
-                  <p className="text-lg font-bold text-green-600">{formatCurrency(stats.totalBalance)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <TrendingDown className="h-4 w-4 text-red-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Total Gastado</p>
-                  <p className="text-lg font-bold text-red-600">{formatCurrency(stats.totalSpent)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Phone className="h-4 w-4 text-purple-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Total Llamadas</p>
-                  <p className="text-xl font-bold text-purple-600">{stats.totalCalls}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters and Content */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-              <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-4">
-                <div className="flex items-center space-x-2">
-                  <Search className="w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por email, nombre o ID..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-80"
-                  />
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Filter className="w-4 h-4 text-muted-foreground" />
-                  <select 
-                    value={statusFilter} 
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="border rounded px-3 py-2"
-                  >
-                    <option value="all">Todos los Estados</option>
-                    <option value="normal">Normal</option>
-                    <option value="warning">Advertencia</option>
-                    <option value="critical">Crítico</option>
-                    <option value="blocked">Bloqueado</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Button 
-                  onClick={() => setBulkModal(true)}
-                  disabled={selectedUsers.length === 0}
-                  variant="outline"
-                  size="sm"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Acción Masiva ({selectedUsers.length})
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Button onClick={exportData} variant="outline" size="sm">
+                  <Download className="w-4 h-4 mr-2" />
+                  Exportar CSV
+                </Button>
+                <Button onClick={fetchUsers} disabled={loading} variant="outline" size="sm">
+                  <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Actualizar
                 </Button>
               </div>
             </div>
-          </CardHeader>
 
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8">
-                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
-                <p>Cargando usuarios...</p>
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8">
-                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No se encontraron usuarios</h3>
-                <p className="text-gray-600">Intenta ajustar los filtros de búsqueda.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
-                  <Checkbox
-                    checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
-                    onCheckedChange={handleSelectAll}
-                  />
-                  <span className="font-medium">Seleccionar todos ({filteredUsers.length})</span>
-                </div>
-
-                {filteredUsers.map((user) => (
-                  <div
-                    key={user.user_id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center space-x-4 flex-1">
-                      <Checkbox
-                        checked={selectedUsers.includes(user.user_id)}
-                        onCheckedChange={(checked) => handleUserSelection(user.user_id, checked as boolean)}
-                      />
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
-                          <p className="font-medium text-sm truncate">{user.email}</p>
-                          <span className="text-xs text-gray-500">({user.name})</span>
-                          
-                          <Badge variant={getStatusBadgeVariant(user.balance_status)}>
-                            {getStatusIcon(user.balance_status)}
-                            <span className="ml-1 capitalize">{user.balance_status}</span>
-                          </Badge>
-                          
-                          {user.is_blocked && (
-                            <Badge variant="destructive">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Bloqueado
-                            </Badge>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                          <span>Balance: <strong className="text-green-600">{formatCurrency(user.current_balance)}</strong></span>
-                          <span>Gastado: <strong className="text-red-600">{formatCurrency(user.total_spent)}</strong></span>
-                          <span>Llamadas: <strong>{user.total_calls}</strong> (recientes: {user.recent_calls})</span>
-                          <span>Última llamada: <strong>{formatDate(user.last_call_date)}</strong></span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 ml-4">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setTransactionModal({
-                          open: true,
-                          userId: user.user_id
-                        })}
-                      >
-                        <History className="h-4 w-4 mr-1" />
-                        Historial
-                      </Button>
-                      
-                      <Button
-                        size="sm"
-                        onClick={() => setAdjustmentModal({
-                          open: true,
-                          userId: user.user_id,
-                          currentBalance: user.current_balance
-                        })}
-                      >
-                        <Edit3 className="h-4 w-4 mr-1" />
-                        Ajustar
-                      </Button>
+            {/* Stats Overview EXISTENTE - MANTENER IGUAL */}
+            <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-4">
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <Users className="h-4 w-4 text-blue-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Usuarios</p>
+                      <p className="text-xl font-bold">{stats.total}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
 
-        {/* Modales */}
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded bg-green-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Normal</p>
+                      <p className="text-xl font-bold text-green-600">{stats.normal}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-yellow-50 to-yellow-100/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded bg-yellow-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Advertencia</p>
+                      <p className="text-xl font-bold text-yellow-600">{stats.warning}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded bg-red-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Crítico</p>
+                      <p className="text-xl font-bold text-red-600">{stats.critical}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-gray-50 to-gray-100/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Bloqueados</p>
+                      <p className="text-xl font-bold text-red-600">{stats.blocked}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <DollarSign className="h-4 w-4 text-green-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Balance Total</p>
+                      <p className="text-lg font-bold text-green-600">{formatCurrency(stats.totalBalance)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-100/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Gastado</p>
+                      <p className="text-lg font-bold text-red-600">{formatCurrency(stats.totalSpent)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <Phone className="h-4 w-4 text-purple-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Llamadas</p>
+                      <p className="text-xl font-bold text-purple-600">{stats.totalCalls}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filters and Content EXISTENTE - MANTENER IGUAL */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                  <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <Search className="w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por email, nombre o ID..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-80"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Filter className="w-4 h-4 text-muted-foreground" />
+                      <select 
+                        value={statusFilter} 
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="border rounded px-3 py-2"
+                      >
+                        <option value="all">Todos los Estados</option>
+                        <option value="normal">Normal</option>
+                        <option value="warning">Advertencia</option>
+                        <option value="critical">Crítico</option>
+                        <option value="blocked">Bloqueado</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      onClick={() => setBulkModal(true)}
+                      disabled={selectedUsers.length === 0}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Acción Masiva ({selectedUsers.length})
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+                    <p>Cargando usuarios...</p>
+                  </div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No se encontraron usuarios</h3>
+                    <p className="text-gray-600">Intenta ajustar los filtros de búsqueda.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+                      <Checkbox
+                        checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                        onCheckedChange={handleSelectAll}
+                      />
+                      <span className="font-medium">Seleccionar todos ({filteredUsers.length})</span>
+                    </div>
+
+                    {filteredUsers.map((user) => (
+                      <div
+                        key={user.user_id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-4 flex-1">
+                          <Checkbox
+                            checked={selectedUsers.includes(user.user_id)}
+                            onCheckedChange={(checked) => handleUserSelection(user.user_id, checked as boolean)}
+                          />
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm truncate">{user.email}</p>
+                              <span className="text-xs text-gray-500">({user.name})</span>
+                              
+                              <Badge variant={getStatusBadgeVariant(user.balance_status)}>
+                                {getStatusIcon(user.balance_status)}
+                                <span className="ml-1 capitalize">{user.balance_status}</span>
+                              </Badge>
+                              
+                              {user.is_blocked && (
+                                <Badge variant="destructive">
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  Bloqueado
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                              <span>Balance: <strong className="text-green-600">{formatCurrency(user.current_balance)}</strong></span>
+                              <span>Gastado: <strong className="text-red-600">{formatCurrency(user.total_spent)}</strong></span>
+                              <span>Llamadas: <strong>{user.total_calls}</strong> (recientes: {user.recent_calls})</span>
+                              <span>Última llamada: <strong>{formatDate(user.last_call_date)}</strong></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setTransactionModal({
+                              open: true,
+                              userId: user.user_id
+                            })}
+                          >
+                            <History className="h-4 w-4 mr-1" />
+                            Historial
+                          </Button>
+                          
+                          <Button
+                            size="sm"
+                            onClick={() => setAdjustmentModal({
+                              open: true,
+                              userId: user.user_id,
+                              currentBalance: user.current_balance
+                            })}
+                          >
+                            <Edit3 className="h-4 w-4 mr-1" />
+                            Ajustar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          // VISTA DE NOTIFICACIONES (nueva)
+          <>
+            {/* Header de Notificaciones */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+              <div className="flex items-center space-x-3">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">🔔 Sistema de Notificaciones</h1>
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  <Bell className="w-3 h-3 mr-1" />
+                  Balance Bajo
+                </Badge>
+                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                  <SettingsIcon className="w-3 h-3 mr-1" />
+                  Configuración
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Button 
+                  onClick={() => setShowNotifications(false)} 
+                  variant="outline" 
+                  size="sm"
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Ver Créditos
+                </Button>
+              </div>
+            </div>
+
+            {/* Panel de Configuración de Notificaciones */}
+            <NotificationConfigPanel />
+          </>
+        )}
+
+        {/* Modales EXISTENTES - MANTENER IGUAL */}
         {adjustmentModal.open && (
           <CreditAdjustmentModal
             userId={adjustmentModal.userId!}
