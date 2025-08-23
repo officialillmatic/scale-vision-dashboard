@@ -17,8 +17,7 @@ import {
   Settings,
   Sparkles,
   CreditCard,
-  Briefcase,
-  TestTube
+  Briefcase
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -143,13 +142,6 @@ const PricingPage: React.FC = () => {
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [activePaymentConfig, setActivePaymentConfig] = useState<PaymentConfig | null>(null);
 
-  // Verificar si es superadmin
-  const isSuperAdmin = () => {
-    if (!user?.email) return false;
-    const superAdminEmails = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
-    return superAdminEmails.includes(user.email);
-  };
-
   // Load active payment configuration
   useEffect(() => {
     loadActivePaymentConfig();
@@ -224,97 +216,6 @@ const PricingPage: React.FC = () => {
           icon: <CreditCard className="h-5 w-5" />,
           description: 'Payment method configured'
         };
-    }
-  };
-
-  const handleTestPayment = async () => {
-    if (!user) {
-      setError('Please log in to make a test payment');
-      return;
-    }
-
-    if (!activePaymentConfig) {
-      setError('No payment options available. Please contact support.');
-      return;
-    }
-
-    // Solo permitir PayPal para pagos de prueba
-    if (!activePaymentConfig.payment_method.includes('paypal')) {
-      setError('Test payments are only available with PayPal. Please configure a PayPal payment method.');
-      return;
-    }
-
-    setProcessingPlan('test-payment');
-    setError(null);
-
-    try {
-      const paymentData = {
-        userId: user.id,
-        planName: 'Test Payment',
-        paymentMethod: activePaymentConfig.payment_method,
-        environment: activePaymentConfig.environment,
-        amount: 1,
-        currency: 'USD',
-        planId: 'test-payment',
-        successUrl: `${window.location.origin}/pricing?success=true&plan=test-payment`,
-        cancelUrl: `${window.location.origin}/pricing?canceled=true`
-      };
-
-      console.log('🧪 Test payment data being sent:', paymentData);
-
-      // Crear sesión de pago
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: paymentData
-      });
-
-      console.log('📞 Function response:', { data, error });
-
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw new Error(error.message || 'Error en la función de pago');
-      }
-
-      if (data?.error) {
-        console.error('Function returned error:', data.error);
-        throw new Error(data.error);
-      }
-
-      // Para PayPal Standard, data podría contener HTML directamente
-      if (activePaymentConfig.payment_method === 'paypal_standard') {
-        // Si es HTML, abrir en nueva ventana/tab
-        if (typeof data === 'string' && data.includes('<html>')) {
-          const newWindow = window.open('', '_blank');
-          if (newWindow) {
-            newWindow.document.write(data);
-            newWindow.document.close();
-          } else {
-            throw new Error('Please allow pop-ups to complete payment with PayPal');
-          }
-        } else if (data?.url) {
-          window.location.href = data.url;
-        } else {
-          throw new Error('Unexpected response from the payment system');
-        }
-      } else if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        console.error('Unexpected response format:', data);
-        throw new Error('Unexpected response from the payment system');
-      }
-
-    } catch (err: any) {
-      console.error('Test payment error:', err);
-      let errorMessage = 'Test payment error: ';
-      
-      if (err.message.includes('Edge Function')) {
-        errorMessage += 'The payment feature needs to be updated to support the configured payment method. Please contact the administrator.';
-      } else {
-        errorMessage += err.message;
-      }
-      
-      setError(errorMessage);
-    } finally {
-      setProcessingPlan(null);
     }
   };
 
@@ -454,11 +355,7 @@ const PricingPage: React.FC = () => {
 
     if (success === 'true') {
       setError(null);
-      if (planId === 'test-payment') {
-        alert(`🧪 Test payment successful! PayPal integration is working correctly.`);
-      } else {
-        alert(`🎉 Subscription successful! Welcome to the ${planId} plan. You'll receive a confirmation email shortly.`);
-      }
+      alert(`🎉 Subscription successful! Welcome to the ${planId} plan. You'll receive a confirmation email shortly.`);
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (canceled === 'true') {
       setError('Payment was canceled. You can try again anytime.');
@@ -490,50 +387,6 @@ const PricingPage: React.FC = () => {
               From essential features to enterprise-grade solutions.
             </p>
           </div>
-
-          {/* SuperAdmin Test Payment Section */}
-          {isSuperAdmin() && (
-            <Card className="border-orange-200 bg-gradient-to-r from-orange-50 to-red-50 max-w-2xl mx-auto mb-8">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                    <TestTube className="h-6 w-6 text-orange-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                      Payment System Test
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      $1 test payment (PayPal only) - SuperAdmin testing tool
-                    </p>
-                  </div>
-                  <Button
-                    onClick={handleTestPayment}
-                    disabled={processingPlan === 'test-payment' || !activePaymentConfig?.payment_method.includes('paypal')}
-                    variant="outline"
-                    className="border-orange-300 text-orange-700 hover:bg-orange-100 font-medium"
-                  >
-                    {processingPlan === 'test-payment' ? (
-                      <div className="flex items-center gap-2">
-                        <LoadingSpinner size="sm" />
-                        Processing...
-                      </div>
-                    ) : (
-                      <>
-                        <TestTube className="h-4 w-4 mr-2" />
-                        Test $1 Payment
-                      </>
-                    )}
-                  </Button>
-                </div>
-                {!activePaymentConfig?.payment_method.includes('paypal') && (
-                  <p className="text-xs text-orange-600 mt-2 ml-16">
-                    PayPal payment method required for testing
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
 
           {/* Payment Method Info */}
           {paymentConfigLoaded && activePaymentConfig && (
