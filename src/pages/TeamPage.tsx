@@ -211,6 +211,176 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
   // Verificación de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
   const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
+  
+  // ✅ NUEVAS FUNCIONES AGREGADAS PARA INVITACIONES
+  
+  // Función para determinar el estado real de una invitación
+  const getInvitationRealStatus = (invitation: UserInvitation) => {
+    const now = new Date();
+    const expiresAt = new Date(invitation.expires_at);
+    
+    // Verificar si el usuario ya se registró
+    const userExists = registeredUsers.find(u => u.email.toLowerCase() === invitation.email.toLowerCase());
+    
+    if (userExists) {
+      return {
+        status: 'accepted' as const,
+        label: 'Aceptada',
+        color: 'green' as const,
+        description: 'Usuario ya registrado'
+      };
+    }
+    
+    // Si está marcada como accepted en la BD
+    if (invitation.status === 'accepted') {
+      return {
+        status: 'accepted' as const,
+        label: 'Aceptada',
+        color: 'green' as const,
+        description: 'Invitación aceptada'
+      };
+    }
+    
+    // Si está expirada
+    if (expiresAt < now) {
+      return {
+        status: 'expired' as const,
+        label: 'Expirada',
+        color: 'red' as const,
+        description: 'Invitación expirada'
+      };
+    }
+    
+    // Si está pendiente
+    return {
+      status: 'pending' as const,
+      label: 'Pendiente',
+      color: 'yellow' as const,
+      description: 'Esperando aceptación'
+    };
+  };
+
+  // Función para eliminar invitación
+  const handleDeleteInvitation = async (invitationId: string, email: string) => {
+    try {
+      toast.loading('Eliminando invitación...', { id: 'deleting-invitation' });
+
+      const { error } = await supabase
+        .from('team_invitations')
+        .delete()
+        .eq('id', invitationId);
+
+      if (error) {
+        console.error('Error deleting invitation:', error);
+        toast.error('Error al eliminar invitación', {
+          id: 'deleting-invitation',
+          description: error.message
+        });
+        return;
+      }
+
+      toast.success('Invitación eliminada correctamente', {
+        id: 'deleting-invitation',
+        description: `Se eliminó la invitación para ${email}`
+      });
+
+      // Recargar la lista de invitaciones
+      await fetchInvitations();
+
+    } catch (error: any) {
+      console.error('Error in handleDeleteInvitation:', error);
+      toast.error('Error inesperado al eliminar invitación', {
+        id: 'deleting-invitation'
+      });
+    }
+  };
+
+  // Función para reenviar invitación
+  const handleResendInvitation = async (invitation: UserInvitation) => {
+    try {
+      toast.loading('Reenviando invitación...', { id: 'resending-invitation' });
+
+      // 1. Eliminar la invitación anterior
+      const { error: deleteError } = await supabase
+        .from('team_invitations')
+        .delete()
+        .eq('id', invitation.id);
+
+      if (deleteError) {
+        toast.error('Error al eliminar invitación anterior', {
+          id: 'resending-invitation',
+          description: deleteError.message
+        });
+        return;
+      }
+
+      // 2. Crear nueva invitación
+      const newInvitationToken = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 días de expiración
+
+      const { error: insertError } = await supabase
+        .from('team_invitations')
+        .insert({
+          email: invitation.email,
+          role: invitation.role,
+          company_id: invitation.company_id,
+          invitation_token: newInvitationToken,
+          expires_at: expiresAt.toISOString(),
+          invited_by: user?.id,
+          status: 'pending'
+        });
+
+      if (insertError) {
+        console.error('Error inserting new invitation:', insertError);
+        toast.error('Error al crear nueva invitación', {
+          id: 'resending-invitation',
+          description: insertError.message
+        });
+        return;
+      }
+
+      // 3. Enviar email
+      try {
+        await sendInvitationEmail({
+          email: invitation.email,
+          token: newInvitationToken,
+          role: invitation.role,
+          company_name: 'Dr. Scale AI',
+          invited_by_email: user?.email
+        });
+
+        toast.success('Invitación reenviada exitosamente', {
+          id: 'resending-invitation',
+          description: `Nueva invitación enviada a ${invitation.email}`
+        });
+
+      } catch (emailError) {
+        // Si falla el email, mostrar la URL manualmente
+        const invitationUrl = `${window.location.origin}/accept-invitation?token=${newInvitationToken}`;
+        
+        toast.success('Invitación creada - Email manual requerido', {
+          id: 'resending-invitation',
+          description: 'La invitación se creó pero no se pudo enviar el email automáticamente'
+        });
+
+        toast.info('URL de invitación manual', {
+          description: invitationUrl,
+          duration: 15000
+        });
+      }
+
+      // 4. Recargar la lista
+      await fetchInvitations();
+
+    } catch (error: any) {
+      console.error('Error in handleResendInvitation:', error);
+      toast.error('Error inesperado al reenviar invitación', {
+        id: 'resending-invitation'
+      });
+    }
+  };
+  
   // ✅ useEffect principal
   useEffect(() => {
     if (user && isSuperAdmin) {
@@ -1214,7 +1384,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
     totalAssignments: assignments.length,
     primaryAssignments: assignments.filter(a => a.is_primary).length,
     totalInvitations: invitations.length,
-    pendingInvitations: invitations.filter(i => i.status === 'pending').length
+    pendingInvitations: invitations.filter(i => getInvitationRealStatus(i).status === 'pending').length
   };
   // Verificación de usuario autenticado
   if (!user) {
@@ -1791,7 +1961,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                 )}
               </TabsContent>
 
-              {/* Tab: Invitaciones */}
+              {/* ✅ Tab: Invitaciones - CON BOTONES AGREGADOS */}
               <TabsContent value="invitations" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
@@ -1816,7 +1986,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                     <Mail className="h-4 w-4 text-amber-600 mt-0.5" />
                     <div className="text-sm text-amber-800">
                       <strong>Invitaciones:</strong> Aquí puedes ver todas las invitaciones enviadas a nuevos miembros del equipo.
-                      Las invitaciones pendientes expiran en 7 días.
+                      Las invitaciones pendientes expiran en 7 días. Los estados se actualizan automáticamente.
                     </div>
                   </div>
                 </div>
@@ -1836,92 +2006,116 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {filteredInvitations.map((invitation) => (
-                      <div
-                        key={invitation.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <p className="font-medium text-sm">{invitation.email}</p>
-                            <span className="text-xs text-gray-500">({invitation.name})</span>
-                            
-                            <Badge variant={
-                              invitation.status === 'pending' ? 'default' : 
-                              invitation.status === 'accepted' ? 'secondary' :
-                              invitation.status === 'expired' ? 'destructive' : 'outline'
-                            }>
-                              {invitation.status === 'pending' && (
-                                <Clock className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'accepted' && (
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'expired' && (
-                                <XCircle className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'pending' ? 'Pendiente' : 
-                               invitation.status === 'accepted' ? 'Aceptada' :
-                               invitation.status === 'expired' ? 'Expirada' : invitation.status}
-                            </Badge>
-                            
-                            {invitation.role === 'admin' && (
-                              <Badge variant="destructive">
-                                <Crown className="h-3 w-3 mr-1" />
-                                Admin
+                    {filteredInvitations.map((invitation) => {
+                      const realStatus = getInvitationRealStatus(invitation);
+                      
+                      return (
+                        <div
+                          key={invitation.id}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm">{invitation.email}</p>
+                              <span className="text-xs text-gray-500">({invitation.name})</span>
+                              
+                              <Badge variant={
+                                realStatus.color === 'green' ? 'secondary' :
+                                realStatus.color === 'yellow' ? 'default' :
+                                realStatus.color === 'red' ? 'destructive' : 'outline'
+                              }>
+                                {realStatus.status === 'accepted' && <CheckCircle className="h-3 w-3 mr-1" />}
+                                {realStatus.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+                                {realStatus.status === 'expired' && <XCircle className="h-3 w-3 mr-1" />}
+                                {realStatus.label}
                               </Badge>
-                            )}
-                          </div>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                            <span>Rol: <strong>{invitation.role}</strong></span>
-                            <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
-                            <span>Enviada: <strong>{formatDate(invitation.created_at)}</strong></span>
-                            <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
-                          </div>
-                          
-                          {invitation.accepted_at && (
-                            <div className="text-xs text-green-600 mt-1">
-                              ✅ Aceptada el {formatDate(invitation.accepted_at)}
+                              
+                              {invitation.role === 'admin' && (
+                                <Badge variant="destructive">
+                                  <Crown className="h-3 w-3 mr-1" />
+                                  Admin
+                                </Badge>
+                              )}
                             </div>
-                          )}
-                        </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                              <span>Rol: <strong>{invitation.role}</strong></span>
+                              <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
+                              <span>Enviada: <strong>{formatDate(invitation.created_at)}</strong></span>
+                              <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
+                            </div>
+                            
+                            <div className="text-xs text-gray-500 mt-1">
+                              {realStatus.description}
+                            </div>
+                          </div>
 
-                        <div className="flex items-center gap-2 ml-4">
-                          {invitation.status === 'pending' && (
+                          <div className="flex items-center gap-2 ml-4">
+                            {/* Botón Copiar URL - Solo para invitaciones pendientes */}
+                            {realStatus.status === 'pending' && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
+                                  navigator.clipboard.writeText(invitationUrl);
+                                  toast.success('URL de invitación copiada al portapapeles');
+                                }}
+                              >
+                                <Key className="h-4 w-4 mr-1" />
+                                Copiar URL
+                              </Button>
+                            )}
+                            
+                            {/* Botón Reenviar - Solo para invitaciones pendientes o expiradas */}
+                            {(realStatus.status === 'pending' || realStatus.status === 'expired') && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-blue-600 hover:text-blue-700"
+                                onClick={() => handleResendInvitation(invitation)}
+                                disabled={!isSuperAdmin}
+                              >
+                                <RefreshCw className="h-4 w-4 mr-1" />
+                                Reenviar
+                              </Button>
+                            )}
+                            
+                            {/* Botón Ver Usuario - Solo para invitaciones aceptadas */}
+                            {realStatus.status === 'accepted' && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-green-600 hover:text-green-700"
+                                onClick={() => {
+                                  setActiveTab('registered-users');
+                                  setSearchQuery(invitation.email);
+                                }}
+                              >
+                                <User className="h-4 w-4 mr-1" />
+                                Ver Usuario
+                              </Button>
+                            )}
+                            
+                            {/* Botón Eliminar - Siempre disponible para superadmin */}
                             <Button 
                               size="sm" 
                               variant="outline"
-                              onClick={() => {
-                                const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
-                                navigator.clipboard.writeText(invitationUrl);
-                                toast.success('🔗 URL de invitación copiada al portapapeles');
-                              }}
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => handleDeleteInvitation(invitation.id, invitation.email)}
+                              disabled={!isSuperAdmin}
                             >
-                              <Key className="h-4 w-4 mr-1" />
-                              Copiar URL
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Eliminar
                             </Button>
-                          )}
-                          
-                          {invitation.status === 'accepted' && invitation.user_id && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                setActiveTab('members');
-                                setSearchQuery(invitation.email);
-                              }}
-                            >
-                              <User className="h-4 w-4 mr-1" />
-                              Ver Usuario
-                            </Button>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>
+              
               {/* ✅ Tab: Asignaciones - CORREGIDO */}
               <TabsContent value="assignments" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
