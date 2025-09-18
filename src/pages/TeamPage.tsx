@@ -34,7 +34,8 @@ import {
   Eye,
   Download,
   Key,
-  Clock
+  Clock,
+  Send
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -157,7 +158,7 @@ export default function TeamPage() {
   const [filteredAssignments, setFilteredAssignments] = useState<UserAgentAssignment[]>([]);
   const [filteredInvitations, setFilteredInvitations] = useState<UserInvitation[]>([]);
   const [registeredUsers, setRegisteredUsers] = useState<TeamMember[]>([]);
-const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMember[]>([]);
+  const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMember[]>([]);
   
   // Estados de modales básicos
   const [addMemberModal, setAddMemberModal] = useState(false);
@@ -211,6 +212,7 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
   // Verificación de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
   const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
+  
   // ✅ useEffect principal
   useEffect(() => {
     if (user && isSuperAdmin) {
@@ -266,6 +268,173 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
     }
   }, []);
 
+  // ✅ NUEVA FUNCIÓN: Determinar estado real de invitación
+  const getInvitationRealStatus = useCallback((invitation: UserInvitation) => {
+    const now = new Date();
+    const expiresAt = new Date(invitation.expires_at);
+    
+    // Verificar si el usuario ya se registró
+    const userExists = registeredUsers.find(u => u.email.toLowerCase() === invitation.email.toLowerCase());
+    
+    if (userExists) {
+      return {
+        status: 'accepted' as const,
+        label: 'Aceptada',
+        color: 'green' as const,
+        description: 'Usuario ya registrado'
+      };
+    }
+    
+    // Si está marcada como accepted en la BD
+    if (invitation.status === 'accepted') {
+      return {
+        status: 'accepted' as const,
+        label: 'Aceptada',
+        color: 'green' as const,
+        description: 'Invitación aceptada'
+      };
+    }
+    
+    // Si está expirada
+    if (expiresAt < now) {
+      return {
+        status: 'expired' as const,
+        label: 'Expirada',
+        color: 'red' as const,
+        description: 'Invitación expirada'
+      };
+    }
+    
+    // Si está pendiente
+    return {
+      status: 'pending' as const,
+      label: 'Pendiente',
+      color: 'yellow' as const,
+      description: 'Esperando aceptación'
+    };
+  }, [registeredUsers]);
+
+  // ✅ NUEVA FUNCIÓN: Eliminar invitación
+  const handleDeleteInvitation = useCallback(async (invitationId: string, email: string) => {
+    try {
+      toast.loading('🗑️ Eliminando invitación...', { id: 'deleting-invitation' });
+
+      const { error } = await supabase
+        .from('team_invitations')
+        .delete()
+        .eq('id', invitationId);
+
+      if (error) {
+        console.error('❌ Error deleting invitation:', error);
+        toast.error('Error al eliminar invitación', {
+          id: 'deleting-invitation',
+          description: error.message
+        });
+        return;
+      }
+
+      toast.success('✅ Invitación eliminada correctamente', {
+        id: 'deleting-invitation',
+        description: `Se eliminó la invitación para ${email}`
+      });
+
+      // Recargar la lista de invitaciones
+      await fetchInvitations();
+
+    } catch (error: any) {
+      console.error('❌ Error in handleDeleteInvitation:', error);
+      toast.error('Error inesperado al eliminar invitación', {
+        id: 'deleting-invitation'
+      });
+    }
+  }, []);
+
+  // ✅ NUEVA FUNCIÓN: Reenviar invitación
+  const handleResendInvitation = useCallback(async (invitation: UserInvitation) => {
+    try {
+      toast.loading('📧 Reenviando invitación...', { id: 'resending-invitation' });
+
+      // 1. Eliminar la invitación anterior
+      const { error: deleteError } = await supabase
+        .from('team_invitations')
+        .delete()
+        .eq('id', invitation.id);
+
+      if (deleteError) {
+        toast.error('Error al eliminar invitación anterior', {
+          id: 'resending-invitation',
+          description: deleteError.message
+        });
+        return;
+      }
+
+      // 2. Crear nueva invitación
+      const newInvitationToken = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 días de expiración
+
+      const { error: insertError } = await supabase
+        .from('team_invitations')
+        .insert({
+          email: invitation.email,
+          role: invitation.role,
+          company_id: invitation.company_id,
+          invitation_token: newInvitationToken,
+          expires_at: expiresAt.toISOString(),
+          invited_by: user?.id,
+          status: 'pending'
+        });
+
+      if (insertError) {
+        console.error('❌ Error inserting new invitation:', insertError);
+        toast.error('Error al crear nueva invitación', {
+          id: 'resending-invitation',
+          description: insertError.message
+        });
+        return;
+      }
+
+      // 3. Enviar email
+      try {
+        await sendInvitationEmail({
+          email: invitation.email,
+          token: newInvitationToken,
+          role: invitation.role,
+          company_name: 'Dr. Scale AI',
+          invited_by_email: user?.email
+        });
+
+        toast.success('✅ Invitación reenviada exitosamente', {
+          id: 'resending-invitation',
+          description: `Nueva invitación enviada a ${invitation.email}`
+        });
+
+      } catch (emailError) {
+        // Si falla el email, mostrar la URL manualmente
+        const invitationUrl = `${window.location.origin}/accept-invitation?token=${newInvitationToken}`;
+        
+        toast.success('✅ Invitación creada - Email manual requerido', {
+          id: 'resending-invitation',
+          description: 'La invitación se creó pero no se pudo enviar el email automáticamente'
+        });
+
+        toast.info('🔗 URL de invitación manual', {
+          description: invitationUrl,
+          duration: 15000
+        });
+      }
+
+      // 4. Recargar la lista
+      await fetchInvitations();
+
+    } catch (error: any) {
+      console.error('❌ Error in handleResendInvitation:', error);
+      toast.error('Error inesperado al reenviar invitación', {
+        id: 'resending-invitation'
+      });
+    }
+  }, [user?.id, user?.email]);
+
   // ✅ Función mejorada para aplicar filtros
   const applyFilters = useCallback(() => {
     try {
@@ -317,16 +486,17 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
         (invitation.company_name?.toLowerCase() || '').includes(query)
       );
       setFilteredInvitations(filteredInvitationsResult);
-// Filtrar usuarios registrados
-let filteredRegisteredUsersResult = registeredUsers.filter(user => 
-  (user.email?.toLowerCase() || '').includes(query) ||
-  (user.name?.toLowerCase() || '').includes(query) ||
-  (user.company_name?.toLowerCase() || '').includes(query)
-);
-if (statusFilter !== 'all') {
-  filteredRegisteredUsersResult = filteredRegisteredUsersResult.filter(user => user.status === statusFilter);
-}
-setFilteredRegisteredUsers(filteredRegisteredUsersResult);
+
+      // Filtrar usuarios registrados
+      let filteredRegisteredUsersResult = registeredUsers.filter(user => 
+        (user.email?.toLowerCase() || '').includes(query) ||
+        (user.name?.toLowerCase() || '').includes(query) ||
+        (user.company_name?.toLowerCase() || '').includes(query)
+      );
+      if (statusFilter !== 'all') {
+        filteredRegisteredUsersResult = filteredRegisteredUsersResult.filter(user => user.status === statusFilter);
+      }
+      setFilteredRegisteredUsers(filteredRegisteredUsersResult);
     } catch (error) {
       console.error('❌ Error aplicando filtros:', error);
     }
@@ -395,6 +565,7 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
       toast.error(`Error al exportar: ${error.message}`);
     }
   }, [activeTab, filteredMembers, filteredAgents, filteredCompanies, filteredAssignments, formatDate]);
+  
   // ========================================
   // ✅ FUNCIÓN FETCHALLDATA CORREGIDA
   // ========================================
@@ -407,18 +578,18 @@ setFilteredRegisteredUsers(filteredRegisteredUsersResult);
       console.log('🔄 [TeamPage] Cargando todos los datos...');
       
       // Primero cargar usuarios
-await Promise.all([
-  fetchTeamMembers(),
-  fetchAllRegisteredUsers()
-]);
+      await Promise.all([
+        fetchTeamMembers(),
+        fetchAllRegisteredUsers()
+      ]);
 
-// Después cargar todo lo demás incluyendo asignaciones
-await Promise.all([
-  fetchAgents(),
-  fetchCompanies(),
-  fetchInvitations(),
-  fetchAssignments()
-]);
+      // Después cargar todo lo demás incluyendo asignaciones
+      await Promise.all([
+        fetchAgents(),
+        fetchCompanies(),
+        fetchInvitations(),
+        fetchAssignments()
+      ]);
       
       console.log('✅ [TeamPage] Todos los datos cargados exitosamente');
       
@@ -435,53 +606,54 @@ await Promise.all([
   // ========================================
 
   const fetchAssignments = useCallback(async () => {
-  try {
-    console.log('🔍 [TeamPage] Fetching user-agent assignments...');
-    
-    // ✅ USAR LA FUNCIÓN DEL SERVICE QUE YA FUNCIONA
-    const assignmentsData = await fetchUserAgentAssignments();
-    
-    // ✅ AHORA SÍ DEBERÍAN ESTAR DISPONIBLES teamMembers y registeredUsers
-    const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
-      let userEmail = `usuario-${assignment.user_id.slice(0, 8)}@unknown.com`;
-      let userName = `Usuario ${assignment.user_id.slice(0, 8)}`;
+    try {
+      console.log('🔍 [TeamPage] Fetching user-agent assignments...');
       
-      // Buscar en teamMembers primero
-      const teamMember = teamMembers.find(member => member.id === assignment.user_id);
-      if (teamMember) {
-        userEmail = teamMember.email;
-        userName = teamMember.name || teamMember.email;
-      }
-      // Si no está en teamMembers, buscar en registeredUsers
-      else {
-        const registeredUser = registeredUsers.find(user => user.id === assignment.user_id);
-        if (registeredUser) {
-          userEmail = registeredUser.email;
-          userName = registeredUser.name || registeredUser.email;
+      // ✅ USAR LA FUNCIÓN DEL SERVICE QUE YA FUNCIONA
+      const assignmentsData = await fetchUserAgentAssignments();
+      
+      // ✅ AHORA SÍ DEBERÍAN ESTAR DISPONIBLES teamMembers y registeredUsers
+      const formattedAssignments: UserAgentAssignment[] = assignmentsData.map(assignment => {
+        let userEmail = `usuario-${assignment.user_id.slice(0, 8)}@unknown.com`;
+        let userName = `Usuario ${assignment.user_id.slice(0, 8)}`;
+        
+        // Buscar en teamMembers primero
+        const teamMember = teamMembers.find(member => member.id === assignment.user_id);
+        if (teamMember) {
+          userEmail = teamMember.email;
+          userName = teamMember.name || teamMember.email;
         }
-      }
-      
-      return {
-        id: assignment.id,
-        user_id: assignment.user_id,
-        agent_id: assignment.agent_id,
-        user_email: userEmail,
-        user_name: userName,
-        agent_name: assignment.agent_details?.name || 'Agente',
-        is_primary: assignment.is_primary || false,
-        created_at: assignment.assigned_at || new Date().toISOString()
-      };
-    });
+        // Si no está en teamMembers, buscar en registeredUsers
+        else {
+          const registeredUser = registeredUsers.find(user => user.id === assignment.user_id);
+          if (registeredUser) {
+            userEmail = registeredUser.email;
+            userName = registeredUser.name || registeredUser.email;
+          }
+        }
+        
+        return {
+          id: assignment.id,
+          user_id: assignment.user_id,
+          agent_id: assignment.agent_id,
+          user_email: userEmail,
+          user_name: userName,
+          agent_name: assignment.agent_details?.name || 'Agente',
+          is_primary: assignment.is_primary || false,
+          created_at: assignment.assigned_at || new Date().toISOString()
+        };
+      });
 
-    setAssignments(formattedAssignments);
-    console.log('✅ [TeamPage] Assignments loaded successfully:', formattedAssignments.length);
+      setAssignments(formattedAssignments);
+      console.log('✅ [TeamPage] Assignments loaded successfully:', formattedAssignments.length);
 
-  } catch (error: any) {
-    console.error('❌ [TeamPage] Error fetching assignments:', error);
-    setAssignments([]);
-    toast.error(`Error al cargar asignaciones: ${error.message}`);
-  }
-}, [teamMembers, registeredUsers]);
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error fetching assignments:', error);
+      setAssignments([]);
+      toast.error(`Error al cargar asignaciones: ${error.message}`);
+    }
+  }, [teamMembers, registeredUsers]);
+  
   // ========================================
   // ✅ FUNCIONES FETCH RESTANTES (mantener originales)
   // ========================================
@@ -648,187 +820,189 @@ await Promise.all([
   }, []);
 
   const fetchAllRegisteredUsers = useCallback(async () => {
-  try {
-    console.log('🔍 [TeamPage] Fetching ALL registered users...');
-    
-    // Obtener TODOS los usuarios de la tabla auth.users a través de user_profiles
-    const { data: usersData, error: usersError } = await supabase
-      .from('user_profiles')
-      .select('*');
-
-    if (usersError) {
-      console.error('❌ Error fetching all users:', usersError);
-      throw usersError;
-    }
-
-    if (!usersData || usersData.length === 0) {
-      console.log('⚠️ No registered users found');
-      setRegisteredUsers([]);
-      return;
-    }
-
-    // Obtener datos adicionales
-    const [creditsResult, callsResult, companyMembersResult] = await Promise.all([
-      supabase.from('user_credits').select('user_id, current_balance'),
-      supabase.from('calls').select('user_id, cost_usd'),
-      supabase.from('company_members').select(`
-        user_id,
-        company_id,
-        role,
-        created_at,
-        companies:company_id (
-          id,
-          name
-        )
-      `)
-    ]);
-
-    const creditsData = creditsResult.data || [];
-    const callsData = callsResult.data || [];
-    const companyMembers = companyMembersResult.data || [];
-
-    const allUsers: TeamMember[] = usersData.map(user => {
-      const credit = creditsData.find(c => c.user_id === user.id);
-      const userCalls = callsData.filter(c => c.user_id === user.id);
-      const companyMember = companyMembers.find(cm => cm.user_id === user.id);
-
-      const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
-      const currentBalance = credit?.current_balance || 0;
-
-      return {
-        id: user.id,
-        email: user.email || `user-${user.id.slice(0, 8)}`,
-        name: user.name || user.full_name || user.email || 'Usuario',
-        role: companyMember?.role || user.role || 'user',
-        status: currentBalance > 0 ? 'active' : 'inactive',
-        company_id: companyMember?.company_id || user.company_id,
-        company_name: companyMember?.companies?.name || null,
-        created_at: user.created_at || new Date().toISOString(),
-        last_login: user.last_sign_in_at,
-        total_calls: userCalls.length,
-        total_spent: totalSpent,
-        current_balance: currentBalance,
-        assigned_agents: 0
-      };
-    });
-
-    const sortedUsers = allUsers.sort((a, b) => {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-
-    setRegisteredUsers(sortedUsers);
-    console.log('✅ [TeamPage] ALL registered users loaded:', sortedUsers.length);
-
-  } catch (error: any) {
-    console.error('❌ [TeamPage] Error fetching all registered users:', error);
-    toast.error(`Error al cargar usuarios registrados: ${error.message}`);
-  }
-}, []);
-  const fetchAgents = useCallback(async () => {
-  try {
-    console.log('🔍 [TeamPage] Fetching Custom AI Agents from database...');
-    
-    const { data: customAgents, error: customError } = await supabase
-      .from('agents')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (customError) {
-      console.error('❌ Error fetching custom agents:', customError);
-      throw customError;
-    }
-
-    if (!customAgents || customAgents.length === 0) {
-      console.log('⚠️ No custom agents found');
-      setAgents([]);
-      return;
-    }
-
-    // Obtener información adicional de Retell para enriquecer los datos
-    let retellAgents: RetellAgentDetailed[] = [];
     try {
-      console.log('🔍 [TeamPage] Obteniendo datos de Retell para enriquecer información...');
-      retellAgents = await getAllRetellAgentsForTeam();
-      setRetellAgents(retellAgents);
-      setLastRetellUpdate(new Date());
-      setRetellError(null);
-      console.log('✅ [TeamPage] Retell data fetched for enrichment:', retellAgents.length);
-    } catch (retellError: any) {
-      console.error('⚠️ [TeamPage] Error fetching Retell data for enrichment:', retellError);
-      setRetellError('No se pudieron cargar datos de Retell AI para enriquecimiento');
+      console.log('🔍 [TeamPage] Fetching ALL registered users...');
+      
+      // Obtener TODOS los usuarios de la tabla auth.users a través de user_profiles
+      const { data: usersData, error: usersError } = await supabase
+        .from('user_profiles')
+        .select('*');
+
+      if (usersError) {
+        console.error('❌ Error fetching all users:', usersError);
+        throw usersError;
+      }
+
+      if (!usersData || usersData.length === 0) {
+        console.log('⚠️ No registered users found');
+        setRegisteredUsers([]);
+        return;
+      }
+
+      // Obtener datos adicionales
+      const [creditsResult, callsResult, companyMembersResult] = await Promise.all([
+        supabase.from('user_credits').select('user_id, current_balance'),
+        supabase.from('calls').select('user_id, cost_usd'),
+        supabase.from('company_members').select(`
+          user_id,
+          company_id,
+          role,
+          created_at,
+          companies:company_id (
+            id,
+            name
+          )
+        `)
+      ]);
+
+      const creditsData = creditsResult.data || [];
+      const callsData = callsResult.data || [];
+      const companyMembers = companyMembersResult.data || [];
+
+      const allUsers: TeamMember[] = usersData.map(user => {
+        const credit = creditsData.find(c => c.user_id === user.id);
+        const userCalls = callsData.filter(c => c.user_id === user.id);
+        const companyMember = companyMembers.find(cm => cm.user_id === user.id);
+
+        const totalSpent = userCalls.reduce((sum, call) => sum + (call.cost_usd || 0), 0);
+        const currentBalance = credit?.current_balance || 0;
+
+        return {
+          id: user.id,
+          email: user.email || `user-${user.id.slice(0, 8)}`,
+          name: user.name || user.full_name || user.email || 'Usuario',
+          role: companyMember?.role || user.role || 'user',
+          status: currentBalance > 0 ? 'active' : 'inactive',
+          company_id: companyMember?.company_id || user.company_id,
+          company_name: companyMember?.companies?.name || null,
+          created_at: user.created_at || new Date().toISOString(),
+          last_login: user.last_sign_in_at,
+          total_calls: userCalls.length,
+          total_spent: totalSpent,
+          current_balance: currentBalance,
+          assigned_agents: 0
+        };
+      });
+
+      const sortedUsers = allUsers.sort((a, b) => {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      setRegisteredUsers(sortedUsers);
+      console.log('✅ [TeamPage] ALL registered users loaded:', sortedUsers.length);
+
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error fetching all registered users:', error);
+      toast.error(`Error al cargar usuarios registrados: ${error.message}`);
     }
+  }, []);
+  
+  const fetchAgents = useCallback(async () => {
+    try {
+      console.log('🔍 [TeamPage] Fetching Custom AI Agents from database...');
+      
+      const { data: customAgents, error: customError } = await supabase
+        .from('agents')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    // Procesar SOLO los Custom Agents
-    const processedCustomAgents: Agent[] = customAgents.map(customAgent => {
-      try {
-        const retellData = retellAgents.find(r => r.agent_id === customAgent.retell_agent_id);
-        
-        return {
-          id: customAgent.id,
-          name: customAgent.name || 'Custom Agent Sin Nombre',
-          retell_agent_id: customAgent.retell_agent_id || 'No asignado',
-          company_id: customAgent.company_id,
-          company_name: null,
-          assigned_users: 0,
-          total_calls: 0,
-          status: customAgent.status || 'active',
-          created_at: customAgent.created_at || new Date().toISOString(),
-          description: customAgent.description || (retellData ? `Voz: ${retellData.voice_id}` : 'Sin descripción'),
-          voice_id: retellData?.voice_id || 'No disponible',
-          language: retellData?.language || 'No disponible',
-          retell_agent_name: retellData?.agent_name || `Agent ${customAgent.retell_agent_id?.slice(0, 8)}` || 'Sin nombre', // ✅ NUEVA LÍNEA
-          llm_id: retellData?.response_engine?.llm_id || 'No disponible',
-          last_modification_time: retellData?.last_modification_time,
-          avatar_url: customAgent.avatar_url,
-          rate_per_minute: customAgent.rate_per_minute
-        };
-      } catch (agentError) {
-        console.warn('⚠️ [TeamPage] Error procesando custom agent:', customAgent.id, agentError);
-        return {
-          id: customAgent.id,
-          name: customAgent.name || 'Custom Agent con Error',
-          retell_agent_id: customAgent.retell_agent_id || 'Error',
-          company_id: customAgent.company_id,
-          company_name: null,
-          assigned_users: 0,
-          total_calls: 0,
-          status: 'inactive',
-          created_at: customAgent.created_at || new Date().toISOString(),
-          description: 'Error al procesar datos del agente',
-          avatar_url: customAgent.avatar_url,
-          rate_per_minute: customAgent.rate_per_minute
-        };
+      if (customError) {
+        console.error('❌ Error fetching custom agents:', customError);
+        throw customError;
       }
-    });
 
-    const sortedCustomAgents = processedCustomAgents.sort((a, b) => {
-      try {
-        if (a.status === 'active' && b.status !== 'active') return -1;
-        if (a.status !== 'active' && b.status === 'active') return 1;
-        
-        const dateA = new Date(a.created_at).getTime();
-        const dateB = new Date(b.created_at).getTime();
-        
-        if (isNaN(dateA) && isNaN(dateB)) return 0;
-        if (isNaN(dateA)) return 1;
-        if (isNaN(dateB)) return -1;
-        
-        return dateB - dateA;
-      } catch (sortError) {
-        console.warn('⚠️ Error ordenando custom agents:', sortError);
-        return 0;
+      if (!customAgents || customAgents.length === 0) {
+        console.log('⚠️ No custom agents found');
+        setAgents([]);
+        return;
       }
-    });
 
-    setAgents(sortedCustomAgents);
-    console.log(`✅ [TeamPage] Custom Agents loaded successfully: ${sortedCustomAgents.length} agents`);
+      // Obtener información adicional de Retell para enriquecer los datos
+      let retellAgents: RetellAgentDetailed[] = [];
+      try {
+        console.log('🔍 [TeamPage] Obteniendo datos de Retell para enriquecer información...');
+        retellAgents = await getAllRetellAgentsForTeam();
+        setRetellAgents(retellAgents);
+        setLastRetellUpdate(new Date());
+        setRetellError(null);
+        console.log('✅ [TeamPage] Retell data fetched for enrichment:', retellAgents.length);
+      } catch (retellError: any) {
+        console.error('⚠️ [TeamPage] Error fetching Retell data for enrichment:', retellError);
+        setRetellError('No se pudieron cargar datos de Retell AI para enriquecimiento');
+      }
 
-  } catch (error: any) {
-    console.error('❌ [TeamPage] Error fetching custom agents:', error);
-    toast.error(`Error al cargar Custom Agents: ${error.message}`);
-    setAgents([]);
-  }
-}, []);
+      // Procesar SOLO los Custom Agents
+      const processedCustomAgents: Agent[] = customAgents.map(customAgent => {
+        try {
+          const retellData = retellAgents.find(r => r.agent_id === customAgent.retell_agent_id);
+          
+          return {
+            id: customAgent.id,
+            name: customAgent.name || 'Custom Agent Sin Nombre',
+            retell_agent_id: customAgent.retell_agent_id || 'No asignado',
+            company_id: customAgent.company_id,
+            company_name: null,
+            assigned_users: 0,
+            total_calls: 0,
+            status: customAgent.status || 'active',
+            created_at: customAgent.created_at || new Date().toISOString(),
+            description: customAgent.description || (retellData ? `Voz: ${retellData.voice_id}` : 'Sin descripción'),
+            voice_id: retellData?.voice_id || 'No disponible',
+            language: retellData?.language || 'No disponible',
+            retell_agent_name: retellData?.agent_name || `Agent ${customAgent.retell_agent_id?.slice(0, 8)}` || 'Sin nombre',
+            llm_id: retellData?.response_engine?.llm_id || 'No disponible',
+            last_modification_time: retellData?.last_modification_time,
+            avatar_url: customAgent.avatar_url,
+            rate_per_minute: customAgent.rate_per_minute
+          };
+        } catch (agentError) {
+          console.warn('⚠️ [TeamPage] Error procesando custom agent:', customAgent.id, agentError);
+          return {
+            id: customAgent.id,
+            name: customAgent.name || 'Custom Agent con Error',
+            retell_agent_id: customAgent.retell_agent_id || 'Error',
+            company_id: customAgent.company_id,
+            company_name: null,
+            assigned_users: 0,
+            total_calls: 0,
+            status: 'inactive',
+            created_at: customAgent.created_at || new Date().toISOString(),
+            description: 'Error al procesar datos del agente',
+            avatar_url: customAgent.avatar_url,
+            rate_per_minute: customAgent.rate_per_minute
+          };
+        }
+      });
+
+      const sortedCustomAgents = processedCustomAgents.sort((a, b) => {
+        try {
+          if (a.status === 'active' && b.status !== 'active') return -1;
+          if (a.status !== 'active' && b.status === 'active') return 1;
+          
+          const dateA = new Date(a.created_at).getTime();
+          const dateB = new Date(b.created_at).getTime();
+          
+          if (isNaN(dateA) && isNaN(dateB)) return 0;
+          if (isNaN(dateA)) return 1;
+          if (isNaN(dateB)) return -1;
+          
+          return dateB - dateA;
+        } catch (sortError) {
+          console.warn('⚠️ Error ordenando custom agents:', sortError);
+          return 0;
+        }
+      });
+
+      setAgents(sortedCustomAgents);
+      console.log(`✅ [TeamPage] Custom Agents loaded successfully: ${sortedCustomAgents.length} agents`);
+
+    } catch (error: any) {
+      console.error('❌ [TeamPage] Error fetching custom agents:', error);
+      toast.error(`Error al cargar Custom Agents: ${error.message}`);
+      setAgents([]);
+    }
+  }, []);
+  
   // ========================================
   // ✅ HANDLERS DE ASIGNACIONES CORREGIDOS
   // ========================================
@@ -980,17 +1154,17 @@ await Promise.all([
       }
 
       const { error: insertError } = await supabase
-  .from('agents')
-  .insert({
-    name: agentData.name,
-    retell_agent_id: agentData.retell_agent_id,
-    company_id: agentData.company_id || null,
-    description: agentData.description || null,
-    rate_per_minute: agentData.rate_per_minute || null,
-    status: 'active',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  });
+        .from('agents')
+        .insert({
+          name: agentData.name,
+          retell_agent_id: agentData.retell_agent_id,
+          company_id: agentData.company_id || null,
+          description: agentData.description || null,
+          rate_per_minute: agentData.rate_per_minute || null,
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
 
       if (insertError) {
         throw insertError;
@@ -1073,15 +1247,15 @@ await Promise.all([
       console.log('💾 [TeamPage] Saving agent changes:', agentId, updatedData);
 
       const { error: updateError } = await supabase
-  .from('agents')
-  .update({
-    name: updatedData.name,
-    company_id: updatedData.company_id || null,
-    description: updatedData.description || null,
-    rate_per_minute: updatedData.rate_per_minute || null,
-    updated_at: new Date().toISOString()
-  })
-  .eq('id', agentId);
+        .from('agents')
+        .update({
+          name: updatedData.name,
+          company_id: updatedData.company_id || null,
+          description: updatedData.description || null,
+          rate_per_minute: updatedData.rate_per_minute || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', agentId);
 
       if (updateError) {
         throw updateError;
@@ -1206,7 +1380,7 @@ await Promise.all([
     totalMembers: teamMembers.length,
     activeMembers: teamMembers.filter(m => m.status === 'active').length,
     totalRegistered: registeredUsers.length,
-activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
+    activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
     totalAgents: agents.length,
     activeAgents: agents.filter(a => a.status === 'active').length,
     totalCompanies: companies.length,
@@ -1214,8 +1388,9 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
     totalAssignments: assignments.length,
     primaryAssignments: assignments.filter(a => a.is_primary).length,
     totalInvitations: invitations.length,
-    pendingInvitations: invitations.filter(i => i.status === 'pending').length
+    pendingInvitations: invitations.filter(i => getInvitationRealStatus(i).status === 'pending').length
   };
+  
   // Verificación de usuario autenticado
   if (!user) {
     return (
@@ -1336,17 +1511,17 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
           </Card>
 
           <Card className="border-0 shadow-sm bg-gradient-to-br from-cyan-50 to-cyan-100/50">
-  <CardContent className="p-4">
-    <div className="flex items-center space-x-2">
-      <User className="h-4 w-4 text-cyan-500" />
-      <div>
-        <p className="text-xs text-muted-foreground">Usuarios Registrados</p>
-        <p className="text-xl font-bold">{stats.totalRegistered}</p>
-        <p className="text-xs text-green-600">{stats.activeRegistered} activos</p>
-      </div>
-    </div>
-  </CardContent>
-</Card>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <User className="h-4 w-4 text-cyan-500" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Usuarios Registrados</p>
+                  <p className="text-xl font-bold">{stats.totalRegistered}</p>
+                  <p className="text-xs text-green-600">{stats.activeRegistered} activos</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
             <CardContent className="p-4">
@@ -1406,9 +1581,9 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                     <span className="hidden sm:inline">Miembros</span>
                   </TabsTrigger>
                   <TabsTrigger value="registered-users" className="flex items-center gap-2">
-  <User className="h-4 w-4" />
-  <span className="hidden sm:inline">Registrados</span>
-</TabsTrigger>
+                    <User className="h-4 w-4" />
+                    <span className="hidden sm:inline">Registrados</span>
+                  </TabsTrigger>
                   <TabsTrigger value="invitations" className="flex items-center gap-2">
                     <Mail className="h-4 w-4" />
                     <span className="hidden sm:inline">Invitaciones</span>
@@ -1524,6 +1699,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                   </div>
                 )}
               </TabsContent>
+              
               {/* Tab: Usuarios Registrados */}
               <TabsContent value="registered-users" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1646,6 +1822,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                   </div>
                 )}
               </TabsContent>
+              
               {/* Tab: Custom AI Agents */}
               <TabsContent value="agents" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1757,7 +1934,6 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                             
                             <div className="text-xs text-gray-500 mt-1">
                               <span>Agente Retell: <strong className="text-purple-700">{agent.retell_agent_name || agent.retell_agent_id}</strong></span>
-
                             </div>
                             
                             {agent.description && (
@@ -1791,7 +1967,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                 )}
               </TabsContent>
 
-              {/* Tab: Invitaciones */}
+              {/* ✅ Tab: Invitaciones - MEJORADO CON NUEVAS FUNCIONES */}
               <TabsContent value="invitations" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Invitaciones Enviadas ({filteredInvitations.length})</h3>
@@ -1816,7 +1992,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                     <Mail className="h-4 w-4 text-amber-600 mt-0.5" />
                     <div className="text-sm text-amber-800">
                       <strong>Invitaciones:</strong> Aquí puedes ver todas las invitaciones enviadas a nuevos miembros del equipo.
-                      Las invitaciones pendientes expiran en 7 días.
+                      Las invitaciones pendientes expiran en 7 días. Los estados se actualizan automáticamente.
                     </div>
                   </div>
                 </div>
@@ -1836,92 +2012,116 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {filteredInvitations.map((invitation) => (
-                      <div
-                        key={invitation.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <p className="font-medium text-sm">{invitation.email}</p>
-                            <span className="text-xs text-gray-500">({invitation.name})</span>
-                            
-                            <Badge variant={
-                              invitation.status === 'pending' ? 'default' : 
-                              invitation.status === 'accepted' ? 'secondary' :
-                              invitation.status === 'expired' ? 'destructive' : 'outline'
-                            }>
-                              {invitation.status === 'pending' && (
-                                <Clock className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'accepted' && (
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'expired' && (
-                                <XCircle className="h-3 w-3 mr-1" />
-                              )}
-                              {invitation.status === 'pending' ? 'Pendiente' : 
-                               invitation.status === 'accepted' ? 'Aceptada' :
-                               invitation.status === 'expired' ? 'Expirada' : invitation.status}
-                            </Badge>
-                            
-                            {invitation.role === 'admin' && (
-                              <Badge variant="destructive">
-                                <Crown className="h-3 w-3 mr-1" />
-                                Admin
+                    {filteredInvitations.map((invitation) => {
+                      const realStatus = getInvitationRealStatus(invitation);
+                      
+                      return (
+                        <div
+                          key={invitation.id}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium text-sm">{invitation.email}</p>
+                              <span className="text-xs text-gray-500">({invitation.name})</span>
+                              
+                              <Badge variant={
+                                realStatus.color === 'green' ? 'secondary' :
+                                realStatus.color === 'yellow' ? 'default' :
+                                realStatus.color === 'red' ? 'destructive' : 'outline'
+                              }>
+                                {realStatus.status === 'accepted' && <CheckCircle className="h-3 w-3 mr-1" />}
+                                {realStatus.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+                                {realStatus.status === 'expired' && <XCircle className="h-3 w-3 mr-1" />}
+                                {realStatus.label}
                               </Badge>
-                            )}
-                          </div>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                            <span>Rol: <strong>{invitation.role}</strong></span>
-                            <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
-                            <span>Enviada: <strong>{formatDate(invitation.created_at)}</strong></span>
-                            <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
-                          </div>
-                          
-                          {invitation.accepted_at && (
-                            <div className="text-xs text-green-600 mt-1">
-                              ✅ Aceptada el {formatDate(invitation.accepted_at)}
+                              
+                              {invitation.role === 'admin' && (
+                                <Badge variant="destructive">
+                                  <Crown className="h-3 w-3 mr-1" />
+                                  Admin
+                                </Badge>
+                              )}
                             </div>
-                          )}
-                        </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                              <span>Rol: <strong>{invitation.role}</strong></span>
+                              <span>Empresa: <strong>{invitation.company_name || 'N/A'}</strong></span>
+                              <span>Enviada: <strong>{formatDate(invitation.created_at)}</strong></span>
+                              <span>Expira: <strong>{formatDate(invitation.expires_at)}</strong></span>
+                            </div>
+                            
+                            <div className="text-xs text-gray-500 mt-1">
+                              {realStatus.description}
+                            </div>
+                          </div>
 
-                        <div className="flex items-center gap-2 ml-4">
-                          {invitation.status === 'pending' && (
+                          <div className="flex items-center gap-2 ml-4">
+                            {/* Botón Copiar URL - Solo para invitaciones pendientes */}
+                            {realStatus.status === 'pending' && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
+                                  navigator.clipboard.writeText(invitationUrl);
+                                  toast.success('🔗 URL de invitación copiada al portapapeles');
+                                }}
+                              >
+                                <Key className="h-4 w-4 mr-1" />
+                                Copiar URL
+                              </Button>
+                            )}
+                            
+                            {/* Botón Reenviar - Solo para invitaciones pendientes o expiradas */}
+                            {(realStatus.status === 'pending' || realStatus.status === 'expired') && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-blue-600 hover:text-blue-700"
+                                onClick={() => handleResendInvitation(invitation)}
+                                disabled={!isSuperAdmin}
+                              >
+                                <Send className="h-4 w-4 mr-1" />
+                                Reenviar
+                              </Button>
+                            )}
+                            
+                            {/* Botón Ver Usuario - Solo para invitaciones aceptadas */}
+                            {realStatus.status === 'accepted' && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-green-600 hover:text-green-700"
+                                onClick={() => {
+                                  setActiveTab('registered-users');
+                                  setSearchQuery(invitation.email);
+                                }}
+                              >
+                                <User className="h-4 w-4 mr-1" />
+                                Ver Usuario
+                              </Button>
+                            )}
+                            
+                            {/* Botón Eliminar - Siempre disponible para superadmin */}
                             <Button 
                               size="sm" 
                               variant="outline"
-                              onClick={() => {
-                                const invitationUrl = `${window.location.origin}/accept-invitation?token=${invitation.token}`;
-                                navigator.clipboard.writeText(invitationUrl);
-                                toast.success('🔗 URL de invitación copiada al portapapeles');
-                              }}
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => handleDeleteInvitation(invitation.id, invitation.email)}
+                              disabled={!isSuperAdmin}
                             >
-                              <Key className="h-4 w-4 mr-1" />
-                              Copiar URL
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Eliminar
                             </Button>
-                          )}
-                          
-                          {invitation.status === 'accepted' && invitation.user_id && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                setActiveTab('members');
-                                setSearchQuery(invitation.email);
-                              }}
-                            >
-                              <User className="h-4 w-4 mr-1" />
-                              Ver Usuario
-                            </Button>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>
+              
               {/* ✅ Tab: Asignaciones - CORREGIDO */}
               <TabsContent value="assignments" className="space-y-4 mt-0">
                 <div className="flex justify-between items-center">
@@ -1958,7 +2158,7 @@ activeRegistered: registeredUsers.filter(u => u.status === 'active').length,
                     <Settings className="h-4 w-4 text-green-600 mt-0.5" />
                     <div className="text-sm text-green-800">
                       <strong>Asignaciones:</strong> Gestiona qué usuarios tienen acceso a qué Custom AI Agents. 
-Todos los agentes asignados son equivalentes.
+                      Todos los agentes asignados son equivalentes.
                     </div>
                   </div>
                 </div>
@@ -2009,8 +2209,6 @@ Todos los agentes asignados son equivalentes.
                               <Bot className="h-4 w-4 text-purple-500" />
                               <p className="font-medium text-sm text-purple-700">{assignment.agent_name}</p>
                             </div>
-                            
-                            
                           </div>
                           
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-600">
@@ -2021,8 +2219,6 @@ Todos los agentes asignados son equivalentes.
                         </div>
 
                         <div className="flex items-center gap-2 ml-4">
-                          
-                          
                           <Button 
                             size="sm" 
                             variant="outline"
@@ -2051,6 +2247,7 @@ Todos los agentes asignados son equivalentes.
             </CardContent>
           </Tabs>
         </Card>
+        
         {/* ========================================
             MODALES
             ======================================== */}
@@ -2186,11 +2383,11 @@ Todos los agentes asignados son equivalentes.
                   e.preventDefault();
                   const formData = new FormData(e.target as HTMLFormElement);
                   handleSaveAgentChanges(editAgentModal.agent!.id, {
-  name: formData.get('name') as string,
-  company_id: formData.get('company_id') as string || undefined,
-  description: formData.get('description') as string || undefined,
-  rate_per_minute: formData.get('rate_per_minute') ? parseFloat(formData.get('rate_per_minute') as string) : undefined
-});
+                    name: formData.get('name') as string,
+                    company_id: formData.get('company_id') as string || undefined,
+                    description: formData.get('description') as string || undefined,
+                    rate_per_minute: formData.get('rate_per_minute') ? parseFloat(formData.get('rate_per_minute') as string) : undefined
+                  });
                 }} className="space-y-4">
                   <Input
                     name="name"
@@ -2214,13 +2411,13 @@ Todos los agentes asignados son equivalentes.
                     defaultValue={editAgentModal.agent.description || ''}
                   />
                   <Input
-  name="rate_per_minute"
-  type="number"
-  step="0.01"
-  min="0"
-  placeholder="Precio por minuto (USD)"
-  defaultValue={editAgentModal.agent.rate_per_minute || ''}
-/>
+                    name="rate_per_minute"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Precio por minuto (USD)"
+                    defaultValue={editAgentModal.agent.rate_per_minute || ''}
+                  />
                   
                   <div className="flex justify-end space-x-2 mt-6">
                     <Button type="button" variant="outline" onClick={() => setEditAgentModal({ open: false })}>
@@ -2339,9 +2536,9 @@ const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
   agents 
 }) => {
   const [formData, setFormData] = useState({
-  user_id: '',
-  agent_id: ''
-});
+    user_id: '',
+    agent_id: ''
+  });
 
   const [selectedUser, setSelectedUser] = useState<TeamMember | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -2355,10 +2552,10 @@ const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
     }
 
     onSave({
-  user_id: formData.user_id,
-  agent_id: formData.agent_id,
-  is_primary: false  // Siempre false, ya no usamos primarios
-});
+      user_id: formData.user_id,
+      agent_id: formData.agent_id,
+      is_primary: false  // Siempre false, ya no usamos primarios
+    });
   };
 
   const handleUserChange = (userId: string) => {
@@ -2536,12 +2733,12 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({
     }
 
     onSave({
-  retell_agent_id: formData.retell_agent_id,
-  name: formData.name.trim(),
-  company_id: formData.company_id || undefined,
-  description: formData.description.trim() || undefined,
-  rate_per_minute: formData.rate_per_minute ? parseFloat(formData.rate_per_minute) : undefined
-});
+      retell_agent_id: formData.retell_agent_id,
+      name: formData.name.trim(),
+      company_id: formData.company_id || undefined,
+      description: formData.description.trim() || undefined,
+      rate_per_minute: formData.rate_per_minute ? parseFloat(formData.rate_per_minute) : undefined
+    });
   };
 
   return (
@@ -2672,20 +2869,20 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({
             </div>
 
             {/* Precio por minuto */}
-<div className="space-y-2">
-  <label className="text-sm font-medium">Precio por minuto (USD)</label>
-  <Input
-    type="number"
-    step="0.01"
-    min="0"
-    placeholder="Ej: 0.05"
-    value={formData.rate_per_minute}
-    onChange={(e) => setFormData(prev => ({ ...prev, rate_per_minute: e.target.value }))}
-  />
-  <p className="text-xs text-gray-500">
-    Precio en dólares por minuto de conversación
-  </p>
-</div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Precio por minuto (USD)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Ej: 0.05"
+                value={formData.rate_per_minute}
+                onChange={(e) => setFormData(prev => ({ ...prev, rate_per_minute: e.target.value }))}
+              />
+              <p className="text-xs text-gray-500">
+                Precio en dólares por minuto de conversación
+              </p>
+            </div>
 
             {/* Botones */}
             <div className="flex justify-end space-x-2 mt-6 pt-4 border-t">
