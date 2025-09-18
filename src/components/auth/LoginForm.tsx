@@ -143,7 +143,7 @@ export const LoginForm = () => {
                 <FormItem>
                   <div className="flex items-center justify-between">
                     <FormLabel>Password</FormLabel>
-                    <Link to="/forgot-password" className="text-sm text-brand-green hover:underline">
+                    <Link to="/reset-password" className="text-sm text-brand-green hover:underline">
                       Forgot password?
                     </Link>
                   </div>
