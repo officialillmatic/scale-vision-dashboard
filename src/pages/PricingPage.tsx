@@ -50,6 +50,7 @@ interface Plan {
   id: string;
   name: string;
   price: number | 'custom';
+  setupFee: number;
   period: string;
   description: string;
   features: PlanFeature[];
@@ -65,14 +66,15 @@ const plans: Plan[] = [
   {
     id: 'essential',
     name: 'Essential Support',
-    price: 800,
+    price: 100,
+    setupFee: 300,
     period: 'month',
     description: 'Perfect for small teams getting started with AI voice agents',
     stripePriceId: 'price_1RlKU8PtUQ6CvAqeAqhpUwno',
     popular: false,
     gradient: 'from-blue-50 via-blue-50 to-blue-100',
     icon: <Zap className="h-6 w-6 text-blue-600" />,
-    buttonText: 'Get Essential',
+    buttonText: 'Start at $400',
     buttonVariant: 'outline',
     features: [
       { text: 'Standard tech support for inbound and outbound AI voice agents', included: true },
@@ -89,14 +91,15 @@ const plans: Plan[] = [
   {
     id: 'professional',
     name: 'Professional Support',
-    price: 1500,
+    price: 150,
+    setupFee: 500,
     period: 'month',
     description: 'Ideal for growing businesses that need advanced features and priority support',
     stripePriceId: 'price_1RlKVnPtUQ6CvAqeobo403iN',
     popular: true,
     gradient: 'from-purple-50 via-purple-50 to-purple-100',
     icon: <Crown className="h-6 w-6 text-purple-600" />,
-    buttonText: 'Get Professional',
+    buttonText: 'Start at $650',
     buttonVariant: 'default',
     features: [
       { text: 'Everything in the Essential Support Plan', included: true },
@@ -113,13 +116,14 @@ const plans: Plan[] = [
   {
     id: 'enterprise',
     name: 'Enterprise Custom',
-    price: 'custom',
-    period: 'based on needs',
+    price: 200,
+    setupFee: 700,
+    period: 'month',
     description: 'Fully customized solution for large enterprises with specific requirements',
     popular: false,
     gradient: 'from-green-50 via-green-50 to-green-100',
     icon: <Sparkles className="h-6 w-6 text-green-600" />,
-    buttonText: 'Contact Sales',
+    buttonText: 'Start at $900',
     buttonVariant: 'outline',
     features: [
       { text: 'Everything in the Professional Support Plan', included: true },
@@ -365,6 +369,7 @@ const PricingPage: React.FC = () => {
           paymentData = {
             ...paymentData,
             amount: plan.price,
+            setupFee: plan.setupFee,
             currency: 'USD',
             planId: plan.id
           };
@@ -617,12 +622,20 @@ const PricingPage: React.FC = () => {
                   
                   <div className="mb-4">
                     {typeof plan.price === 'number' ? (
-                      <>
-                        <span className="text-4xl font-bold text-gray-900">
-                          ${plan.price.toLocaleString()}
-                        </span>
-                        <span className="text-gray-600 ml-2">/ {plan.period}</span>
-                      </>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-4xl font-bold text-gray-900">
+                            ${plan.price}
+                          </span>
+                          <span className="text-gray-600 ml-2">/ {plan.period}</span>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          + ${plan.setupFee} setup fee (one-time)
+                        </div>
+                        <div className="text-xs text-gray-400 bg-white/50 rounded-lg px-3 py-2 mt-2">
+                          First month: ${plan.price + plan.setupFee}, then ${plan.price}/month
+                        </div>
+                      </div>
                     ) : (
                       <span className="text-4xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
                         Custom Pricing
