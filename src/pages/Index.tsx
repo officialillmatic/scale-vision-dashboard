@@ -19,23 +19,23 @@ const Index = () => {
 
   const audioFiles = [
     {
-      title: "Solar Sales Consultation",
-      description: "AI agent qualifying solar leads and booking appointments",
+      title: "Customer Support Hotline",
+      description: "Resolve FAQs and escalate complex cases.",
       url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio1.mp3"
     },
     {
-      title: "Insurance Lead Qualification", 
-      description: "Automated insurance lead screening and transfer",
+      title: "After-Hours Answering Service", 
+      description: "Capture every lead and support request when offices are closed.",
       url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio2.mp3"
     },
     {
-      title: "Real Estate Follow-up",
-      description: "AI nurturing real estate prospects and scheduling viewings", 
+      title: "Appointment Scheduling & Reminders",
+      description: "Reduce no-shows and free internal resources.", 
       url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio3.mp3"
     },
     {
-      title: "SaaS Demo Booking",
-      description: "Technology sales agent qualifying and booking demos",
+      title: "Order Status & Tracking",
+      description: "Provide instant updates to enhance customer satisfaction.",
       url: "https://raw.githubusercontent.com/officialillmatic/scale-vision-dashboard/main/public/audios/audio4.mp3"
     },
     {
@@ -198,10 +198,10 @@ const Index = () => {
               {/* Left Content */}
               <div className="text-center lg:text-left">
                 <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-8 bg-gradient-to-r from-brand-green via-brand-navy to-brand-purple bg-clip-text text-transparent leading-[1.1]">
-                  AI Agents That Close Deals and Delight Customers 24/7
+                  AI Answering Service for 24/7 Customer Support—Built for Business
                 </h1>
                 <p className="text-xl md:text-2xl text-muted-foreground mb-12 leading-relaxed">
-                  Book more sales calls, handle support tickets, and boost CSAT—no burnout, just results on autopilot.
+                  Reduce call-center overhead and deliver consistent, professional service around the clock. Dr. Scale's AI agents handle every call, ticket, and after-hours inquiry—seamlessly integrated with your existing systems.
                 </p>
                 <div className="flex flex-col sm:flex-row lg:justify-start justify-center gap-4 mb-8">
                   {!isLoading && user ? (
@@ -211,13 +211,13 @@ const Index = () => {
                   ) : (
                     <>
                       <Button size="lg" onClick={handleSignUpClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
-                        Book Live Demo
+                        Book a Live Demo
                       </Button>
                       <button 
                         onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
                         className="text-brand-green hover:text-brand-deep-green text-lg font-semibold underline decoration-2 underline-offset-4 transition-colors duration-300"
                       >
-                        See Pricing
+                        See Enterprise Pricing
                       </button>
                     </>
                   )}
@@ -265,8 +265,8 @@ const Index = () => {
                   {/* Connection line - properly centered */}
                   <div className="hidden md:block absolute top-10 left-1/2 w-full h-0.5 bg-gradient-to-r from-brand-green to-brand-purple transform translate-x-10 z-0"></div>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Pick Your Use Case</h3>
-                <p className="text-muted-foreground">Choose Outbound Sales, Inbound Support, or Blended.</p>
+                <h3 className="text-xl font-semibold mb-3">Choose Your Support Type</h3>
+                <p className="text-muted-foreground">Select inbound, outbound, or a blended model. We configure the platform to match your business processes and compliance requirements.</p>
               </div>
               
               <div className="text-center group">
@@ -276,8 +276,8 @@ const Index = () => {
                   </div>
                   <div className="hidden md:block absolute top-10 left-1/2 w-full h-0.5 bg-gradient-to-r from-brand-purple to-brand-green transform translate-x-10 z-0"></div>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Upload / Customize Script</h3>
-                <p className="text-muted-foreground">Paste your script or use our templates—AI handles objections & FAQs.</p>
+                <h3 className="text-xl font-semibold mb-3">Collaborate with Our Implementation Specialist</h3>
+                <p className="text-muted-foreground">A dedicated Dr. Scale technician works directly with your team to integrate CRMs, set up routing, and customize scripts—so deployment is effortless.</p>
               </div>
               
               <div className="text-center group">
@@ -286,8 +286,8 @@ const Index = () => {
                     <span className="text-2xl font-bold text-white">3</span>
                   </div>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Go Live & Monitor</h3>
-                <p className="text-muted-foreground">Launch in minutes; get transfers, support tickets, and live analytics.</p>
+                <h3 className="text-xl font-semibold mb-3">Go Live & Monitor Performance</h3>
+                <p className="text-muted-foreground">Launch in minutes. View real-time analytics, SLAs, and call metrics, and scale capacity instantly as demand grows.</p>
               </div>
             </div>
           </div>
@@ -295,8 +295,8 @@ const Index = () => {
           {/* Enhanced Feature Highlights - 2x2 Grid */}
           <div className="mt-24 md:mt-32 max-w-5xl mx-auto py-16 md:py-24">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-[1.1]">Powerful Features That Drive Results</h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">Everything you need to automate and scale your sales operations</p>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-[1.1]">Enterprise-Grade Features</h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">Everything you need to deliver exceptional customer support around the clock</p>
             </div>
             
             <div className="grid md:grid-cols-2 gap-8">
@@ -304,32 +304,32 @@ const Index = () => {
                 <div className="h-16 w-16 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <Shield className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Voicemail Detection</h3>
-                <p className="text-muted-foreground">Never waste minutes on voicemails again. Our AI detects voicemails instantly and moves to the next call, maximizing your connect rate.</p>
+                <h3 className="text-xl font-semibold mb-3">Advanced Voicemail Detection</h3>
+                <p className="text-muted-foreground">Maximize connect rates by skipping voicemail in real time.</p>
               </div>
 
               <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-purple/30 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <div className="h-16 w-16 rounded-full bg-gradient-to-br from-brand-purple to-brand-navy flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <Clock className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Real-Time Transfers</h3>
-                <p className="text-muted-foreground">Qualified prospects get transferred to your sales team instantly while the conversation is hot, increasing your close rate by 300%.</p>
+                <h3 className="text-xl font-semibold mb-3">Live Call Transfers</h3>
+                <p className="text-muted-foreground">Route qualified calls directly to your team for high-value conversations.</p>
               </div>
 
               <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-green/30 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <div className="h-16 w-16 rounded-full bg-gradient-to-br from-brand-green to-brand-purple flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <Users className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Smart Lead Qualification</h3>
-                <p className="text-muted-foreground">AI agents qualify leads using your exact criteria, ensuring only high-intent prospects reach your team. No more time wasted on tire-kickers.</p>
+                <h3 className="text-xl font-semibold mb-3">Intelligent Ticket & Lead Routing</h3>
+                <p className="text-muted-foreground">Automatically classify and prioritize inquiries, ensuring fast resolution.</p>
               </div>
 
               <div className="group bg-card rounded-xl p-8 shadow-sm border border-muted hover:shadow-lg hover:border-brand-purple/30 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <div className="h-16 w-16 rounded-full bg-gradient-to-br from-brand-purple to-brand-green flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <Headphones className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">24/7 Customer Service</h3>
-                <p className="text-muted-foreground">AI answers FAQs, raises tickets, and routes urgent callers—boost CSAT without extra headcount.</p>
+                <h3 className="text-xl font-semibold mb-3">24/7 Customer Engagement</h3>
+                <p className="text-muted-foreground">Provide consistent, human-like support across time zones—without staffing night shifts.</p>
               </div>
             </div>
           </div>
@@ -337,7 +337,7 @@ const Index = () => {
           {/* Voice Agents Cases Section */}
           <div className="mt-32 max-w-6xl mx-auto py-16 md:py-24">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Voice Agents Cases</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Voice Agent Applications</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">Listen to real conversations with our AI agents in action</p>
             </div>
             
@@ -458,16 +458,16 @@ const Index = () => {
                     <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
                   ))}
                 </div>
-                <p className="text-muted-foreground mb-6 italic text-lg">"Reduced our cost per lead by 75% while increasing quality. The AI never gets tired and handles objections better than our junior reps."</p>
+                <p className="text-muted-foreground mb-6 italic text-lg">"Our inbound call costs dropped 40% while CSAT improved. Dr. Scale gives us true 24/7 coverage without adding headcount."</p>
                 <div className="flex items-center gap-3">
                   <img 
                     src="/lovable-uploads/1324861e-c0cc-441f-be79-541f8093e1f7.png" 
-                    alt="Sarah Rodriguez, VP Sales of RoofTech"
+                    alt="Sarah R., VP of Support"
                     className="w-12 h-12 rounded-full object-cover"
                   />
                   <div>
-                    <div className="font-semibold">Sarah Rodriguez</div>
-                    <div className="text-sm text-muted-foreground">VP Sales, RoofTech</div>
+                    <div className="font-semibold">Sarah R.</div>
+                    <div className="text-sm text-muted-foreground">VP of Support</div>
                   </div>
                 </div>
               </div>
@@ -507,19 +507,19 @@ const Index = () => {
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
                       <Check className="h-4 w-4 text-white" />
                     </div>
-                    <span className="text-lg leading-relaxed"><strong>Starting at $0.15 per connected minute</strong> – pay for real talk time, nothing else.</span>
+                    <span className="text-lg leading-relaxed"><strong>Starting at $0.18 per connected minute</strong> – pay only for live talk time.</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
                       <Check className="h-4 w-4 text-white" />
                     </div>
-                    <span className="leading-relaxed"><strong>Zero contracts, zero commitment</strong> – start or stop whenever you want.</span>
+                    <span className="leading-relaxed"><strong>No contracts, no long-term commitments.</strong></span>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
                       <Check className="h-4 w-4 text-white" />
                     </div>
-                    <span className="leading-relaxed"><strong>Instant elasticity</strong> – spin agents up or down in seconds as call volume changes.</span>
+                    <span className="leading-relaxed"><strong>Instant elasticity to match call volume spikes.</strong></span>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
