@@ -430,7 +430,7 @@ const Index = () => {
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
                       <Check className="h-4 w-4 text-white" />
                     </div>
-                    <span className="leading-relaxed">Built for <strong>pilots, lean startups, and enterprise proof-of-concepts</strong> who need results fast.</span>
+                    <span className="leading-relaxed">Ideal for <strong>fast-moving organizations that need to launch, learn, and scale without delay.</strong></span>
                   </li>
                 </ul>
               </div>
