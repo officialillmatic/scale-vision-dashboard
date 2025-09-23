@@ -507,7 +507,7 @@ const Index = () => {
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
                       <Check className="h-4 w-4 text-white" />
                     </div>
-                    <span className="text-lg leading-relaxed"><strong>Starting at $0.18 per connected minute</strong> – pay only for live talk time.</span>
+                    <span className="text-lg leading-relaxed"><strong>Starting at $0.65 per connected minute</strong> – pay only for live talk time.</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
