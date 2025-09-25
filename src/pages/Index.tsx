@@ -524,118 +524,120 @@ const Index = () => {
           </div>
 
           {/* Pricing Section */}
-          <div id="pricing" className="mt-32 max-w-4xl mx-auto text-center">
-            <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900/20 to-emerald-900/30 rounded-3xl p-12 md:p-16 border border-white/10 shadow-2xl backdrop-blur-sm">
-              {/* Premium background effects */}
-              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-purple-500/5 to-blue-500/5 animate-pulse"></div>
-              <div className="absolute -top-40 -left-40 w-80 h-80 bg-gradient-to-r from-emerald-400/20 to-purple-400/20 rounded-full blur-3xl"></div>
-              <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-gradient-to-r from-purple-400/20 to-blue-400/20 rounded-full blur-3xl"></div>
-              
-              <div className="relative z-10">
-                <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-purple-500/20 backdrop-blur-sm border border-white/20 text-white px-6 py-3 rounded-full text-sm font-semibold mb-6 shadow-lg">
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                  ENTERPRISE-GRADE SOLUTION
-                </div>
+          <div id="pricing" className="mt-16 md:mt-32 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto text-center">
+              <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900/20 to-emerald-900/30 rounded-2xl md:rounded-3xl p-6 sm:p-8 md:p-12 lg:p-16 border border-white/10 shadow-2xl backdrop-blur-sm">
+                {/* Premium background effects */}
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-purple-500/5 to-blue-500/5 animate-pulse"></div>
+                <div className="absolute -top-20 md:-top-40 -left-20 md:-left-40 w-40 md:w-80 h-40 md:h-80 bg-gradient-to-r from-emerald-400/20 to-purple-400/20 rounded-full blur-2xl md:blur-3xl"></div>
+                <div className="absolute -bottom-20 md:-bottom-40 -right-20 md:-right-40 w-40 md:w-80 h-40 md:h-80 bg-gradient-to-r from-purple-400/20 to-blue-400/20 rounded-full blur-2xl md:blur-3xl"></div>
                 
-                <h2 className="text-4xl md:text-6xl font-black mb-6 bg-gradient-to-r from-white via-emerald-200 to-purple-200 bg-clip-text text-transparent leading-tight">
-                  Premium, Performance-Driven
-                  <br />
-                  <span className="text-3xl md:text-5xl">Pricing</span>
-                </h2>
-                <p className="text-xl md:text-2xl text-white/80 mb-12 font-light max-w-2xl mx-auto leading-relaxed">
-                  Choose the plan that scales with your growth and transforms your operations
-                </p>
-                
-                <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-8 md:p-12 border border-white/20 shadow-xl mb-8">
-                  <div className="flex items-center justify-center gap-3 mb-8">
-                    <div className="w-12 h-12 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
-                    </div>
-                    <h3 className="text-3xl md:text-4xl font-bold text-white">Pay-As-You-Grow</h3>
+                <div className="relative z-10">
+                  <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-purple-500/20 backdrop-blur-sm border border-white/20 text-white px-3 sm:px-4 md:px-6 py-2 md:py-3 rounded-full text-xs sm:text-sm font-semibold mb-4 md:mb-6 shadow-lg">
+                    <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                    <span className="tracking-wide">ENTERPRISE-GRADE SOLUTION</span>
                   </div>
                   
-                  <div className="grid gap-6 text-left max-w-3xl mx-auto">
-                    <div className="group flex items-start gap-4 p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 to-transparent border-l-4 border-emerald-400 hover:from-emerald-500/20 transition-all duration-300">
-                      <div className="mt-1 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
-                        <Check className="h-5 w-5 text-white font-bold" />
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-black mb-4 md:mb-6 bg-gradient-to-r from-white via-emerald-200 to-purple-200 bg-clip-text text-transparent leading-tight">
+                    Premium, Performance-Driven
+                    <br />
+                    <span className="text-xl sm:text-2xl md:text-3xl lg:text-5xl">Pricing</span>
+                  </h2>
+                  <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-white/80 mb-8 md:mb-12 font-light max-w-2xl mx-auto leading-relaxed px-2">
+                    Choose the plan that scales with your growth and transforms your operations
+                  </p>
+                  
+                  <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-xl md:rounded-2xl p-4 sm:p-6 md:p-8 lg:p-12 border border-white/20 shadow-xl mb-6 md:mb-8">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 mb-6 md:mb-8">
+                      <div className="w-8 md:w-12 h-8 md:h-12 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-lg md:rounded-xl flex items-center justify-center shadow-lg">
+                        <svg className="w-4 md:w-6 h-4 md:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
                       </div>
-                      <div>
-                        <span className="text-lg md:text-xl leading-relaxed text-white font-medium">
-                          <span className="text-emerald-300 font-bold text-xl">From just $0.65 per connected minute</span>
-                          <br />
-                          <span className="text-white/80 text-base">Pay only for productive talk time, never idle minutes.</span>
-                        </span>
-                      </div>
+                      <h3 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white text-center sm:text-left">Pay-As-You-Grow</h3>
                     </div>
                     
-                    <div className="group flex items-start gap-4 p-4 rounded-xl bg-gradient-to-r from-purple-500/10 to-transparent border-l-4 border-purple-400 hover:from-purple-500/20 transition-all duration-300">
-                      <div className="mt-1 w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
-                        <Check className="h-5 w-5 text-white font-bold" />
+                    <div className="grid gap-4 md:gap-6 text-left max-w-3xl mx-auto">
+                      <div className="group flex flex-col sm:flex-row items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg md:rounded-xl bg-gradient-to-r from-emerald-500/10 to-transparent border-l-4 border-emerald-400 hover:from-emerald-500/20 transition-all duration-300">
+                        <div className="mt-0.5 sm:mt-1 w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
+                          <Check className="h-3 sm:h-5 w-3 sm:w-5 text-white font-bold" />
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed text-white font-medium">
+                            <span className="text-emerald-300 font-bold text-base sm:text-lg md:text-xl">From just $0.65 per connected minute</span>
+                            <br />
+                            <span className="text-white/80 text-sm sm:text-base">Pay only for productive talk time, never idle minutes.</span>
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-lg md:text-xl leading-relaxed text-white font-medium">
-                          <span className="text-purple-300 font-bold">Slash overhead & payroll</span>
-                          <br />
-                          <span className="text-white/80 text-base">Replace expensive staffing with always-on AI voice agents.</span>
-                        </span>
+                      
+                      <div className="group flex flex-col sm:flex-row items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg md:rounded-xl bg-gradient-to-r from-purple-500/10 to-transparent border-l-4 border-purple-400 hover:from-purple-500/20 transition-all duration-300">
+                        <div className="mt-0.5 sm:mt-1 w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
+                          <Check className="h-3 sm:h-5 w-3 sm:w-5 text-white font-bold" />
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed text-white font-medium">
+                            <span className="text-purple-300 font-bold">Slash overhead & payroll</span>
+                            <br />
+                            <span className="text-white/80 text-sm sm:text-base">Replace expensive staffing with always-on AI voice agents.</span>
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="group flex items-start gap-4 p-4 rounded-xl bg-gradient-to-r from-blue-500/10 to-transparent border-l-4 border-blue-400 hover:from-blue-500/20 transition-all duration-300">
-                      <div className="mt-1 w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
-                        <Check className="h-5 w-5 text-white font-bold" />
+                      
+                      <div className="group flex flex-col sm:flex-row items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg md:rounded-xl bg-gradient-to-r from-blue-500/10 to-transparent border-l-4 border-blue-400 hover:from-blue-500/20 transition-all duration-300">
+                        <div className="mt-0.5 sm:mt-1 w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
+                          <Check className="h-3 sm:h-5 w-3 sm:w-5 text-white font-bold" />
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed text-white font-medium">
+                            <span className="text-blue-300 font-bold">Zero contracts, total control</span>
+                            <br />
+                            <span className="text-white/80 text-sm sm:text-base">Scale up or down instantly with no long-term lock-ins.</span>
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-lg md:text-xl leading-relaxed text-white font-medium">
-                          <span className="text-blue-300 font-bold">Zero contracts, total control</span>
-                          <br />
-                          <span className="text-white/80 text-base">Scale up or down instantly with no long-term lock-ins.</span>
-                        </span>
+                      
+                      <div className="group flex flex-col sm:flex-row items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg md:rounded-xl bg-gradient-to-r from-yellow-500/10 to-transparent border-l-4 border-yellow-400 hover:from-yellow-500/20 transition-all duration-300">
+                        <div className="mt-0.5 sm:mt-1 w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
+                          <Check className="h-3 sm:h-5 w-3 sm:w-5 text-white font-bold" />
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed text-white font-medium">
+                            <span className="text-yellow-300 font-bold">Elastic capacity</span>
+                            <br />
+                            <span className="text-white/80 text-sm sm:text-base">Absorb call spikes in seconds without hiring or training.</span>
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="group flex items-start gap-4 p-4 rounded-xl bg-gradient-to-r from-yellow-500/10 to-transparent border-l-4 border-yellow-400 hover:from-yellow-500/20 transition-all duration-300">
-                      <div className="mt-1 w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
-                        <Check className="h-5 w-5 text-white font-bold" />
-                      </div>
-                      <div>
-                        <span className="text-lg md:text-xl leading-relaxed text-white font-medium">
-                          <span className="text-yellow-300 font-bold">Elastic capacity</span>
-                          <br />
-                          <span className="text-white/80 text-base">Absorb call spikes in seconds without hiring or training.</span>
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="group flex items-start gap-4 p-4 rounded-xl bg-gradient-to-r from-rose-500/10 to-transparent border-l-4 border-rose-400 hover:from-rose-500/20 transition-all duration-300">
-                      <div className="mt-1 w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
-                        <Check className="h-5 w-5 text-white font-bold" />
-                      </div>
-                      <div>
-                        <span className="text-lg md:text-xl leading-relaxed text-white font-medium">
-                          <span className="text-rose-300 font-bold">Proven ROI</span>
-                          <br />
-                          <span className="text-white/80 text-base">Clients cut support costs by 30–60% while boosting customer satisfaction.</span>
-                        </span>
+                      
+                      <div className="group flex flex-col sm:flex-row items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg md:rounded-xl bg-gradient-to-r from-rose-500/10 to-transparent border-l-4 border-rose-400 hover:from-rose-500/20 transition-all duration-300">
+                        <div className="mt-0.5 sm:mt-1 w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
+                          <Check className="h-3 sm:h-5 w-3 sm:w-5 text-white font-bold" />
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed text-white font-medium">
+                            <span className="text-rose-300 font-bold">Proven ROI</span>
+                            <br />
+                            <span className="text-white/80 text-sm sm:text-base">Clients cut support costs by 30–60% while boosting customer satisfaction.</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  
+                  <Button size="lg" className="group relative overflow-hidden bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-600 hover:via-emerald-700 hover:to-emerald-800 text-white px-6 sm:px-8 md:px-12 py-3 sm:py-4 text-base sm:text-lg md:text-xl font-bold shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 transform hover:scale-105 border-0 rounded-xl md:rounded-2xl w-full sm:w-auto">
+                    <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3">
+                      <svg className="w-4 sm:w-5 md:w-6 h-4 sm:h-5 md:h-6 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Schedule Demo
+                    </span>
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 -skew-x-12 group-hover:animate-pulse"></div>
+                  </Button>
+                  <p className="text-white/60 text-xs sm:text-sm mt-3 sm:mt-4 font-medium">
+                    ✨ No setup fees • Cancel anytime • 99.9% uptime SLA
+                  </p>
                 </div>
-                
-                <Button size="lg" className="group relative overflow-hidden bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-600 hover:via-emerald-700 hover:to-emerald-800 text-white px-12 py-4 text-xl font-bold shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 transform hover:scale-105 border-0 rounded-2xl">
-                  <span className="relative z-10 flex items-center gap-3">
-                    <svg className="w-6 h-6 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Schedule Demo
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 -skew-x-12 group-hover:animate-pulse"></div>
-                </Button>
-                <p className="text-white/60 text-sm mt-4 font-medium">
-                  ✨ No setup fees • Cancel anytime • 99.9% uptime SLA
-                </p>
               </div>
             </div>
           </div>
