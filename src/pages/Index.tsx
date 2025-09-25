@@ -155,7 +155,7 @@ const Index = () => {
 
         <main className="mt-20">
           {/* Enhanced Hero Section */}
-          <div className="max-w-6xl mx-auto relative py-24 md:py-32">
+          <div className="max-w-6xl mx-auto relative py-16 md:py-20">
             <div className="absolute inset-0 bg-gradient-to-r from-brand-green/5 to-brand-purple/5 rounded-3xl blur-3xl"></div>
             <div className="grid lg:grid-cols-2 gap-12 items-center relative">
               {/* Left Content */}
@@ -167,18 +167,9 @@ const Index = () => {
                   Reduce call-center overhead and deliver consistent, professional service around the clock. Dr. Scale's AI agents handle every call, ticket, and after-hours inquiry—seamlessly integrated with your existing systems.
                 </p>
                 <div className="flex flex-col sm:flex-row lg:justify-start justify-center gap-4 mb-8">
-                  {!isLoading && user ? <Button size="lg" onClick={handleDashboardClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
+                  {!isLoading && user && <Button size="lg" onClick={handleDashboardClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
                       Access Your Dashboard
-                    </Button> : <>
-                      <Button size="lg" onClick={handleSignUpClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
-                        Get Started Today
-                      </Button>
-                      <button onClick={() => document.getElementById('pricing')?.scrollIntoView({
-                    behavior: 'smooth'
-                  })} className="text-brand-green hover:text-brand-deep-green text-lg font-semibold underline decoration-2 underline-offset-4 transition-colors duration-300">
-                        See Enterprise Pricing
-                      </button>
-                    </>}
+                    </Button>}
                 </div>
               </div>
               
@@ -204,7 +195,7 @@ const Index = () => {
           </div>
 
           {/* Pricing Plans CTA Section */}
-          <div className="max-w-6xl mx-auto py-16 md:py-24">
+          <div className="max-w-6xl mx-auto py-12 md:py-16">
             <div className="bg-gradient-to-br from-brand-green/5 via-brand-purple/5 to-brand-navy/5 rounded-3xl p-8 md:p-12 border border-brand-green/20 shadow-xl">
               <div className="text-center mb-12">
                 <div className="inline-flex items-center gap-2 bg-brand-green/10 text-brand-green px-4 py-2 rounded-full text-sm font-medium mb-4">
