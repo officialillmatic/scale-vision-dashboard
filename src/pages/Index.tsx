@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { Check, Star, ArrowDown, Users, Shield, Clock, Headphones, Play, Pause, Volume2, Loader2 } from "lucide-react";
+import { Check, Star, ArrowDown, Users, Shield, Clock, Headphones, Play, Pause, Volume2, Loader2, Crown, Zap, Sparkles, ArrowRight } from "lucide-react";
 const Index = () => {
   const navigate = useNavigate();
   const {
@@ -171,7 +171,7 @@ const Index = () => {
                       Access Your Dashboard
                     </Button> : <>
                       <Button size="lg" onClick={handleSignUpClick} className="bg-brand-green hover:bg-brand-deep-green text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
-                        Book a Live Demo
+                        Get Started Today
                       </Button>
                       <button onClick={() => document.getElementById('pricing')?.scrollIntoView({
                     behavior: 'smooth'
@@ -190,15 +190,148 @@ const Index = () => {
                   
                   {/* Floating Stats Cards */}
                   <div className="absolute -top-4 -left-4 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-brand-green/20">
-                    <div className="text-2xl font-bold text-brand-green">     300%</div>
+                    <div className="text-2xl font-bold text-brand-green">     300%</div>
                     <div className="text-sm text-muted-foreground">Close Rate Boost</div>
                   </div>
                   
                   <div className="absolute -bottom-4 -right-4 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-brand-purple/20">
-                    <div className="text-2xl font-bold text-brand-purple">    24/7</div>
+                    <div className="text-2xl font-bold text-brand-purple">    24/7</div>
                     <div className="text-sm text-muted-foreground">Always Available</div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Pricing Plans CTA Section */}
+          <div className="max-w-6xl mx-auto py-16 md:py-24">
+            <div className="bg-gradient-to-br from-brand-green/5 via-brand-purple/5 to-brand-navy/5 rounded-3xl p-8 md:p-12 border border-brand-green/20 shadow-xl">
+              <div className="text-center mb-12">
+                <div className="inline-flex items-center gap-2 bg-brand-green/10 text-brand-green px-4 py-2 rounded-full text-sm font-medium mb-4">
+                  <Star className="h-4 w-4" />
+                  Choose Your Perfect Plan
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-brand-green to-brand-purple bg-clip-text text-transparent">
+                  Scale Your AI Voice Operations
+                </h2>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  From essential features to enterprise-grade solutions with comprehensive support
+                </p>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-8 mb-8">
+                {/* Essential Plan */}
+                <div className="group bg-white/70 backdrop-blur-sm rounded-xl p-6 border border-blue-100 hover:border-blue-200 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                      <Zap className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">Essential Support</h3>
+                      <p className="text-sm text-muted-foreground">Perfect for small teams</p>
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <div className="text-2xl font-bold text-gray-900">$100<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-xs text-muted-foreground">Starting from</div>
+                  </div>
+                  <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Standard tech support</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Email & chat support</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Monthly performance reports</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Professional Plan */}
+                <div className="group bg-white/70 backdrop-blur-sm rounded-xl p-6 border-2 border-purple-200 hover:border-purple-300 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 relative">
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                      <Star className="h-3 w-3" />
+                      Most Popular
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                      <Crown className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">Professional Support</h3>
+                      <p className="text-sm text-muted-foreground">Ideal for growing businesses</p>
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <div className="text-2xl font-bold text-gray-900">$150<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-xs text-muted-foreground">Starting from</div>
+                  </div>
+                  <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Everything in Essential</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Priority support</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Advanced customization</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Enterprise Plan */}
+                <div className="group bg-white/70 backdrop-blur-sm rounded-xl p-6 border border-green-100 hover:border-green-200 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                      <Sparkles className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">Enterprise Custom</h3>
+                      <p className="text-sm text-muted-foreground">Fully customized solution</p>
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <div className="text-2xl font-bold text-gray-900">$200<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-xs text-muted-foreground">Starting from</div>
+                  </div>
+                  <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Everything in Professional</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Dedicated account manager</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>24/7 priority support</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <Button 
+                  size="lg" 
+                  onClick={() => navigate("/pricing")}
+                  className="bg-gradient-to-r from-brand-green to-brand-purple hover:from-brand-deep-green hover:to-brand-navy text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 group"
+                >
+                  View All Plans & Features
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+                <p className="text-sm text-muted-foreground mt-4">
+                  All plans include setup fees and comprehensive onboarding support
+                </p>
               </div>
             </div>
           </div>
