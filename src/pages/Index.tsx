@@ -526,41 +526,47 @@ const Index = () => {
           {/* Pricing Section */}
           <div id="pricing" className="mt-32 max-w-2xl mx-auto text-center">
             <div className="bg-gradient-to-br from-brand-light-green to-brand-background rounded-2xl p-8 md:p-12 border border-brand-green/20">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
-              <p className="text-xl text-muted-foreground mb-8">Choose the plan that fits your scale</p>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Premium, Performance-Driven Pricing</h2>
+              <p className="text-xl text-muted-foreground mb-8">Choose the plan that scales with your growth</p>
               
               <div className="text-center mb-8">
-                <h3 className="text-2xl font-semibold mb-6">Pay-As-You-Go</h3>
+                <h3 className="text-2xl font-semibold mb-6">Pay-As-You-Grow</h3>
                 <ul className="space-y-4 text-muted-foreground text-left max-w-lg mx-auto">
                   <li className="flex items-start gap-3">
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
                       <Check className="h-4 w-4 text-white" />
                     </div>
-                    <span className="text-lg leading-relaxed"><strong>Starting at $0.65 per connected minute</strong> – pay only for live talk time.</span>
+                    <span className="text-lg leading-relaxed"><strong>From just $0.65 per connected minute</strong> – pay only for productive talk time, never idle minutes.</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
                       <Check className="h-4 w-4 text-white" />
                     </div>
-                    <span className="leading-relaxed"><strong>No contracts, no long-term commitments.</strong></span>
+                    <span className="leading-relaxed"><strong>Slash overhead & payroll</strong> – replace expensive staffing with always-on AI voice agents.</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
                       <Check className="h-4 w-4 text-white" />
                     </div>
-                    <span className="leading-relaxed"><strong>Instant elasticity to match call volume spikes.</strong></span>
+                    <span className="leading-relaxed"><strong>Zero contracts, total control</strong> – scale up or down instantly with no long-term lock-ins.</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
                       <Check className="h-4 w-4 text-white" />
                     </div>
-                    <span className="leading-relaxed">Ideal for <strong>fast-moving organizations that need to launch, learn, and scale without delay.</strong></span>
+                    <span className="leading-relaxed"><strong>Elastic capacity</strong> – absorb call spikes in seconds without hiring or training.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-deep-green flex items-center justify-center flex-shrink-0">
+                      <Check className="h-4 w-4 text-white" />
+                    </div>
+                    <span className="leading-relaxed"><strong>Proven ROI</strong> – clients cut support costs by 30–60% while boosting customer satisfaction.</span>
                   </li>
                 </ul>
               </div>
               
               <Button size="lg" className="bg-brand-green hover:bg-brand-deep-green text-white w-full sm:w-auto">
-                View Detailed Pricing
+                Schedule Demo
               </Button>
             </div>
           </div>
