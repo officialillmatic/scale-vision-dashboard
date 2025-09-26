@@ -194,6 +194,93 @@ const Index = () => {
             </div>
           </div>
 
+          {/* Premium Video Section */}
+          <section className="relative py-16 lg:py-24 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 my-16">
+            {/* Animated background elements */}
+            <div className="absolute inset-0">
+              <div className="absolute top-1/4 left-1/3 w-64 h-64 bg-brand-green/10 rounded-full blur-2xl animate-pulse"></div>
+              <div className="absolute bottom-1/4 right-1/3 w-72 h-72 bg-brand-purple/10 rounded-full blur-2xl animate-pulse delay-700"></div>
+            </div>
+            
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
+              <div className="text-center mb-12 lg:mb-16">
+                <div className="inline-flex items-center px-4 py-2 bg-brand-green/10 border border-brand-green/20 rounded-full text-brand-green font-medium text-sm mb-6 animate-fade-in">
+                  <span className="w-2 h-2 bg-brand-green rounded-full mr-2 animate-pulse"></span>
+                  See It In Action
+                </div>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in">
+                  Experience the Future of 
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-green to-brand-purple"> AI Voice Operations</span>
+                </h2>
+                <p className="text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto animate-fade-in">
+                  Watch how Dr. Scale transforms customer interactions with intelligent, always-available AI agents
+                </p>
+              </div>
+              
+              {/* Video Container */}
+              <div className="relative max-w-5xl mx-auto">
+                {/* Glow effect behind video */}
+                <div className="absolute inset-0 bg-gradient-to-r from-brand-green/20 to-brand-purple/20 blur-xl scale-105 animate-pulse"></div>
+                
+                {/* Video wrapper with premium styling */}
+                <div className="relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm p-3 sm:p-4 lg:p-6 rounded-2xl lg:rounded-3xl border border-slate-700/50 shadow-2xl">
+                  <div className="relative rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl bg-black">
+                    <video
+                      className="w-full h-auto aspect-video object-cover"
+                      controls
+                      preload="metadata"
+                      poster="/placeholder.svg"
+                    >
+                      <source src="/videos/demo-video.mp4" type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                    
+                    {/* Play button overlay for better UX */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                      <div className="w-16 h-16 lg:w-20 lg:h-20 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center">
+                        <div className="w-8 h-8 lg:w-10 lg:h-10 text-white">
+                          <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Video stats */}
+                  <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mt-6 text-sm text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-brand-green rounded-full animate-pulse"></div>
+                      <span>Live Demo</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-brand-purple rounded-full animate-pulse"></div>
+                      <span>Real-time Processing</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+                      <span>24/7 Availability</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Bottom CTA */}
+              <div className="text-center mt-12 lg:mt-16 animate-fade-in">
+                <p className="text-slate-300 mb-6 text-lg">
+                  Ready to transform your customer service?
+                </p>
+                <Button 
+                  size="lg" 
+                  onClick={handleSignUpClick}
+                  className="bg-gradient-to-r from-brand-green to-brand-purple hover:from-brand-deep-green hover:to-brand-navy text-white shadow-2xl shadow-brand-green/25 px-8 py-4 text-lg font-semibold rounded-xl transition-all duration-300 hover:scale-105"
+                >
+                  Start Your Free Trial
+                </Button>
+              </div>
+            </div>
+          </section>
+
           {/* Pricing Plans CTA Section */}
           <div className="max-w-6xl mx-auto py-12 md:py-16">
             <div className="bg-gradient-to-br from-brand-green/5 via-brand-purple/5 to-brand-navy/5 rounded-3xl p-8 md:p-12 border border-brand-green/20 shadow-xl">
