@@ -310,7 +310,7 @@ const Index = () => {
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-2xl font-bold text-gray-900">$100<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-2xl font-bold text-gray-900">$150<span className="text-sm font-normal text-muted-foreground">/month</span></div>
                     <div className="text-xs text-muted-foreground">Starting from</div>
                   </div>
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
@@ -347,7 +347,7 @@ const Index = () => {
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-2xl font-bold text-gray-900">$150<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-2xl font-bold text-gray-900">$350<span className="text-sm font-normal text-muted-foreground">/month</span></div>
                     <div className="text-xs text-muted-foreground">Starting from</div>
                   </div>
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
@@ -378,7 +378,7 @@ const Index = () => {
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-2xl font-bold text-gray-900">$200<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-2xl font-bold text-gray-900">$650<span className="text-sm font-normal text-muted-foreground">/month</span></div>
                     <div className="text-xs text-muted-foreground">Starting from</div>
                   </div>
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
@@ -407,9 +407,6 @@ const Index = () => {
                   View All Plans & Features
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
-                <p className="text-sm text-muted-foreground mt-4">
-                  All plans include setup fees and comprehensive onboarding support
-                </p>
               </div>
             </div>
           </div>
