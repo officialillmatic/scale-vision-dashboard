@@ -295,6 +295,9 @@ const Index = () => {
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                   From essential features to enterprise-grade solutions with comprehensive support
                 </p>
+                <p className="text-base text-muted-foreground max-w-2xl mx-auto mt-3">
+                  ⚡ <em>Minutes are NOT included.</em> Call usage is billed separately starting at <strong>$0.34/min</strong>, with volume discounts down to <strong>$0.27/min</strong>.
+                </p>
               </div>
 
               <div className="grid md:grid-cols-3 gap-8 mb-8">
@@ -310,13 +313,13 @@ const Index = () => {
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-2xl font-bold text-gray-900">$150<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-2xl font-bold text-gray-900">$99<span className="text-sm font-normal text-muted-foreground">/month</span></div>
                     <div className="text-xs text-muted-foreground">Starting from</div>
                   </div>
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-500" />
-                      <span>Standard tech support</span>
+                      <span>Standard inbound/outbound AI support</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-500" />
@@ -347,7 +350,7 @@ const Index = () => {
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-2xl font-bold text-gray-900">$350<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-2xl font-bold text-gray-900">$279<span className="text-sm font-normal text-muted-foreground">/month</span></div>
                     <div className="text-xs text-muted-foreground">Starting from</div>
                   </div>
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
@@ -357,11 +360,15 @@ const Index = () => {
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-500" />
-                      <span>Priority support</span>
+                      <span>Priority email & chat</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-500" />
-                      <span>Advanced customization</span>
+                      <span>Advanced script customization & A/B testing</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Bi-weekly performance reviews</span>
                     </li>
                   </ul>
                 </div>
@@ -373,12 +380,12 @@ const Index = () => {
                       <Sparkles className="h-6 w-6 text-green-600" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold">Enterprise Custom</h3>
+                      <h3 className="text-lg font-semibold">Enterprise Elite</h3>
                       <p className="text-sm text-muted-foreground">Fully customized solution</p>
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-2xl font-bold text-gray-900">$650<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-2xl font-bold text-gray-900">$499<span className="text-sm font-normal text-muted-foreground">/month</span></div>
                     <div className="text-xs text-muted-foreground">Starting from</div>
                   </div>
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
@@ -392,7 +399,19 @@ const Index = () => {
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-500" />
-                      <span>24/7 priority support</span>
+                      <span>Unlimited script changes & on-demand customization</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>24/7 priority hotline</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>SLA guarantees</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Quarterly optimization session</span>
                     </li>
                   </ul>
                 </div>
@@ -407,6 +426,9 @@ const Index = () => {
                   View All Plans & Features
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
+                <p className="text-sm text-muted-foreground mt-4">
+                  <em>All plans require a one-time $500 USD setup fee. Call minutes are purchased separately.</em>
+                </p>
               </div>
             </div>
           </div>
