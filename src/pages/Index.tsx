@@ -651,7 +651,7 @@ const Index = () => {
                         </div>
                         <div className="flex-1">
                           <span className="text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed text-white font-medium">
-                            <span className="text-emerald-300 font-bold text-base sm:text-lg md:text-xl">From just $0.65 per connected minute</span>
+                            <span className="text-emerald-300 font-bold text-base sm:text-lg md:text-xl">From just $0.34 per connected minute</span>
                             <br />
                             <span className="text-white/80 text-sm sm:text-base">Pay only for productive talk time, never idle minutes.</span>
                           </span>
