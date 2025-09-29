@@ -296,7 +296,7 @@ const Index = () => {
                   From essential features to enterprise-grade solutions with comprehensive support
                 </p>
                 <p className="text-base text-muted-foreground max-w-2xl mx-auto mt-3">
-                  ⚡ <em>Minutes are NOT included.</em> Call usage is billed separately starting at <strong>$0.34/min</strong>, with volume discounts down to <strong>$0.27/min</strong>.
+                  ⚡ <em>Minutes are NOT included.</em>
                 </p>
               </div>
 
@@ -317,6 +317,10 @@ const Index = () => {
                     <div className="text-xs text-muted-foreground">Starting from</div>
                   </div>
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Minute Packages: 1,000 min at <strong>$0.34/min</strong> (starter), or 3,000 min at <strong>$0.32/min</strong></span>
+                    </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-500" />
                       <span>Standard inbound/outbound AI support</span>
@@ -356,6 +360,10 @@ const Index = () => {
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-500" />
+                      <span>Minute Packages: 3,000 min at <strong>$0.31/min</strong>, or 6,000 min at <strong>$0.29/min</strong></span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
                       <span>Everything in Essential</span>
                     </li>
                     <li className="flex items-center gap-2">
@@ -389,6 +397,10 @@ const Index = () => {
                     <div className="text-xs text-muted-foreground">Starting from</div>
                   </div>
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Minute Packages: 10,000+ min at <strong>$0.27/min</strong> (custom bundles available)</span>
+                    </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-500" />
                       <span>Everything in Professional</span>
@@ -427,7 +439,7 @@ const Index = () => {
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
                 <p className="text-sm text-muted-foreground mt-4">
-                  <em>All plans require a one-time $500 USD setup fee. Call minutes are purchased separately.</em>
+                  <em>All plans require a one-time $500 USD setup fee. Minutes billed separately based on selected package.</em>
                 </p>
               </div>
             </div>
