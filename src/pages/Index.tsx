@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { Check, Star, ArrowDown, Users, Shield, Clock, Headphones, Play, Pause, Volume2, Loader2, Crown, Zap, Sparkles, ArrowRight } from "lucide-react";
+import videoThumbnail from "@/assets/video-thumbnail-43days.jpg";
 const Index = () => {
   const navigate = useNavigate();
   const {
@@ -206,14 +207,15 @@ const Index = () => {
               <div className="text-center mb-12 lg:mb-16">
                 <div className="inline-flex items-center px-4 py-2 bg-brand-green/10 border border-brand-green/20 rounded-full text-brand-green font-medium text-sm mb-6 animate-fade-in">
                   <span className="w-2 h-2 bg-brand-green rounded-full mr-2 animate-pulse"></span>
-                  See It In Action
+                  Watch the 43-Day Problem
                 </div>
                 <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in">
                   Experience the Future of 
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-green to-brand-purple"> AI Voice Operations</span>
                 </h2>
                 <p className="text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto animate-fade-in">
-                  Watch how Dr. Scale transforms customer interactions with intelligent, always-available AI agents
+                  Your customers spend over 43 days of their life stuck on hold.<br />
+                  Dr. Scale AI ends the wait with intelligent, always-available voice agents.
                 </p>
               </div>
               
@@ -229,7 +231,7 @@ const Index = () => {
                       className="w-full h-auto aspect-video object-cover"
                       controls
                       preload="metadata"
-                      poster="/placeholder.svg"
+                      poster={videoThumbnail}
                     >
                       <source src="/videos/demo-video.mp4" type="video/mp4" />
                       Your browser does not support the video tag.
