@@ -66,7 +66,7 @@ const plans: Plan[] = [
   {
     id: 'essential',
     name: 'Essential Support',
-    price: 100,
+    price: 99,
     setupFee: 300,
     period: 'month',
     description: 'Perfect for small teams getting started with AI voice agents',
@@ -91,7 +91,7 @@ const plans: Plan[] = [
   {
     id: 'professional',
     name: 'Professional Support',
-    price: 150,
+    price: 279,
     setupFee: 500,
     period: 'month',
     description: 'Ideal for growing businesses that need advanced features and priority support',
@@ -116,7 +116,7 @@ const plans: Plan[] = [
   {
     id: 'enterprise',
     name: 'Enterprise Custom',
-    price: 200,
+    price: 499,
     setupFee: 700,
     period: 'month',
     description: 'Fully customized solution for large enterprises with specific requirements',
