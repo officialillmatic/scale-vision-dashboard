@@ -441,7 +441,7 @@ const Index = () => {
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
                 <p className="text-sm text-muted-foreground mt-4">
-                  <em>All plans require a one-time $500 USD setup fee. Minutes billed separately based on selected package.</em>
+                  <em>All plans require a one-time setup fee. Minutes billed separately based on selected package.</em>
                 </p>
               </div>
             </div>
