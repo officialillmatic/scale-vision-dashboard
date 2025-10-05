@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { safeSupabaseRequest } from "@/integrations/supabase/safe-request";
 import { 
   updateUserBalance, 
   UserBalance,
@@ -31,9 +32,11 @@ export function useUserBalance() {
       console.log('Fetching user balance for:', { userId, companyId });
       
       // First get the credit balance using the optimized secure function
-      const { data: creditData, error: creditError } = await supabase.rpc('get_user_credits', {
-        target_user_id: userId
-      });
+      const { data: creditData, error: creditError } = await safeSupabaseRequest(
+        supabase.rpc('get_user_credits', {
+          target_user_id: userId
+        })
+      );
 
       if (creditError) {
         console.error("Error fetching user credits:", creditError);
@@ -43,11 +46,12 @@ export function useUserBalance() {
       console.log('Credit data fetched:', creditData);
 
       // Then get recent transactions using the user_balances based function
-      const { data: detailedData, error: detailedError } = await supabase
-        .rpc('get_user_balance_detailed', {
+      const { data: detailedData, error: detailedError } = await safeSupabaseRequest(
+        supabase.rpc('get_user_balance_detailed', {
           p_user_id: userId,
           p_company_id: companyId
-        });
+        })
+      );
 
       if (detailedError) {
         console.warn("Error fetching detailed balance data:", detailedError);
@@ -71,6 +75,12 @@ export function useUserBalance() {
     enabled: !!userId && !!companyId,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  useEffect(() => {
+    if (balanceError instanceof Error) {
+      toast.error(balanceError.message);
+    }
+  }, [balanceError]);
 
   // Transform the data to match the original interface
   const balance: UserBalance | null = balanceData ? {
