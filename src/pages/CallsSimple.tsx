@@ -922,6 +922,7 @@ export default function CallsSimple() {
     } finally {
       setLoading(false);
       setLoadingProgress('');
+      setIsLoadingAudio(false);
     }
   };
 
