@@ -754,17 +754,16 @@ export default function CallsSimple() {
   
   const fetchCalls = async () => {
     console.log("🚀 FETCH CALLS - LOADING EXACT VALUES FROM START");
-    
-    if (!user?.id) {
-      setError("User not authenticated");
-      setLoading(false);
-      return;
-    }
 
     try {
       setLoading(true);
       setError(null);
       setLoadingProgress('Getting agent configuration...');
+
+      if (!user?.id) {
+        setError("User not authenticated");
+        return;
+      }
 
       // PASO 1: Obtener agentes asignados al usuario
       const { data: assignments, error: assignmentsError } = await supabase
@@ -783,7 +782,6 @@ export default function CallsSimple() {
         setCalls([]);
         setUserAssignedAgents([]);
         setStats({ total: 0, totalCost: 0, totalDuration: 0, avgDuration: 0, completedCalls: 0 });
-        setLoading(false);
         return;
       }
 
@@ -915,15 +913,15 @@ export default function CallsSimple() {
       console.log(`   🔗 With disconnection_reason: ${mappedCalls.filter(c => c.disconnection_reason).length} calls`);
 
       setCalls(mappedCalls);
-      setLoading(false);
-      setLoadingProgress('');
 
       console.log("🎉 LOAD COMPLETED - Exact values loaded from start");
 
     } catch (err: any) {
       console.error("❌ Exception in fetch calls:", err);
       setError(`Exception: ${err.message}`);
+    } finally {
       setLoading(false);
+      setLoadingProgress('');
     }
   };
 
