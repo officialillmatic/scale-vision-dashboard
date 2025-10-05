@@ -12,6 +12,7 @@ export const emergencySupabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
+      storageKey: 'emergency-supabase-auth-token',
     },
     global: {
       headers: {
@@ -20,8 +21,3 @@ export const emergencySupabase = createClient(
     },
   }
 )
-
-// Test inmediato
-emergencySupabase.auth.getUser().then(({ data, error }) => {
-  console.log('🚨 Emergency client test:', data?.user?.email, error)
-})
