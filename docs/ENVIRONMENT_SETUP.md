@@ -70,6 +70,22 @@ This guide provides comprehensive instructions for setting up environment variab
 - **Default**: `true`
 - **Requirements**: Requires Supabase email configuration
 
+## Super Admin Configuration
+
+#### `VITE_SUPER_ADMIN_EMAILS`
+* **Description**: A comma‑separated list of email addresses that should be granted **super‑admin** privileges in the dashboard. Super admins bypass normal company membership checks and have unrestricted access across all companies. You can list multiple emails separated by commas (without spaces).
+* **Where to set**: In your `.env` file under the front‑end environment variables. Only variables prefixed with `VITE_` will be available in client‑side code.
+* **Format**: `email1@example.com,email2@example.com`
+* **Example**: `VITE_SUPER_ADMIN_EMAILS=founder@yourcompany.com,cto@yourcompany.com`
+
+#### `VITE_SUPER_ADMIN_IDS`
+* **Description**: A comma‑separated list of Supabase user IDs (UUIDs) that should be granted **super‑admin** privileges. Use this when you know the user IDs but may not want to rely solely on email addresses. The IDs should match the values returned by Supabase’s `user.id` property.
+* **Where to set**: In your `.env` file. Only variables prefixed with `VITE_` will be exposed to the front‑end code.
+* **Format**: `uuid1,uuid2,uuid3`
+* **Example**: `VITE_SUPER_ADMIN_IDS=53392e76-008c-4e46-8443-a6ebd6bd4504,0a1b2c3d-4e5f-6789-abcd-ef0123456789`
+
+These variables are optional. If they are omitted or left empty, no super admins will be configured via environment variables, and you’ll need to rely on roles stored in Supabase’s `user_metadata` or `app_metadata`.
+
 ## Environment-Specific Setup
 
 ### Development Environment

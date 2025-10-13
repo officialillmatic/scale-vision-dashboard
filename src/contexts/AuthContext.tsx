@@ -2,6 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+// Centralized logger for debug messages. Only emits output when
+// VITE_DEBUG_MODE=true. See src/utils/logger.ts for details.
+import { log, warn, error } from '@/utils/logger';
+
 interface Company {
   id: string;
   name: string;
@@ -29,8 +33,22 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Super admin configuration
-const SUPER_ADMIN_ID = '53392e76-008c-4e46-8443-a6ebd6bd4504';
-const SUPER_ADMIN_EMAIL = 'aiagentsdevelopers@gmail.com';
+//
+// Rather than hard‑coding super‑admin identifiers directly in the client bundle,
+// we read them from environment variables. This allows you to configure
+// privileged users without changing code or leaking credentials. The variables
+// `VITE_SUPER_ADMIN_IDS` and `VITE_SUPER_ADMIN_EMAILS` should contain
+// comma‑separated lists of user IDs and emails respectively. See
+// docs/ENVIRONMENT_SETUP.md for details.
+const SUPER_ADMIN_IDS: string[] = (import.meta.env.VITE_SUPER_ADMIN_IDS || '')
+  .split(',')
+  .map((id: string) => id.trim())
+  .filter(Boolean);
+
+const SUPER_ADMIN_EMAILS: string[] = (import.meta.env.VITE_SUPER_ADMIN_EMAILS || '')
+  .split(',')
+  .map((email: string) => email.trim())
+  .filter(Boolean);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -43,7 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check if user is super admin
   const isSuperAdmin = (currentUser: User | null): boolean => {
     if (!currentUser) return false;
-    return currentUser.id === SUPER_ADMIN_ID || currentUser.email === SUPER_ADMIN_EMAIL;
+    const matchId = SUPER_ADMIN_IDS.includes(currentUser.id);
+    const matchEmail = SUPER_ADMIN_EMAILS.includes(currentUser.email ?? '');
+    return matchId || matchEmail;
   };
 
   // Create virtual company for super admin
@@ -61,18 +81,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('🔥 [AUTH] Initial session:', !!session);
+      log('🔥 [AUTH] Initial session:', !!session);
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
         if (isSuperAdmin(session.user)) {
-          console.log('🔥 [AUTH] Super admin detected - setting virtual company');
+          log('🔥 [AUTH] Super admin detected - setting virtual company');
           setUserRole('super_admin');
           setCompany(createSuperAdminCompany(session.user.id));
           setLoading(false); // Super admin ready immediately
         } else {
-          console.log('🔥 [AUTH] Regular user, fetching real company...');
+          log('🔥 [AUTH] Regular user, fetching real company...');
           fetchUserCompany(session.user.id);
         }
       } else {
@@ -84,18 +104,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('🔥 [AUTH] Auth state changed:', _event, !!session);
+      log('🔥 [AUTH] Auth state changed:', _event, !!session);
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
         if (isSuperAdmin(session.user)) {
-          console.log('🔥 [AUTH] Super admin login - setting virtual company');
+          log('🔥 [AUTH] Super admin login - setting virtual company');
           setUserRole('super_admin');
           setCompany(createSuperAdminCompany(session.user.id));
           setLoading(false); // Immediate access for super admin
         } else {
-          console.log('🔥 [AUTH] Regular user login, fetching company...');
+          log('🔥 [AUTH] Regular user login, fetching company...');
           fetchUserCompany(session.user.id);
         }
       } else {
@@ -111,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserCompany = async (userId: string) => {
     try {
       setIsCompanyLoading(true);
-      console.log('🔍 [AUTH] Fetching company for user:', userId);
+      log('🔍 [AUTH] Fetching company for user:', userId);
 
       // First try to find company where user is owner
       let { data: ownerCompany, error: ownerError } = await supabase
@@ -120,17 +140,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('owner_id', userId)
         .maybeSingle();
 
-      console.log('🔍 [AUTH] Owner company query result:', { ownerCompany, ownerError });
+      log('🔍 [AUTH] Owner company query result:', { ownerCompany, ownerError });
 
       if (ownerCompany) {
-        console.log('✅ [AUTH] User is company owner');
+        log('✅ [AUTH] User is company owner');
         setCompany(ownerCompany);
         setUserRole('admin');
         return;
       }
 
       // If not owner, check if they're a member
-      console.log('🔍 [AUTH] User is not owner, checking membership...');
+      log('🔍 [AUTH] User is not owner, checking membership...');
       const { data: membership, error: memberError } = await supabase
         .from('company_members')
         .select(`
@@ -149,26 +169,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('status', 'active')
         .maybeSingle();
 
-      console.log('🔍 [AUTH] Membership query result:', { membership, memberError });
+      log('🔍 [AUTH] Membership query result:', { membership, memberError });
 
       if (membership && membership.companies) {
         const memberCompany = Array.isArray(membership.companies) 
           ? membership.companies[0] 
           : membership.companies;
         
-        console.log('✅ [AUTH] User is company member, company:', memberCompany);
+        log('✅ [AUTH] User is company member, company:', memberCompany);
         setCompany(memberCompany as Company);
         setUserRole(membership.role || 'member');
         return;
       }
 
       // No crear empresa automáticamente - usuario puede unirse via invitaciones
-console.log('⚠️ [AUTH] No company found - user can join via invitations');
+      warn('⚠️ [AUTH] No company found - user can join via invitations');
 setCompany(null);
 setUserRole('member');
 
     } catch (error) {
-      console.error('❌ [AUTH] Error fetching user company:', error);
+      error('❌ [AUTH] Error fetching user company:', error);
       setCompany(null);
       setUserRole('member');
     } finally {
@@ -220,8 +240,10 @@ setUserRole('member');
     updateUserProfile,
   };
 
-  // Debug: Log del estado del AuthContext
-  console.log('🎯 [AUTH] AuthContext state:', {
+  // Debug: log the current AuthContext state. Useful for development,
+  // but will only emit output when VITE_DEBUG_MODE=true. Remove or
+  // minimise this for production bundles.
+  log('🎯 [AUTH] AuthContext state:', {
     user: user?.id,
     isSuperAdmin: isSuperAdmin(user),
     company: company?.id,
@@ -229,7 +251,7 @@ setUserRole('member');
     userRole,
     loading,
     isCompanyLoading,
-    isCompanyOwner
+    isCompanyOwner,
   });
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

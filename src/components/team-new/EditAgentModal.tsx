@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -7,24 +6,32 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Bot } from "lucide-react";
-// Import mutation to create a new agent in Supabase
-import { createAgent } from '@/services/agent/agentMutations';
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, Bot } from 'lucide-react';
+import { updateAgent } from '@/services/agent/agentMutations';
+import { Agent } from '@/services/agentService';
 
-interface CreateAgentModalProps {
+interface EditAgentModalProps {
   isOpen: boolean;
+  agent: Agent | null;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModalProps) {
+/**
+ * Modal for editing an existing custom AI agent. It pre‑populates the form
+ * fields with the provided agent’s current values and persists changes
+ * through the `updateAgent` service function. Errors are displayed inline.
+ */
+export function EditAgentModal({ isOpen, agent, onClose, onSuccess }: EditAgentModalProps) {
+  // Local form state mirrors the editable fields of the agent. When the
+  // modal opens or the agent prop changes, initialise the state.
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -32,10 +39,22 @@ export function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModa
     rate_per_minute: '0.02'
   });
   const [error, setError] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    if (agent) {
+      setFormData({
+        name: agent.name || '',
+        description: agent.description || '',
+        status: (agent.status as 'active' | 'inactive' | 'maintenance') || 'active',
+        rate_per_minute: String(agent.rate_per_minute ?? 0.02)
+      });
+    }
+  }, [agent]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!agent) return;
     setError(null);
 
     // Basic form validation
@@ -43,49 +62,39 @@ export function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModa
       setError('Agent name is required');
       return;
     }
-
     if (!formData.description.trim()) {
       setError('Agent description is required');
       return;
     }
+    const rate = parseFloat(formData.rate_per_minute);
+    if (isNaN(rate) || rate < 0) {
+      setError('Rate must be a positive number');
+      return;
+    }
 
-    setIsCreating(true);
+    setIsUpdating(true);
     try {
-      // Persist the new agent using the Supabase service
-      const newAgent = await createAgent({
+      const updated = await updateAgent(agent.id, {
         name: formData.name.trim(),
         description: formData.description.trim(),
         status: formData.status,
-        rate_per_minute: parseFloat(formData.rate_per_minute),
+        rate_per_minute: rate,
       });
-
-      if (!newAgent) {
-        throw new Error('Agent could not be created');
+      if (!updated) {
+        throw new Error('Agent could not be updated');
       }
-
-      // Reset form and notify parent on success
-      setFormData({
-        name: '',
-        description: '',
-        status: 'active',
-        rate_per_minute: '0.02',
-      });
+      // Reset and notify parent
+      setError(null);
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Failed to create agent');
+      setError(err.message || 'Failed to update agent');
     } finally {
-      setIsCreating(false);
+      setIsUpdating(false);
     }
   };
 
   const handleClose = () => {
-    if (!isCreating) {
-      setFormData({
-        name: '',
-        description: '',
-        status: 'active',
-        rate_per_minute: '0.02'
-      });
+    if (!isUpdating) {
       setError(null);
       onClose();
     }
@@ -98,13 +107,13 @@ export function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModa
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
-              Create Custom AI Agent
+              Edit AI Agent
             </DialogTitle>
             <DialogDescription>
-              Create a new custom AI agent with specific settings and configurations.
+              Modify the details of your custom AI agent below. All fields marked with * are required.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid gap-6 py-4">
             {error && (
               <Alert variant="destructive">
@@ -112,27 +121,26 @@ export function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModa
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Agent Name *</Label>
+                <Label htmlFor="edit-name">Agent Name *</Label>
                 <Input
-                  id="name"
+                  id="edit-name"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Sales Assistant Pro"
-                  disabled={isCreating}
+                  disabled={isUpdating}
                 />
               </div>
-              
+
               <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select 
-                  value={formData.status} 
-                  onValueChange={(value: 'active' | 'inactive' | 'maintenance') => 
+                <Label htmlFor="edit-status">Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value: 'active' | 'inactive' | 'maintenance') =>
                     setFormData(prev => ({ ...prev, status: value }))
                   }
-                  disabled={isCreating}
+                  disabled={isUpdating}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -145,39 +153,43 @@ export function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModa
                 </Select>
               </div>
             </div>
-            
+
             <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
+              <Label htmlFor="edit-description">Description *</Label>
               <Textarea
-                id="description"
+                id="edit-description"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Describe what this agent does and its capabilities..."
                 rows={3}
-                disabled={isCreating}
+                disabled={isUpdating}
               />
             </div>
-            
+
             <div className="space-y-2">
-              <Label htmlFor="rate">Rate per Minute (USD)</Label>
+              <Label htmlFor="edit-rate">Rate per Minute (USD)</Label>
               <Input
-                id="rate"
+                id="edit-rate"
                 type="number"
                 step="0.01"
                 min="0"
                 value={formData.rate_per_minute}
                 onChange={(e) => setFormData(prev => ({ ...prev, rate_per_minute: e.target.value }))}
-                disabled={isCreating}
+                disabled={isUpdating}
               />
             </div>
           </div>
-          
+
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isCreating}>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isUpdating}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isCreating || !formData.name.trim() || !formData.description.trim()}>
-              {isCreating ? 'Creating...' : 'Create Agent'}
+            <Button
+              type="submit"
+              disabled={
+                isUpdating || !formData.name.trim() || !formData.description.trim() || isNaN(parseFloat(formData.rate_per_minute))
+              }
+            >
+              {isUpdating ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </form>

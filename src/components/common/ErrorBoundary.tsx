@@ -1,5 +1,7 @@
 
 import React, { Component, ReactNode } from 'react';
+// Use centralised logger for error reporting
+import { error as logError } from '@/utils/logger';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
@@ -25,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    logError('ErrorBoundary caught an error:', error, errorInfo);
   }
 
   handleReset = () => {

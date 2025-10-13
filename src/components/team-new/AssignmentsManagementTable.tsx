@@ -7,6 +7,11 @@ import { Switch } from '@/components/ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { UserAgentAssignment } from '@/services/agent/userAgentAssignmentQueries';
+// Import service functions to update and remove assignments
+import {
+  updateUserAgentAssignmentPrimary,
+  removeUserAgentAssignment,
+} from '@/services/agent/userAgentAssignmentQueries';
 import { Users, MoreHorizontal, Trash2, Plus } from 'lucide-react';
 
 interface AssignmentsManagementTableProps {
@@ -18,21 +23,39 @@ interface AssignmentsManagementTableProps {
 export function AssignmentsManagementTable({ assignments, isLoading, onRefresh }: AssignmentsManagementTableProps) {
   const [removingId, setRemovingId] = useState<string | null>(null);
 
-  const handleTogglePrimary = async (assignment: UserAgentAssignment, isPrimary: boolean) => {
+  const handleTogglePrimary = async (
+    assignment: UserAgentAssignment,
+    isPrimary: boolean,
+  ) => {
+    /*
+     * Toggle the primary assignment status for a user/agent relationship.
+     * When setting an assignment as primary, the service will unset other
+     * primary assignments for the same user. After updating, refresh
+     * the assignments list so the UI reflects the change.
+     */
     try {
-      // TODO: Implement toggle primary functionality
-      console.log('Toggle primary for assignment:', assignment.id, isPrimary);
+      await updateUserAgentAssignmentPrimary(
+        assignment.id,
+        isPrimary,
+        assignment.user_id,
+      );
+      onRefresh();
     } catch (error) {
       console.error('Failed to toggle primary status:', error);
     }
   };
 
   const handleRemoveAssignment = async (assignment: UserAgentAssignment) => {
+    /*
+     * Remove an existing user/agent assignment after confirming with the user.
+     * Delegates the deletion to the service function and refreshes the
+     * assignment list on success. Displays errors in the console if
+     * the deletion fails.
+     */
     if (window.confirm('Are you sure you want to remove this assignment?')) {
       setRemovingId(assignment.id);
       try {
-        // TODO: Implement remove functionality
-        console.log('Remove assignment:', assignment.id);
+        await removeUserAgentAssignment(assignment.id);
         onRefresh();
       } catch (error) {
         console.error('Failed to remove assignment:', error);

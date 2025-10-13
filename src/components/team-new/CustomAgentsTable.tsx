@@ -7,6 +7,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Agent } from '@/services/agentService';
 import { formatCurrency } from '@/lib/utils';
+// Import agent mutation functions
+import { deleteAgent } from '@/services/agent/agentMutations';
+import { EditAgentModal } from './EditAgentModal';
+import { AssignAgentModal } from './AssignAgentModal';
 import { Bot, Edit, Trash2, MoreHorizontal, UserPlus } from 'lucide-react';
 
 interface CustomAgentsTableProps {
@@ -17,6 +21,10 @@ interface CustomAgentsTableProps {
 
 export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgentsTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [assigningAgent, setAssigningAgent] = useState<Agent | null>(null);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -32,16 +40,22 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
   };
 
   const handleEdit = (agent: Agent) => {
-    // TODO: Implement edit functionality
-    console.log('Edit agent:', agent);
+    // Open the edit modal and set the selected agent
+    setEditingAgent(agent);
+    setIsEditModalOpen(true);
   };
 
   const handleDelete = async (agent: Agent) => {
+    /*
+     * Delete a custom agent from the database. Prompts the user for
+     * confirmation before performing the deletion, then uses the
+     * `deleteAgent` service to remove the agent. On success it calls
+     * `onRefresh` so the parent component can reload the list.
+     */
     if (window.confirm(`Are you sure you want to delete "${agent.name}"?`)) {
       setDeletingId(agent.id);
       try {
-        // TODO: Implement delete functionality
-        console.log('Delete agent:', agent);
+        await deleteAgent(agent.id);
         onRefresh();
       } catch (error) {
         console.error('Failed to delete agent:', error);
@@ -52,8 +66,9 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
   };
 
   const handleAssign = (agent: Agent) => {
-    // TODO: Implement assignment functionality
-    console.log('Assign agent:', agent);
+    // Open the assign modal and set the selected agent
+    setAssigningAgent(agent);
+    setIsAssignModalOpen(true);
   };
 
   if (isLoading) {
@@ -160,6 +175,37 @@ export function CustomAgentsTable({ agents, isLoading, onRefresh }: CustomAgents
           ))}
         </TableBody>
       </Table>
+      {/* Modals for editing and assigning agents */}
+      {editingAgent && (
+        <EditAgentModal
+          isOpen={isEditModalOpen}
+          agent={editingAgent}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingAgent(null);
+          }}
+          onSuccess={() => {
+            setIsEditModalOpen(false);
+            setEditingAgent(null);
+            onRefresh();
+          }}
+        />
+      )}
+      {assigningAgent && (
+        <AssignAgentModal
+          isOpen={isAssignModalOpen}
+          agent={assigningAgent}
+          onClose={() => {
+            setIsAssignModalOpen(false);
+            setAssigningAgent(null);
+          }}
+          onSuccess={() => {
+            setIsAssignModalOpen(false);
+            setAssigningAgent(null);
+            onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 }
