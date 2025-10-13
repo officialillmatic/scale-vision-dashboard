@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+// Centralised logger and constants
+import { log, error as logError } from '@/utils/logger';
+import { RPC, TABLES } from '@/constants';
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +37,7 @@ import { BalanceAlerts } from '@/components/notifications/BalanceAlerts';
 import { useNotifications } from '@/hooks/useNotifications';
 
 // ============================================================================
-// FUNCIÓN UNIVERSAL DE DESCUENTO DE BALANCE
+// UNIVERSAL BALANCE DEDUCTION
 // ============================================================================
 const universalBalanceDeduction = async (
   userId: string,
@@ -43,63 +46,59 @@ const universalBalanceDeduction = async (
   description?: string
 ): Promise<{ success: boolean; oldBalance?: number; newBalance?: number; error?: string; }> => {
   try {
-    console.log(`💳 [UNIVERSAL] Descuento: Usuario ${userId}, Monto $${amount}`);
-    
-    const { data, error } = await supabase.rpc('universal_balance_deduction', {
+    log(`💳 [UNIVERSAL] Deducting: user ${userId}, amount $${amount}`);
+
+    const { data, error } = await supabase.rpc(RPC.UNIVERSAL_BALANCE_DEDUCTION, {
       p_user_id: userId,
       p_amount: amount,
       p_call_id: callId || null,
-      p_description: description || `Balance deduction ${callId ? `for call ${callId}` : ''}`
+      p_description: description || `Balance deduction ${callId ? `for call ${callId}` : ''}`,
     });
 
     if (error) {
-      console.error('❌ [UNIVERSAL] Error en RPC:', error);
+      logError('❌ [UNIVERSAL] RPC error:', error);
       return { success: false, error: error.message };
     }
 
     if (!data.success) {
-      console.error('❌ [UNIVERSAL] Error en función:', data.error);
+      logError('❌ [UNIVERSAL] Function error:', data.error);
       return { success: false, error: data.error };
     }
 
-    console.log(`✅ [UNIVERSAL] Descuento exitoso: $${data.old_balance} → $${data.new_balance}`);
+    log(`✅ [UNIVERSAL] Deduction success: $${data.old_balance} → $${data.new_balance}`);
     return {
       success: true,
       oldBalance: data.old_balance,
-      newBalance: data.new_balance
+      newBalance: data.new_balance,
     };
-
-  } catch (error: any) {
-    console.error('💥 [UNIVERSAL] Excepción:', error);
-    return { success: false, error: error.message };
+  } catch (err: any) {
+    logError('💥 [UNIVERSAL] Exception:', err);
+    return { success: false, error: err.message };
   }
 };
 
 // ============================================================================
-// FUNCIÓN PARA REFRESCAR BALANCE DE CRÉDITOS
+// REFRESH CREDIT BALANCE
 // ============================================================================
 const refreshCreditBalance = async (userId: string) => {
   try {
-    console.log('🔄 Refrescando balance de créditos en dashboard...');
-    
+    log('🔄 Refreshing credit balance in dashboard...');
+
     const { data: creditData, error } = await supabase
-      .from('user_credits')
+      .from(TABLES.USER_CREDITS)
       .select('current_balance')
       .eq('user_id', userId)
       .single();
 
     if (error) {
-      console.error('❌ Error obteniendo balance actualizado:', error);
+      logError('❌ Error fetching updated balance:', error);
       return;
     }
 
-    console.log(`✅ Balance verificado: $${creditData.current_balance}`);
-    
-    // El componente CreditBalance se actualizará automáticamente
-    // ya que probablemente use su propio hook para obtener los datos
-    
-  } catch (error) {
-    console.error('💥 Excepción refrescando balance:', error);
+    log(`✅ Balance verified: $${creditData.current_balance}`);
+    // The CreditBalance component will automatically refresh via its own hook.
+  } catch (err) {
+    logError('💥 Exception refreshing balance:', err);
   }
 };
 
@@ -161,7 +160,7 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 // ============================================================================
 const processUnprocessedCalls = async (userId: string) => {
   try {
-    console.log('🔄 DASHBOARD: Procesando llamadas pendientes...');
+    log('🔄 DASHBOARD: Processing pending calls...');
     
     if (!userId) {
       alert('❌ Usuario no identificado');
@@ -170,7 +169,7 @@ const processUnprocessedCalls = async (userId: string) => {
 
     // Obtener agentes del usuario con sus tarifas
     const { data: userAgents, error: agentsError } = await supabase
-      .from('user_agent_assignments')
+      .from(TABLES.USER_AGENT_ASSIGNMENTS)
       .select(`
         agent_id,
         agents!inner (
@@ -184,16 +183,16 @@ const processUnprocessedCalls = async (userId: string) => {
       .eq('is_primary', true);
 
     if (agentsError || !userAgents || userAgents.length === 0) {
-      console.error('❌ Error obteniendo agentes del usuario:', agentsError);
+      logError('❌ Error fetching user agents:', agentsError);
       return { success: false, message: 'No se encontraron agentes asignados' };
     }
 
     const userAgentIds = userAgents.map(assignment => assignment.agents.id);
-    console.log('👤 Agentes del usuario:', userAgentIds);
+    log('👤 User agents:', userAgentIds);
 
     // Buscar llamadas completadas sin costo asignado
     const { data: unprocessedCalls, error: callsError } = await supabase
-      .from('calls')
+      .from(TABLES.CALLS)
       .select(`
         id,
         call_id,
@@ -209,16 +208,16 @@ const processUnprocessedCalls = async (userId: string) => {
       .limit(10); // Procesar máximo 10 llamadas por vez
 
     if (callsError) {
-      console.error('❌ Error obteniendo llamadas:', callsError);
+      logError('❌ Error fetching calls:', callsError);
       return { success: false, message: 'Error obteniendo llamadas' };
     }
 
     if (!unprocessedCalls || unprocessedCalls.length === 0) {
-      console.log('✅ No hay llamadas pendientes de procesar');
+      log('✅ No pending calls to process');
       return { success: true, message: 'No hay llamadas pendientes', processed: 0 };
     }
 
-    console.log(`🎯 Encontradas ${unprocessedCalls.length} llamadas para procesar`);
+    log(`🎯 Found ${unprocessedCalls.length} calls to process`);
 
     let processedCount = 0;
     let errors = 0;

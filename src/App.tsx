@@ -28,12 +28,21 @@ import SuperAdminTeamNew from '@/pages/SuperAdminTeamNew';
 import SuperAdminCreditsNew from '@/pages/SuperAdminCreditsNew';
 import PricingPage from '@/pages/PricingPage'; // ✅ YA ESTABA
 import PaymentAdminConfigPage from '@/pages/PaymentAdminConfigPage'; // ✅ ACTUALIZADO: Stripe → Payment
+// Wrap routes in an error boundary to gracefully handle unexpected exceptions
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
   return (
     <div className="min-h-screen bg-background">
+      {/*
+        Wrap the entire routes tree in an ErrorBoundary. If any child component
+        throws during render, lifecycle methods, or constructors, the boundary
+        will catch the error and display a friendly fallback UI instead of
+        crashing the whole app.
+      */}
+      <ErrorBoundary>
       <Routes>
         {/* Public landing page - shows for everyone */}
         <Route path="/" element={<Index />} />
@@ -161,6 +170,7 @@ function AppRoutes() {
           } 
         />
       </Routes>
+      </ErrorBoundary>
     </div>
   );
 }
