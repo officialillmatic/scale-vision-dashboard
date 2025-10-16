@@ -435,13 +435,6 @@ const PricingPage: React.FC = () => {
     }
   };
 
-  const handleContactSales = () => {
-    const phoneNumber = "+573107771810";
-    const message = "Hello! I'm interested in the Enterprise Custom Plan for Dr. Scale AI platform. Could you please provide more information about pricing and custom features?";
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-  };
-
   const handleContactForAutomation = () => {
     const email = "sales@drscaleai.com";
     const subject = "Custom Automation Add-On Inquiry";
@@ -678,8 +671,8 @@ const PricingPage: React.FC = () => {
 
                   {/* Action Button */}
                   <Button
-                    onClick={() => plan.id === 'enterprise' ? handleContactSales() : handleSubscribe(plan)}
-                    disabled={processingPlan === plan.id || (!activePaymentConfig && plan.id !== 'enterprise')}
+                    onClick={() => handleSubscribe(plan)}
+                    disabled={processingPlan === plan.id || !activePaymentConfig}
                     variant={plan.buttonVariant}
                     className={`
                       w-full py-3 font-semibold text-lg transition-all duration-300
@@ -699,13 +692,6 @@ const PricingPage: React.FC = () => {
                       plan.buttonText
                     )}
                   </Button>
-
-                  {/* Additional info for custom plan */}
-                  {plan.id === 'enterprise' && (
-                    <p className="text-xs text-gray-500 text-center mt-3">
-                      Get a personalized quote based on your specific needs
-                    </p>
-                  )}
                 </CardContent>
               </Card>
             ))}
