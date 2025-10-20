@@ -7,6 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RefreshCw, CheckCircle, XCircle, AlertTriangle, Globe, Settings } from "lucide-react";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY;
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY');
+}
+
 interface WebhookDiagnostic {
   name: string;
   status: 'success' | 'error' | 'warning' | 'info';
@@ -69,11 +75,11 @@ export const WebhookDiagnostics = () => {
           }
         };
 
-        const response = await fetch(`https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/retell-webhook`, {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/retell-webhook`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
           },
           body: JSON.stringify(testPayload)
         });
@@ -304,8 +310,8 @@ export const WebhookDiagnostics = () => {
         <div className="mt-6 p-4 bg-yellow-50 rounded-lg">
           <h3 className="font-medium text-yellow-900 mb-2">🔍 Debug Info</h3>
           <div className="text-sm text-yellow-800 space-y-1">
-            <p><strong>Expected webhook URL:</strong> https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/retell-webhook</p>
-            <p><strong>Project ID:</strong> jqkkhwoybcenxqpvodev</p>
+            <p><strong>Expected webhook URL:</strong> {`${SUPABASE_URL}/functions/v1/retell-webhook`}</p>
+            <p><strong>Project ID:</strong> {SUPABASE_URL.replace('https://', '').split('.')[0]}</p>
             <p><strong>Retell needs to send webhooks to this URL for calls to appear</strong></p>
           </div>
         </div>

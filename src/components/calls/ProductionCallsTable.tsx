@@ -10,6 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY;
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY');
+}
+
 export const ProductionCallsTable = () => {
   console.log("🚨 COMPONENTE INICIADO - ProductionCallsTable");
   
@@ -75,10 +81,10 @@ export const ProductionCallsTable = () => {
       // Test 1: Verificar edge function básico
       console.log("🔧 Test 1: Verificando edge function...");
       try {
-        const response = await fetch('https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/retell-webhook', {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/retell-webhook`, {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8'}`
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
           }
         });
         console.log("🔧 Edge function response:", response.status, response.statusText);
@@ -162,11 +168,11 @@ export const ProductionCallsTable = () => {
           }
         };
         
-        const response = await fetch('https://jqkkhwoybcenxqpvodev.supabase.co/functions/v1/retell-webhook', {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/retell-webhook`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxa2tod295YmNlbnhxcHZvZGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2MDk4MzksImV4cCI6MjA2MzE4NTgzOX0._CudusgLYlJEv_AkJNGpjavmZNTqxXy4lvAv4laAGd8'}`
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
           },
           body: JSON.stringify(testPayload)
         });
