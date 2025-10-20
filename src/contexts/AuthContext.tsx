@@ -29,7 +29,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Super admin configuration
-const SUPER_ADMIN_ID = '53392e76-008c-4e46-8443-a6ebd6bd4504';
 const SUPER_ADMIN_EMAIL = 'aiagentsdevelopers@gmail.com';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -39,11 +38,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCompanyLoading, setIsCompanyLoading] = useState(false);
+  const [superAdmin, setSuperAdmin] = useState(false);
 
   // Check if user is super admin
   const isSuperAdmin = (currentUser: User | null): boolean => {
     if (!currentUser) return false;
-    return currentUser.id === SUPER_ADMIN_ID || currentUser.email === SUPER_ADMIN_EMAIL;
+    return superAdmin || currentUser.email === SUPER_ADMIN_EMAIL;
+  };
+
+  const checkSuperAdmin = async (userId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('is_super_admin', { user_uuid: userId });
+      if (error) {
+        console.error('[AUTH] Failed to verify super admin status:', error);
+        setSuperAdmin(false);
+      } else {
+        setSuperAdmin(!!data);
+      }
+    } catch (err) {
+      console.error('[AUTH] Error checking super admin:', err);
+      setSuperAdmin(false);
+    }
   };
 
   // Create virtual company for super admin
@@ -60,12 +75,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       console.log('🔥 [AUTH] Initial session:', !!session);
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
+        await checkSuperAdmin(session.user.id);
         if (isSuperAdmin(session.user)) {
           console.log('🔥 [AUTH] Super admin detected - setting virtual company');
           setUserRole('super_admin');
@@ -83,12 +99,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log('🔥 [AUTH] Auth state changed:', _event, !!session);
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
+        await checkSuperAdmin(session.user.id);
         if (isSuperAdmin(session.user)) {
           console.log('🔥 [AUTH] Super admin login - setting virtual company');
           setUserRole('super_admin');
