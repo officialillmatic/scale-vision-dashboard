@@ -1,5 +1,5 @@
 
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { EnhancedCallData } from "@/lib/types/call-enhanced";
 
 export async function fetchEnhancedCalls(companyId?: string | null): Promise<EnhancedCallData[]> {
