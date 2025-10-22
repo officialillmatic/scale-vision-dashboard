@@ -1,19 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
-import { 
-  fetchAgents, 
-  fetchUserAgents, 
-  Agent, 
-  UserAgent, 
-  createAgent, 
-  updateAgent, 
+import {
+  fetchAgents,
+  fetchUserAgents,
+  Agent,
+  UserAgent,
+  createAgent,
+  updateAgent,
   deleteAgent,
   assignAgentToUser,
   removeAgentFromUser
 } from "@/services/agentService";
+import { toast } from "sonner";
 
 export function useAgents() {
   const { company, user } = useAuth();
@@ -46,6 +47,7 @@ export function useAgents() {
   console.log('🔍 [useAgents] isSuperAdmin:', isSuperAdmin);
   console.log('🔍 [useAgents] Query enabled:', !!company?.id || isSuperAdmin);
 
+
   const {
     data: userAgents,
     isLoading: isLoadingUserAgents,
@@ -68,6 +70,18 @@ export function useAgents() {
   console.log('🔍 [useAgents] userAgentsError:', userAgentsError);
   console.log('🔍 [useAgents] company object:', company);
   console.log('🔍 [useAgents] isLoadingUserAgents:', isLoadingUserAgents);
+
+  useEffect(() => {
+    if (agentsError instanceof Error) {
+      toast.error(agentsError.message);
+    }
+  }, [agentsError]);
+
+  useEffect(() => {
+    if (userAgentsError instanceof Error) {
+      toast.error(userAgentsError.message);
+    }
+  }, [userAgentsError]);
   
   // Filter agents based on user role - super admins see all
   const agents = allAgents ? (isSuperAdmin || isAdmin 
