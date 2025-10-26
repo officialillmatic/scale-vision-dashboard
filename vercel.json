@@ -17,7 +17,7 @@
       "source": "/(.*)",
       "headers": [
         { "key": "Content-Security-Policy", 
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' vercel.live *.vercel-insights.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' fonts.gstatic.com; connect-src 'self' https: wss:; media-src 'self' https: blob:; frame-ancestors 'none'" }
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' vercel.live *.vercel-insights.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' fonts.gstatic.com; connect-src 'self' https: wss: *.supabase.co *.supabase.in *.retellai.com; media-src 'self' https: blob:" }
       ]
     }
   ]
