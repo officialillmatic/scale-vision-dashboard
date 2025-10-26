@@ -27,6 +27,18 @@ This guide provides comprehensive instructions for setting up environment variab
 - **Where to find**: Supabase Dashboard > Settings > API > Project API keys > anon public
 - **Security**: Safe to expose in frontend code
 
+#### `VITE_EMERGENCY_SUPABASE_URL`
+- **Description**: Optional Supabase project URL dedicated to emergency dashboards
+- **Format**: `https://[project-ref].supabase.co`
+- **Where to find**: Supabase Dashboard > Settings > API > Project URL
+- **Fallback**: Defaults to `VITE_SUPABASE_URL` when not provided
+
+#### `VITE_EMERGENCY_SUPABASE_ANON_KEY`
+- **Description**: Anonymous key for the emergency Supabase project
+- **Format**: JWT token starting with `eyJ`
+- **Where to find**: Supabase Dashboard > Settings > API > Project API keys > anon public
+- **Fallback**: Defaults to `VITE_SUPABASE_ANON_KEY` when not provided
+
 ### Application Configuration
 
 #### `VITE_API_BASE_URL`
@@ -78,6 +90,9 @@ This guide provides comprehensive instructions for setting up environment variab
 # .env (development)
 VITE_SUPABASE_URL=https://your-dev-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-dev-anon-key
+# Optional: point emergency dashboards to a separate Supabase project
+# VITE_EMERGENCY_SUPABASE_URL=https://your-emergency-dev-project.supabase.co
+# VITE_EMERGENCY_SUPABASE_ANON_KEY=your-emergency-dev-anon-key
 VITE_API_BASE_URL=http://localhost:8080
 VITE_STORAGE_COMPANY_LOGOS_BUCKET=company-logos-dev
 VITE_STORAGE_RECORDINGS_BUCKET=recordings-dev
@@ -92,6 +107,9 @@ VITE_EMAIL_ENABLED=false
 # .env (production)
 VITE_SUPABASE_URL=https://your-prod-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-prod-anon-key
+# Optional: configure dedicated emergency Supabase credentials
+# VITE_EMERGENCY_SUPABASE_URL=https://your-emergency-prod-project.supabase.co
+# VITE_EMERGENCY_SUPABASE_ANON_KEY=your-emergency-prod-anon-key
 VITE_API_BASE_URL=https://your-app.vercel.app
 VITE_STORAGE_COMPANY_LOGOS_BUCKET=company-logos
 VITE_STORAGE_RECORDINGS_BUCKET=recordings
