@@ -1,41 +1,37 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const SUPABASE_URL = process.env.SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-/**
- * GET or POST:
- *  - GET: /api/team/check?token=...
- *  - POST: { token }
- */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const token = req.method === 'GET'
-      ? (req.query.token as string)
-      : (req.body?.token as string);
+    if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
 
+    const token = String(req.query.token || '');
     if (!token) return res.status(400).json({ valid: false, error: 'missing token' });
 
-    // 1) Invite exists and not expired
+    const nowIso = new Date().toISOString();
     const { data: invite, error } = await supabase
       .from('team_invites')
-      .select('*')
+      .select('team_id, email, role, status, expires_at')
       .eq('token', token)
-      .eq('status', 'pending')
-      .gt('expires_at', new Date().toISOString())
       .single();
 
     if (error || !invite) {
-      return res.status(200).json({ valid: false, error: 'invalid_or_expired' });
+      return res.status(200).json({ valid: false, error: 'Invitation not found' });
+    }
+    if (invite.status !== 'pending') {
+      return res.status(200).json({ valid: false, error: 'This invitation is not pending' });
+    }
+    if (invite.expires_at <= nowIso) {
+      return res.status(200).json({ valid: false, error: 'This invitation has expired' });
     }
 
-    // 2) Join to get team name
     const { data: team } = await supabase
       .from('teams')
-      .select('name')
+      .select('id, name')
       .eq('id', invite.team_id)
       .single();
 
@@ -45,11 +41,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email: invite.email,
         role: invite.role,
         team_id: invite.team_id,
-        team_name: team?.name ?? 'Equipo',
-        token: invite.token,
-      }
+        team_name: team?.name || '—',
+        token,
+        expires_at: invite.expires_at,
+      },
     });
   } catch (e: any) {
-    return res.status(500).json({ valid: false, error: e.message || 'internal' });
+    return res.status(500).json({ valid: false, error: e?.message || 'internal' });
   }
 }
