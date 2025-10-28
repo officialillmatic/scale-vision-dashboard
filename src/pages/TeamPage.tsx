@@ -295,6 +295,80 @@ const [filteredRegisteredUsers, setFilteredRegisteredUsers] = useState<TeamMembe
     }
   };
 
+  // ✅ New unified invitation sender (safe to add alongside existing handlers)
+const handleSendInvitation = useCallback(
+  async (memberData: { email: string; role: string }) => {
+    try {
+      // 1️⃣ Only allow admins/owners to send invites
+      const canManageTeam = myRole === "owner" || myRole === "admin";
+      if (!canManageTeam) {
+        toast.error("❌ Solo dueños o administradores pueden invitar.");
+        return;
+      }
+
+      // 2️⃣ Ensure user is logged in
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Debes iniciar sesión.");
+        return;
+      }
+
+      // 3️⃣ Get or confirm current team
+      let currentTeamId: string | null = null;
+      const { data: membership } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (membership?.team_id) {
+        currentTeamId = membership.team_id;
+      }
+
+      if (!currentTeamId) {
+        toast.error("⚠️ No hay equipo activo. Crea uno primero.");
+        return;
+      }
+
+      // 4️⃣ Call your new API endpoint (serverless)
+      toast.loading("Creando invitación...", { id: "invite" });
+
+      const r = await fetch("/api/team/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId: currentTeamId,
+          email: memberData.email,
+          role: memberData.role,
+        }),
+      });
+
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "No se pudo crear invitación");
+
+      toast.success("✅ Invitación creada", { id: "invite" });
+
+      if (j.warn) {
+        toast.info("🔗 Copia este enlace de invitación", {
+          description: j.link,
+          duration: 15000,
+        });
+      } else {
+        toast.success("📧 Email enviado correctamente");
+      }
+
+      // (optional) refresh local list of invites
+      if (typeof fetchInvitations === "function") {
+        await fetchInvitations();
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Error al invitar: ${e.message}`, { id: "invite" });
+    }
+  },
+  [myRole]
+);
   // Función para reenviar invitación
   const handleResendInvitation = async (invitation: UserInvitation) => {
     try {
