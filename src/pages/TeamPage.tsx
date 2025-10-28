@@ -56,11 +56,16 @@ interface UserInvitation {
   id: string;
   email: string;
   role: Role | string;
+  // legacy fields
   company_id?: string;
-  invitation_token: string;
+  invitation_token?: string;
+  // new system fields
+  team_id?: string;
+  token?: string;
+  // common
   expires_at: string;
   created_at: string;
-  status?: 'pending' | 'accepted' | 'expired' | 'revoked';
+  status?: 'pending' | 'accepted' | 'expired' | 'revoked' | null;
 }
 
 interface UserAgentAssignment {
