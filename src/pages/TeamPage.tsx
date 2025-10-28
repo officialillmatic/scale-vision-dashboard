@@ -1,5 +1,5 @@
 // src/pages/TeamPage.tsx
-// ✅ Full page with serverless invite flow, Add Member modal hookup, and clean UI scaffolding.
+// ✅ Full page with serverless invite flow, merged invite sources, and Add Member modal hookup.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
@@ -22,9 +22,6 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-// If you have an auth hook, import it; otherwise we’ll use supabaseAuth
-// import { useAuth } from '@/hooks/useAuth';
 
 type Role = 'owner' | 'admin' | 'member' | 'viewer';
 
@@ -52,6 +49,11 @@ interface Agent {
   created_at?: string;
 }
 
+/**
+ * Invitation shape that supports BOTH schemas:
+ * - Legacy: team_invitations  (invitation_token, company_id, status)
+ * - New:    team_invites      (token, team_id, status?)
+ */
 interface UserInvitation {
   id: string;
   email: string;
@@ -59,7 +61,7 @@ interface UserInvitation {
   // legacy fields
   company_id?: string;
   invitation_token?: string;
-  // new system fields
+  // new fields
   team_id?: string;
   token?: string;
   // common
@@ -88,8 +90,6 @@ function since(iso?: string) {
 }
 
 export default function TeamPage() {
-  // If you have useAuth, use that instead:
-  // const { user } = useAuth();
   const [user, setUser] = useState<any>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -113,9 +113,8 @@ export default function TeamPage() {
   const [addAgentModal, setAddAgentModal] = useState<boolean>(false);
   const [addCompanyModal, setAddCompanyModal] = useState<boolean>(false);
 
-  // Role gate
+  // Role gate (keep your super-admin logic, but derive a role we can check)
   const isSuperAdmin = !!(user?.email && SUPER_ADMIN_EMAILS.includes(user.email));
-  // --- NEW: simple myRole derivation; if you already compute it, reuse that instead
   const myRole: Role = isSuperAdmin ? 'owner' : 'admin';
 
   // Load current user
@@ -126,9 +125,9 @@ export default function TeamPage() {
     })();
   }, []);
 
-  // Fetchers (adjust to your actual tables/views)
+  // === Fetchers ===
+
   const fetchMembers = useCallback(async () => {
-    // You can replace this with your view or join
     const { data, error } = await supabase.from('team_members_view').select('*');
     if (error) {
       console.error(error);
@@ -137,6 +136,7 @@ export default function TeamPage() {
     setTeamMembers((data ?? []) as unknown as TeamMember[]);
   }, []);
 
+  // Legacy invites
   const fetchInvitations = useCallback(async () => {
     const { data, error } = await supabase
       .from('team_invitations')
@@ -147,6 +147,36 @@ export default function TeamPage() {
       return;
     }
     setInvitations((data ?? []) as unknown as UserInvitation[]);
+  }, []);
+
+  // NEW: Invites from team_invites (map to UI shape + merge with legacy)
+  const fetchNewInvites = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('team_invites')
+      .select('id,email,role,status,created_at,expires_at,token,team_id')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const mapped: UserInvitation[] = (data ?? []).map((i: any) => ({
+      id: i.id,
+      email: i.email,
+      role: i.role,
+      team_id: i.team_id,
+      token: i.token,
+      status: (i.status as any) ?? 'pending',
+      expires_at: i.expires_at ?? new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+      created_at: i.created_at,
+    }));
+
+    setInvitations((prev) => {
+      const existingNewIds = new Set(prev.filter(p => !!p.token).map(p => p.id));
+      const toAdd = mapped.filter(m => !existingNewIds.has(m.id));
+      return [...prev, ...toAdd];
+    });
   }, []);
 
   const fetchCompanies = useCallback(async () => {
@@ -181,26 +211,28 @@ export default function TeamPage() {
       setLoading(true);
       await Promise.all([
         fetchMembers(),
-        fetchInvitations(),
+        fetchInvitations(), // legacy
+        fetchNewInvites(),  // new
         fetchCompanies(),
         fetchAgents(),
         fetchAssignments(),
       ]);
       setLoading(false);
     })();
-  }, [fetchMembers, fetchInvitations, fetchCompanies, fetchAgents, fetchAssignments]);
+  }, [fetchMembers, fetchInvitations, fetchNewInvites, fetchCompanies, fetchAgents, fetchAssignments]);
 
-  // Invitation status resolver
+  // Invitation status resolver (normalize null → 'pending')
   const getInvitationRealStatus = (inv: UserInvitation) => {
     const now = new Date();
     const exp = new Date(inv.expires_at);
-    if (inv.status === 'revoked') return 'revoked';
+    const s = inv.status ?? 'pending';
+    if (s === 'revoked') return 'revoked';
     if (now > exp) return 'expired';
-    if (inv.status === 'accepted') return 'accepted';
+    if (s === 'accepted') return 'accepted';
     return 'pending';
   };
 
-  // ✅ NEW: serverless invitation sender
+  // ✅ Serverless invitation sender
   const handleSendInvitation = useCallback(
     async (memberData: { email: string; role: 'admin' | 'member' | 'viewer' }) => {
       try {
@@ -217,7 +249,7 @@ export default function TeamPage() {
           return;
         }
 
-        // Resolve teamId via membership; swap with your own teamId state if you already have it
+        // Resolve teamId via membership (use your own teamId state if you already have it)
         let currentTeamId: string | null = null;
         const { data: membership } = await supabase
           .from('team_members')
@@ -259,24 +291,24 @@ export default function TeamPage() {
           toast.success('📧 Email enviado correctamente');
         }
 
-        if (typeof fetchInvitations === 'function') {
-          await fetchInvitations();
-        }
+        // Refresh both sources so the row appears immediately
+        await fetchInvitations();
+        await fetchNewInvites();
       } catch (e: any) {
         console.error(e);
         toast.error(`Error al invitar: ${e.message}`, { id: 'invite' });
       }
     },
-    [myRole, fetchInvitations]
+    [myRole, fetchInvitations, fetchNewInvites]
   );
 
-  // Existing: resend invitation (kept; uses your DB table directly)
+  // Existing: resend invitation (legacy only — kept as-is)
   const handleResendInvitation = useCallback(
     async (inv: UserInvitation) => {
       try {
         toast.loading('Reenviando invitación...', { id: 'resending-invitation' });
 
-        // delete previous
+        // delete previous (legacy)
         const { error: delErr } = await supabase.from('team_invitations').delete().eq('id', inv.id);
         if (delErr) {
           toast.error('Error al eliminar invitación anterior', {
@@ -286,8 +318,11 @@ export default function TeamPage() {
           return;
         }
 
-        // create new
-        const token = crypto.randomUUID();
+        // create new (legacy)
+        const token = (globalThis.crypto && 'randomUUID' in globalThis.crypto)
+          ? globalThis.crypto.randomUUID()
+          : Math.random().toString(36).slice(2);
+
         const expires = new Date();
         expires.setDate(expires.getDate() + 7);
 
@@ -320,7 +355,7 @@ export default function TeamPage() {
     [fetchInvitations]
   );
 
-  // Existing: delete invitation
+  // Existing: delete invitation (legacy)
   const handleDeleteInvitation = useCallback(
     async (invitationId: string) => {
       try {
@@ -512,6 +547,7 @@ export default function TeamPage() {
                         <div className="text-muted-foreground">{since(inv.expires_at)}</div>
                         <div className="text-muted-foreground">{since(inv.created_at)}</div>
                         <div className="flex items-center gap-2 justify-end">
+                          {/* LEGACY resend */}
                           <Button
                             size="icon"
                             variant="ghost"
@@ -521,13 +557,18 @@ export default function TeamPage() {
                             <RefreshCw className="w-4 h-4" />
                           </Button>
 
-                          {/* Quick copy link (matches toast link when j.warn) */}
+                          {/* Copy invite link (supports legacy + new) */}
                           <Button
                             size="icon"
                             variant="ghost"
                             title="Copiar enlace de invitación"
                             onClick={() => {
-                              const link = `${window.location.origin}/accept-invitation?token=${inv.invitation_token}`;
+                              const token = inv.invitation_token ?? inv.token;
+                              if (!token) {
+                                toast.error('Esta invitación no tiene token disponible.');
+                                return;
+                              }
+                              const link = `${window.location.origin}/accept-invitation?token=${token}`;
                               navigator.clipboard.writeText(link);
                               toast.success('Enlace copiado al portapapeles');
                             }}
@@ -535,6 +576,7 @@ export default function TeamPage() {
                             <Copy className="w-4 h-4" />
                           </Button>
 
+                          {/* LEGACY delete */}
                           <Button
                             size="icon"
                             variant="ghost"
