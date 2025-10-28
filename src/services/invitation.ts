@@ -1,9 +1,12 @@
+// src/services/invitation.ts
 // Uses serverless endpoints instead of direct DB writes.
 // Safer with RLS and keeps logic centralized on the server.
 
 export async function checkInvitation(token: string) {
   try {
-    const r = await fetch(`/api/team/check?token=${encodeURIComponent(token)}`, { method: 'GET' });
+    const r = await fetch(`/api/team/check?token=${encodeURIComponent(token)}`, {
+      method: 'GET',
+    });
     const j = await r.json();
     return j; // { valid: boolean, invitation?: { email, role, team_id, team_name, token }, error?: string }
   } catch (e: any) {
