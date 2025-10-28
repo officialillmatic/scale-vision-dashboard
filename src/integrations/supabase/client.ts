@@ -1,5 +1,5 @@
 // src/integrations/supabase/client.ts
-import { createBrowserClient, type SupabaseClient } from '@supabase/ssr'; // or '@supabase/supabase-js' if you’re not using ssr helpers
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -7,23 +7,32 @@ declare global {
 }
 
 /**
- * Avoid multiple GoTrueClient instances in the same tab.
- * Reuse a single Supabase client across HMR reloads and re-mounts.
+ * Single Supabase client for the whole app (prevents "Multiple GoTrueClient" warning).
+ * Uses Vite env vars on the client. Make sure these are set in Vercel with the VITE_ prefix.
  */
 function getClient(): SupabaseClient {
   if (globalThis.__supabaseSingleton__) return globalThis.__supabaseSingleton__;
 
-  const url = import.meta.env.VITE_SUPABASE_URL || (window as any).SUPABASE_URL || process.env.SUPABASE_URL;
-  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any).SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  // Client-side keys MUST come from the Vite prefix or similar public injection.
+  const url =
+    import.meta.env.VITE_SUPABASE_URL ||
+    (window as any).VITE_SUPABASE_URL || // optional fallback if you inject via script
+    '';
+  const anon =
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    (window as any).VITE_SUPABASE_ANON_KEY ||
+    '';
 
   if (!url || !anon) {
-    console.error('[supabase] Missing env: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
-    throw new Error('Missing Supabase env');
+    console.error(
+      '[supabase] Missing env. Required: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY'
+    );
+    throw new Error('Missing Supabase client env');
   }
 
-  const client = createBrowserClient(url, anon, {
+  const client = createClient(url, anon, {
     auth: {
-      storageKey: 'drscale-auth', // unique key so extensions/other apps don’t collide
+      storageKey: 'drscale-auth', // unique to your app
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
