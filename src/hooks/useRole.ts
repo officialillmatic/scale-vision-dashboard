@@ -29,7 +29,8 @@ export const useRole = () => {
   
   // 🚨 BYPASS TEMPORAL: Verificación específica para emails de super admin
   const SUPER_ADMIN_EMAILS = ['aiagentsdevelopers@gmail.com', 'produpublicol@gmail.com'];
-  const isEmailSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email);
+  const isEmailSuperAdmin =
+    user?.email && SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase());
   
   console.log("🔥 [USE_ROLE] BYPASS DEBUG:");
   console.log("🔥 [USE_ROLE] User email:", user?.email);
