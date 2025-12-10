@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { z } from "zod";
@@ -21,7 +22,7 @@ const resetPasswordSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
 });
 
-const PasswordResetForm = () => {
+const ResetPasswordForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   
@@ -108,4 +109,4 @@ const PasswordResetForm = () => {
   );
 };
 
-export default PasswordResetForm;
+export default ResetPasswordForm;
