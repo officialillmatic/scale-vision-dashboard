@@ -1,12 +1,6 @@
-
+// src/hooks/useSuperAdmin.ts
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
-
-// 🚨 SOLUCIÓN: Lista de emails de super admin
-const SUPER_ADMIN_EMAILS = [
-  'aiagentsdevelopers@gmail.com',
-  'produpublicol@gmail.com'
-]
 
 export const useSuperAdmin = () => {
   const [user, setUser] = useState(null)
@@ -14,69 +8,120 @@ export const useSuperAdmin = () => {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const getUser = async () => {
+    let mounted = true
+
+    const checkSuperAdmin = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser()
+        console.log('🔍 useSuperAdmin - Iniciando verificación...')
         
-        console.log('🔍 useSuperAdmin - Checking user:', user?.email)
-        console.log('🔍 useSuperAdmin - User metadata:', user?.user_metadata)
-        console.log('🔍 useSuperAdmin - App metadata:', user?.app_metadata)
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError) {
+          console.error('❌ useSuperAdmin - Error de auth:', authError)
+          if (mounted) {
+            setUser(null)
+            setIsSuperAdmin(false)
+            setIsLoading(false)
+          }
+          return
+        }
+
+        console.log('✅ useSuperAdmin - Usuario:', user?.email)
+        
+        if (!mounted) return
         
         setUser(user)
         
-        if (user) {
-          // 🚨 CORREGIR: Usar user_metadata y app_metadata correctamente
-          const isSuperFromUserMetadata = user.user_metadata?.role === 'super_admin'
-          const isSuperFromAppMetadata = user.app_metadata?.role === 'super_admin'
-          const isSuperFromEmail = SUPER_ADMIN_EMAILS.includes(user.email)
-          
-          const finalIsSuper = isSuperFromUserMetadata || isSuperFromAppMetadata || isSuperFromEmail
-          
-          console.log('🔍 useSuperAdmin - From user metadata:', isSuperFromUserMetadata)
-          console.log('🔍 useSuperAdmin - From app metadata:', isSuperFromAppMetadata)
-          console.log('🔍 useSuperAdmin - From email:', isSuperFromEmail)
-          console.log('🔍 useSuperAdmin - Final Result:', finalIsSuper)
-          
-          setIsSuperAdmin(finalIsSuper)
-        } else {
-          console.log('🔍 useSuperAdmin - No user')
+        if (!user) {
+          console.log('❌ useSuperAdmin - Sin usuario')
           setIsSuperAdmin(false)
+          setIsLoading(false)
+          return
         }
-      } catch (error) {
-        console.error('🔍 useSuperAdmin - Error:', error)
-        setUser(null)
-        setIsSuperAdmin(false)
-      } finally {
+
+        // Verificar en la tabla super_admins (fuente de verdad)
+        console.log('🔍 useSuperAdmin - Consultando tabla super_admins...')
+        
+        const { data: superAdminData, error: superAdminError } = await supabase
+          .from('super_admins')
+          .select('id, user_id, email')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (superAdminError && superAdminError.code !== 'PGRST116') {
+          console.error('⚠️ useSuperAdmin - Error consultando super_admins:', superAdminError)
+        }
+
+        const isSuper = !!superAdminData
+
+        if (!mounted) return
+
+        if (isSuper) {
+          console.log('👑 useSuperAdmin - ¡Es SUPER ADMIN!')
+        } else {
+          console.log('👤 useSuperAdmin - Usuario regular')
+        }
+        
+        setIsSuperAdmin(isSuper)
         setIsLoading(false)
+
+      } catch (error) {
+        console.error('💥 useSuperAdmin - Error crítico:', error)
+        if (mounted) {
+          setUser(null)
+          setIsSuperAdmin(false)
+          setIsLoading(false)
+        }
       }
     }
 
-    getUser()
+    checkSuperAdmin()
 
-    // 🔧 Escuchar cambios de autenticación
+    // Escuchar cambios de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('🔍 useSuperAdmin - Auth change:', event, session?.user?.email)
+      async (event, session) => {
+        console.log('🔔 useSuperAdmin - Auth cambió:', event)
         
+        if (!mounted) return
+
         if (session?.user) {
           setUser(session.user)
-          const finalIsSuper = 
-            session.user.user_metadata?.role === 'super_admin' ||
-            session.user.app_metadata?.role === 'super_admin' ||
-            SUPER_ADMIN_EMAILS.includes(session.user.email)
-          setIsSuperAdmin(finalIsSuper)
+          setIsLoading(true)
+          
+          // Re-verificar en super_admins
+          try {
+            const { data: superAdminData } = await supabase
+              .from('super_admins')
+              .select('id')
+              .eq('user_id', session.user.id)
+              .maybeSingle()
+
+            if (mounted) {
+              setIsSuperAdmin(!!superAdminData)
+              setIsLoading(false)
+            }
+          } catch (error) {
+            console.error('❌ useSuperAdmin - Error en auth change:', error)
+            if (mounted) {
+              setIsSuperAdmin(false)
+              setIsLoading(false)
+            }
+          }
         } else {
           setUser(null)
           setIsSuperAdmin(false)
+          setIsLoading(false)
         }
-        setIsLoading(false)
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
-  // 🔧 BACKWARDS COMPATIBILITY: Mantener las mismas propiedades que antes
+  // Mantener compatibilidad con código existente
   return { 
     isSuperAdmin, 
     isLoading,
