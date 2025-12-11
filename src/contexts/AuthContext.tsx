@@ -10,12 +10,15 @@ type TeamLite = {
   seat_limit: number | null;
 };
 
+/**
+ * ✅ SessionState ACTUALIZADO - Ahora incluye isSuperAdmin
+ */
 type SessionState = {
   loading: boolean;
   user: any | null;
   currentTeam: TeamLite | null;
   teamRole: Role | null;
-  isSuperAdmin: boolean; // NUEVO: indicador de super admin
+  isSuperAdmin: boolean; // ✅ NUEVO: Detecta super admins
 };
 
 const AuthCtx = createContext<SessionState>({
@@ -23,17 +26,66 @@ const AuthCtx = createContext<SessionState>({
   user: null,
   currentTeam: null,
   teamRole: null,
-  isSuperAdmin: false,
+  isSuperAdmin: false, // ✅ NUEVO
 });
 
 export const useAuth = () => useContext(AuthCtx);
+
+/**
+ * ✅ FUNCIÓN PARA VERIFICAR SUPER ADMIN
+ * 
+ * Consulta la tabla 'super_admins' en Supabase
+ * Esta tabla contiene el user_id de super admins autorizados
+ */
+const checkSuperAdmin = async (userId: string): Promise<boolean> => {
+  try {
+    console.log('🔍 [AuthContext] Verificando super admin para:', userId)
+    
+    // Método 1: Consultar tabla super_admins directamente
+    const { data: superAdminRecord, error } = await supabase
+      .from('super_admins')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (error) {
+      console.error('❌ [AuthContext] Error consultando super_admins:', error)
+      
+      // Fallback: Intentar con función RPC
+      console.log('🔄 [AuthContext] Intentando con is_super_admin()...')
+      const { data: isSuperRPC, error: rpcError } = await supabase
+        .rpc('is_super_admin')
+      
+      if (rpcError) {
+        console.error('❌ [AuthContext] Error en RPC:', rpcError)
+        return false
+      }
+      
+      return !!isSuperRPC
+    }
+
+    const isSuper = !!superAdminRecord
+    
+    if (isSuper) {
+      console.log('✅ [AuthContext] Usuario ES SUPER ADMIN')
+    } else {
+      console.log('❌ [AuthContext] Usuario NO es super admin')
+    }
+    
+    return isSuper
+
+  } catch (error) {
+    console.error('💥 [AuthContext] Excepción verificando super admin:', error)
+    return false
+  }
+}
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any | null>(null);
   const [currentTeam, setCurrentTeam] = useState<TeamLite | null>(null);
   const [teamRole, setTeamRole] = useState<Role | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false); // ✅ NUEVO estado
 
   useEffect(() => {
     let mounted = true;
@@ -43,12 +95,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setLoading(true);
         
         // 1. Obtener usuario autenticado
-        const { data: auth, error: authError } = await supabase.auth.getUser();
-        
-        if (authError) {
-          console.error('[AuthContext] Auth error:', authError);
-        }
-        
+        const { data: auth } = await supabase.auth.getUser();
         const u = auth?.user ?? null;
         
         if (!mounted) return;
@@ -56,8 +103,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setUser(u);
 
         if (!u) {
-          // No hay usuario autenticado
-          console.log('[AuthContext] No authenticated user');
+          // No hay usuario logueado
+          console.log('❌ [AuthContext] No hay usuario autenticado')
           setCurrentTeam(null);
           setTeamRole(null);
           setIsSuperAdmin(false);
@@ -65,42 +112,25 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           return;
         }
 
-        console.log('[AuthContext] User authenticated:', u.email);
+        console.log('👤 [AuthContext] Usuario autenticado:', u.email)
 
-        // 2. PRIMERO: Verificar si es super admin
-        const { data: superAdminData, error: superAdminError } = await supabase
-          .from('super_admins')
-          .select('*')
-          .eq('user_id', u.id)
-          .maybeSingle();
-
-        if (superAdminError) {
-          console.warn('[AuthContext] Error checking super_admins (RLS?):', superAdminError);
-        }
-
-        const isSuper = !!superAdminData;
+        // 2. ✅ VERIFICAR SI ES SUPER ADMIN (CRÍTICO - HACER PRIMERO)
+        const isSuper = await checkSuperAdmin(u.id)
         
-        console.log('[AuthContext] Super admin check:', {
-          user_id: u.id,
-          email: u.email,
-          is_super_admin: isSuper,
-          super_admin_record: superAdminData
-        });
-
-        setIsSuperAdmin(isSuper);
+        if (!mounted) return;
+        
+        setIsSuperAdmin(isSuper)
 
         if (isSuper) {
-          // Si es super admin, no necesita team
-          console.log('✅ [AuthContext] User is SUPER ADMIN - full access granted');
-          setCurrentTeam(null);
-          setTeamRole('admin' as Role); // Dar rol admin para compatibilidad
-          setLoading(false);
-          return;
+          console.log('🔥 [AuthContext] SUPER ADMIN detectado - acceso total concedido')
+          console.log('🔥 [AuthContext] Email:', u.email)
+          console.log('🔥 [AuthContext] User ID:', u.id)
+          
+          // Super admins tienen acceso total, no necesitan team
+          // Pero igual intentamos cargar su team si existe
         }
 
-        // 3. SOLO si NO es super admin: Verificar team membership
-        console.log('[AuthContext] Not super admin, checking team membership...');
-        
+        // 3. Cargar información de team (para todos los usuarios)
         const { data: mem, error: memErr } = await supabase
           .from('team_members')
           .select('team_id, role')
@@ -109,20 +139,26 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           .maybeSingle();
 
         if (memErr) {
-          console.warn('[AuthContext] team_members read error (RLS?):', memErr);
+          console.warn('[AuthContext] Error leyendo team_members:', memErr);
+          // Si es super admin, esto no es crítico
+          if (!isSuper) {
+            console.warn('[AuthContext] Usuario normal sin team_member');
+          }
         }
 
         if (!mem) {
-          console.log('[AuthContext] No team membership found');
+          if (isSuper) {
+            console.log('ℹ️ [AuthContext] Super admin sin team asignado (OK)');
+          } else {
+            console.log('⚠️ [AuthContext] Usuario normal sin team');
+          }
           setCurrentTeam(null);
           setTeamRole(null);
           setLoading(false);
           return;
         }
 
-        console.log('[AuthContext] Team membership found:', mem);
-
-        // 4. Obtener datos del team
+        // 4. Cargar datos del team
         const { data: team, error: teamErr } = await supabase
           .from('teams')
           .select('id, name, seat_limit')
@@ -130,25 +166,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           .single();
 
         if (teamErr) {
-          console.warn('[AuthContext] teams read error (RLS?):', teamErr);
+          console.warn('[AuthContext] Error leyendo teams:', teamErr);
           setCurrentTeam(null);
           setTeamRole(mem.role as Role);
           setLoading(false);
           return;
         }
 
-        console.log('[AuthContext] Team data loaded:', team);
+        console.log('✅ [AuthContext] Team cargado:', team.name)
         setCurrentTeam(team as TeamLite);
         setTeamRole(mem.role as Role);
         setLoading(false);
-        
+
       } catch (error) {
-        console.error('[AuthContext] Unexpected error in init():', error);
+        console.error('💥 [AuthContext] Error en init():', error);
         if (mounted) {
-          setUser(null);
-          setCurrentTeam(null);
-          setTeamRole(null);
-          setIsSuperAdmin(false);
           setLoading(false);
         }
       }
@@ -157,9 +189,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     init();
 
     // Escuchar cambios de autenticación
-    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
-      console.log('[AuthContext] Auth state changed:', event);
-      // Re-ejecutar init en cambios de autenticación
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+      console.log('🔔 [AuthContext] Auth state change:', _event);
+      // Re-ejecutar init cuando cambia el estado de auth
       init();
     });
 
@@ -169,16 +201,47 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
   }, []);
 
+  // ✅ Refrescar sesión periódicamente
+  useEffect(() => {
+    if (!user) return;
+
+    // Refrescar sesión cada 50 minutos (los tokens expiran en 60 min)
+    const refreshInterval = setInterval(async () => {
+      console.log('🔄 [AuthContext] Refrescando sesión...');
+      const { data, error } = await supabase.auth.refreshSession();
+      
+      if (error) {
+        console.error('❌ [AuthContext] Error refrescando sesión:', error);
+      } else {
+        console.log('✅ [AuthContext] Sesión refrescada exitosamente');
+      }
+    }, 50 * 60 * 1000); // 50 minutos
+
+    return () => clearInterval(refreshInterval);
+  }, [user]);
+
   const value = useMemo(
     () => ({ 
       loading, 
       user, 
       currentTeam, 
       teamRole,
-      isSuperAdmin 
+      isSuperAdmin // ✅ NUEVO: Exponer isSuperAdmin
     }),
     [loading, user, currentTeam, teamRole, isSuperAdmin]
   );
+
+  // ✅ Log para debugging
+  useEffect(() => {
+    if (!loading && user) {
+      console.log('📊 [AuthContext] Estado actual:', {
+        email: user.email,
+        isSuperAdmin,
+        hasTeam: !!currentTeam,
+        teamRole
+      });
+    }
+  }, [loading, user, isSuperAdmin, currentTeam, teamRole]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 };
