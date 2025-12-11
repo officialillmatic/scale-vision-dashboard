@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client"; // ✅ CAMBIO CRÍTICO
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -25,15 +25,11 @@ const loginSchema = z.object({
   password: z.string().min(1, { message: "Password is required" }),
 });
 
-// ✅ Función helper para timeout
-const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => 
-      setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
-    )
-  ]);
-};
+// Super admin emails - estos bypasean todas las verificaciones
+const SUPER_ADMIN_EMAILS = [
+  'produpublicol@gmail.com',
+  'aiagentsdevelopers@gmail.com'
+];
 
 export const LoginForm = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -53,48 +49,45 @@ export const LoginForm = () => {
     setIsLoading(true);
     setAuthError(null);
     
+    const email = values.email.trim().toLowerCase();
+    const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(email);
+    
     try {
-      console.log("🔐 [LoginForm] Attempting to sign in...");
-      console.log("🔐 [LoginForm] Email:", values.email.trim());
+      console.log(`🔐 Login attempt: ${email} ${isSuperAdmin ? '(SUPER ADMIN)' : '(normal user)'}`);
       
-      // ✅ Aumentar timeout a 30 segundos
-      const loginPromise = supabase.auth.signInWithPassword({
-        email: values.email.trim(),
+      // ✅ Login directo - sin timeout, sin verificaciones
+      const { error, data } = await supabase.auth.signInWithPassword({
+        email: email,
         password: values.password,
       });
       
-      const { error, data } = await withTimeout(loginPromise, 30000);
-      
       if (error) {
-        console.error("❌ [LoginForm] Supabase login error:", error);
+        console.error("❌ Login error:", error);
         throw error;
       }
       
-      console.log("✅ [LoginForm] Login successful");
-      console.log("✅ [LoginForm] User:", data.user?.email);
-      console.log("✅ [LoginForm] Session:", !!data.session);
-      
+      console.log("✅ Login successful");
       toast.success("Successfully signed in");
       
-      // ✅ Pequeña pausa para que AuthContext procese
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // ✅ CRÍTICO: Para super admin, navegar INMEDIATAMENTE sin esperar AuthContext
+      if (isSuperAdmin) {
+        console.log("🔥 Super admin - redirecting immediately");
+        // Navegar SIN esperar
+        window.location.href = '/dashboard';
+        return;
+      }
       
-      console.log("➡️ [LoginForm] Navigating to dashboard...");
+      // Para usuarios normales, esperar un poco
+      await new Promise(resolve => setTimeout(resolve, 300));
       navigate("/dashboard");
       
     } catch (error: any) {
-      console.error("💥 [LoginForm] Full login error:", error);
+      console.error("💥 Login error:", error);
       
-      if (error.message === 'Request timeout') {
-        setAuthError(
-          "Login is taking too long. Please check your internet connection and try again."
-        );
-      } else if (error.message?.includes("Failed to fetch")) {
-        setAuthError(
-          "Network error connecting to authentication service. Please check your network connection or try again later."
-        );
-      } else if (error.message?.includes("Invalid login credentials")) {
+      if (error.message?.includes("Invalid login credentials")) {
         setAuthError("Invalid email or password. Please check your credentials and try again.");
+      } else if (error.message?.includes("Email not confirmed")) {
+        setAuthError("Please confirm your email address before signing in.");
       } else {
         setAuthError(error.message || "Failed to sign in. Please try again.");
       }
