@@ -8,120 +8,78 @@ export const useSuperAdmin = () => {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    let mounted = true
-
-    const checkSuperAdmin = async () => {
+    const getUser = async () => {
       try {
-        console.log('🔍 useSuperAdmin - Iniciando verificación...')
+        const { data: { user }, error } = await supabase.auth.getUser()
         
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        if (authError) {
-          console.error('❌ useSuperAdmin - Error de auth:', authError)
-          if (mounted) {
-            setUser(null)
-            setIsSuperAdmin(false)
-            setIsLoading(false)
-          }
-          return
-        }
-
-        console.log('✅ useSuperAdmin - Usuario:', user?.email)
-        
-        if (!mounted) return
+        console.log('🔍 [useSuperAdmin] Checking user:', user?.email)
         
         setUser(user)
         
-        if (!user) {
-          console.log('❌ useSuperAdmin - Sin usuario')
-          setIsSuperAdmin(false)
-          setIsLoading(false)
-          return
-        }
+        if (user) {
+          // 🔥 CRÍTICO: Consultar la tabla super_admins (fuente de verdad)
+          const { data: superAdminData, error: superErr } = await supabase
+            .from('super_admins')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle()
 
-        // Verificar en la tabla super_admins (fuente de verdad)
-        console.log('🔍 useSuperAdmin - Consultando tabla super_admins...')
-        
-        const { data: superAdminData, error: superAdminError } = await supabase
-          .from('super_admins')
-          .select('id, user_id, email')
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        if (superAdminError && superAdminError.code !== 'PGRST116') {
-          console.error('⚠️ useSuperAdmin - Error consultando super_admins:', superAdminError)
-        }
-
-        const isSuper = !!superAdminData
-
-        if (!mounted) return
-
-        if (isSuper) {
-          console.log('👑 useSuperAdmin - ¡Es SUPER ADMIN!')
+          if (superErr) {
+            console.error('❌ [useSuperAdmin] Error checking super_admins:', superErr)
+            setIsSuperAdmin(false)
+          } else {
+            const isSuper = !!superAdminData
+            console.log('🔍 [useSuperAdmin] Is super admin:', isSuper)
+            setIsSuperAdmin(isSuper)
+          }
         } else {
-          console.log('👤 useSuperAdmin - Usuario regular')
-        }
-        
-        setIsSuperAdmin(isSuper)
-        setIsLoading(false)
-
-      } catch (error) {
-        console.error('💥 useSuperAdmin - Error crítico:', error)
-        if (mounted) {
-          setUser(null)
+          console.log('🔍 [useSuperAdmin] No user')
           setIsSuperAdmin(false)
-          setIsLoading(false)
         }
+      } catch (error) {
+        console.error('❌ [useSuperAdmin] Exception:', error)
+        setUser(null)
+        setIsSuperAdmin(false)
+      } finally {
+        setIsLoading(false)
       }
     }
 
-    checkSuperAdmin()
+    getUser()
 
-    // Escuchar cambios de autenticación
+    // 🔧 Escuchar cambios de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔔 useSuperAdmin - Auth cambió:', event)
+        console.log('🔄 [useSuperAdmin] Auth change:', event, session?.user?.email)
         
-        if (!mounted) return
-
         if (session?.user) {
           setUser(session.user)
-          setIsLoading(true)
           
-          // Re-verificar en super_admins
-          try {
-            const { data: superAdminData } = await supabase
-              .from('super_admins')
-              .select('id')
-              .eq('user_id', session.user.id)
-              .maybeSingle()
+          // Verificar en super_admins
+          const { data: superAdminData, error: superErr } = await supabase
+            .from('super_admins')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle()
 
-            if (mounted) {
-              setIsSuperAdmin(!!superAdminData)
-              setIsLoading(false)
-            }
-          } catch (error) {
-            console.error('❌ useSuperAdmin - Error en auth change:', error)
-            if (mounted) {
-              setIsSuperAdmin(false)
-              setIsLoading(false)
-            }
+          if (superErr) {
+            console.error('❌ [useSuperAdmin] Error in auth change:', superErr)
+            setIsSuperAdmin(false)
+          } else {
+            setIsSuperAdmin(!!superAdminData)
           }
         } else {
           setUser(null)
           setIsSuperAdmin(false)
-          setIsLoading(false)
         }
+        setIsLoading(false)
       }
     )
 
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
+    return () => subscription.unsubscribe()
   }, [])
 
-  // Mantener compatibilidad con código existente
+  // 🔧 BACKWARDS COMPATIBILITY: Mantener las mismas propiedades que antes
   return { 
     isSuperAdmin, 
     isLoading,
