@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-type Role = 'owner' | 'admin' | 'member' | 'viewer' | 'super_admin';
+type Role = 'owner' | 'admin' | 'member' | 'viewer';
 
 type TeamLite = {
   id: string;
@@ -45,40 +45,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
       if (!u) {
         // not logged in
-        console.log('❌ [AUTH] No hay usuario autenticado');
         setCurrentTeam(null);
         setTeamRole(null);
         setLoading(false);
         return;
       }
 
-      console.log('✅ [AUTH] Usuario autenticado:', u.email);
-
-      // 🔥 CRÍTICO: VERIFICAR SUPER_ADMINS PRIMERO
-      console.log('🔍 [AUTH] Verificando super_admins...');
-      const { data: superAdminData, error: superErr } = await supabase
-        .from('super_admins')
-        .select('*')
-        .eq('user_id', u.id)
-        .maybeSingle();
-
-      if (superErr) {
-        console.error('❌ [AUTH] Error verificando super_admins:', superErr);
-      }
-
-      // Si es SUPER ADMIN → acceso completo y salir
-      if (superAdminData) {
-        console.log('👑 [AUTH] Usuario es SUPER ADMIN - acceso completo');
-        if (!mounted) return;
-        setCurrentTeam(null); // Super admin no necesita team
-        setTeamRole('super_admin');
-        setLoading(false);
-        return; // ✅ SALIR AQUÍ - super admin listo
-      }
-
-      console.log('👤 [AUTH] Usuario regular - verificando teams...');
-
-      // Solo si NO es super admin, verificar team_members
+      // Resolve current team by membership (first team for now; later you can add a switcher)
       const { data: mem, error: memErr } = await supabase
         .from('team_members')
         .select('team_id, role')
@@ -87,12 +60,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         .maybeSingle();
 
       if (memErr) {
-        console.warn('[AUTH] team_members read error (RLS?)', memErr);
+        console.warn('[auth] team_members read error (RLS?)', memErr);
       }
 
       if (!mem) {
-        console.log('ℹ️ [AUTH] Usuario sin team asignado');
-        if (!mounted) return;
         setCurrentTeam(null);
         setTeamRole(null);
         setLoading(false);
@@ -106,16 +77,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         .single();
 
       if (teamErr) {
-        console.warn('[AUTH] teams read error (RLS?)', teamErr);
-        if (!mounted) return;
+        console.warn('[auth] teams read error (RLS?)', teamErr);
         setCurrentTeam(null);
         setTeamRole(mem.role as Role);
         setLoading(false);
         return;
       }
 
-      console.log('✅ [AUTH] Usuario con team:', team.name);
-      if (!mounted) return;
       setCurrentTeam(team as TeamLite);
       setTeamRole(mem.role as Role);
       setLoading(false);
@@ -125,7 +93,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
       // re-run init on sign in/out
-      console.log('🔄 [AUTH] Auth state changed:', _event);
       init();
     });
 
