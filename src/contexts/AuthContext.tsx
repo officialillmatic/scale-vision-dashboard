@@ -131,52 +131,66 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         }
 
         // 3. Cargar información de team (para todos los usuarios)
-        const { data: mem, error: memErr } = await supabase
-          .from('team_members')
-          .select('team_id, role')
-          .eq('user_id', u.id)
-          .limit(1)
-          .maybeSingle();
+        // ⚠️ IMPORTANTE: No bloquear el login si hay errores de RLS
+        try {
+          const { data: mem, error: memErr } = await supabase
+            .from('team_members')
+            .select('team_id, role')
+            .eq('user_id', u.id)
+            .limit(1)
+            .maybeSingle();
 
-        if (memErr) {
-          console.warn('[AuthContext] Error leyendo team_members:', memErr);
-          // Si es super admin, esto no es crítico
-          if (!isSuper) {
-            console.warn('[AuthContext] Usuario normal sin team_member');
+          if (memErr) {
+            console.warn('[AuthContext] Error leyendo team_members:', memErr);
+            // ✅ NO BLOQUEAMOS: Si es super admin o hay error de RLS, continuamos
+            if (isSuper) {
+              console.log('ℹ️ [AuthContext] Super admin sin team (OK - tiene acceso total)');
+            }
+            setCurrentTeam(null);
+            setTeamRole(null);
+            setLoading(false);
+            return; // ✅ PERMITIR LOGIN aunque falle team_members
           }
-        }
 
-        if (!mem) {
-          if (isSuper) {
-            console.log('ℹ️ [AuthContext] Super admin sin team asignado (OK)');
-          } else {
-            console.log('⚠️ [AuthContext] Usuario normal sin team');
+          if (!mem) {
+            if (isSuper) {
+              console.log('ℹ️ [AuthContext] Super admin sin team asignado (OK)');
+            } else {
+              console.log('⚠️ [AuthContext] Usuario normal sin team');
+            }
+            setCurrentTeam(null);
+            setTeamRole(null);
+            setLoading(false);
+            return; // ✅ PERMITIR LOGIN aunque no tenga team
           }
+
+          // 4. Cargar datos del team
+          const { data: team, error: teamErr } = await supabase
+            .from('teams')
+            .select('id, name, seat_limit')
+            .eq('id', mem.team_id)
+            .single();
+
+          if (teamErr) {
+            console.warn('[AuthContext] Error leyendo teams:', teamErr);
+            setCurrentTeam(null);
+            setTeamRole(mem.role as Role);
+            setLoading(false);
+            return; // ✅ PERMITIR LOGIN aunque falle teams
+          }
+
+          console.log('✅ [AuthContext] Team cargado:', team.name)
+          setCurrentTeam(team as TeamLite);
+          setTeamRole(mem.role as Role);
+          setLoading(false);
+          
+        } catch (teamError) {
+          // ✅ CATCH de seguridad: Si cualquier query de team falla, NO bloqueamos
+          console.error('[AuthContext] Excepción cargando team, pero permitiendo login:', teamError);
           setCurrentTeam(null);
           setTeamRole(null);
           setLoading(false);
-          return;
         }
-
-        // 4. Cargar datos del team
-        const { data: team, error: teamErr } = await supabase
-          .from('teams')
-          .select('id, name, seat_limit')
-          .eq('id', mem.team_id)
-          .single();
-
-        if (teamErr) {
-          console.warn('[AuthContext] Error leyendo teams:', teamErr);
-          setCurrentTeam(null);
-          setTeamRole(mem.role as Role);
-          setLoading(false);
-          return;
-        }
-
-        console.log('✅ [AuthContext] Team cargado:', team.name)
-        setCurrentTeam(team as TeamLite);
-        setTeamRole(mem.role as Role);
-        setLoading(false);
 
       } catch (error) {
         console.error('💥 [AuthContext] Error en init():', error);
