@@ -87,11 +87,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         console.log('🚀 [AuthContext.init] START');
         setLoading(true);
         
-        // PASO 1: Obtener usuario
-        console.log('📋 [AuthContext.init] PASO 1: getUser()...');
-        const { data: auth } = await supabase.auth.getUser();
-        const u = auth?.user ?? null;
+        // PASO 1: Obtener usuario - USAR getSession() en lugar de getUser()
+        console.log('📋 [AuthContext.init] PASO 1: getSession()...');
+        const { data: { session } } = await supabase.auth.getSession();
+        const u = session?.user ?? null;
         console.log('📋 [AuthContext.init] PASO 1: Usuario obtenido:', u?.email || 'NULL');
+        console.log('📋 [AuthContext.init] PASO 1: Session exists:', !!session);
         
         if (!mounted) {
           console.log('⚠️ [AuthContext.init] Component unmounted, aborting');
