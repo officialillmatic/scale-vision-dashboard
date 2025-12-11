@@ -1,10 +1,9 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client"; // ✅ CAMBIO CRÍTICO
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -26,6 +25,16 @@ const loginSchema = z.object({
   password: z.string().min(1, { message: "Password is required" }),
 });
 
+// ✅ Función helper para timeout
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+    )
+  ]);
+};
+
 export const LoginForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -44,32 +53,43 @@ export const LoginForm = () => {
     setIsLoading(true);
     setAuthError(null);
     
-    // Check if Supabase is properly configured
-    if (!hasValidSupabaseCredentials()) {
-      setAuthError("Missing Supabase configuration. Please check environment variables.");
-      setIsLoading(false);
-      return;
-    }
-    
     try {
-      console.log("Attempting to sign in with Supabase...");
-      const { error, data } = await supabase.auth.signInWithPassword({
+      console.log("🔐 [LoginForm] Attempting to sign in...");
+      console.log("🔐 [LoginForm] Email:", values.email.trim());
+      
+      // ✅ Agregar timeout de 10 segundos
+      const loginPromise = supabase.auth.signInWithPassword({
         email: values.email.trim(),
         password: values.password,
       });
       
+      const { error, data } = await withTimeout(loginPromise, 10000);
+      
       if (error) {
-        console.error("Supabase login error:", error);
+        console.error("❌ [LoginForm] Supabase login error:", error);
         throw error;
       }
       
-      console.log("Login successful:", data);
-      toast.success("Successfully signed in");
-      navigate("/dashboard");
-    } catch (error: any) {
-      console.error("Full login error details:", error);
+      console.log("✅ [LoginForm] Login successful");
+      console.log("✅ [LoginForm] User:", data.user?.email);
+      console.log("✅ [LoginForm] Session:", !!data.session);
       
-      if (error.message?.includes("Failed to fetch")) {
+      toast.success("Successfully signed in");
+      
+      // ✅ Pequeña pausa para que AuthContext procese
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log("➡️ [LoginForm] Navigating to dashboard...");
+      navigate("/dashboard");
+      
+    } catch (error: any) {
+      console.error("💥 [LoginForm] Full login error:", error);
+      
+      if (error.message === 'Request timeout') {
+        setAuthError(
+          "Login is taking too long. Please check your internet connection and try again."
+        );
+      } else if (error.message?.includes("Failed to fetch")) {
         setAuthError(
           "Network error connecting to authentication service. Please check your network connection or try again later."
         );
@@ -101,15 +121,6 @@ export const LoginForm = () => {
         </p>
       </div>
       <CardContent className="pt-8">
-        {!hasValidSupabaseCredentials() && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Missing Supabase configuration. Please check your environment variables.
-            </AlertDescription>
-          </Alert>
-        )}
-        
         {authError && (
           <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
