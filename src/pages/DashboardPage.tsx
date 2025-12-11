@@ -27,7 +27,7 @@ import {
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
-import { CreditBalance } from "@/components/credit/CreditBalance";
+import { CreditBalance } from "@/components/credits/CreditBalance";
 
 // 🔔 NUEVOS IMPORTS para notificaciones
 import { BalanceAlerts } from '@/components/notifications/BalanceAlerts';
