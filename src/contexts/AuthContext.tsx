@@ -189,10 +189,32 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     init();
 
     // Escuchar cambios de autenticación
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, sess) => {
       console.log('🔔 [AuthContext] Auth state change:', _event);
-      // Re-ejecutar init cuando cambia el estado de auth
-      init();
+      
+      // ✅ FIX: Manejar el evento SIGNED_IN explícitamente
+      if (_event === 'SIGNED_IN' && sess?.user) {
+        console.log('🔑 [AuthContext] SIGNED_IN detectado, re-inicializando...');
+        
+        // Esperar un momento para asegurar que Supabase haya actualizado la sesión
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Re-ejecutar init
+        await init();
+      } else if (_event === 'SIGNED_OUT') {
+        console.log('🚪 [AuthContext] SIGNED_OUT detectado');
+        setUser(null);
+        setCurrentTeam(null);
+        setTeamRole(null);
+        setIsSuperAdmin(false);
+        setLoading(false);
+      } else if (_event === 'TOKEN_REFRESHED') {
+        console.log('🔄 [AuthContext] TOKEN_REFRESHED');
+        // No necesitamos hacer nada, el token se actualizó automáticamente
+      } else {
+        // Para otros eventos, re-ejecutar init por si acaso
+        await init();
+      }
     });
 
     return () => {
