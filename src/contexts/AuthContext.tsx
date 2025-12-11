@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-type Role = 'owner' | 'admin' | 'member' | 'viewer';
+type Role = 'owner' | 'admin' | 'member' | 'viewer' | 'super_admin';
 
 type TeamLite = {
   id: string;
@@ -36,118 +36,96 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     let mounted = true;
 
     async function init() {
-      try {
-        setLoading(true);
-        console.log('🔄 [AUTH] Iniciando autenticación...');
-        
-        const { data: auth } = await supabase.auth.getUser();
-        const u = auth?.user ?? null;
-        
+      setLoading(true);
+      const { data: auth } = await supabase.auth.getUser();
+      const u = auth?.user ?? null;
+      if (!mounted) return;
+
+      setUser(u);
+
+      if (!u) {
+        // not logged in
+        console.log('❌ [AUTH] No hay usuario autenticado');
+        setCurrentTeam(null);
+        setTeamRole(null);
+        setLoading(false);
+        return;
+      }
+
+      console.log('✅ [AUTH] Usuario autenticado:', u.email);
+
+      // 🔥 CRÍTICO: VERIFICAR SUPER_ADMINS PRIMERO
+      console.log('🔍 [AUTH] Verificando super_admins...');
+      const { data: superAdminData, error: superErr } = await supabase
+        .from('super_admins')
+        .select('*')
+        .eq('user_id', u.id)
+        .maybeSingle();
+
+      if (superErr) {
+        console.error('❌ [AUTH] Error verificando super_admins:', superErr);
+      }
+
+      // Si es SUPER ADMIN → acceso completo y salir
+      if (superAdminData) {
+        console.log('👑 [AUTH] Usuario es SUPER ADMIN - acceso completo');
         if (!mounted) return;
+        setCurrentTeam(null); // Super admin no necesita team
+        setTeamRole('super_admin');
+        setLoading(false);
+        return; // ✅ SALIR AQUÍ - super admin listo
+      }
 
-        setUser(u);
+      console.log('👤 [AUTH] Usuario regular - verificando teams...');
 
-        if (!u) {
-          console.log('❌ [AUTH] Usuario no autenticado');
-          setCurrentTeam(null);
-          setTeamRole(null);
-          setLoading(false);
-          return;
-        }
+      // Solo si NO es super admin, verificar team_members
+      const { data: mem, error: memErr } = await supabase
+        .from('team_members')
+        .select('team_id, role')
+        .eq('user_id', u.id)
+        .limit(1)
+        .maybeSingle();
 
-        console.log('✅ [AUTH] Usuario autenticado:', u.email);
+      if (memErr) {
+        console.warn('[AUTH] team_members read error (RLS?)', memErr);
+      }
 
-        // ============================================================
-        // PASO 1: PRIMERO verificar si es Super Admin
-        // ============================================================
-        console.log('🔍 [AUTH] Verificando super_admins...');
-        
-        const { data: superAdminData, error: superAdminError } = await supabase
-          .from('super_admins')
-          .select('id, user_id, email')
-          .eq('user_id', u.id)
-          .maybeSingle();
-
-        if (superAdminError && superAdminError.code !== 'PGRST116') {
-          console.error('⚠️ [AUTH] Error verificando super_admins:', superAdminError.message);
-        }
-
-        const isSuperAdmin = !!superAdminData;
-
+      if (!mem) {
+        console.log('ℹ️ [AUTH] Usuario sin team asignado');
         if (!mounted) return;
+        setCurrentTeam(null);
+        setTeamRole(null);
+        setLoading(false);
+        return;
+      }
 
-        if (isSuperAdmin) {
-          console.log('👑 [AUTH] Usuario es SUPER ADMIN - acceso completo');
-          // Super admins tienen acceso completo sin necesidad de team
-          setCurrentTeam(null);
-          setTeamRole('owner'); // Super admin = permisos de owner
-          setLoading(false);
-          return; // ⚠️ IMPORTANTE: Salir aquí para super admins
-        }
+      const { data: team, error: teamErr } = await supabase
+        .from('teams')
+        .select('id, name, seat_limit')
+        .eq('id', mem.team_id)
+        .single();
 
-        console.log('👤 [AUTH] Usuario regular - verificando teams...');
-
-        // ============================================================
-        // PASO 2: Para usuarios regulares, buscar team membership
-        // ============================================================
-        const { data: mem, error: memErr } = await supabase
-          .from('team_members')
-          .select('team_id, role')
-          .eq('user_id', u.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (memErr && memErr.code !== 'PGRST116') {
-          console.warn('⚠️ [AUTH] Error leyendo team_members:', memErr.message);
-        }
-
+      if (teamErr) {
+        console.warn('[AUTH] teams read error (RLS?)', teamErr);
         if (!mounted) return;
-
-        if (!mem) {
-          console.log('ℹ️ [AUTH] Usuario sin team asignado');
-          setCurrentTeam(null);
-          setTeamRole(null);
-          setLoading(false);
-          return;
-        }
-
-        console.log('✅ [AUTH] Membresía en team encontrada');
-
-        const { data: team, error: teamErr } = await supabase
-          .from('teams')
-          .select('id, name, seat_limit')
-          .eq('id', mem.team_id)
-          .single();
-
-        if (!mounted) return;
-
-        if (teamErr) {
-          console.warn('⚠️ [AUTH] Error obteniendo team:', teamErr.message);
-          setCurrentTeam(null);
-          setTeamRole(mem.role as Role);
-          setLoading(false);
-          return;
-        }
-
-        console.log('✅ [AUTH] Team cargado:', team?.name);
-        setCurrentTeam(team as TeamLite);
+        setCurrentTeam(null);
         setTeamRole(mem.role as Role);
         setLoading(false);
-
-      } catch (error: any) {
-        console.error('💥 [AUTH] Error crítico:', error);
-        if (mounted) {
-          setCurrentTeam(null);
-          setTeamRole(null);
-          setLoading(false);
-        }
+        return;
       }
+
+      console.log('✅ [AUTH] Usuario con team:', team.name);
+      if (!mounted) return;
+      setCurrentTeam(team as TeamLite);
+      setTeamRole(mem.role as Role);
+      setLoading(false);
     }
 
     init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
-      console.log('🔔 [AUTH] Auth state cambió:', event);
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+      // re-run init on sign in/out
+      console.log('🔄 [AUTH] Auth state changed:', _event);
       init();
     });
 
