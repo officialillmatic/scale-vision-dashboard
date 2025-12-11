@@ -57,13 +57,13 @@ export const LoginForm = () => {
       console.log("🔐 [LoginForm] Attempting to sign in...");
       console.log("🔐 [LoginForm] Email:", values.email.trim());
       
-      // ✅ Agregar timeout de 10 segundos
+      // ✅ Aumentar timeout a 30 segundos
       const loginPromise = supabase.auth.signInWithPassword({
         email: values.email.trim(),
         password: values.password,
       });
       
-      const { error, data } = await withTimeout(loginPromise, 10000);
+      const { error, data } = await withTimeout(loginPromise, 30000);
       
       if (error) {
         console.error("❌ [LoginForm] Supabase login error:", error);
