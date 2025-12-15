@@ -71,3 +71,7 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and update the values before running the project. More details can be found in [docs/ENVIRONMENT_SETUP.md](docs/ENVIRONMENT_SETUP.md).
